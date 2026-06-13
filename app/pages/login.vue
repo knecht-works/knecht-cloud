@@ -17,11 +17,11 @@ const route = useRoute()
       color="error"
       variant="subtle"
       class="mb-4"
-      title="Login fehlgeschlagen"
-      description="Bitte versuche es erneut."
+      title="Login failed"
+      description="Please try again."
     />
     <p class="mb-4 text-muted">
-      Bitte mit GitHub anmelden, um fortzufahren.
+      Sign in with GitHub to continue.
     </p>
     <UButton
       to="/auth/github"
@@ -29,7 +29,7 @@ const route = useRoute()
       icon="i-simple-icons-github"
       block
     >
-      Mit GitHub anmelden
+      Sign in with GitHub
     </UButton>
   </UCard>
 </template>

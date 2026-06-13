@@ -10,7 +10,7 @@
 
     <template #body>
       <p class="text-muted">
-        Bald verfügbar — der visuelle Workflow-Builder.
+        Coming soon — the visual workflow builder.
       </p>
     </template>
   </UDashboardPanel>

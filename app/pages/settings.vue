@@ -10,7 +10,7 @@
 
     <template #body>
       <p class="text-muted">
-        Bald verfügbar — OpenRouter-Key, Modell und mehr.
+        Coming soon — OpenRouter key, model, and more.
       </p>
     </template>
   </UDashboardPanel>

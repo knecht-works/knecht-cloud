@@ -11,20 +11,29 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "nuxt typecheck",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
     "dev:docker": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up",
     "preview:docker": "docker compose up -d --build"
   },
   "dependencies": {
     "@nuxt/ui": "^4.8.2",
+    "better-sqlite3": "^12.10.0",
+    "drizzle-orm": "^0.45.2",
     "execa": "^9.6.1",
     "nuxt": "^4.4.8",
     "nuxt-auth-utils": "^0.5.29",
+    "octokit": "^5.0.5",
     "tailwindcss": "^4.3.1",
     "vue": "^3.5.35",
-    "vue-router": "^5.1.0"
+    "vue-router": "^5.1.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.16.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "drizzle-kit": "^0.31.10",
     "eslint": "^10.5.0",
     "typescript": "^6.0.3"
   },

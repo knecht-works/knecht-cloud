@@ -10,7 +10,7 @@
 
     <template #body>
       <p class="text-muted">
-        Bald verfügbar — Lauf-Logs und Status pro Projekt.
+        Coming soon — run logs and per-project status.
       </p>
     </template>
   </UDashboardPanel>

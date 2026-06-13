@@ -7,13 +7,13 @@ const { data, status, error, refresh } = await useFetch('/api/system')
 <template>
   <UCard>
     <div v-if="status === 'pending'">
-      Lade Systeminfo…
+      Loading system info…
     </div>
     <div
       v-else-if="error"
       class="text-error"
     >
-      Fehler: {{ error.message }}
+      Error: {{ error.message }}
     </div>
     <div
       v-else-if="data"
@@ -24,7 +24,7 @@ const { data, status, error, refresh } = await useFetch('/api/system')
       </div>
       <div>
         <span class="font-medium">
-          Host-Container ({{ data.hostContainers.length }}):
+          Host containers ({{ data.hostContainers.length }}):
         </span>
         <ul class="mt-1 list-inside list-disc text-sm">
           <li
@@ -43,7 +43,7 @@ const { data, status, error, refresh } = await useFetch('/api/system')
         :loading="status === 'pending'"
         @click="refresh()"
       >
-        Aktualisieren
+        Refresh
       </UButton>
     </template>
   </UCard>
