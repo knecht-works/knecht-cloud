@@ -1,0 +1,28 @@
+{
+  // Enable ESLint flat config (eslint.config.mjs)
+  "eslint.useFlatConfig": true,
+
+  // Auto-fix (and format via @stylistic) on save
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // Let ESLint lint all the file types this project uses
+  "eslint.validate": [
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+    "vue",
+    "html",
+    "markdown",
+    "json",
+    "jsonc",
+    "yaml"
+  ],
+
+  // Stylistic rules come from ESLint — keep Prettier and the editor formatter
+  // out of the way so they don't fight @stylistic
+  "prettier.enable": false,
+  "editor.formatOnSave": false
+}
