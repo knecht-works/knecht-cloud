@@ -1,0 +1,34 @@
+# Knecht — DooD validation harness.
+# Brings up the tooling container so you can exec in and validate that a
+# containerized Node image can drive the host Docker daemon via ddev.
+# Full procedure: internals/docs/dood-harness.md
+
+services:
+  knecht:
+    build:
+      context: .
+    # Grant the host docker socket's group to the (non-root) container process at
+    # RUNTIME — so the SAME prebuilt image works on any host, no rebuild when the
+    # gid differs. Find it with:  stat -c '%g' /var/run/docker.sock
+    #   OrbStack reports 0; a Linux host's `docker` group is usually 999.
+    # Set DOCKER_GID in .env (local) or by the installer (e.g. into /data/knecht/.env).
+    group_add:
+      - "${DOCKER_GID:-999}"
+    # The Knecht web UI (Nitro). Reachable at http://localhost:3000 locally; on a
+    # server this sits behind a reverse proxy with TLS (later).
+    ports:
+      - "3000:3000"
+    volumes:
+      # Docker-out-of-Docker: drive the HOST daemon through its socket.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Fixed project path — MUST be byte-identical on both sides. The host
+      # daemon resolves ddev's bind mounts, so the path inside the container has
+      # to equal the path on the host. A single variable is used on both sides
+      # so they can never drift. Production convention: /data/knecht/projects.
+      # macOS/OrbStack (SIP blocks /data): point it under your home, e.g.
+      #   export KNECHT_PROJECTS=/Users/you/knecht/projects
+      - ${KNECHT_PROJECTS:-/data/knecht/projects}:${KNECHT_PROJECTS:-/data/knecht/projects}
+    # ddev's router binds host ports 80/443 as a sibling container on the host,
+    # so we do NOT publish them here. (The app's preview proxy will reach the
+    # router over the host later — out of scope for this harness.)
+    restart: unless-stopped

@@ -1,0 +1,23 @@
+# Local DEV override — runs the Nuxt dev server (HMR) inside the tooling
+# container with your source live-mounted, so you develop against the exact
+# ddev/opencode/DooD environment that ships, but with hot-reload and no rebuild.
+#
+# Use (merged with the base file):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#   shortcut:  npm run dev:docker
+#
+# Production stays the plain `docker compose up` (builds + runs the prod image).
+services:
+  knecht:
+    build:
+      target: dev
+    command: ["npm", "run", "dev", "--", "--host"]
+    volumes:
+      # Your source, live → edits on the host are instantly visible (HMR).
+      # The socket + fixed-path mounts from the base file are appended, so the
+      # dev container still has full DooD + the project path.
+      - ./:/app
+      # Keep the image's Linux-built dirs — don't let the host's (darwin) shadow
+      # them. Anonymous volumes are seeded from the dev image on first start.
+      - /app/node_modules
+      - /app/.nuxt

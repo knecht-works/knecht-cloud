@@ -10,10 +10,13 @@
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "dev:docker": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up",
+    "preview:docker": "docker compose up -d --build"
   },
   "dependencies": {
     "@nuxt/ui": "^4.8.2",
+    "execa": "^9.6.1",
     "nuxt": "^4.4.8",
     "tailwindcss": "^4.3.1",
     "vue": "^3.5.35",
