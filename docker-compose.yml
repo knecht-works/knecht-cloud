@@ -7,6 +7,12 @@ services:
   knecht:
     build:
       context: .
+    # App env (OAuth creds, session password, …) passed INTO the container so the
+    # app process sees them. (compose also reads .env for ${...} interpolation, but
+    # that does NOT inject vars into the container — env_file does.) Host dev via
+    # `npm run dev` reads .env natively.
+    env_file:
+      - .env
     # Grant the host docker socket's group to the (non-root) container process at
     # RUNTIME — so the SAME prebuilt image works on any host, no rebuild when the
     # gid differs. Find it with:  stat -c '%g' /var/run/docker.sock

@@ -18,6 +18,7 @@
     "@nuxt/ui": "^4.8.2",
     "execa": "^9.6.1",
     "nuxt": "^4.4.8",
+    "nuxt-auth-utils": "^0.5.29",
     "tailwindcss": "^4.3.1",
     "vue": "^3.5.35",
     "vue-router": "^5.1.0"
