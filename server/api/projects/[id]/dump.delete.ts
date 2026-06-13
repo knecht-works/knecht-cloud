@@ -25,7 +25,7 @@ export default defineEventHandler((event) => {
 
   return db
     .update(schema.projects)
-    .set({ dbDumpPath: null, updatedAt: new Date() })
+    .set({ dbDumpPath: null, dbImported: false, updatedAt: new Date() })
     .where(eq(schema.projects.id, id))
     .returning()
     .get()

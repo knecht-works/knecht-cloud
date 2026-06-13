@@ -30,9 +30,10 @@ RUN npm i -g npm@${NPM_VERSION} && npm ci && npm run build
 FROM node:22-bookworm-slim AS tooling
 ARG NPM_VERSION
 
-# 1) Base system dependencies + mkcert (ddev uses it for local TLS)
+# 1) Base system dependencies + git (clone/fetch project repos) + mkcert (ddev
+#    uses it for local TLS)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg lsb-release \
+      ca-certificates curl gnupg lsb-release git \
       mkcert libnss3-tools \
  && install -m 0755 -d /etc/apt/keyrings \
  && rm -rf /var/lib/apt/lists/*

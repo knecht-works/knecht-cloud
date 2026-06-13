@@ -1,3 +1,5 @@
+import type { H3Event } from 'h3'
+
 // GitHub OAuth: first hit redirects to GitHub, the callback lands back here and
 // exchanges the code. The `repo` scope means the returned token can also clone
 // repos and open PRs later — login doubles as the repo credential
@@ -21,7 +23,7 @@ export default defineOAuthGitHubEventHandler({
         githubToken: tokens.access_token,
       },
     })
-    return sendRedirect(event, '/')
+    return sendRedirect(event, popRedirect(event))
   },
 
   onError(event, error) {
@@ -29,3 +31,21 @@ export default defineOAuthGitHubEventHandler({
     return sendRedirect(event, '/login?error=oauth')
   },
 })
+
+// Consume the post-login redirect target left by the preview proxy. Only our
+// own base domain is allowed (no open redirect); anything else → dashboard.
+function popRedirect(event: H3Event): string {
+  const raw = getCookie(event, 'knecht-redirect')
+  const domain = process.env.KNECHT_BASE_DOMAIN || undefined
+  deleteCookie(event, 'knecht-redirect', { domain, path: '/' })
+  if (!raw) return '/'
+  try {
+    const { hostname } = new URL(raw)
+    const base = process.env.KNECHT_BASE_DOMAIN
+    if (base && (hostname === base || hostname.endsWith(`.${base}`))) return raw
+  }
+  catch {
+    // Malformed stored URL — fall through to the dashboard.
+  }
+  return '/'
+}

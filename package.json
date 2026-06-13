@@ -15,7 +15,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "dev:docker": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up",
-    "preview:docker": "docker compose up -d --build"
+    "preview:docker": "docker compose up -d --build",
+    "sh:docker": "docker compose -f docker-compose.yml -f docker-compose.dev.yml exec knecht bash"
   },
   "dependencies": {
     "@nuxt/ui": "^4.8.2",
@@ -26,6 +27,7 @@
     "nuxt-auth-utils": "^0.5.29",
     "octokit": "^5.0.5",
     "tailwindcss": "^4.3.1",
+    "yaml": "^2.9.0",
     "vue": "^3.5.35",
     "vue-router": "^5.1.0",
     "zod": "^4.4.3"

@@ -4,6 +4,12 @@
 export default defineEventHandler(async (event) => {
   const { pathname } = getRequestURL(event)
 
+  // Preview subdomains are their own origin, served entirely by the preview
+  // proxy — which does its own session check (proxyRunPreview). Skip the
+  // dashboard /api gate so the proxy owns gating for the whole preview origin.
+  const host = (event.node.req.headers.host ?? '').split(':')[0] ?? ''
+  if (/^\d+\.preview\./.test(host)) return
+
   // Pages, assets, the OAuth flow (/auth/**) render/handle their own access.
   if (!pathname.startsWith('/api/')) return
 

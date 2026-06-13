@@ -8,6 +8,34 @@
       "when": 1781357061560,
       "tag": "0000_fine_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1781360512679,
+      "tag": "0001_sturdy_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1781362629150,
+      "tag": "0002_silent_lilandra",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1781364421634,
+      "tag": "0003_massive_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1781369030683,
+      "tag": "0004_curious_skaar",
+      "breakpoints": true
     }
   ]
 }

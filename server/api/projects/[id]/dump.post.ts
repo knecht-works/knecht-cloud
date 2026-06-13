@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
 
   return db
     .update(schema.projects)
-    .set({ dbDumpPath: filePath, updatedAt: new Date() })
+    .set({ dbDumpPath: filePath, dbImported: false, updatedAt: new Date() })
     .where(eq(schema.projects.id, id))
     .returning()
     .get()
