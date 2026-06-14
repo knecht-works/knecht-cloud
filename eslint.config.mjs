@@ -1,14 +1,9 @@
 import withNuxt from './.nuxt/eslint.config.mjs'
 
 export default withNuxt(
-  // your custom flat configs go here, for example:
-  // {
-  //   files: ['**/*.ts', '**/*.tsx'],
-  //   rules: {
-  //     'no-console': 'off' // allow console.log in TypeScript files
-  //   }
-  // },
-  // {
-  //   ...
-  // }
+  // The Claude Design handoff bundle (HTML/CSS/JS prototypes) is reference
+  // material, not part of the app — keep it out of linting.
+  {
+    ignores: ['knecht-dashboard/**'],
+  },
 )

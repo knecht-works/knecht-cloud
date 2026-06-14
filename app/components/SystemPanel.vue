@@ -5,46 +5,62 @@ const { data, status, error, refresh } = await useFetch('/api/system')
 </script>
 
 <template>
-  <UCard>
-    <div v-if="status === 'pending'">
+  <KPanel
+    title="Host · DDEV"
+    icon="i-lucide-server"
+    accent="var(--text-primary)"
+  >
+    <template #action>
+      <UButton
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        icon="i-lucide-refresh-cw"
+        :loading="status === 'pending'"
+        @click="refresh()"
+      />
+    </template>
+
+    <div
+      v-if="status === 'pending'"
+      class="k-mono text-[12px] text-(--text-dimmed)"
+    >
       Loading system info…
     </div>
     <div
       v-else-if="error"
-      class="text-error"
+      class="k-mono text-[12px] text-(--status-error)"
     >
-      Error: {{ error.message }}
+      {{ error.message }}
     </div>
     <div
       v-else-if="data"
-      class="space-y-3"
+      class="flex flex-col gap-3"
     >
-      <div>
-        <span class="font-medium">ddev:</span> {{ data.ddevVersion }}
+      <div class="flex items-center justify-between">
+        <span class="k-mono text-[12px] text-(--text-dimmed)">ddev</span>
+        <span class="k-mono text-[12px] text-(--text-toned)">{{ data.ddevVersion }}</span>
       </div>
-      <div>
-        <span class="font-medium">
-          Host containers ({{ data.hostContainers.length }}):
-        </span>
-        <ul class="mt-1 list-inside list-disc text-sm">
-          <li
+      <div class="border-t border-(--border-muted) pt-3">
+        <span class="k-label">Host containers · {{ data.hostContainers.length }}</span>
+        <div class="mt-2.5 flex flex-col gap-2">
+          <div
             v-for="name in data.hostContainers"
             :key="name"
+            class="flex items-center gap-2"
           >
-            {{ name }}
-          </li>
-        </ul>
+            <KStatusDot
+              color="primary"
+              :size="5"
+            />
+            <span class="k-mono text-[11.5px] text-(--text-muted)">{{ name }}</span>
+          </div>
+          <span
+            v-if="!data.hostContainers.length"
+            class="k-mono text-[11.5px] text-(--text-dimmed)"
+          >None running.</span>
+        </div>
       </div>
     </div>
-
-    <template #footer>
-      <UButton
-        size="sm"
-        :loading="status === 'pending'"
-        @click="refresh()"
-      >
-        Refresh
-      </UButton>
-    </template>
-  </UCard>
+  </KPanel>
 </template>

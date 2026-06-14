@@ -18,6 +18,15 @@ export const projects = sqliteTable('projects', {
   private: integer('private', { mode: 'boolean' }).notNull().default(false),
   cloneUrl: text('clone_url').notNull(),
 
+  // The DDEV project type read from the repo's `.ddev/config.yaml` `type:` field
+  // (e.g. 'typo3', 'wordpress', 'craftcms'). Identifies the framework. Null until
+  // resolved; backfilled lazily from GitHub when a project is loaded.
+  framework: text('framework'),
+  // The framework's major.minor version (e.g. '13.4'), read from the matching
+  // package in the repo's composer.lock. Null when not composer-managed or
+  // unreadable. Resolved alongside `framework`.
+  frameworkVersion: text('framework_version'),
+
   // Per-project config (maintained on the project detail page — increment 2)
   siteUrl: text('site_url'),
   envVars: text('env_vars', { mode: 'json' })

@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `framework_version` text;

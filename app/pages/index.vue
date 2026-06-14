@@ -1,18 +1,11 @@
-<template>
-  <UDashboardPanel>
-    <template #header>
-      <UDashboardNavbar title="Dashboard">
-        <template #leading>
-          <UDashboardSidebarCollapse />
-        </template>
-      </UDashboardNavbar>
-    </template>
+<script setup lang="ts">
+// Home redirects to the project overview. Done here (not via routeRules) so it
+// only fires once the request reaches the Nuxt renderer — on preview subdomains
+// the preview proxy middleware intercepts first, which a global routeRules
+// redirect would bypass (sending the iframe to /projects → 404 in the app).
+await navigateTo('/projects', { replace: true })
+</script>
 
-    <template #body>
-      <p class="mb-6 text-sm text-muted">
-        Walking skeleton — UI → Daemon → ddev / Docker
-      </p>
-      <SystemPanel />
-    </template>
-  </UDashboardPanel>
+<template>
+  <div />
 </template>

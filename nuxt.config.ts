@@ -7,6 +7,12 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // The product ships in a single dark theme — no toggle.
+  colorMode: {
+    preference: 'dark',
+    fallback: 'dark',
+  },
+
   // Scope the session cookie to a shared base domain so it is also sent to the
   // per-run preview subdomains (<runId>.preview.<base>), which the login-gated
   // preview proxy needs. Unset → host-only (plain localhost; previews then can't
@@ -23,6 +29,7 @@ export default defineNuxtConfig({
       },
     },
   },
+
   compatibilityDate: '2025-07-15',
 
   vite: {

@@ -1,8 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
+import { backfillFrameworks } from '../../utils/framework'
 
-// GET /api/projects/:id → a single project.
-export default defineEventHandler((event) => {
+// GET /api/projects/:id → a single project. Resolves the framework from GitHub
+// on the fly (best-effort) if it isn't known yet.
+export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid ID' })
@@ -18,5 +20,6 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   }
 
+  await backfillFrameworks(event, [project])
   return project
 })

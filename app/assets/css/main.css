@@ -1,2 +1,221 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* ============================================================
+   Knecht — webfonts (Geist + Geist Mono, Fontsource CDN woff2)
+   ============================================================ */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('https://cdn.jsdelivr.net/npm/@fontsource-variable/geist@5.2.5/files/geist-latin-wght-normal.woff2') format('woff2-variations');
+}
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-mono@5.2.6/files/geist-mono-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+/* ============================================================
+   Tailwind / Nuxt UI theme — Geist fonts + the lime "knecht"
+   palette that drives the primary colour. Neutral stays zinc.
+   ============================================================ */
+@theme static {
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --color-knecht-50: #f5fef1;
+  --color-knecht-100: #ecfde6;
+  --color-knecht-200: #ddfdd2;
+  --color-knecht-300: #ccfcbb;
+  --color-knecht-400: #b7f8a2;
+  --color-knecht-500: #93d585;
+  --color-knecht-600: #6ba96d;
+  --color-knecht-700: #527f54;
+  --color-knecht-800: #3e5e40;
+  --color-knecht-900: #314931;
+  --color-knecht-950: #16220f;
+}
+
+/* ============================================================
+   Knecht design tokens — the semantic variables our dashboard
+   components reach for (surfaces, borders, text, status, shadows).
+   Mirrors the design system's tokens 1:1.
+   ============================================================ */
+:root {
+  /* accents (mascot / logo artwork) */
+  --accent-mint: #b7f8a2;
+  --accent-orange: #fa7a2c;
+  --accent-violet: #fcc46e;
+  --accent-clay: #b46258;
+  --accent-ink: #16220f;
+  --lime-950: #16220f;
+
+  /* primary / brand */
+  --primary: #b7f8a2;
+  --primary-hover: #ccfcbb;
+  --primary-muted: color-mix(in oklab, #b7f8a2 12%, transparent);
+  --primary-border: color-mix(in oklab, #b7f8a2 30%, transparent);
+  --on-primary: #16220f;
+
+  /* surfaces (dark theme) */
+  --surface-base: #09090b;
+  --surface-muted: oklch(0.142 0 0);
+  --surface-elevated: #18181b;
+  --surface-accented: #27272a;
+  --surface-inset: #09090b;
+  --surface-glass: rgba(255, 255, 255, 0.04);
+
+  /* borders — hairlines as white alpha */
+  --border-muted: oklch(1 0 0 / 0.06);
+  --border-default: oklch(1 0 0 / 0.09);
+  --border-accented: oklch(1 0 0 / 0.16);
+
+  /* text */
+  --text-highlighted: #ffffff;
+  --text-default: #e4e4e7;
+  --text-toned: #d4d4d8;
+  --text-muted: #a1a1aa;
+  --text-dimmed: #71717a;
+  --text-primary: #b7f8a2;
+
+  /* status */
+  --status-success: #b7f8a2;
+  --status-orange: #fa7a2c;
+  --status-violet: #fcc46e;
+  --status-error: #f87171;
+  --status-neutral: #71717a;
+
+  /* radii */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* typography helpers */
+  --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --tracking-tight: -0.025em;
+  --tracking-label: 0.1em;
+
+  /* elevation shadows — neutral, tuned for near-black */
+  --shadow-panel:
+    0 1px 2px -1px oklch(0 0 0 / 0.5),
+    0 10px 24px -14px oklch(0 0 0 / 0.65);
+  --shadow-panel-lg:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.05),
+    0 2px 6px -2px oklch(0 0 0 / 0.5),
+    0 30px 60px -28px oklch(0 0 0 / 0.8);
+  --shadow-browser:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.08),
+    0 18px 40px -24px oklch(0 0 0 / 0.65),
+    0 50px 90px -40px oklch(0 0 0 / 0.85);
+  --drop-shadow-mascot: drop-shadow(0 26px 42px oklch(0 0 0 / 0.6));
+}
+
+/* The product ships in a single dark theme. */
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--surface-base);
+  color: var(--text-default);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background-color: var(--primary);
+  color: var(--accent-ink);
+}
+
+/* ============================================================
+   Surface primitives — the brand's "card" language reused
+   everywhere so component markup stays free of ad-hoc CSS.
+   ============================================================ */
+@utility k-card {
+  position: relative;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background: var(--surface-muted);
+  box-shadow: var(--shadow-panel);
+}
+
+/* Hover-lift variant — pair with `.k-card` on interactive cards. */
+@utility k-lift {
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.k-lift:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-accented);
+  box-shadow: var(--shadow-panel-lg);
+}
+
+/* Mono caption text — the load-bearing brand element. */
+@utility k-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Uppercase, wide-tracked mono section label. */
+@utility k-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-dimmed);
+}
+
+/* ============================================================
+   Background field — faint grid + two soft glows, fixed behind
+   every dashboard screen. Drop <KBgField /> as the first child.
+   ============================================================ */
+.k-bg-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, oklch(1 0 0 / 0.022) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(1 0 0 / 0.022) 1px, transparent 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 60% at 70% 0%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 60% at 70% 0%, #000 20%, transparent 75%);
+}
+.k-glow {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.k-glow-mint {
+  width: 760px;
+  height: 520px;
+  top: -300px;
+  right: -120px;
+  background: radial-gradient(circle, color-mix(in oklab, var(--accent-mint) 22%, transparent), transparent 70%);
+  opacity: 0.32;
+}
+.k-glow-white {
+  width: 700px;
+  height: 480px;
+  top: -260px;
+  left: 120px;
+  background: radial-gradient(ellipse, oklch(1 0 0 / 0.05), transparent 70%);
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+@keyframes knecht-ping {
+  75%, 100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes knecht-march {
+  to { stroke-dashoffset: -22; }
+}
+.knecht-march {
+  animation: knecht-march 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .knecht-march { animation: none; }
+}
