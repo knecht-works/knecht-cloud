@@ -2,13 +2,16 @@ import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
 import { eq, sql } from 'drizzle-orm'
+import { Octokit } from 'octokit'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { getWorkflow } from '../workflows'
 import type { Step } from '../workflows/schema'
+import { createContext, render, type RunContext } from '../workflows/context'
 import { projectDumpDir, runEnvName } from '../utils/storage'
-import { prepareRunCheckout } from './git'
+import { createBranch, commitAll, prepareRunCheckout, pushBranch } from './git'
 import { ensureOnDdevNetwork, readDdevHost, writeDdevConfig } from './ddev'
+import { enforceEnvCap } from './envs'
 
 // The in-process serial runner (tech-stack.md §4). Each run gets its OWN ddev
 // environment: an isolated git worktree, a unique ddev project name, its own
@@ -50,8 +53,9 @@ async function execRun(runId: number, project: Project, token: string): Promise<
     const injected = writeDdevConfig(dir, runEnvName(runId), project.envVars)
     appendLog(runId, `Env: ${runEnvName(runId)} (host ${previewHost ?? '?'}, +${injected} env var(s))\n`)
 
+    const ctx = createContext(runId, project)
     for (const step of workflow.steps) {
-      await runStep(runId, dir, step, project)
+      await runStep(runId, dir, step, project, ctx, token)
     }
     appendLog(runId, `\n✓ Done\n`)
     finish(runId, 'success')
@@ -62,10 +66,20 @@ async function execRun(runId: number, project: Project, token: string): Promise<
   }
 }
 
-async function runStep(runId: number, cwd: string, step: Step, project: Project): Promise<void> {
+async function runStep(
+  runId: number,
+  cwd: string,
+  step: Step,
+  project: Project,
+  ctx: RunContext,
+  token: string,
+): Promise<void> {
   switch (step.type) {
     case 'ddev-start': {
       appendLog(runId, `\n▶ ddev-start\n`)
+      // Bound concurrent envs before booting: each env holds a docker network
+      // from a finite pool, so stop the least-recently-used ones over the cap.
+      await enforceEnvCap(runId)
       const code = await stream(runId, 'ddev', ['start'], cwd)
       if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
       // The env (and ddev's shared network) exist now — make sure the Knecht
@@ -76,14 +90,72 @@ async function runStep(runId: number, cwd: string, step: Step, project: Project)
         .set({ envState: 'up', previewLastSeen: new Date() })
         .where(eq(schema.runs.id, runId))
         .run()
+      // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
+      // per-run origin the preview proxy serves (`<runId>.preview.<host>`).
+      const baseDomain = process.env.KNECHT_BASE_DOMAIN
+      if (baseDomain) ctx.preview = { url: `https://${runId}.preview.${baseDomain}` }
       await importDb(runId, cwd, project)
       break
     }
     case 'bash': {
-      appendLog(runId, `\n▶ bash: ${step.command}\n`)
-      const code = await stream(runId, 'bash', ['-c', step.command], cwd)
+      const command = render(step.command, ctx)
+      appendLog(runId, `\n▶ bash: ${command}\n`)
+      const code = await stream(runId, 'bash', ['-c', command], cwd)
       if (code !== 0 && !step.continueOnError) {
         throw new Error(`Command exited with code ${code}`)
+      }
+      break
+    }
+    case 'create-branch': {
+      const name = render(step.name, ctx)
+      appendLog(runId, `\n▶ create-branch: ${name}\n`)
+      await createBranch(cwd, name)
+      ctx.branch = { name }
+      break
+    }
+    case 'create-commit': {
+      const message = render(step.message, ctx)
+      appendLog(runId, `\n▶ create-commit: ${message}\n`)
+      const sha = await commitAll(cwd, message)
+      if (sha) {
+        ctx.commit = { sha, created: true }
+        appendLog(runId, `Committed ${sha.slice(0, 8)}\n`)
+      }
+      else {
+        ctx.commit = { created: false }
+        appendLog(runId, `Nothing to commit — skipping\n`)
+      }
+      break
+    }
+    case 'create-pr': {
+      const branch = (ctx.branch as { name?: string } | undefined)?.name
+      if (!branch) throw new Error('create-pr requires a preceding create-branch step')
+      const title = render(step.title, ctx)
+      const body = render(step.body, ctx)
+      appendLog(runId, `\n▶ create-pr: ${title}\n`)
+      await pushBranch(cwd, branch, token)
+      try {
+        const octokit = new Octokit({ auth: token })
+        const { data } = await octokit.rest.pulls.create({
+          owner: project.owner,
+          repo: project.name,
+          title,
+          body,
+          head: branch,
+          base: project.defaultBranch,
+        })
+        ctx.pr = { url: data.html_url, number: data.number }
+        appendLog(runId, `Opened PR #${data.number}: ${data.html_url}\n`)
+      }
+      catch (e) {
+        const msg = (e as Error).message
+        // Nothing was committed (e.g. an empty agent run) — there's no diff to
+        // open a PR for. Treat as a skip, not a failure.
+        if (/No commits between/i.test(msg)) {
+          appendLog(runId, `No changes to open a PR for — skipping\n`)
+          break
+        }
+        throw new Error(`create-pr failed: ${msg}`, { cause: e })
       }
       break
     }

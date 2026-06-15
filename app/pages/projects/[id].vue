@@ -59,41 +59,62 @@ async function startWorkflow() {
   }
 }
 
-// ── Editable config ──────────────────────────────────────────────────────
-const siteUrl = ref(project.value?.siteUrl ?? '')
-const envVars = ref((project.value?.envVars ?? []).map(e => ({ ...e })))
-const saving = ref(false)
+// ── Environment spec (read-only, resolved from the repo's .ddev config) ────
+const envSpec = computed(() => {
+  const e = project.value?.ddevEnv
+  if (!e) return []
+  return [
+    { label: 'Web', value: e.webserver?.replace(/-fpm$/, '') ?? null },
+    { label: 'PHP', value: e.phpVersion },
+    { label: 'Database', value: e.dbType ? `${e.dbType}${e.dbVersion ? ` ${e.dbVersion}` : ''}` : null },
+    { label: 'Node', value: e.nodeVersion },
+    { label: 'Package manager', value: e.packageManager?.replace('@', ' ') ?? null },
+  ].filter(r => r.value)
+})
 
-function addEnv() {
-  envVars.value.push({ key: '', value: '' })
-}
-function removeEnv(index: number) {
-  envVars.value.splice(index, 1)
-}
+// ── Env variables (.env textarea, auto-saved) ──────────────────────────────
+// Edited as raw `KEY=value` lines (parseEnvText / envVarsToText helpers); parsed
+// and persisted (debounced) on change, so there's no save button.
+const envText = ref(envVarsToText(project.value?.envVars ?? []))
+const envSaveState = ref<'idle' | 'saving' | 'saved'>('idle')
 
-async function save() {
-  saving.value = true
+// Compact preview (first 4) on the panel; the full editor lives in a modal.
+const envModalOpen = ref(false)
+const envList = computed(() => parseEnvText(envText.value))
+const envPreview = computed(() => envList.value.slice(0, 3))
+
+async function persistEnv() {
+  envSaveState.value = 'saving'
   try {
     await $fetch(`/api/projects/${id}`, {
       method: 'PATCH',
-      body: {
-        siteUrl: siteUrl.value.trim() || null,
-        envVars: envVars.value.filter(e => e.key.trim()),
-      },
+      body: { envVars: parseEnvText(envText.value) },
     })
-    toast.add({ title: 'Saved', color: 'success' })
+    envSaveState.value = 'saved'
   }
   catch (e) {
+    envSaveState.value = 'idle'
     toast.add({
       title: 'Failed to save',
       description: (e as { data?: { statusMessage?: string } }).data?.statusMessage,
       color: 'error',
     })
   }
-  finally {
-    saving.value = false
-  }
 }
+
+let envSaveTimer: ReturnType<typeof setTimeout> | undefined
+watch(envText, () => {
+  envSaveState.value = 'saving'
+  clearTimeout(envSaveTimer)
+  envSaveTimer = setTimeout(persistEnv, 700)
+})
+onUnmounted(() => {
+  // Flush a pending edit if the user navigates away mid-debounce.
+  if (envSaveTimer) {
+    clearTimeout(envSaveTimer)
+    persistEnv()
+  }
+})
 
 // Database dump upload
 const dumpInput = ref<HTMLInputElement>()
@@ -341,85 +362,90 @@ onUnmounted(() => timer && clearInterval(timer))
           accent="var(--text-primary)"
         >
           <template #action>
-            <UButton
-              size="xs"
-              color="primary"
-              variant="subtle"
-              icon="i-lucide-save"
-              label="Save"
-              :loading="saving"
-              @click="save"
-            />
+            <span
+              v-if="envSaveState !== 'idle'"
+              class="k-mono flex items-center gap-1.5 text-[11px] text-(--text-dimmed)"
+            >
+              <UIcon
+                :name="envSaveState === 'saving' ? 'i-lucide-loader-circle' : 'i-lucide-check'"
+                class="size-3.5"
+                :class="envSaveState === 'saving' ? 'animate-spin' : 'text-(--text-primary)'"
+              />
+              {{ envSaveState === 'saving' ? 'Saving…' : 'Saved' }}
+            </span>
           </template>
 
           <div class="flex flex-col gap-4">
-            <UFormField
-              label="Site URL"
-              :ui="{ label: 'k-label !text-(--text-dimmed)' }"
-            >
-              <UInput
-                v-model="siteUrl"
-                placeholder="https://example.test"
-                size="sm"
-                class="w-full"
-              />
-            </UFormField>
-
-            <div>
-              <div class="mb-2.5 flex items-center justify-between">
-                <span class="k-label">Env variables</span>
-                <UButton
-                  size="xs"
-                  variant="ghost"
-                  color="neutral"
-                  icon="i-lucide-plus"
-                  @click="addEnv"
-                />
-              </div>
-              <div
-                v-if="!envVars.length"
-                class="k-mono text-[11.5px] text-(--text-dimmed)"
-              >
-                No variables yet.
-              </div>
-              <div
-                v-else
+            <div class="border-b border-(--border-muted) pb-3.5">
+              <dl
+                v-if="envSpec.length"
                 class="flex flex-col gap-2"
               >
                 <div
-                  v-for="(env, index) in envVars"
-                  :key="index"
-                  class="flex items-center gap-2"
+                  v-for="row in envSpec"
+                  :key="row.label"
+                  class="flex items-center justify-between gap-3"
                 >
-                  <UInput
-                    v-model="env.key"
-                    placeholder="KEY"
-                    size="sm"
-                    class="flex-1"
-                  />
-                  <UInput
-                    v-model="env.value"
-                    placeholder="value"
-                    size="sm"
-                    class="flex-1"
-                  />
-                  <UButton
-                    color="error"
-                    variant="ghost"
-                    size="xs"
-                    icon="i-lucide-trash-2"
-                    aria-label="Remove"
-                    @click="removeEnv(index)"
-                  />
+                  <dt class="k-mono text-[11.5px] text-(--text-dimmed)">
+                    {{ row.label }}
+                  </dt>
+                  <dd class="k-mono text-[12px] text-(--text-toned)">
+                    {{ row.value }}
+                  </dd>
                 </div>
-              </div>
+              </dl>
+              <p
+                v-else
+                class="k-mono mt-2.5 text-[11.5px] text-(--text-dimmed)"
+              >
+                Resolving environment…
+              </p>
             </div>
 
-            <div class="border-t border-(--border-muted) pt-3.5">
+            <button
+              type="button"
+              class="group block w-full text-left"
+              :aria-label="envList.length ? 'Edit env variables' : 'Add env variables'"
+              @click="envModalOpen = true"
+            >
+              <div class="mb-2.5 flex items-center justify-between">
+                <span class="k-label">Env variables</span>
+                <UIcon
+                  name="i-lucide-pencil"
+                  class="size-3.5 text-(--text-dimmed) transition-colors group-hover:text-(--text-muted)"
+                />
+              </div>
+
+              <div
+                v-if="envPreview.length"
+                class="flex flex-col gap-2"
+              >
+                <div
+                  v-for="row in envPreview"
+                  :key="row.key"
+                  class="flex items-center justify-between gap-3"
+                >
+                  <span class="k-mono truncate text-[12px] text-(--text-muted) transition-colors group-hover:text-(--text-toned)">{{ row.key }}</span>
+                  <span class="k-mono select-none text-[12px] tracking-[0.2em] text-(--text-dimmed)">••••••••</span>
+                </div>
+              </div>
+              <span
+                v-else
+                class="k-mono flex items-center gap-1.5 text-[11.5px] text-(--text-dimmed) group-hover:text-(--text-muted)"
+              >
+                <UIcon
+                  name="i-lucide-plus"
+                  class="size-3.5"
+                />
+                Add variables
+              </span>
+            </button>
+
+            <div class="flex flex-col items-start border-t border-(--border-muted) pt-3.5">
               <span class="k-label">Database dump</span>
               <div
                 v-if="dumpName"
-                class="mt-2.5 flex items-center gap-2"
+                class="mt-2.5 flex w-full items-center gap-2"
               >
                 <UIcon
                   name="i-lucide-database"
@@ -491,5 +517,37 @@ onUnmounted(() => timer && clearInterval(timer))
         </KPanel>
       </div>
     </div>
+
+    <UModal
+      v-model:open="envModalOpen"
+      title="Environment variables"
+      description="One KEY=value per line — paste a .env. Changes are saved automatically."
+    >
+      <template #body>
+        <UTextarea
+          v-model="envText"
+          :rows="14"
+          autoresize
+          :maxrows="22"
+          spellcheck="false"
+          autofocus
+          :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
+          class="w-full"
+          :ui="{ base: 'k-mono text-[12.5px] leading-[1.8] resize-none' }"
+        />
+      </template>
+      <template #footer>
+        <span
+          class="k-mono flex items-center gap-1.5 text-[11px] text-(--text-dimmed)"
+        >
+          <UIcon
+            :name="envSaveState === 'saving' ? 'i-lucide-loader-circle' : 'i-lucide-check'"
+            class="size-3.5"
+            :class="envSaveState === 'saving' ? 'animate-spin' : 'text-(--text-primary)'"
+          />
+          {{ envSaveState === 'saving' ? 'Saving…' : 'Saved' }}
+        </span>
+      </template>
+    </UModal>
   </div>
 </template>

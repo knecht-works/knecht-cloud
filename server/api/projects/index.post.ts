@@ -1,7 +1,9 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../../db'
-import { fetchDdevType, fetchFrameworkVersion, getGithubClient } from '../../utils/github'
+import type { ProjectMeta } from '../../utils/framework'
+import { resolveProjectMeta } from '../../utils/framework'
+import { getGithubClient } from '../../utils/github'
 
 // POST /api/projects → connect a repo (creates a project). Body comes from a
 // repo the user picked out of GET /api/github/repos.
@@ -30,20 +32,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'Repo is already connected' })
   }
 
-  // Resolve the framework + version from the repo's ddev config and composer.lock
-  // at connect time (best-effort; backfilled later if it can't be read now).
-  let framework: string | null = null
-  let frameworkVersion: string | null = null
+  // Resolve the framework + version + DDEV environment from the repo at connect
+  // time (best-effort; backfilled later if it can't be read now).
+  let meta: Partial<ProjectMeta> = {}
   try {
     const octokit = await getGithubClient(event)
-    framework = await fetchDdevType(octokit, result.data.owner, result.data.name, result.data.defaultBranch)
-    if (framework) {
-      frameworkVersion = await fetchFrameworkVersion(octokit, result.data.owner, result.data.name, framework, result.data.defaultBranch)
-    }
+    meta = await resolveProjectMeta(octokit, result.data.owner, result.data.name, result.data.defaultBranch)
   }
   catch {
     // No token / unreadable — leave null; the GET handlers will retry.
   }
 
-  return db.insert(schema.projects).values({ ...result.data, framework, frameworkVersion }).returning().get()
+  return db.insert(schema.projects).values({ ...result.data, ...meta }).returning().get()
 })

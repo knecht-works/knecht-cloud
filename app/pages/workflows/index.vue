@@ -42,7 +42,6 @@ const metrics = computed(() => {
   }
 })
 
-const query = ref('')
 const tab = ref<'all' | 'used' | 'unused'>('all')
 const TABS = [
   { id: 'all', label: 'All' },
@@ -50,38 +49,24 @@ const TABS = [
   { id: 'unused', label: 'Unused' },
 ] as const
 
-const filtered = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  return enriched.value.filter(w =>
-    (!q || w.name.toLowerCase().includes(q))
-    && (tab.value === 'all' || (tab.value === 'used' ? w.runsCount > 0 : w.runsCount === 0)),
-  )
-})
+const filtered = computed(() =>
+  enriched.value.filter(w =>
+    tab.value === 'all' || (tab.value === 'used' ? w.runsCount > 0 : w.runsCount === 0),
+  ),
+)
 </script>
 
 <template>
   <div>
     <KTopBar title="Workflows">
       <template #actions>
-        <div class="hidden items-center gap-2 rounded-(--radius-md) border border-(--border-accented) bg-(--surface-elevated) px-3.5 py-2.5 sm:flex">
-          <UIcon
-            name="i-lucide-search"
-            class="size-4 text-(--text-dimmed)"
-          />
-          <input
-            v-model="query"
-            placeholder="Search workflows"
-            class="w-[150px] bg-transparent text-[13.5px] text-(--text-default) outline-none placeholder:text-(--text-dimmed)"
-          >
-        </div>
-        <UTooltip text="Creating workflows isn't wired up yet">
-          <UButton
-            icon="i-lucide-plus"
-            label="New workflow"
-            color="primary"
-            disabled
-          />
-        </UTooltip>
+        <AppSearch />
+        <UButton
+          icon="i-lucide-plus"
+          label="New workflow"
+          color="neutral"
+          @click="navigateTo('/workflows/new')"
+        />
       </template>
     </KTopBar>
 
@@ -134,7 +119,7 @@ const filtered = computed(() => {
         class="size-7 text-(--text-dimmed)"
       />
       <p class="text-[13px] text-(--text-muted)">
-        {{ query || tab !== 'all' ? 'No workflows match.' : 'No workflows configured yet.' }}
+        {{ tab !== 'all' ? 'No workflows match.' : 'No workflows configured yet.' }}
       </p>
     </div>
 

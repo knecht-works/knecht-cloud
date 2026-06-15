@@ -1,8 +1,12 @@
 <script setup lang="ts">
-// Triggers are fully data-driven. The backend has no trigger feature yet, so
-// /api/triggers returns [] and this renders its empty state; the card grid +
-// metrics below light up automatically once real triggers exist.
-const { data: triggers } = await useFetch('/api/triggers', { default: () => [] })
+// Triggers fire workflows automatically — on a cron schedule, a GitHub webhook,
+// or on demand. The list, metrics and card grid are data-driven off /api/triggers;
+// the cards emit toggle/run/delete intent that this page sends back to the API.
+const { data: triggers, refresh } = await useFetch('/api/triggers', { default: () => [] })
+const toast = useToast()
+const showCreate = ref(false)
+
+type Trigger = NonNullable<typeof triggers.value>[number]
 
 const metrics = computed(() => {
   const list = triggers.value ?? []
@@ -13,20 +17,54 @@ const metrics = computed(() => {
     sources: new Set(list.map(t => t.source)).size,
   }
 })
+
+async function toggle(t: Trigger) {
+  try {
+    await $fetch(`/api/triggers/${t.id}`, { method: 'PATCH', body: { active: !t.active } })
+    await refresh()
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to update trigger', description: errMsg(e), color: 'error' })
+  }
+}
+
+async function run(t: Trigger) {
+  try {
+    const res = await $fetch(`/api/triggers/${t.id}/run`, { method: 'POST' })
+    toast.add({ title: `Fired ${res.runIds.length} run(s)`, color: 'success' })
+    await refresh()
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to fire trigger', description: errMsg(e), color: 'error' })
+  }
+}
+
+async function remove(t: Trigger) {
+  try {
+    await $fetch(`/api/triggers/${t.id}`, { method: 'DELETE' })
+    await refresh()
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to delete trigger', description: errMsg(e), color: 'error' })
+  }
+}
+
+function errMsg(e: unknown) {
+  return (e as { data?: { statusMessage?: string } }).data?.statusMessage
+}
 </script>
 
 <template>
   <div>
     <KTopBar title="Triggers">
       <template #actions>
-        <UTooltip text="Triggers aren't wired up yet">
-          <UButton
-            icon="i-lucide-plus"
-            label="New trigger"
-            color="primary"
-            disabled
-          />
-        </UTooltip>
+        <AppSearch />
+        <UButton
+          icon="i-lucide-plus"
+          label="New trigger"
+          color="neutral"
+          @click="showCreate = true"
+        />
       </template>
     </KTopBar>
 
@@ -67,39 +105,36 @@ const metrics = computed(() => {
           No triggers configured yet
         </div>
         <p class="mx-auto mt-1.5 max-w-[420px] text-[13px] leading-[1.5] text-(--text-muted)">
-          Triggers will start workflows automatically — on a GitHub push, on a schedule, or
-          from a webhook. They aren't wired up yet; for now, start workflows manually from a
-          project or the workflow page.
+          A trigger starts a workflow automatically — on a cron schedule, on a GitHub push,
+          or on demand. Create one to wire a workflow to an event.
         </p>
       </div>
-      <div class="mt-1 flex items-center gap-2.5">
-        <span class="k-mono flex items-center gap-1.5 rounded-full border border-(--border-default) bg-(--surface-glass) px-3 py-1.5 text-[11.5px] text-(--text-muted)">
-          <KStatusDot
-            color="violet"
-            :size="5"
-          /> Coming soon
-        </span>
-        <UButton
-          to="/workflows"
-          color="neutral"
-          variant="outline"
-          size="sm"
-          trailing-icon="i-lucide-arrow-right"
-          label="Go to workflows"
-        />
-      </div>
+      <UButton
+        icon="i-lucide-plus"
+        label="New trigger"
+        color="primary"
+        @click="showCreate = true"
+      />
     </div>
 
-    <!-- Trigger grid (renders once triggers exist) -->
+    <!-- Trigger grid -->
     <div
       v-else
       class="grid grid-cols-1 gap-4 lg:grid-cols-2"
     >
       <TriggerCard
-        v-for="(t, i) in triggers"
-        :key="i"
+        v-for="t in triggers"
+        :key="t.id"
         :trigger="t"
+        @toggle="toggle(t)"
+        @run="run(t)"
+        @remove="remove(t)"
       />
     </div>
+
+    <TriggerCreateModal
+      v-model:open="showCreate"
+      @created="refresh"
+    />
   </div>
 </template>

@@ -7,14 +7,17 @@ export default defineAppConfig({
     },
     button: {
       slots: {
-        base: 'rounded-lg',
+        // `cursor-pointer` for every button; the disabled: variants in the base
+        // theme still win for disabled/aria-disabled buttons (cursor-not-allowed).
+        base: 'rounded-lg cursor-pointer',
       },
       variants: {
         size: {
           md: {
-            base: 'px-4 py-2 text-base',
+            base: 'px-5 py-2.5 text-sm font-medium',
           },
         },
+
       },
       compoundVariants: [
         {

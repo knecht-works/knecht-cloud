@@ -1,6 +1,4 @@
 <script setup lang="ts">
-const toast = useToast()
-
 const { data: projects, refresh } = await useFetch('/api/projects')
 // Runs power the per-project live status, counts and the metric row.
 const { data: runs } = await useFetch('/api/runs', { default: () => [] })
@@ -43,97 +41,19 @@ const filtered = computed(() =>
   ),
 )
 
-// ── Search (⌘K command palette) ──────────────────────────────────────────
-// Fuzzy search across all projects; selecting one jumps to its detail page.
-const searchOpen = ref(false)
-defineShortcuts({
-  meta_k: () => { searchOpen.value = true },
-})
-
-const searchGroups = computed(() => [{
-  id: 'projects',
-  label: 'Projects',
-  items: (projects.value ?? []).map(p => ({
-    label: p.fullName,
-    suffix: frameworkMeta(p.framework).label,
-    icon: 'i-lucide-folder-git-2',
-    to: `/projects/${p.id}`,
-    onSelect: () => { searchOpen.value = false },
-  })),
-}])
-
-// ── Connect a GitHub repo ────────────────────────────────────────────────
+// ── Set up a project (guided wizard) ─────────────────────────────────────
 const open = ref(false)
-const selected = ref()
-const connecting = ref(false)
-
-const { data: repos, status: reposStatus, execute: loadRepos } = useFetch('/api/github/repos', {
-  immediate: false,
-  transform: rows => rows.map(r => ({ ...r, label: r.fullName, description: r.description ?? undefined })),
-})
-
-watch(open, (isOpen) => {
-  if (isOpen && !repos.value) loadRepos()
-})
-
-async function connect() {
-  if (!selected.value) return
-  connecting.value = true
-  try {
-    await $fetch('/api/projects', {
-      method: 'POST',
-      body: {
-        githubId: selected.value.githubId,
-        owner: selected.value.owner,
-        name: selected.value.name,
-        fullName: selected.value.fullName,
-        defaultBranch: selected.value.defaultBranch,
-        private: selected.value.private,
-        cloneUrl: selected.value.cloneUrl,
-      },
-    })
-    toast.add({ title: 'Project connected', color: 'success' })
-    open.value = false
-    selected.value = undefined
-    await refresh()
-  }
-  catch (e) {
-    toast.add({
-      title: 'Failed to connect',
-      description: (e as { data?: { statusMessage?: string } }).data?.statusMessage,
-      color: 'error',
-    })
-  }
-  finally {
-    connecting.value = false
-  }
-}
 </script>
 
 <template>
   <div>
     <KTopBar title="Projects">
       <template #actions>
-        <UButton
-          color="neutral"
-          variant="subtle"
-          class="hidden sm:flex"
-          @click="searchOpen = true"
-        >
-          <UIcon
-            name="i-lucide-search"
-            class="size-4 text-(--text-dimmed)"
-          />
-          <span class="pr-6 text-(--text-dimmed)">Search projects</span>
-          <span class="flex items-center gap-1">
-            <UKbd value="meta" />
-            <UKbd value="k" />
-          </span>
-        </UButton>
+        <AppSearch />
         <UButton
           icon="i-lucide-plus"
           label="New project"
-          color="primary"
+          color="neutral"
           @click="open = true"
         />
       </template>
@@ -231,48 +151,9 @@ async function connect() {
       </button>
     </div>
 
-    <UModal v-model:open="searchOpen">
-      <template #content>
-        <UCommandPalette
-          :groups="searchGroups"
-          placeholder="Search projects…"
-          class="h-80"
-          @update:open="searchOpen = $event"
-        />
-      </template>
-    </UModal>
-
-    <UModal
+    <ProjectSetupModal
       v-model:open="open"
-      title="Connect a GitHub repo"
-    >
-      <template #body>
-        <div class="space-y-4">
-          <USelectMenu
-            v-model="selected"
-            :items="repos ?? []"
-            :loading="reposStatus === 'pending'"
-            placeholder="Select a repo…"
-            icon="i-simple-icons-github"
-            class="w-full"
-          />
-          <div class="flex justify-end gap-2">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              label="Cancel"
-              @click="open = false"
-            />
-            <UButton
-              label="Connect"
-              color="primary"
-              :loading="connecting"
-              :disabled="!selected"
-              @click="connect"
-            />
-          </div>
-        </div>
-      </template>
-    </UModal>
+      @created="refresh"
+    />
   </div>
 </template>

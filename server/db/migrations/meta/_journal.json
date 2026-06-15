@@ -50,6 +50,34 @@
       "when": 1781427459118,
       "tag": "0006_sad_unus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1781429750592,
+      "tag": "0007_env_spec",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1781433941840,
+      "tag": "0008_workflows",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781438448753,
+      "tag": "0009_ordinary_lilandra",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1781454910567,
+      "tag": "0010_overjoyed_ben_parker",
+      "breakpoints": true
     }
   ]
 }

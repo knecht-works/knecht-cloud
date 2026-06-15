@@ -1,8 +1,11 @@
 <script setup lang="ts">
-// Renders one configured trigger (source → event → fired workflow → projects).
-// Built ahead of the backend so the Triggers screen is ready when triggers land;
-// today the list is empty, so this only shows once real triggers exist.
+import type { DropdownMenuItem } from '@nuxt/ui'
+
+// Renders one configured trigger (source → event → fired workflow → projects),
+// with its active toggle and a menu to run it now or delete it. The page owns the
+// API calls — this only emits intent.
 interface Trigger {
+  id: number
   source: 'github' | 'jira' | 'schedule' | 'manual'
   event: string
   kind: string
@@ -15,6 +18,7 @@ interface Trigger {
 }
 
 const props = defineProps<{ trigger: Trigger }>()
+const emit = defineEmits<{ toggle: [], run: [], remove: [] }>()
 
 const SOURCE = {
   jira: { icon: 'i-lucide-zap', label: 'Jira', color: 'var(--accent-violet)' },
@@ -24,6 +28,16 @@ const SOURCE = {
 }
 
 const s = computed(() => SOURCE[props.trigger.source])
+
+const menu = computed<DropdownMenuItem[][]>(() => [[
+  { label: 'Run now', icon: 'i-lucide-play', onSelect: () => emit('run') },
+  { label: props.trigger.active ? 'Pause' : 'Activate', icon: props.trigger.active ? 'i-lucide-pause' : 'i-lucide-play', onSelect: () => emit('toggle') },
+  { label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => emit('remove') },
+]])
+
+function copyEndpoint() {
+  if (props.trigger.endpoint) navigator.clipboard?.writeText(props.trigger.endpoint)
+}
 </script>
 
 <template>
@@ -48,15 +62,30 @@ const s = computed(() => SOURCE[props.trigger.source])
           {{ trigger.event }}
         </div>
       </div>
-      <span
-        class="relative h-[19px] w-[34px] flex-none rounded-full border border-(--border-default)"
+      <button
+        type="button"
+        :aria-label="trigger.active ? 'Pause trigger' : 'Activate trigger'"
+        class="relative h-[19px] w-[34px] flex-none cursor-pointer rounded-full border border-(--border-default) transition-colors"
         :style="{ background: trigger.active ? 'var(--primary)' : 'var(--surface-accented)' }"
+        @click="emit('toggle')"
       >
         <span
           class="absolute top-0.5 size-[13px] rounded-full transition-all"
           :style="{ left: trigger.active ? '17px' : '2px', background: trigger.active ? 'var(--accent-ink)' : 'var(--text-dimmed)' }"
         />
-      </span>
+      </button>
+      <UDropdownMenu
+        :items="menu"
+        :content="{ side: 'bottom', align: 'end' }"
+      >
+        <UButton
+          icon="i-lucide-ellipsis-vertical"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          aria-label="Trigger actions"
+        />
+      </UDropdownMenu>
     </div>
 
     <!-- fires workflow -->
@@ -97,10 +126,14 @@ const s = computed(() => SOURCE[props.trigger.source])
           class="size-[13px] flex-none"
         />
         <span class="k-mono flex-1 truncate text-[11.5px] text-(--text-muted)">{{ trigger.endpoint }}</span>
-        <span
+        <button
           v-if="trigger.source !== 'schedule'"
-          class="k-mono flex-none rounded-[5px] border border-(--border-default) px-2 py-0.5 text-[10.5px] text-(--text-dimmed)"
-        >copy</span>
+          type="button"
+          class="k-mono flex-none cursor-pointer rounded-[5px] border border-(--border-default) px-2 py-0.5 text-[10.5px] text-(--text-dimmed) transition-colors hover:text-(--text-muted)"
+          @click="copyEndpoint"
+        >
+          copy
+        </button>
       </div>
       <div
         v-else

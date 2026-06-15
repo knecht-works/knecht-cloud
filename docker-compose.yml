@@ -13,6 +13,12 @@ services:
     # `npm run dev` reads .env natively.
     env_file:
       - .env
+    environment:
+      # This container owns an ISOLATED ddev config (its ~/.ddev is not the
+      # host's), so the daemon may manage it — primarily: omit ddev's shared
+      # router, which Knecht never uses and which is the only source of host-port
+      # collisions across isolated runs. See server/plugins/ddev-setup.ts.
+      - KNECHT_MANAGED_DDEV=1
     # Grant the host docker socket's group to the (non-root) container process at
     # RUNTIME — so the SAME prebuilt image works on any host, no rebuild when the
     # gid differs. Find it with:  stat -c '%g' /var/run/docker.sock
@@ -34,7 +40,8 @@ services:
       # macOS/OrbStack (SIP blocks /data): point it under your home, e.g.
       #   export KNECHT_PROJECTS=/Users/you/knecht/projects
       - ${KNECHT_PROJECTS:-/data/knecht/projects}:${KNECHT_PROJECTS:-/data/knecht/projects}
-    # ddev's router binds host ports 80/443 as a sibling container on the host,
-    # so we do NOT publish them here. (The app's preview proxy will reach the
-    # router over the host later — out of scope for this harness.)
+    # The preview proxy reaches each run's web container DIRECTLY over the
+    # `ddev_default` network (dood-harness.md §7), and ddev's router is omitted
+    # for our runs (KNECHT_MANAGED_DDEV) — so no host ingress ports are needed
+    # or published here beyond the UI port above.
     restart: unless-stopped

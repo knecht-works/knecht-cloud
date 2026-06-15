@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { rememberGithubToken } from '../../utils/credentials'
 
 // GitHub OAuth: first hit redirects to GitHub, the callback lands back here and
 // exchanges the code. The `repo` scope means the returned token can also clone
@@ -23,6 +24,8 @@ export default defineOAuthGitHubEventHandler({
         githubToken: tokens.access_token,
       },
     })
+    // Persist the token for background trigger runs (no session at fire time).
+    rememberGithubToken(tokens.access_token, user.login)
     return sendRedirect(event, popRedirect(event))
   },
 

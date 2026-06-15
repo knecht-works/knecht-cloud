@@ -11,9 +11,21 @@ import { z } from 'zod'
 // runner can switch on. Only the blocks this slice needs are implemented;
 // adding a block is: extend the union here + handle it in the runner.
 
-export type Step
-  = | { type: 'ddev-start' }
-    | { type: 'bash', command: string, continueOnError: boolean }
+// Optional per-step metadata the visual builder can set: a custom display name
+// (`label`) and a note (`description`). They don't affect execution — the runner
+// switches on `type` — they're just for the builder/overview.
+export interface StepMeta {
+  label?: string
+  description?: string
+}
+
+export type Step = StepMeta & (
+  | { type: 'ddev-start' }
+  | { type: 'bash', command: string, continueOnError: boolean }
+  | { type: 'create-branch', name: string }
+  | { type: 'create-commit', message: string }
+  | { type: 'create-pr', title: string, body: string }
+)
 
 const bashParams = z.object({
   'command': z.string().min(1),
@@ -29,6 +41,12 @@ const stepSchema = z.union([
     command: bash.command,
     continueOnError: bash['continue-on-error'] ?? false,
   })),
+  z.object({ 'create-branch': z.object({ name: z.string().min(1) }) })
+    .transform(({ 'create-branch': p }): Step => ({ type: 'create-branch', name: p.name })),
+  z.object({ 'create-commit': z.object({ message: z.string().min(1) }) })
+    .transform(({ 'create-commit': p }): Step => ({ type: 'create-commit', message: p.message })),
+  z.object({ 'create-pr': z.object({ title: z.string().min(1), description: z.string().default('') }) })
+    .transform(({ 'create-pr': p }): Step => ({ type: 'create-pr', title: p.title, body: p.description })),
 ])
 
 const workflowSchema = z.object({
@@ -44,3 +62,31 @@ export type Workflow = z.infer<typeof workflowSchema>
 export function parseWorkflow(yaml: string): Workflow {
   return workflowSchema.parse(parse(yaml))
 }
+
+// Validation for workflows coming from the visual builder (the API). Unlike
+// `stepSchema` (which parses the YAML authoring form), the builder sends steps
+// already in their NORMALIZED, `type`-tagged shape — so this validates that
+// shape directly. Required params are enforced (a half-filled step can't save).
+const stepMeta = { label: z.string().optional(), description: z.string().optional() }
+const normalizedStepSchema: z.ZodType<Step> = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('ddev-start'), ...stepMeta }),
+  z.object({
+    type: z.literal('bash'),
+    command: z.string().min(1),
+    continueOnError: z.boolean().default(false),
+    ...stepMeta,
+  }),
+  z.object({ type: z.literal('create-branch'), name: z.string().min(1), ...stepMeta }),
+  z.object({ type: z.literal('create-commit'), message: z.string().min(1), ...stepMeta }),
+  z.object({ type: z.literal('create-pr'), title: z.string().min(1), body: z.string().default(''), ...stepMeta }),
+])
+
+// A workflow name doubles as its URL segment and the `runs.workflow` reference,
+// so keep it to a lowercase slug. Steps may be empty (a saved draft).
+export const workflowInputSchema = z.object({
+  name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'Use a lowercase slug (a–z, 0–9, hyphens)'),
+  description: z.string().default(''),
+  steps: z.array(normalizedStepSchema),
+})
+
+export type WorkflowInput = z.infer<typeof workflowInputSchema>

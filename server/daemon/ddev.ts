@@ -18,10 +18,22 @@ import { runEnvName, runWorktreeDir } from '../utils/storage'
 export function writeDdevConfig(checkoutDir: string, name: string, envVars: EnvVar[]): number {
   const doc: { name: string, web_environment?: string[] } = { name }
   if (envVars.length) {
-    doc.web_environment = envVars.map(e => `${e.key}=${e.value}`)
+    // Strip a layer of surrounding quotes — a value like `"https://x"` (quotes
+    // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
+    // covers projects whose env vars were saved before the parser stripped them.
+    doc.web_environment = envVars.map(e => `${e.key}=${unquote(e.value)}`)
   }
   writeFileSync(join(checkoutDir, '.ddev', 'config.knecht.yaml'), stringify(doc))
   return envVars.length
+}
+
+// Strip one layer of matching surrounding quotes (standard .env semantics).
+function unquote(v: string): string {
+  const q = v[0]
+  if (v.length >= 2 && (q === '"' || q === '\'') && v[v.length - 1] === q) {
+    return v.slice(1, -1)
+  }
+  return v
 }
 
 // The repo's own ddev host, read from the tracked `.ddev/config.yaml` (NOT our

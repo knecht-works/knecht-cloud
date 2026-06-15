@@ -76,6 +76,19 @@ USER node
 # if the system trust store can't be written as non-root).
 RUN mkcert -install || true
 
+# Omit ddev's shared router. It is the only component that binds fixed HOST ports
+# (router_http_port, web_extra_exposed_ports, …) and therefore the single source
+# of host-port collisions when many isolated run envs — or several clones of the
+# same repo — boot at once. Knecht never needs it: the preview proxy reaches each
+# run's web container DIRECTLY over the `ddev_default` network (dood-harness.md
+# §7). Without the router, `ddev start` is immune to host-port conflicts, so any
+# number of projects/previews coexist regardless of the ports they declare. This
+# container's ddev config is isolated (its ~/.ddev is not the host's), so this
+# never affects the operator's own ddev projects. Re-asserted at boot by
+# server/plugins/ddev-setup.ts. Best-effort at build (no daemon needed to write
+# config, but don't fail the build on edge environments).
+RUN ddev config global --omit-containers=ddev-router || true
+
 WORKDIR /app
 
 

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db, schema } from '../../db'
 import { getWorkflow } from '../../workflows'
 import { startRun } from '../../daemon/runner'
+import { rememberGithubToken } from '../../utils/credentials'
 
 // POST /api/runs → start a workflow against one project. The OAuth token is read
 // from the session and injected into the run (tech-stack.md §4) as the clone
@@ -13,10 +14,12 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const { secure } = await requireUserSession(event)
+  const { user, secure } = await requireUserSession(event)
   if (!secure?.githubToken) {
     throw createError({ statusCode: 401, statusMessage: 'No GitHub token in session' })
   }
+  // Keep the token available for background trigger runs that have no session.
+  rememberGithubToken(secure.githubToken, user?.login)
 
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {

@@ -13,11 +13,72 @@ export async function getGithubClient(event: H3Event): Promise<Octokit> {
   return new Octokit({ auth: secure.githubToken })
 }
 
-// Read the DDEV project type from a repo's `.ddev/config.yaml` `type:` field
-// (https://docs.ddev.com/en/stable/users/configuration/config/#type), e.g.
-// 'typo3', 'wordpress', 'craftcms'. Best-effort: returns null if the file or
-// field is missing, or the repo can't be read.
-export async function fetchDdevType(
+// The DDEV project type + environment spec parsed from a repo's
+// `.ddev/config.yaml` (https://docs.ddev.com/en/stable/users/configuration/config/).
+// `type` is the framework (e.g. 'typo3', 'wordpress', 'craftcms'). Best-effort:
+// every field is null if the file/repo can't be read.
+export interface DdevConfig {
+  type: string | null
+  webserver: string | null
+  phpVersion: string | null
+  dbType: string | null
+  dbVersion: string | null
+  nodeVersion: string | null
+}
+
+const EMPTY_DDEV_CONFIG: DdevConfig = {
+  type: null,
+  webserver: null,
+  phpVersion: null,
+  dbType: null,
+  dbVersion: null,
+  nodeVersion: null,
+}
+
+// DDEV applies its config defaults when a field is omitted; the only one we can
+// safely assume is the webserver (nginx-fpm). The rest stay null when absent.
+const str = (v: unknown): string | null => (v == null ? null : String(v))
+
+export async function fetchDdevConfig(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  ref?: string,
+): Promise<DdevConfig> {
+  try {
+    const { data } = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: '.ddev/config.yaml',
+      ref,
+    })
+    if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) return EMPTY_DDEV_CONFIG
+    const content = Buffer.from(data.content, 'base64').toString('utf8')
+    const cfg = parse(content) as {
+      type?: string
+      webserver_type?: string
+      php_version?: string | number
+      nodejs_version?: string | number
+      database?: { type?: string, version?: string | number }
+    } | null
+    if (!cfg) return EMPTY_DDEV_CONFIG
+    return {
+      type: cfg.type ?? null,
+      webserver: cfg.webserver_type ?? 'nginx-fpm',
+      phpVersion: str(cfg.php_version),
+      dbType: cfg.database?.type ?? null,
+      dbVersion: str(cfg.database?.version),
+      nodeVersion: str(cfg.nodejs_version),
+    }
+  }
+  catch {
+    return EMPTY_DDEV_CONFIG
+  }
+}
+
+// The Corepack `packageManager` field from a repo's `package.json` (e.g.
+// 'pnpm@9.1.0'). Best-effort: null when there's no package.json or no field.
+export async function fetchPackageManager(
   octokit: Octokit,
   owner: string,
   repo: string,
@@ -27,13 +88,12 @@ export async function fetchDdevType(
     const { data } = await octokit.rest.repos.getContent({
       owner,
       repo,
-      path: '.ddev/config.yaml',
+      path: 'package.json',
       ref,
     })
-    if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) return null
-    const content = Buffer.from(data.content, 'base64').toString('utf8')
-    const cfg = parse(content) as { type?: string } | null
-    return cfg?.type ?? null
+    if (Array.isArray(data) || data.type !== 'file' || !('content' in data) || !data.content) return null
+    const pkg = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8')) as { packageManager?: string }
+    return pkg.packageManager ?? null
   }
   catch {
     return null

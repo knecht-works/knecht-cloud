@@ -79,10 +79,15 @@ export const STEP_KIND_COLOR: Record<StepKind, string> = {
   trigger: 'var(--accent-violet)',
 }
 
-// A workflow step as returned by /api/workflows.
-export type WorkflowStep
-  = | { type: 'ddev-start' }
-    | { type: 'bash', command: string, continueOnError?: boolean }
+// A workflow step as returned by /api/workflows. `label`/`description` are the
+// optional per-step name + note the builder can set.
+export type WorkflowStep = { label?: string, description?: string } & (
+  | { type: 'ddev-start' }
+  | { type: 'bash', command: string, continueOnError?: boolean }
+  | { type: 'create-branch', name: string }
+  | { type: 'create-commit', message: string }
+  | { type: 'create-pr', title: string, body: string }
+)
 
 export interface StepMeta {
   icon: string
@@ -91,11 +96,29 @@ export interface StepMeta {
   detail: string
 }
 
-// Map a real workflow step to an icon + label, inferring intent from the shell
-// command so the step chain reflects what the step actually does.
+// Map a step to an icon + label/detail. A custom `label`/`description` wins;
+// otherwise both are inferred from the step type and shell command.
 export function workflowStepMeta(step: WorkflowStep): StepMeta {
+  const m = deriveStepMeta(step)
+  return {
+    ...m,
+    label: step.label?.trim() || m.label,
+    detail: step.description?.trim() || m.detail,
+  }
+}
+
+function deriveStepMeta(step: WorkflowStep): StepMeta {
   if (step.type === 'ddev-start') {
     return { icon: 'i-lucide-play', kind: 'det', label: 'Boot project', detail: 'DDEV starts web + database' }
+  }
+  if (step.type === 'create-branch') {
+    return { icon: 'i-lucide-git-branch', kind: 'out', label: 'Create branch', detail: step.name }
+  }
+  if (step.type === 'create-commit') {
+    return { icon: 'i-lucide-git-commit-horizontal', kind: 'out', label: 'Create commit', detail: step.message }
+  }
+  if (step.type === 'create-pr') {
+    return { icon: 'i-lucide-git-pull-request', kind: 'out', label: 'Open pull request', detail: step.title }
   }
   const cmd = step.command
   const c = cmd.toLowerCase()

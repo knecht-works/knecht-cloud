@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import type { Project } from '../db/schema'
@@ -25,6 +25,7 @@ export async function prepareRunCheckout(
 
   try {
     await ensureBaseClone(base, project, token, branch, onLog)
+    shieldGeneratedFiles(base)
 
     if (existsSync(join(runDir, '.git'))) {
       onLog(`Reusing worktree at ${runDir}\n`)
@@ -56,6 +57,60 @@ async function ensureBaseClone(
   else {
     onLog(`Cloning ${project.fullName} (${branch})…\n`)
     await git(['clone', '--no-checkout', '--depth', '1', '--branch', branch, authUrl, base])
+  }
+}
+
+// Create a new branch at the worktree's current HEAD (the `create-branch` block).
+export async function createBranch(dir: string, name: string): Promise<void> {
+  await git(['-C', dir, 'checkout', '-b', name])
+}
+
+// Stage and commit the whole working tree (the `create-commit` block). Returns
+// the new commit SHA, or null when there was nothing to commit (e.g. the agent
+// changed nothing) — the caller treats that as a no-op, not a failure. A commit
+// identity is set inline since the run container has none configured.
+export async function commitAll(dir: string, message: string): Promise<string | null> {
+  await git(['-C', dir, 'add', '-A'])
+  const { stdout: status } = await git(['-C', dir, 'status', '--porcelain'])
+  if (!status.trim()) return null
+  await git([
+    '-C', dir,
+    '-c', 'user.name=Knecht',
+    '-c', 'user.email=knecht@users.noreply.github.com',
+    'commit', '-m', message,
+  ])
+  const { stdout } = await git(['-C', dir, 'rev-parse', 'HEAD'])
+  return stdout.trim()
+}
+
+// Push the run's branch to origin (the `create-pr` block, before opening the PR).
+// The remote URL carries the OAuth token from the clone, so this authenticates
+// without extra config; the token is redacted from any error before it surfaces.
+export async function pushBranch(dir: string, branch: string, token: string): Promise<void> {
+  try {
+    await git(['-C', dir, 'push', 'origin', `HEAD:refs/heads/${branch}`])
+  }
+  catch (e) {
+    throw new Error(redact(String((e as Error).message), token), { cause: e })
+  }
+}
+
+// Knecht writes `.ddev/config.knecht.yaml` into the worktree to isolate the run
+// (unique ddev name) and inject the project's env vars — which include SECRETS.
+// The git blocks run `git add -A`, so without this that file (secrets and all)
+// would be committed and pushed in the opened PR. The ignore goes in the base
+// clone's shared `info/exclude` (honored by every worktree hanging off it), so
+// the generated override can never enter a commit. Idempotent.
+function shieldGeneratedFiles(base: string): void {
+  const exclude = join(base, '.git', 'info', 'exclude')
+  const pattern = '/.ddev/config.knecht.yaml'
+  try {
+    const current = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
+    if (current.split('\n').includes(pattern)) return
+    appendFileSync(exclude, `${current && !current.endsWith('\n') ? '\n' : ''}${pattern}\n`)
+  }
+  catch {
+    // Best-effort; if it ever fails, a stray override is caught in PR review.
   }
 }
 

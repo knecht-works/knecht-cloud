@@ -4,7 +4,6 @@ import { db, schema } from '../../db'
 
 // PATCH /api/projects/:id → update the editable per-project config.
 const bodySchema = z.object({
-  siteUrl: z.string().nullable().optional(),
   envVars: z
     .array(z.object({ key: z.string(), value: z.string() }))
     .optional(),
