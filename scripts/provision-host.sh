@@ -92,5 +92,33 @@ sudo docker build -t knecht-sandbox \
   --build-arg "KNECHT_UID=$(id -u)" --build-arg "KNECHT_GID=$(id -g)" \
   "$REPO_DIR/sandbox"
 
+# ── 6. Local registry cache + warm-up ─────────────────────────────────────────
+# A fresh sandbox pulls ~1GB of ddev images on its first `ddev start` — minutes
+# per run from the internet. A pull-through cache on the host's bridge IP (the
+# `bip` pinned in step 3) serves them LAN-local instead; every sandbox's inner
+# daemon is configured to use it (sandbox/Dockerfile). The warm-up seed fills
+# the cache for the ddev version pinned into the image, once per provisioning.
+# (Baking the images INTO the sandbox image via docker commit corrupts inner
+# layer ownership without shiftfs — kernels ≥6.8 don't ship it. Don't retry.)
+if ! sudo docker ps --format '{{.Names}}' | grep -qx knecht-registry; then
+  echo "▶ Starting the local registry cache"
+  sudo docker rm -f knecht-registry >/dev/null 2>&1 || true
+  sudo docker run -d --name knecht-registry --restart unless-stopped \
+    -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
+    -v knecht-registry:/var/lib/registry \
+    -p 172.20.0.1:5000:5000 registry:3 >/dev/null
+fi
+
+echo "▶ Warming the image cache (seed sandbox pulls ddev's images once)"
+sudo docker rm -f knecht-sandbox-seed >/dev/null 2>&1 || true
+sudo docker run -d --name knecht-sandbox-seed --runtime=sysbox-runc knecht-sandbox >/dev/null
+for i in $(seq 1 60); do
+  sudo docker exec knecht-sandbox-seed docker info >/dev/null 2>&1 && break
+  sleep 1
+done
+sudo docker exec -u ddev -e HOME=/home/ddev -e USER=ddev knecht-sandbox-seed \
+  ddev utility download-images
+sudo docker rm -f knecht-sandbox-seed >/dev/null
+
 echo "✓ Host provisioned. Sanity check:"
 sudo docker info --format '  docker {{.ServerVersion}} · runtimes: {{range $k, $v := .Runtimes}}{{$k}} {{end}}'

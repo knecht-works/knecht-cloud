@@ -32,12 +32,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # daemon that launches sysbox containers, not to this inner one.
 RUN curl -fsSL https://get.docker.com | sh
 
-# ddev (same apt repo as everywhere else in Knecht).
+# Pull through the host's local registry cache (scripts/provision-host.sh runs
+# it on the host's docker bridge IP, which provisioning pins to 172.20.0.1) —
+# so the ~1GB of ddev images is downloaded once per HOST, not once per run.
+# Docker falls back to the upstream registry when the mirror is unreachable,
+# so this is safe even where no cache runs.
+RUN printf '{\n  "registry-mirrors": ["http://172.20.0.1:5000"],\n  "insecure-registries": ["172.20.0.1:5000"]\n}\n' \
+      > /etc/docker/daemon.json
+
+# ddev, PINNED: runs are only as reproducible as the ddev in here, and the
+# preloaded image cache (scripts/provision-host.sh) must match this version.
+# Bump deliberately, then re-provision so the cache follows.
+ARG DDEV_VERSION=1.25.2
 RUN install -m 0755 -d /etc/apt/keyrings \
  && curl -fsSL https://pkg.ddev.com/apt/gpg.key | gpg --dearmor -o /etc/apt/keyrings/ddev.gpg \
  && echo "deb [signed-by=/etc/apt/keyrings/ddev.gpg] https://pkg.ddev.com/apt/ * *" \
       > /etc/apt/sources.list.d/ddev.list \
- && apt-get update && apt-get install -y --no-install-recommends ddev \
+ && apt-get update && apt-get install -y --no-install-recommends "ddev=${DDEV_VERSION}" \
  && rm -rf /var/lib/apt/lists/*
 
 # The non-root user everything project-facing runs as (ddev refuses root). Its
