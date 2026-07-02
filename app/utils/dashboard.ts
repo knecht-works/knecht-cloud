@@ -129,6 +129,12 @@ function deriveStepMeta(step: WorkflowStep): StepMeta {
   return { icon: 'i-lucide-terminal', kind: 'det', label: 'Shell', detail: cmd }
 }
 
+// Human-readable message from a failed `$fetch` call — H3 packs it into
+// `error.data.statusMessage`; returns `fallback` when the response has none.
+export function errMsg(e: unknown, fallback: string): string {
+  return (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? fallback
+}
+
 // Compact relative time ("4m ago", "2h ago"). Accepts a Date, epoch seconds,
 // or an ISO string; returns '' for nullish input.
 export function timeAgo(value: Date | string | number | null | undefined): string {

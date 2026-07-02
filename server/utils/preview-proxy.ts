@@ -41,7 +41,7 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
     if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
       throw createError({ statusCode: 401, statusMessage: 'Login required' })
     }
-    const baseHost = reqUrl.host.replace(/^(?:[a-z0-9-]+--)?\d+\.preview\./, '')
+    const baseHost = stripPreviewPrefix(reqUrl.host)
     setCookie(event, 'knecht-redirect', `${reqUrl.protocol}//${reqUrl.host}${reqUrl.pathname}${reqUrl.search}`, {
       domain: process.env.KNECHT_BASE_DOMAIN || undefined,
       path: '/',
@@ -61,7 +61,7 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
 
   const hosts = runHosts(runId)
   const appHost = label
-    ? hosts.all.find(h => labelFor(h) === label)
+    ? hosts.all.find(h => previewLabel(h) === label)
     : hosts.primary
   if (!appHost) {
     throw createError({ statusCode: 404, statusMessage: 'Unknown preview host' })
@@ -79,16 +79,14 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
     .run()
 
   const url = getRequestURL(event)
-  // `<runId>.preview.<base>[:port]` — the label-less part of the request host;
-  // every project host's preview origin is built from it.
-  const baseHost = label ? url.host.slice(label.length + 2) : url.host
+  const baseHost = stripPreviewPrefix(url.host)
   // Longest first so a host that contains another as a suffix (knaus.kta.…
   // vs kta.…) is never half-rewritten by the shorter one.
   const mappings = hosts.all
     .sort((a, b) => b.length - a.length)
     .map(h => ({
       host: h,
-      previewHost: h === hosts.primary ? baseHost : `${labelFor(h)}--${baseHost}`,
+      previewHost: previewHostname(runId, baseHost, h === hosts.primary ? undefined : previewLabel(h)),
     }))
   const req = event.node.req
   const res = event.node.res
@@ -171,14 +169,6 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
     }
     throw e
   })
-}
-
-// The subdomain label for one of the project's hosts: the default `.ddev.site`
-// suffix is dropped, remaining dots become dashes (they'd end the DNS label).
-// `knaus.kta.ddev.site` → `knaus-kta`. Reverse lookup is by comparison, never
-// by parsing the label back.
-function labelFor(host: string): string {
-  return host.replace(/\.ddev\.site$/, '').replaceAll('.', '-')
 }
 
 // Replace every project host with ITS preview origin. Covers absolute URLs

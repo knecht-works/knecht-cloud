@@ -57,7 +57,7 @@ async function connect() {
     step.value = 'env'
   }
   catch (e) {
-    toast.add({ title: 'Failed to connect', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to connect', description: errMsg(e, ''), color: 'error' })
   }
   finally {
     connecting.value = false
@@ -79,7 +79,7 @@ async function saveEnvAndContinue() {
     step.value = 'database'
   }
   catch (e) {
-    toast.add({ title: 'Failed to save', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to save', description: errMsg(e, ''), color: 'error' })
   }
   finally {
     savingEnv.value = false
@@ -103,7 +103,7 @@ async function uploadDump(event: Event) {
     toast.add({ title: 'Database dump uploaded', color: 'success' })
   }
   catch (e) {
-    toast.add({ title: 'Upload failed', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Upload failed', description: errMsg(e, ''), color: 'error' })
   }
   finally {
     uploadingDump.value = false
@@ -134,12 +134,8 @@ async function bootAndPreview() {
   }
   catch (e) {
     booting.value = false
-    toast.add({ title: 'Failed to start run', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to start run', description: errMsg(e, ''), color: 'error' })
   }
-}
-
-function errMsg(e: unknown) {
-  return (e as { data?: { statusMessage?: string } }).data?.statusMessage
 }
 
 // Load the repo list when the wizard opens; reset everything when it closes so

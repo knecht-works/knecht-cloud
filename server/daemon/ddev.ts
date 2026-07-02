@@ -1,10 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { execa } from 'execa'
 import { parse, stringify } from 'yaml'
 import type { EnvVar } from '../db/schema'
-import { runWorktreeDir } from '../utils/storage'
-import { removeSandbox } from './sandbox'
 
 // Write the per-run ddev override (`.ddev/config.knecht.yaml`). ddev merges all
 // `.ddev/config.*.yaml` files, so this injects two things without touching the
@@ -76,20 +73,5 @@ export function readDdevHosts(checkoutDir: string): DdevHosts {
   }
   catch {
     return { primary: null, all: [] }
-  }
-}
-
-// Tear down a run's isolated environment: remove its sandbox container (the
-// whole nested world — inner containers, volumes, imported DB — lives in its
-// filesystem and goes with it) and remove its git worktree. Both steps are
-// best-effort so a half-gone env still gets cleaned up. `baseDir` is the
-// project's base clone the worktree hangs off.
-export async function teardownRun(runId: number, baseDir: string): Promise<void> {
-  await removeSandbox(runId)
-  try {
-    await execa('git', ['-C', baseDir, 'worktree', 'remove', '--force', runWorktreeDir(runId)])
-  }
-  catch {
-    // Worktree already gone.
   }
 }

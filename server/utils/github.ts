@@ -39,6 +39,21 @@ const EMPTY_DDEV_CONFIG: DdevConfig = {
 // safely assume is the webserver (nginx-fpm). The rest stay null when absent.
 const str = (v: unknown): string | null => (v == null ? null : String(v))
 
+// A repo file's text content via the contents API. Returns null when the path
+// isn't a file or the response has no inline content; throws when the file is
+// missing (callers catch, matching the getContent 404).
+async function readRepoFile(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+  ref?: string,
+): Promise<string | null> {
+  const { data } = await octokit.rest.repos.getContent({ owner, repo, path, ref })
+  if (Array.isArray(data) || data.type !== 'file' || !('content' in data) || !data.content) return null
+  return Buffer.from(data.content, 'base64').toString('utf8')
+}
+
 export async function fetchDdevConfig(
   octokit: Octokit,
   owner: string,
@@ -46,14 +61,8 @@ export async function fetchDdevConfig(
   ref?: string,
 ): Promise<DdevConfig> {
   try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: '.ddev/config.yaml',
-      ref,
-    })
-    if (Array.isArray(data) || data.type !== 'file' || !('content' in data)) return EMPTY_DDEV_CONFIG
-    const content = Buffer.from(data.content, 'base64').toString('utf8')
+    const content = await readRepoFile(octokit, owner, repo, '.ddev/config.yaml', ref)
+    if (content === null) return EMPTY_DDEV_CONFIG
     const cfg = parse(content) as {
       type?: string
       webserver_type?: string
@@ -85,14 +94,9 @@ export async function fetchPackageManager(
   ref?: string,
 ): Promise<string | null> {
   try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: 'package.json',
-      ref,
-    })
-    if (Array.isArray(data) || data.type !== 'file' || !('content' in data) || !data.content) return null
-    const pkg = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8')) as { packageManager?: string }
+    const content = await readRepoFile(octokit, owner, repo, 'package.json', ref)
+    if (content === null) return null
+    const pkg = JSON.parse(content) as { packageManager?: string }
     return pkg.packageManager ?? null
   }
   catch {
@@ -130,14 +134,9 @@ export async function fetchFrameworkVersion(
   const pkg = composerPackageFor(type)
   if (!pkg) return null
   try {
-    const { data } = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: 'composer.lock',
-      ref,
-    })
-    if (Array.isArray(data) || data.type !== 'file' || !('content' in data) || !data.content) return null
-    const lock = JSON.parse(Buffer.from(data.content, 'base64').toString('utf8')) as {
+    const content = await readRepoFile(octokit, owner, repo, 'composer.lock', ref)
+    if (content === null) return null
+    const lock = JSON.parse(content) as {
       packages?: { name: string, version: string }[]
     }
     const found = lock.packages?.find(p => p.name === pkg)

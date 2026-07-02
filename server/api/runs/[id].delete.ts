@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { teardownRun } from '../../daemon/ddev'
+import { teardownRun } from '../../daemon/envs'
 import { projectCheckoutDir } from '../../utils/storage'
 
 // DELETE /api/runs/:id → remove a run and tear down its isolated env + worktree.

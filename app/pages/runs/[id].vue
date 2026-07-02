@@ -10,7 +10,7 @@ const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] 
 
 const reqUrl = useRequestURL()
 const previewUrl = computed(() =>
-  run.value ? `${reqUrl.protocol}//${run.value.id}.preview.${reqUrl.host}/` : '')
+  run.value ? `${reqUrl.protocol}//${previewHostname(run.value.id, reqUrl.host)}/` : '')
 
 const deleting = ref(false)
 async function remove() {
@@ -23,7 +23,7 @@ async function remove() {
     deleting.value = false
     toast.add({
       title: 'Delete failed',
-      description: (e as { data?: { statusMessage?: string } }).data?.statusMessage,
+      description: errMsg(e, ''),
       color: 'error',
     })
   }
@@ -38,7 +38,7 @@ async function reboot() {
   catch (e) {
     toast.add({
       title: 'Reboot failed',
-      description: (e as { data?: { statusMessage?: string } }).data?.statusMessage,
+      description: errMsg(e, ''),
       color: 'error',
     })
   }
@@ -47,14 +47,7 @@ async function reboot() {
   }
 }
 
-let timer: ReturnType<typeof setInterval> | undefined
-onMounted(() => {
-  timer = setInterval(() => {
-    if (isLive.value) refresh()
-    else if (timer) clearInterval(timer)
-  }, 1500)
-})
-onUnmounted(() => timer && clearInterval(timer))
+usePollWhile(() => isLive.value, refresh)
 </script>
 
 <template>

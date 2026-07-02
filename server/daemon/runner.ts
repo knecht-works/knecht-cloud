@@ -1,6 +1,5 @@
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { execa } from 'execa'
 import { eq, sql } from 'drizzle-orm'
 import { Octokit } from 'octokit'
 import { db, schema } from '../db'
@@ -11,8 +10,8 @@ import { createContext, render, type RunContext } from '../workflows/context'
 import { projectDumpDir, runSandboxName } from '../utils/storage'
 import { createBranch, commitAll, prepareRunCheckout, pushBranch } from './git'
 import { readDdevHosts, writeDdevConfig } from './ddev'
-import { bootSandbox, sandboxExecArgs } from './sandbox'
-import { enforceEnvCap } from './envs'
+import { copyIntoSandbox, execInSandbox } from './sandbox'
+import { ensureEnvUp } from './envs'
 
 // The in-process serial runner (tech-stack.md §4). Each run gets its OWN
 // sandbox (run-isolation.md): an isolated git worktree bind-mounted into a
@@ -80,13 +79,13 @@ async function runStep(
   switch (step.type) {
     case 'ddev-start': {
       appendLog(runId, `\n▶ ddev-start\n`)
-      await ensureSandbox(runId)
-      const code = await stream(runId, 'docker', sandboxExecArgs(runId, ['ddev', 'start']))
+      await ensureEnvUp(runId)
+      const code = await streamInSandbox(runId, ['ddev', 'start'])
       if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
       // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
-      // per-run origin the preview proxy serves (`<runId>.preview.<host>`).
+      // per-run origin the preview proxy serves.
       const baseDomain = process.env.KNECHT_BASE_DOMAIN
-      if (baseDomain) ctx.preview = { url: `https://${runId}.preview.${baseDomain}` }
+      if (baseDomain) ctx.preview = { url: `https://${previewHostname(runId, baseDomain)}` }
       await importDb(runId, project)
       break
     }
@@ -95,8 +94,8 @@ async function runStep(
       appendLog(runId, `\n▶ bash: ${command}\n`)
       // Project-facing commands (ddev, the agent, builds) run INSIDE the run's
       // sandbox, in the mounted checkout — never on the Knecht host.
-      await ensureSandbox(runId)
-      const code = await stream(runId, 'docker', sandboxExecArgs(runId, ['bash', '-lc', command]))
+      await ensureEnvUp(runId)
+      const code = await streamInSandbox(runId, ['bash', '-lc', command])
       if (code !== 0 && !step.continueOnError) {
         throw new Error(`Command exited with code ${code}`)
       }
@@ -158,20 +157,6 @@ async function runStep(
   }
 }
 
-// Boot (or resume) the run's sandbox and mark the environment up. Idempotent —
-// safe to call before every project-facing step. The concurrency cap bounds
-// how many sandboxes (CPU/RAM-heavy nested Docker hosts) run at once.
-async function ensureSandbox(runId: number): Promise<void> {
-  await enforceEnvCap(runId)
-  await bootSandbox(runId)
-  // The environment is up (and previewable once ddev starts inside), even if
-  // later steps fail.
-  db.update(schema.runs)
-    .set({ envState: 'up', previewLastSeen: new Date() })
-    .where(eq(schema.runs.id, runId))
-    .run()
-}
-
 // Import the project's DB dump into this run's fresh environment (projects.md
 // §6). Each run env is isolated, so the import happens per run (idle reboots
 // keep the sandbox and don't re-import). The dump lives in Knecht's data dir,
@@ -188,16 +173,16 @@ async function importDb(runId: number, project: Project): Promise<void> {
 
   appendLog(runId, `\n▶ import-db (${basename(file)})\n`)
   const inSandbox = `/tmp/${basename(file)}`
-  await execa('docker', ['cp', file, `${runSandboxName(runId)}:${inSandbox}`])
-  const code = await stream(runId, 'docker', sandboxExecArgs(runId, ['ddev', 'import-db', `--file=${inSandbox}`]))
+  await copyIntoSandbox(runId, file, inSandbox)
+  const code = await streamInSandbox(runId, ['ddev', 'import-db', `--file=${inSandbox}`])
   if (code !== 0) throw new Error(`ddev import-db exited with code ${code}`)
 }
 
-// Spawn a process and stream its stdout/stderr into the run log. Resolves with
-// the exit code (never rejects on a non-zero exit — the caller decides). All
-// project-facing work runs via `docker exec` in the sandbox, so no cwd here.
-function stream(runId: number, file: string, args: string[]): Promise<number> {
-  const sub = execa(file, args, { reject: false, buffer: false })
+// Run a command in the sandbox, streaming its stdout/stderr into the run log.
+// Resolves with the exit code (never rejects on a non-zero exit — the caller
+// decides).
+function streamInSandbox(runId: number, command: string[]): Promise<number> {
+  const sub = execInSandbox(runId, command, { reject: false, buffer: false })
   sub.stdout?.on('data', (d: Buffer) => appendLog(runId, d.toString()))
   sub.stderr?.on('data', (d: Buffer) => appendLog(runId, d.toString()))
   return sub.then(r => r.exitCode ?? 1)

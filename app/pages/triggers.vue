@@ -24,7 +24,7 @@ async function toggle(t: Trigger) {
     await refresh()
   }
   catch (e) {
-    toast.add({ title: 'Failed to update trigger', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to update trigger', description: errMsg(e, ''), color: 'error' })
   }
 }
 
@@ -35,7 +35,7 @@ async function run(t: Trigger) {
     await refresh()
   }
   catch (e) {
-    toast.add({ title: 'Failed to fire trigger', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to fire trigger', description: errMsg(e, ''), color: 'error' })
   }
 }
 
@@ -45,12 +45,8 @@ async function remove(t: Trigger) {
     await refresh()
   }
   catch (e) {
-    toast.add({ title: 'Failed to delete trigger', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to delete trigger', description: errMsg(e, ''), color: 'error' })
   }
-}
-
-function errMsg(e: unknown) {
-  return (e as { data?: { statusMessage?: string } }).data?.statusMessage
 }
 </script>
 

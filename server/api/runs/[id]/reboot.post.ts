@@ -1,12 +1,9 @@
-import { execa } from 'execa'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
-import { bootSandbox, sandboxExecArgs } from '../../../daemon/sandbox'
+import { rebootEnv } from '../../../daemon/envs'
 
-// POST /api/runs/:id/reboot → restart a run's idle-stopped environment. The
-// stopped sandbox keeps its filesystem (worktree mount, inner volumes, the
-// imported DB), so booting it and running `ddev start` inside brings it back
-// without re-running the workflow.
+// POST /api/runs/:id/reboot → restart a run's idle-stopped environment
+// (daemon/envs.ts owns the how). Returns the refreshed run row.
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {
@@ -21,13 +18,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'No environment to reboot — re-run the workflow' })
   }
 
-  await bootSandbox(id)
-  await execa('docker', sandboxExecArgs(id, ['ddev', 'start']))
+  await rebootEnv(id)
 
-  return db
-    .update(schema.runs)
-    .set({ envState: 'up', previewLastSeen: new Date() })
-    .where(eq(schema.runs.id, id))
-    .returning()
-    .get()
+  return db.select().from(schema.runs).where(eq(schema.runs.id, id)).get()
 })

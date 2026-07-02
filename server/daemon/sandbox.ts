@@ -1,5 +1,5 @@
 import { hostname } from 'node:os'
-import { execa } from 'execa'
+import { execa, type Options } from 'execa'
 import { runSandboxName, runWorktreeDir } from '../utils/storage'
 
 // The sandbox seam (run-isolation.md §8): every run gets its own Sysbox
@@ -69,16 +69,23 @@ export async function removeSandbox(runId: number): Promise<void> {
   }
 }
 
-// Build the `docker exec` argv that runs a command inside a run's sandbox as
-// the non-root ddev user (whose uid matches this process — baked into the
-// image, see sandbox/Dockerfile), in the project checkout. HOME and USER must
-// be set explicitly: `docker exec -u` derives neither, ddev needs both.
-export function sandboxExecArgs(runId: number, command: string[]): string[] {
-  return [
+// Run a command inside a run's sandbox as the non-root ddev user (whose uid
+// matches this process — baked into the image, see sandbox/Dockerfile), in
+// the project checkout. HOME and USER must be set explicitly: `docker exec -u`
+// derives neither, ddev needs both. execa options pass through (the runner
+// streams with `buffer: false`; plain callers just await).
+export function execInSandbox(runId: number, command: string[], options?: Options) {
+  return execa('docker', [
     'exec', '-u', 'ddev', '-w', SANDBOX_PROJECT_DIR,
     '-e', 'HOME=/home/ddev', '-e', 'USER=ddev',
     runSandboxName(runId), ...command,
-  ]
+  ], options)
+}
+
+// Copy a host-side file into the sandbox (the sandbox can't see Knecht's data
+// dir — e.g. uploaded DB dumps travel this way).
+export async function copyIntoSandbox(runId: number, file: string, dest: string): Promise<void> {
+  await execa('docker', ['cp', file, `${runSandboxName(runId)}:${dest}`])
 }
 
 // Resolve the address the preview proxy targets: the sandbox's IP on the

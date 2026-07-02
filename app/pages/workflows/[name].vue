@@ -99,10 +99,6 @@ function moveStep(i: number, dir: -1 | 1) {
   else if (selected.value === j) selected.value = i
 }
 
-function errMsg(e: unknown) {
-  return (e as { data?: { statusMessage?: string } }).data?.statusMessage
-}
-
 // ── auto-save ────────────────────────────────────────────────────────────────
 // There's no save button — edits persist automatically (debounced) once the
 // workflow is valid. New workflows are created as soon as they have a valid name
@@ -180,7 +176,7 @@ async function persist() {
   }
   catch (e) {
     saveStatus.value = 'error'
-    saveError.value = errMsg(e)
+    saveError.value = errMsg(e, '')
   }
 }
 
@@ -203,7 +199,7 @@ async function removeWorkflow() {
     }
   }
   catch (e) {
-    toast.add({ title: 'Failed to delete', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to delete', description: errMsg(e, ''), color: 'error' })
   }
   finally {
     removing.value = false
@@ -239,7 +235,7 @@ async function start() {
     poll()
   }
   catch (e) {
-    toast.add({ title: 'Failed to start test', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to start test', description: errMsg(e, ''), color: 'error' })
   }
   finally {
     starting.value = false

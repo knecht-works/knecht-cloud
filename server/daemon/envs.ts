@@ -1,14 +1,40 @@
+import { execa } from 'execa'
 import { and, asc, eq, lt, ne } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { getSettings } from '../utils/settings'
-import { projectCheckoutDir } from '../utils/storage'
-import { teardownRun } from './ddev'
-import { stopSandbox } from './sandbox'
+import { projectCheckoutDir, runWorktreeDir } from '../utils/storage'
+import { bootSandbox, execInSandbox, removeSandbox, stopSandbox } from './sandbox'
 
-// Lifecycle of the per-run sandboxes. Each one is a full nested Docker host
-// (dockerd + ddev stack), so CPU/RAM/disk pile up fast without bounds. These
-// helpers keep the count bounded; the limits are operator settings
+// Lifecycle of the per-run environments — the ONE place that moves envState.
+// Each env is a full nested Docker host (dockerd + ddev stack), so CPU/RAM/
+// disk pile up fast without bounds. The limits are operator settings
 // (server/utils/settings.ts).
+
+// Bring a run's env up before project-facing work: bound the fleet, boot (or
+// resume) its sandbox, mark it previewable. Idempotent.
+export async function ensureEnvUp(runId: number): Promise<void> {
+  await enforceEnvCap(runId)
+  await bootSandbox(runId)
+  markUp(runId)
+}
+
+// Restart an idle-stopped env. The stopped sandbox keeps its filesystem
+// (worktree mount, inner volumes, the imported DB), so booting it and running
+// `ddev start` inside brings it back without re-running the workflow.
+export async function rebootEnv(runId: number): Promise<void> {
+  await bootSandbox(runId)
+  await execInSandbox(runId, ['ddev', 'start'])
+  markUp(runId)
+}
+
+// The env is up and previewable now, even if later steps fail. Also resets
+// the idle clock so the reaper doesn't stop what was just booted.
+function markUp(runId: number): void {
+  db.update(schema.runs)
+    .set({ envState: 'up', previewLastSeen: new Date() })
+    .where(eq(schema.runs.id, runId))
+    .run()
+}
 
 // Stop a run's env: stopping the sandbox shuts the whole inner world down
 // cleanly while keeping its filesystem (inner volumes, imported DB), so it can
@@ -70,5 +96,20 @@ export async function reapStoppedEnvs(): Promise<void> {
     const project = db.select().from(schema.projects).where(eq(schema.projects.id, run.projectId)).get()
     if (project) await teardownRun(run.id, projectCheckoutDir(project))
     db.update(schema.runs).set({ envState: 'down' }).where(eq(schema.runs.id, run.id)).run()
+  }
+}
+
+// Fully tear down a run's isolated environment: remove its sandbox container
+// (the whole nested world — inner containers, volumes, imported DB — lives in
+// its filesystem and goes with it) and remove its git worktree. Both steps are
+// best-effort so a half-gone env still gets cleaned up. `baseDir` is the
+// project's base clone the worktree hangs off.
+export async function teardownRun(runId: number, baseDir: string): Promise<void> {
+  await removeSandbox(runId)
+  try {
+    await execa('git', ['-C', baseDir, 'worktree', 'remove', '--force', runWorktreeDir(runId)])
+  }
+  catch {
+    // Worktree already gone.
   }
 }

@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { teardownRun } from '../../daemon/ddev'
+import { teardownRun } from '../../daemon/envs'
 import { projectCheckoutDir } from '../../utils/storage'
 
 // DELETE /api/projects/:id → disconnect a project and clean up after it: every

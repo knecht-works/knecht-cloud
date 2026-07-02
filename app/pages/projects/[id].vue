@@ -35,7 +35,7 @@ const mascotLine = computed(() => {
 // resolve and the session cookie is shared (see runs/[id]).
 const reqUrl = useRequestURL()
 const previewUrl = computed(() =>
-  latest.value ? `${reqUrl.protocol}//${latest.value.id}.preview.${reqUrl.host}/` : '')
+  latest.value ? `${reqUrl.protocol}//${previewHostname(latest.value.id, reqUrl.host)}/` : '')
 const previewOnline = computed(() => latest.value?.envState === 'up')
 
 // ── Start a workflow ─────────────────────────────────────────────────────
@@ -53,7 +53,7 @@ async function startWorkflow() {
     starting.value = false
     toast.add({
       title: 'Failed to start run',
-      description: (e as { data?: { statusMessage?: string } }).data?.statusMessage,
+      description: errMsg(e, ''),
       color: 'error',
     })
   }
@@ -96,7 +96,7 @@ async function persistEnv() {
     envSaveState.value = 'idle'
     toast.add({
       title: 'Failed to save',
-      description: (e as { data?: { statusMessage?: string } }).data?.statusMessage,
+      description: errMsg(e, ''),
       color: 'error',
     })
   }
@@ -135,7 +135,7 @@ async function uploadDump(event: Event) {
   catch (e) {
     toast.add({
       title: 'Upload failed',
-      description: (e as { data?: { statusMessage?: string } }).data?.statusMessage,
+      description: errMsg(e, ''),
       color: 'error',
     })
   }
@@ -158,14 +158,7 @@ const PLANNED_TRIGGERS = [
 ]
 
 // Poll the runs while the latest is still live (updates status + preview state).
-let timer: ReturnType<typeof setInterval> | undefined
-onMounted(() => {
-  timer = setInterval(() => {
-    if (isLive.value) refreshRuns()
-    else if (timer) clearInterval(timer)
-  }, 1500)
-})
-onUnmounted(() => timer && clearInterval(timer))
+usePollWhile(() => isLive.value, refreshRuns)
 </script>
 
 <template>

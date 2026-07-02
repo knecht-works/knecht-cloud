@@ -74,7 +74,7 @@ async function create() {
     }
   }
   catch (e) {
-    toast.add({ title: 'Failed to create trigger', description: errMsg(e), color: 'error' })
+    toast.add({ title: 'Failed to create trigger', description: errMsg(e, ''), color: 'error' })
   }
   finally {
     creating.value = false
@@ -86,10 +86,6 @@ function copy(text: string | null) {
     navigator.clipboard?.writeText(text)
     toast.add({ title: 'Copied', color: 'success' })
   }
-}
-
-function errMsg(e: unknown) {
-  return (e as { data?: { statusMessage?: string } }).data?.statusMessage
 }
 
 // Reset to a fresh form whenever the modal closes.
