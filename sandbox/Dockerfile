@@ -74,6 +74,10 @@ ENV DDEV_NONINTERACTIVE=true
 # ddev merges this file with its defaults on first run.
 RUN su - ddev -c 'mkdir -p ~/.ddev && printf "router_bind_all_interfaces: true\ninstrumentation_opt_in: false\n" > ~/.ddev/global_config.yaml'
 
+# mkcert's CA, generated at build time — otherwise every fresh sandbox spends
+# its first `ddev start` creating one (and warns that mkcert isn't installed).
+RUN su - ddev -c 'mkcert -install'
+
 # opencode (the AI agent) — runs INSIDE the sandbox, in the project checkout.
 RUN su - ddev -c 'curl -fsSL https://opencode.ai/install | bash'
 

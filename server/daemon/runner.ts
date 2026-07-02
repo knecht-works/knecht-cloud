@@ -88,8 +88,8 @@ async function runStep(
       if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
       // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
       // per-run origin the preview proxy serves.
-      const baseDomain = process.env.KNECHT_BASE_DOMAIN
-      if (baseDomain) ctx.preview = { url: `https://${previewHostname(runId, baseDomain)}` }
+      const previewUrl = previewOrigin(runId)
+      if (previewUrl) ctx.preview = { url: previewUrl }
       await importDb(runId, project)
       break
     }

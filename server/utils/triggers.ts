@@ -42,8 +42,7 @@ function relFuture(date: Date): string {
 }
 
 function baseUrl(): string {
-  const domain = process.env.KNECHT_BASE_DOMAIN
-  return domain ? `https://${domain}` : ''
+  return dashboardOrigin()
 }
 
 function eventLabel(t: Trigger): string {
