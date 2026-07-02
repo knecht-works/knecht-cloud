@@ -17,17 +17,18 @@ In `.env` (already documented in `.env.example`):
 - `KNECHT_TEST_AUTH` — a shared secret (`openssl rand -hex 16`).
 - `KNECHT_TEST_GITHUB_TOKEN` — a real GitHub token, so real clone/PR ops work.
 
-The dev server must be running (`npm run dev:docker`).
+The dev server must be running (`npm run dev:vm` — serves on port 3333 inside
+the Linux dev VM, forwarded to the Mac).
 
 ## Steps
 
-Use the app's cookie domain as the host — `KNECHT_BASE_DOMAIN` (e.g. `lvh.me:3000`),
+Use the app's cookie domain as the host — `KNECHT_BASE_DOMAIN` (e.g. `lvh.me:3333`),
 **not** `localhost`, or the session cookie won't round-trip. Load the secret from
 `.env` without printing it:
 
 ```bash
 set -a; . ./.env 2>/dev/null; set +a
-HOST="${KNECHT_BASE_DOMAIN:-localhost}:3000"
+HOST="${KNECHT_BASE_DOMAIN:-localhost}:3333"
 
 # 1. Seed a session into a cookie jar.
 curl -s -c /tmp/knecht-jar.txt "http://$HOST/_test/login?secret=$KNECHT_TEST_AUTH"

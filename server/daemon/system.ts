@@ -1,29 +1,34 @@
 import { execa } from 'execa'
 
 export interface SystemInfo {
-  /** The ddev version string, or 'not available' if ddev couldn't be reached. */
-  ddevVersion: string
-  /** Names of all containers on the host daemon (proves DooD from inside). */
+  /** The host Docker server version, or 'not available' if unreachable. */
+  dockerVersion: string
+  /** Whether the sysbox-runc runtime is registered on the host daemon. */
+  sysboxAvailable: boolean
+  /** Names of all containers on the host daemon (sandboxes show up here). */
   hostContainers: string[]
 }
 
 /**
- * The first "daemon slice": shell out to ddev and the host Docker daemon and
- * report what we find. This is the same thing we validated by hand in the DooD
- * harness, now done programmatically — UI → API → here → execa → ddev/docker.
+ * The system probe: ask the host Docker daemon what Knecht's substrate looks
+ * like — daemon reachable, Sysbox runtime registered (the per-run sandboxes
+ * need it — run-isolation.md §7), and what's running. UI → API → here → execa.
  *
  * Lives in server/daemon/ (not in the route) so the HTTP layer stays thin and
  * the orchestration logic is portable — see internals/docs/tech-stack.md §6.
  */
 export async function getSystemInfo(): Promise<SystemInfo> {
-  const [ddevVersion, hostContainers] = await Promise.all([
-    execa('ddev', ['--version'])
-      .then(r => r.stdout.trim().split(/\s+/).pop() ?? 'unknown')
+  const [dockerVersion, sysboxAvailable, hostContainers] = await Promise.all([
+    execa('docker', ['version', '--format', '{{.Server.Version}}'])
+      .then(r => r.stdout.trim() || 'unknown')
       .catch(() => 'not available'),
+    execa('docker', ['info', '--format', '{{json .Runtimes}}'])
+      .then(r => r.stdout.includes('sysbox-runc'))
+      .catch(() => false),
     execa('docker', ['ps', '--format', '{{.Names}}'])
       .then(r => String(r.stdout).split('\n').map(s => s.trim()).filter(Boolean))
       .catch(() => []),
   ])
 
-  return { ddevVersion, hostContainers }
+  return { dockerVersion, sysboxAvailable, hostContainers }
 }

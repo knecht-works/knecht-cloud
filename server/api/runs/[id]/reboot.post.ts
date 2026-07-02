@@ -1,11 +1,12 @@
 import { execa } from 'execa'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
-import { runWorktreeDir } from '../../../utils/storage'
+import { bootSandbox, sandboxExecArgs } from '../../../daemon/sandbox'
 
 // POST /api/runs/:id/reboot → restart a run's idle-stopped environment. The
-// worktree and volumes (incl. the imported DB) persist, so `ddev start` brings
-// it back without re-running the workflow.
+// stopped sandbox keeps its filesystem (worktree mount, inner volumes, the
+// imported DB), so booting it and running `ddev start` inside brings it back
+// without re-running the workflow.
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (!Number.isInteger(id)) {
@@ -20,7 +21,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'No environment to reboot — re-run the workflow' })
   }
 
-  await execa('ddev', ['start'], { cwd: runWorktreeDir(id) })
+  await bootSandbox(id)
+  await execa('docker', sandboxExecArgs(id, ['ddev', 'start']))
 
   return db
     .update(schema.runs)

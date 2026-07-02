@@ -1,7 +1,8 @@
-# Knecht — DooD validation harness.
-# Brings up the tooling container so you can exec in and validate that a
-# containerized Node image can drive the host Docker daemon via ddev.
-# Full procedure: internals/docs/dood-harness.md
+# Knecht — the control plane.
+# Requires a Linux host with Sysbox installed and the `knecht-sandbox` image
+# built (see sandbox/Dockerfile + scripts/provision-host.sh): each run boots
+# its own unprivileged Docker-in-Docker sandbox via `--runtime=sysbox-runc`.
+# Architecture: internals/docs/run-isolation.md
 
 services:
   knecht:
@@ -13,16 +14,10 @@ services:
     # `npm run dev` reads .env natively.
     env_file:
       - .env
-    environment:
-      # This container owns an ISOLATED ddev config (its ~/.ddev is not the
-      # host's), so the daemon may manage it — primarily: omit ddev's shared
-      # router, which Knecht never uses and which is the only source of host-port
-      # collisions across isolated runs. See server/plugins/ddev-setup.ts.
-      - KNECHT_MANAGED_DDEV=1
     # Grant the host docker socket's group to the (non-root) container process at
     # RUNTIME — so the SAME prebuilt image works on any host, no rebuild when the
     # gid differs. Find it with:  stat -c '%g' /var/run/docker.sock
-    #   OrbStack reports 0; a Linux host's `docker` group is usually 999.
+    #   A Linux host's `docker` group is usually 999.
     # Set DOCKER_GID in .env (local) or by the installer (e.g. into /data/knecht/.env).
     group_add:
       - "${DOCKER_GID:-999}"
@@ -31,17 +26,17 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Docker-out-of-Docker: drive the HOST daemon through its socket.
+      # Drive the HOST daemon through its socket — that's how the per-run
+      # sandboxes are launched (and the only reason this socket is here).
       - /var/run/docker.sock:/var/run/docker.sock
-      # Fixed project path — MUST be byte-identical on both sides. The host
-      # daemon resolves ddev's bind mounts, so the path inside the container has
-      # to equal the path on the host. A single variable is used on both sides
-      # so they can never drift. Production convention: /data/knecht/projects.
-      # macOS/OrbStack (SIP blocks /data): point it under your home, e.g.
-      #   export KNECHT_PROJECTS=/Users/you/knecht/projects
+      # Fixed project path — MUST be byte-identical on both sides: the HOST
+      # daemon resolves the `-v worktree:/project` bind mount when a sandbox is
+      # launched, so the worktree path Knecht passes has to exist on the host.
+      # A single variable is used on both sides so they can never drift.
+      # Production convention: /data/knecht/projects.
       - ${KNECHT_PROJECTS:-/data/knecht/projects}:${KNECHT_PROJECTS:-/data/knecht/projects}
-    # The preview proxy reaches each run's web container DIRECTLY over the
-    # `ddev_default` network (dood-harness.md §7), and ddev's router is omitted
-    # for our runs (KNECHT_MANAGED_DDEV) — so no host ingress ports are needed
-    # or published here beyond the UI port above.
+    # The preview proxy reaches each run's sandbox (its inner ddev-router) over
+    # the `knecht-ingress` docker network, which Knecht creates and joins at
+    # boot (server/daemon/sandbox.ts) — no host ingress ports are needed or
+    # published here beyond the UI port above.
     restart: unless-stopped

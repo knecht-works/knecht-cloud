@@ -1,21 +1,21 @@
-import { execa } from 'execa'
 import { and, asc, eq, lt, ne } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { getSettings } from '../utils/settings'
-import { projectCheckoutDir, runEnvName } from '../utils/storage'
+import { projectCheckoutDir } from '../utils/storage'
 import { teardownRun } from './ddev'
+import { stopSandbox } from './sandbox'
 
-// Lifecycle of the per-run ddev environments. Each env consumes a docker network
-// from a finite pool (and disk for its volumes), so without bounds they pile up
-// and eventually break new runs ("all predefined address pools have been fully
-// subnetted"). These helpers keep the count bounded; the limits are operator
-// settings (server/utils/settings.ts).
+// Lifecycle of the per-run sandboxes. Each one is a full nested Docker host
+// (dockerd + ddev stack), so CPU/RAM/disk pile up fast without bounds. These
+// helpers keep the count bounded; the limits are operator settings
+// (server/utils/settings.ts).
 
-// Stop a run's env: `ddev stop` removes its containers + network (freeing the
-// pool and host ports) while keeping volumes, so it can be rebooted later.
+// Stop a run's env: stopping the sandbox shuts the whole inner world down
+// cleanly while keeping its filesystem (inner volumes, imported DB), so it can
+// be rebooted quickly.
 export async function stopEnv(runId: number): Promise<void> {
   try {
-    await execa('ddev', ['stop', runEnvName(runId)])
+    await stopSandbox(runId)
     db.update(schema.runs).set({ envState: 'stopped' }).where(eq(schema.runs.id, runId)).run()
   }
   catch {
@@ -25,7 +25,7 @@ export async function stopEnv(runId: number): Promise<void> {
 
 // Make room before booting a new env: stop the least-recently-previewed 'up'
 // envs until fewer than the cap remain (leaving a slot for the one about to
-// boot). This is what guarantees Knecht never exhausts the docker network pool.
+// boot). This is what keeps the host from drowning in nested Docker hosts.
 export async function enforceEnvCap(exceptRunId: number): Promise<void> {
   const cap = getSettings().maxConcurrentEnvs
   if (cap <= 0) return
@@ -43,7 +43,7 @@ export async function enforceEnvCap(exceptRunId: number): Promise<void> {
 }
 
 // Stop envs that have been idle (no preview access) longer than the configured
-// timeout. Keeps volumes — a reboot is quick.
+// timeout. Keeps the sandbox filesystem — a reboot is quick.
 export async function reapIdleEnvs(): Promise<void> {
   const { idleStopMinutes } = getSettings()
   const cutoff = new Date(Date.now() - idleStopMinutes * 60_000)
@@ -56,7 +56,7 @@ export async function reapIdleEnvs(): Promise<void> {
 }
 
 // Fully delete envs that have been 'stopped' (untouched) longer than the
-// teardown timeout, reclaiming their volumes + worktree. 0 disables it.
+// teardown timeout, reclaiming their sandbox + worktree. 0 disables it.
 export async function reapStoppedEnvs(): Promise<void> {
   const { teardownStoppedMinutes } = getSettings()
   if (teardownStoppedMinutes <= 0) return

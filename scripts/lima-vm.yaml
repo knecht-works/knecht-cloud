@@ -1,0 +1,37 @@
+# The Knecht dev VM (run-isolation.md §9): Sysbox is Linux-only, so on macOS
+# development happens inside this Ubuntu VM — the same substrate as the
+# production VPS. Create + provision:
+#
+#   limactl create --name=knecht-dev scripts/lima-vm.yaml
+#   limactl start knecht-dev
+#   limactl shell knecht-dev -- ./scripts/provision-host.sh
+#   npm run dev:vm
+#
+# Lima auto-forwards the dev server port to the Mac, so the UI is at
+# http://localhost:3000 and previews at http://<runId>.preview.lvh.me:3000.
+
+vmType: "vz"
+cpus: 4
+memory: "8GiB"
+disk: "60GiB"
+
+# Forward macOS file events into the guest — without this, edits made on the
+# Mac never wake the Nuxt dev server's watcher (virtiofs carries no inotify).
+mountInotify: true
+
+mounts:
+# The repo, shared WRITABLE at the identical path — edit on the Mac, run in the
+# VM. Adjust to where you keep the checkout. (Platform-specific artifacts are
+# kept apart by scripts/vm-dev.sh, which bind-mounts VM-local dirs over
+# node_modules/.nuxt/.data.)
+- location: "/Users/samuel/Documents/b-privat-projekte/a-repos/knecht/knecht-cloud"
+  writable: true
+- location: "~"
+
+minimumLimaVersion: 2.0.0
+
+images:
+- location: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-amd64.img"
+  arch: "x86_64"
+- location: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-arm64.img"
+  arch: "aarch64"

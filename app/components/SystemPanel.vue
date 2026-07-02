@@ -6,7 +6,7 @@ const { data, status, error, refresh } = await useFetch('/api/system')
 
 <template>
   <KPanel
-    title="Host · DDEV"
+    title="Host · Sandbox"
     icon="i-lucide-server"
     accent="var(--text-primary)"
   >
@@ -38,8 +38,15 @@ const { data, status, error, refresh } = await useFetch('/api/system')
       class="flex flex-col gap-3"
     >
       <div class="flex items-center justify-between">
-        <span class="k-mono text-[12px] text-(--text-dimmed)">ddev</span>
-        <span class="k-mono text-[12px] text-(--text-toned)">{{ data.ddevVersion }}</span>
+        <span class="k-mono text-[12px] text-(--text-dimmed)">docker</span>
+        <span class="k-mono text-[12px] text-(--text-toned)">{{ data.dockerVersion }}</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="k-mono text-[12px] text-(--text-dimmed)">sysbox</span>
+        <span
+          class="k-mono text-[12px]"
+          :class="data.sysboxAvailable ? 'text-(--text-toned)' : 'text-(--status-error)'"
+        >{{ data.sysboxAvailable ? 'available' : 'missing' }}</span>
       </div>
       <div class="border-t border-(--border-muted) pt-3">
         <span class="k-label">Host containers · {{ data.hostContainers.length }}</span>

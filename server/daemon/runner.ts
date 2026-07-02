@@ -8,16 +8,20 @@ import type { Project } from '../db/schema'
 import { getWorkflow } from '../workflows'
 import type { Step } from '../workflows/schema'
 import { createContext, render, type RunContext } from '../workflows/context'
-import { projectDumpDir, runEnvName } from '../utils/storage'
+import { projectDumpDir, runSandboxName } from '../utils/storage'
 import { createBranch, commitAll, prepareRunCheckout, pushBranch } from './git'
-import { ensureOnDdevNetwork, readDdevHost, writeDdevConfig } from './ddev'
+import { readDdevHosts, writeDdevConfig } from './ddev'
+import { bootSandbox, sandboxExecArgs } from './sandbox'
 import { enforceEnvCap } from './envs'
 
-// The in-process serial runner (tech-stack.md §4). Each run gets its OWN ddev
-// environment: an isolated git worktree, a unique ddev project name, its own
-// containers and freshly-imported DB. The run row tracks both the run status
-// and the environment state (envState), which the preview proxy and the idle-
-// stopper read. SSE is deferred — the UI polls the row.
+// The in-process serial runner (tech-stack.md §4). Each run gets its OWN
+// sandbox (run-isolation.md): an isolated git worktree bind-mounted into a
+// per-run Sysbox container, whose inner daemon boots the project's full ddev
+// stack — router included — and a freshly-imported DB. Project-facing steps
+// (ddev, bash/agent) exec INSIDE the sandbox; git steps run host-side against
+// the worktree. The run row tracks both the run status and the environment
+// state (envState = the sandbox's state), which the preview proxy and the
+// idle-stopper read. SSE is deferred — the UI polls the row.
 
 // Kick off a run. Returns immediately; execution continues in the background.
 export function startRun(runId: number, project: Project, token: string): void {
@@ -44,14 +48,13 @@ async function execRun(runId: number, project: Project, token: string): Promise<
     appendLog(runId, `▶ Preparing isolated checkout\n`)
     const dir = await prepareRunCheckout(project, runId, token, line => appendLog(runId, line))
 
-    // Read the repo's own ddev host and store it. The booted app keeps using it
-    // (the pasted .env is applied verbatim); the proxy sends it as Host and
-    // rewrites it to the preview origin in responses — no env-var pinning.
-    const previewHost = readDdevHost(dir)
+    // Read the repo's own primary ddev host and store it (the proxy serves
+    // the whole host set — readDdevHosts — under per-run preview origins).
+    const previewHost = readDdevHosts(dir).primary
     db.update(schema.runs).set({ previewHost }).where(eq(schema.runs.id, runId)).run()
 
-    const injected = writeDdevConfig(dir, runEnvName(runId), project.envVars)
-    appendLog(runId, `Env: ${runEnvName(runId)} (host ${previewHost ?? '?'}, +${injected} env var(s))\n`)
+    const injected = writeDdevConfig(dir, project.envVars)
+    appendLog(runId, `Sandbox: ${runSandboxName(runId)} (host ${previewHost ?? '?'}, +${injected} env var(s))\n`)
 
     const ctx = createContext(runId, project)
     for (const step of workflow.steps) {
@@ -77,30 +80,23 @@ async function runStep(
   switch (step.type) {
     case 'ddev-start': {
       appendLog(runId, `\n▶ ddev-start\n`)
-      // Bound concurrent envs before booting: each env holds a docker network
-      // from a finite pool, so stop the least-recently-used ones over the cap.
-      await enforceEnvCap(runId)
-      const code = await stream(runId, 'ddev', ['start'], cwd)
+      await ensureSandbox(runId)
+      const code = await stream(runId, 'docker', sandboxExecArgs(runId, ['ddev', 'start']))
       if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
-      // The env (and ddev's shared network) exist now — make sure the Knecht
-      // container can reach this run's web container directly for the preview.
-      await ensureOnDdevNetwork()
-      // The environment is up and previewable now, even if later steps fail.
-      db.update(schema.runs)
-        .set({ envState: 'up', previewLastSeen: new Date() })
-        .where(eq(schema.runs.id, runId))
-        .run()
       // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
       // per-run origin the preview proxy serves (`<runId>.preview.<host>`).
       const baseDomain = process.env.KNECHT_BASE_DOMAIN
       if (baseDomain) ctx.preview = { url: `https://${runId}.preview.${baseDomain}` }
-      await importDb(runId, cwd, project)
+      await importDb(runId, project)
       break
     }
     case 'bash': {
       const command = render(step.command, ctx)
       appendLog(runId, `\n▶ bash: ${command}\n`)
-      const code = await stream(runId, 'bash', ['-c', command], cwd)
+      // Project-facing commands (ddev, the agent, builds) run INSIDE the run's
+      // sandbox, in the mounted checkout — never on the Knecht host.
+      await ensureSandbox(runId)
+      const code = await stream(runId, 'docker', sandboxExecArgs(runId, ['bash', '-lc', command]))
       if (code !== 0 && !step.continueOnError) {
         throw new Error(`Command exited with code ${code}`)
       }
@@ -162,28 +158,46 @@ async function runStep(
   }
 }
 
+// Boot (or resume) the run's sandbox and mark the environment up. Idempotent —
+// safe to call before every project-facing step. The concurrency cap bounds
+// how many sandboxes (CPU/RAM-heavy nested Docker hosts) run at once.
+async function ensureSandbox(runId: number): Promise<void> {
+  await enforceEnvCap(runId)
+  await bootSandbox(runId)
+  // The environment is up (and previewable once ddev starts inside), even if
+  // later steps fail.
+  db.update(schema.runs)
+    .set({ envState: 'up', previewLastSeen: new Date() })
+    .where(eq(schema.runs.id, runId))
+    .run()
+}
+
 // Import the project's DB dump into this run's fresh environment (projects.md
 // §6). Each run env is isolated, so the import happens per run (idle reboots
-// keep the volume and don't re-import).
-async function importDb(runId: number, cwd: string, project: Project): Promise<void> {
+// keep the sandbox and don't re-import). The dump lives in Knecht's data dir,
+// which the sandbox can't see — copy it in, then import inside.
+async function importDb(runId: number, project: Project): Promise<void> {
   if (!project.dbDumpPath) return
 
   // Rebuild the path against the current data dir + filename so it's valid here,
-  // where ddev runs (the stored path reflects wherever the upload ran).
+  // where the upload landed (the stored path reflects wherever the upload ran).
   const file = join(projectDumpDir(project.id), basename(project.dbDumpPath))
   if (!existsSync(file)) {
     throw new Error(`DB dump not found at ${file}`)
   }
 
   appendLog(runId, `\n▶ import-db (${basename(file)})\n`)
-  const code = await stream(runId, 'ddev', ['import-db', `--file=${file}`], cwd)
+  const inSandbox = `/tmp/${basename(file)}`
+  await execa('docker', ['cp', file, `${runSandboxName(runId)}:${inSandbox}`])
+  const code = await stream(runId, 'docker', sandboxExecArgs(runId, ['ddev', 'import-db', `--file=${inSandbox}`]))
   if (code !== 0) throw new Error(`ddev import-db exited with code ${code}`)
 }
 
 // Spawn a process and stream its stdout/stderr into the run log. Resolves with
-// the exit code (never rejects on a non-zero exit — the caller decides).
-function stream(runId: number, file: string, args: string[], cwd: string): Promise<number> {
-  const sub = execa(file, args, { cwd, reject: false, buffer: false })
+// the exit code (never rejects on a non-zero exit — the caller decides). All
+// project-facing work runs via `docker exec` in the sandbox, so no cwd here.
+function stream(runId: number, file: string, args: string[]): Promise<number> {
+  const sub = execa(file, args, { reject: false, buffer: false })
   sub.stdout?.on('data', (d: Buffer) => appendLog(runId, d.toString()))
   sub.stderr?.on('data', (d: Buffer) => appendLog(runId, d.toString()))
   return sub.then(r => r.exitCode ?? 1)

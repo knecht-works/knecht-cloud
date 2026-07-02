@@ -44,10 +44,6 @@ const route = useRoute()
     </UButton>
 
     <p class="k-mono mt-4 flex items-center justify-center gap-1.5 text-[11px] text-(--text-dimmed)">
-      <KStatusDot
-        color="primary"
-        :size="5"
-      /> EU · Self-hosted
     </p>
   </div>
 </template>

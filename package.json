@@ -14,9 +14,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "dev:docker": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up",
-    "preview:docker": "docker compose up -d --build",
-    "sh:docker": "docker compose -f docker-compose.yml -f docker-compose.dev.yml exec knecht bash"
+    "dev:vm": "limactl shell knecht-dev -- bash scripts/vm-dev.sh",
+    "preview:docker": "docker compose up -d --build"
   },
   "dependencies": {
     "@nuxt/ui": "^4.8.2",

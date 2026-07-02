@@ -17,7 +17,7 @@ export default defineNuxtConfig({
   // per-run preview subdomains (<runId>.preview.<base>), which the login-gated
   // preview proxy needs. Unset → host-only (plain localhost; previews then can't
   // be gated cross-subdomain). Locally use a domain that accepts subdomain
-  // cookies, e.g. KNECHT_BASE_DOMAIN=lvh.me and open the app at lvh.me:3000.
+  // cookies, e.g. KNECHT_BASE_DOMAIN=lvh.me and open the app at lvh.me:3333.
   runtimeConfig: {
     session: {
       cookie: {
@@ -30,6 +30,16 @@ export default defineNuxtConfig({
     },
   },
 
+  // Inside the dev VM the repo is a macOS virtiofs share whose inotify
+  // forwarding is unreliable — silently missed events leave the dev server on
+  // stale code. scripts/vm-dev.sh sets KNECHT_DEV_POLLING; then both watchers
+  // (Nuxt's chokidar + Vite's) poll instead of trusting inotify.
+  watchers: {
+    chokidar: {
+      usePolling: !!process.env.KNECHT_DEV_POLLING,
+    },
+  },
+
   compatibilityDate: '2025-07-15',
 
   vite: {
@@ -38,6 +48,10 @@ export default defineNuxtConfig({
       // domain and all its subdomains (incl. <runId>.preview.<base>) so the
       // preview origins work in dev. `.example.com` matches example.com + subs.
       allowedHosts: process.env.KNECHT_BASE_DOMAIN ? [`.${process.env.KNECHT_BASE_DOMAIN}`] : undefined,
+      watch: {
+        usePolling: !!process.env.KNECHT_DEV_POLLING,
+        interval: 1000,
+      },
     },
     optimizeDeps: {
       include: [

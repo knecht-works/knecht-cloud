@@ -1,22 +1,32 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { hostname } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import { parse, stringify } from 'yaml'
 import type { EnvVar } from '../db/schema'
-import { runEnvName, runWorktreeDir } from '../utils/storage'
+import { runWorktreeDir } from '../utils/storage'
+import { removeSandbox } from './sandbox'
 
 // Write the per-run ddev override (`.ddev/config.knecht.yaml`). ddev merges all
-// `.ddev/config.*.yaml` files, so this adds two things without touching the
+// `.ddev/config.*.yaml` files, so this injects two things without touching the
 // repo's tracked config.yaml:
-//   - `name`: a unique per-run name so this worktree boots its OWN containers
-//     (the isolation), without colliding on the repo's name.
 //   - `web_environment`: the project's configured env vars (projects.md §4),
 //     used VERBATIM — no rewriting. YAML sidesteps the comma-escaping of
 //     `ddev config --web-environment`.
-// Returns how many env vars were written.
-export function writeDdevConfig(checkoutDir: string, name: string, envVars: EnvVar[]): number {
-  const doc: { name: string, web_environment?: string[] } = { name }
+//   - `router_http(s)_port`: pinned back to 80/443. Projects override these as
+//     HOST-port-collision workarounds (e.g. 8080), but inside a per-run
+//     sandbox there is nothing to collide with — and the ingress proxies to
+//     the router at :80.
+// Everything else — name, hostnames, the URLs in the env vars — stays exactly
+// as the repo ships it: each run has its own daemon now, so nothing collides,
+// and the preview proxy maps the project's own hostnames to per-run preview
+// origins instead of touching the project. Returns how many env vars were
+// written.
+export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[]): number {
+  const doc: {
+    web_environment?: string[]
+    router_http_port?: string
+    router_https_port?: string
+  } = { router_http_port: '80', router_https_port: '443' }
   if (envVars.length) {
     // Strip a layer of surrounding quotes — a value like `"https://x"` (quotes
     // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
@@ -36,50 +46,50 @@ function unquote(v: string): string {
   return v
 }
 
-// The repo's own ddev host, read from the tracked `.ddev/config.yaml` (NOT our
-// override). This is the host the pasted .env points at and the booted app
-// generates URLs for — what the proxy sends as Host and rewrites in responses.
-export function readDdevHost(checkoutDir: string): string | null {
+// ALL hostnames the project's ddev environment serves, read from the tracked
+// `.ddev/config.yaml` (NOT our override): the primary `<name>.<tld>` plus
+// every additional_hostnames/additional_fqdns entry. These are the hosts the
+// pasted .env points at (Craft multisite: one per site) — the preview proxy
+// gives each one its own per-run preview origin and maps between the two.
+export interface DdevHosts {
+  primary: string | null
+  all: string[]
+}
+
+export function readDdevHosts(checkoutDir: string): DdevHosts {
   try {
     const cfg = parse(readFileSync(join(checkoutDir, '.ddev', 'config.yaml'), 'utf8')) as {
       name?: string
       project_tld?: string
+      additional_hostnames?: string[]
+      additional_fqdns?: string[]
     }
-    return cfg?.name ? `${cfg.name}.${cfg.project_tld || 'ddev.site'}` : null
+    if (!cfg?.name) return { primary: null, all: [] }
+    const tld = cfg.project_tld || 'ddev.site'
+    const primary = `${cfg.name}.${tld}`
+    const all = [
+      primary,
+      ...(cfg.additional_hostnames ?? []).map(h => `${h}.${tld}`),
+      ...(cfg.additional_fqdns ?? []),
+    ]
+    return { primary, all }
   }
   catch {
-    return null
+    return { primary: null, all: [] }
   }
 }
 
-// Tear down a run's isolated environment: delete the ddev project (containers +
-// volumes, no snapshot) and remove its git worktree. Both steps are best-effort
-// so a half-gone env still gets cleaned up. `baseDir` is the project's base
-// clone the worktree hangs off.
+// Tear down a run's isolated environment: remove its sandbox container (the
+// whole nested world — inner containers, volumes, imported DB — lives in its
+// filesystem and goes with it) and remove its git worktree. Both steps are
+// best-effort so a half-gone env still gets cleaned up. `baseDir` is the
+// project's base clone the worktree hangs off.
 export async function teardownRun(runId: number, baseDir: string): Promise<void> {
-  try {
-    await execa('ddev', ['delete', '-Oy', runEnvName(runId)])
-  }
-  catch {
-    // Already deleted or never registered.
-  }
+  await removeSandbox(runId)
   try {
     await execa('git', ['-C', baseDir, 'worktree', 'remove', '--force', runWorktreeDir(runId)])
   }
   catch {
     // Worktree already gone.
-  }
-}
-
-// Attach the Knecht container to ddev's shared `ddev_default` network so the
-// preview proxy can reach each run's web container directly by name
-// (`ddev-<project>-web`), bypassing the router (no hostname collisions across
-// isolated runs). Idempotent; the network exists once any env has booted.
-export async function ensureOnDdevNetwork(): Promise<void> {
-  try {
-    await execa('docker', ['network', 'connect', 'ddev_default', hostname()])
-  }
-  catch {
-    // Already connected, or the network doesn't exist yet — fine either way.
   }
 }
