@@ -10,22 +10,31 @@ import { projectCheckoutDir, runWorktreeDir } from '../utils/storage'
 // clone each time. Detached (not a branch) avoids git's "a branch can only be
 // checked out in one worktree" rule when several runs share the default branch.
 //
-// The OAuth token doubles as the clone credential (tech-stack.md §3); it is
-// embedded in the remote URL but NEVER streamed to the run log — git output is
-// captured quietly here and any error is redacted before it surfaces.
+// Auth: a short-lived (1h) GitHub App installation token, passed per network
+// operation as an HTTP header — NEVER stored in the remote URL (it would go
+// stale) and NEVER streamed to the run log — git output is captured quietly
+// here and any error is redacted before it surfaces.
 export async function prepareRunCheckout(
   project: Project,
   runId: number,
   token: string,
   onLog: (line: string) => void,
+  branch: string = project.defaultBranch,
 ): Promise<string> {
   const base = projectCheckoutDir(project)
   const runDir = runWorktreeDir(runId)
-  const branch = project.defaultBranch
 
   try {
-    await ensureBaseClone(base, project, token, branch, onLog)
+    // The base stays a single-branch shallow clone of the default branch (the
+    // shared object store); a run on any other branch fetches that branch's tip
+    // into an explicit remote-tracking ref so the worktree can be created at it.
+    await ensureBaseClone(base, project, token, project.defaultBranch, onLog)
     shieldGeneratedFiles(base)
+
+    if (branch !== project.defaultBranch) {
+      onLog(`Fetching ${branch}…\n`)
+      await git(['-C', base, ...authFlags(token), 'fetch', '--depth', '1', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`])
+    }
 
     if (existsSync(join(runDir, '.git'))) {
       onLog(`Reusing worktree at ${runDir}\n`)
@@ -49,15 +58,28 @@ async function ensureBaseClone(
   branch: string,
   onLog: (line: string) => void,
 ): Promise<void> {
-  const authUrl = `https://oauth2:${token}@github.com/${project.fullName}.git`
+  const cleanUrl = `https://github.com/${project.fullName}.git`
   if (existsSync(join(base, '.git'))) {
+    // Heal clones from the old scheme that still carry a token in the URL.
+    await git(['-C', base, 'remote', 'set-url', 'origin', cleanUrl])
     onLog(`Fetching ${branch}…\n`)
-    await git(['-C', base, 'fetch', '--depth', '1', 'origin', branch])
+    // Explicit refspec: the base clone is single-branch, so a plain fetch of a
+    // DIFFERENT branch (project branch changed since the clone) would land in
+    // FETCH_HEAD only and never create the origin/<branch> the worktree add needs.
+    await git(['-C', base, ...authFlags(token), 'fetch', '--depth', '1', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`])
   }
   else {
     onLog(`Cloning ${project.fullName} (${branch})…\n`)
-    await git(['clone', '--no-checkout', '--depth', '1', '--branch', branch, authUrl, base])
+    await git([...authFlags(token), 'clone', '--no-checkout', '--depth', '1', '--branch', branch, cleanUrl, base])
   }
+}
+
+// Per-invocation auth for git network ops (the actions/checkout pattern): the
+// installation token rides in an extra HTTP header instead of the remote URL,
+// so nothing long-lived is written to disk.
+function authFlags(token: string): string[] {
+  const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
+  return ['-c', `http.https://github.com/.extraheader=Authorization: Basic ${basic}`]
 }
 
 // Create a new branch at the worktree's current HEAD (the `create-branch` block).
@@ -84,11 +106,11 @@ export async function commitAll(dir: string, message: string): Promise<string | 
 }
 
 // Push the run's branch to origin (the `create-pr` block, before opening the PR).
-// The remote URL carries the OAuth token from the clone, so this authenticates
-// without extra config; the token is redacted from any error before it surfaces.
+// Auth rides in the per-invocation header (authFlags); the token is redacted
+// from any error before it surfaces.
 export async function pushBranch(dir: string, branch: string, token: string): Promise<void> {
   try {
-    await git(['-C', dir, 'push', 'origin', `HEAD:refs/heads/${branch}`])
+    await git(['-C', dir, ...authFlags(token), 'push', 'origin', `HEAD:refs/heads/${branch}`])
   }
   catch (e) {
     throw new Error(redact(String((e as Error).message), token), { cause: e })
@@ -119,5 +141,9 @@ function git(args: string[]) {
 }
 
 function redact(text: string, token: string): string {
-  return token ? text.split(token).join('***') : text
+  if (!token) return text
+  // Redact the raw token and its base64 header form (authFlags), either of
+  // which git may echo back in an error.
+  const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
+  return text.split(token).join('***').split(basic).join('***')
 }

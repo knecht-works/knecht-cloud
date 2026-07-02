@@ -38,14 +38,26 @@ const previewUrl = computed(() =>
   latest.value ? `${reqUrl.protocol}//${previewHostname(latest.value.id, reqUrl.host)}/` : '')
 const previewOnline = computed(() => latest.value?.envState === 'up')
 
-// ── Start a workflow ─────────────────────────────────────────────────────
+// ── Start a workflow (picked from the list, right at the project) ──────────
+const { data: workflowList } = await useFetch('/api/workflows', { default: () => [] })
 const starting = ref(false)
-async function startWorkflow() {
+// The "Start workflow" popover (branch + workflow picker together).
+const startOpen = ref(false)
+
+// Branch the run checks out; defaults to the repo's default branch (main). The
+// list is fetched lazily from GitHub; the picker always includes the default.
+const { data: branchList } = await useFetch(`/api/projects/${id}/branches`, { default: () => [], lazy: true })
+const selectedBranch = ref(project.value?.defaultBranch ?? 'main')
+const branchItems = computed(() =>
+  [...new Set([project.value?.defaultBranch ?? 'main', ...(branchList.value ?? [])])])
+
+async function startWorkflow(workflow: string) {
+  startOpen.value = false
   starting.value = true
   try {
     const created = await $fetch('/api/runs', {
       method: 'POST',
-      body: { projectId: id, workflow: 'boot-and-preview' },
+      body: { projectId: id, workflow, branch: selectedBranch.value },
     })
     await navigateTo(`/runs/${created.id}`)
   }
@@ -150,12 +162,19 @@ async function removeDump() {
   toast.add({ title: 'Dump removed', color: 'success' })
 }
 
-// Triggers are not wired yet — shown as a planned, read-only panel.
-const PLANNED_TRIGGERS = [
-  { name: 'GitHub · Push', sub: 'Run on push to the default branch', icon: 'i-simple-icons-github' },
-  { name: 'Schedule', sub: 'Daily at 03:00', icon: 'i-lucide-clock' },
-  { name: 'Webhook', sub: 'External issue tracker', icon: 'i-lucide-zap' },
-]
+// ── Automation on this project (read-only) ─────────────────────────────────
+// Which workflow fires on this project and how — configured on the workflow
+// itself, so each row links there. The play button starts a workflow here now.
+const { data: triggers } = await useFetch('/api/triggers', { default: () => [] })
+const projectTriggers = computed(() =>
+  (triggers.value ?? []).filter(t => t.projectIds.includes(id)))
+
+// One row per workflow: its automation on THIS project (first trigger +
+// count of further ones), or none — "welcher Workflow startet wann".
+const workflowRows = computed(() => (workflowList.value ?? []).map((w) => {
+  const wired = projectTriggers.value.filter(t => t.workflow === w.name)
+  return { name: w.name, trigger: wired[0] ?? null, more: wired.length - 1 }
+}))
 
 // Poll the runs while the latest is still live (updates status + preview state).
 usePollWhile(() => isLive.value, refreshRuns)
@@ -196,13 +215,6 @@ usePollWhile(() => isLive.value, refreshRuns)
             >{{ fwLabel }}</span>
             <span class="flex items-center gap-1.5 text-(--text-dimmed)">
               <UIcon
-                name="i-lucide-git-branch"
-                class="size-[13px]"
-              />
-              <span class="k-mono text-xs text-(--text-muted)">{{ project.defaultBranch }}</span>
-            </span>
-            <span class="flex items-center gap-1.5 text-(--text-dimmed)">
-              <UIcon
                 name="i-simple-icons-github"
                 class="size-[13px]"
               />
@@ -228,17 +240,74 @@ usePollWhile(() => isLive.value, refreshRuns)
           icon="i-lucide-external-link"
           label="Open preview"
         />
-        <UButton
-          color="primary"
-          icon="i-lucide-play"
-          label="Start workflow"
-          :loading="starting"
-          @click="startWorkflow"
-        />
+        <UPopover
+          v-model:open="startOpen"
+          :content="{ side: 'bottom', align: 'end' }"
+        >
+          <UButton
+            color="primary"
+            icon="i-lucide-play"
+            trailing-icon="i-lucide-chevron-down"
+            label="Start workflow"
+            :loading="starting"
+          />
+          <template #content>
+            <div class="w-72 p-3">
+              <div class="k-label mb-1.5">
+                Branch
+              </div>
+              <USelectMenu
+                v-model="selectedBranch"
+                :items="branchItems"
+                icon="i-lucide-git-branch"
+                :search-input="{ placeholder: 'Filter branches…' }"
+                class="w-full"
+              />
+
+              <div class="k-label mb-1.5 mt-3.5">
+                Workflow
+              </div>
+              <div
+                v-if="workflowList?.length"
+                class="flex flex-col gap-0.5"
+              >
+                <button
+                  v-for="w in workflowList"
+                  :key="w.name"
+                  type="button"
+                  class="flex items-start gap-2.5 rounded-(--radius-md) px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass)"
+                  :disabled="starting"
+                  @click="startWorkflow(w.name)"
+                >
+                  <UIcon
+                    name="i-lucide-workflow"
+                    class="mt-0.5 size-4 flex-none text-(--text-primary)"
+                  />
+                  <span class="min-w-0">
+                    <span class="k-mono block truncate text-[12.5px] text-(--text-default)">{{ w.name }}</span>
+                    <span
+                      v-if="w.description"
+                      class="block truncate text-[11px] text-(--text-dimmed)"
+                    >{{ w.description }}</span>
+                  </span>
+                </button>
+              </div>
+              <p
+                v-else
+                class="px-2.5 py-2 text-[12px] text-(--text-dimmed)"
+              >
+                No workflows yet.
+              </p>
+            </div>
+          </template>
+        </UPopover>
       </div>
     </div>
 
-    <div class="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1fr_360px]">
+    <!-- Sidebar column: identical on every detail page — viewport-based
+         (clamp), so it can't drift between screens. Keep in sync with
+         workflows/[name].vue. -->
+    <div class="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
       <!-- LEFT -->
       <div class="flex flex-col gap-[18px]">
         <KPreviewBrowser
@@ -468,36 +537,54 @@ usePollWhile(() => isLive.value, refreshRuns)
         </KPanel>
 
         <KPanel
-          title="Triggers"
+          title="Automation"
           icon="i-lucide-zap"
           accent="var(--accent-violet)"
         >
-          <template #action>
-            <span class="k-mono text-[11px] text-(--text-dimmed)">Planned</span>
-          </template>
+          <!-- One row per WORKFLOW: run it now, and see WHEN it fires on this
+               project. The row links to the workflow, where its triggers live. -->
           <div class="flex flex-col gap-3">
             <div
-              v-for="t in PLANNED_TRIGGERS"
-              :key="t.name"
-              class="flex items-center gap-3 opacity-70"
+              v-for="row in workflowRows"
+              :key="row.name"
+              class="flex items-center gap-3"
+              :style="{ opacity: row.trigger && !row.trigger.active ? 0.55 : 1 }"
             >
-              <KStepIcon
-                :icon="t.icon"
-                :size="28"
-                :radius="7"
-                color="var(--text-dimmed)"
-              />
-              <div class="min-w-0 flex-1">
-                <div class="text-[13px] text-(--text-default)">
-                  {{ t.name }}
-                </div>
-                <div class="k-mono text-[11px] text-(--text-dimmed)">
-                  {{ t.sub }}
-                </div>
-              </div>
-              <span class="relative h-[19px] w-[34px] flex-none rounded-full border border-(--border-default) bg-(--surface-accented)">
-                <span class="absolute left-0.5 top-0.5 size-[13px] rounded-full bg-(--text-dimmed)" />
-              </span>
+              <NuxtLink
+                :to="`/workflows/${encodeURIComponent(row.name)}`"
+                class="group flex min-w-0 flex-1 items-center gap-3 text-left"
+              >
+                <KStepIcon
+                  :icon="row.trigger ? triggerSourceMeta(row.trigger.source).icon : 'i-lucide-workflow'"
+                  :color="row.trigger ? triggerSourceMeta(row.trigger.source).color : 'var(--text-dimmed)'"
+                  :size="28"
+                  :radius="7"
+                />
+                <span class="min-w-0 flex-1">
+                  <span class="k-mono block truncate text-[12.5px] text-(--text-default) transition-colors group-hover:text-(--text-highlighted)">
+                    {{ row.name }}
+                  </span>
+                  <span class="k-mono block truncate text-[11px] text-(--text-dimmed)">
+                    <template v-if="row.trigger">
+                      {{ row.trigger.event }} · {{ triggerSourceMeta(row.trigger.source).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
+                    </template>
+                    <template v-else>
+                      Manual only
+                    </template>
+                  </span>
+                </span>
+              </NuxtLink>
+              <UTooltip :text="`Run ${row.name} on this project now`">
+                <UButton
+                  icon="i-lucide-play"
+                  color="neutral"
+                  variant="ghost"
+                  size="xs"
+                  :aria-label="`Run ${row.name} now`"
+                  :disabled="starting"
+                  @click="startWorkflow(row.name)"
+                />
+              </UTooltip>
             </div>
           </div>
         </KPanel>

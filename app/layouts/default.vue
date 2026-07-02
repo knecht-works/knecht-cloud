@@ -7,11 +7,12 @@ const route = useRoute()
 // Collapsed sidebar state, persisted across navigations/reloads (SSR-safe).
 const collapsed = useCookie<boolean>('knecht-sidebar-collapsed', { default: () => false })
 
-// Runs live inside each project's detail page (no separate nav entry).
+// Triggers aren't a top-level concept — they're configured inside each workflow.
+// Runs get their own history; run detail pages highlight the Runs tab.
 const NAV = [
-  { label: 'Projects', icon: 'i-lucide-box', to: '/projects', match: ['/', '/projects', '/runs'] },
+  { label: 'Projects', icon: 'i-lucide-box', to: '/projects', match: ['/', '/projects'] },
   { label: 'Workflows', icon: 'i-lucide-workflow', to: '/workflows', match: ['/workflows'] },
-  { label: 'Triggers', icon: 'i-lucide-zap', to: '/triggers', match: ['/triggers'] },
+  { label: 'Runs', icon: 'i-lucide-play', to: '/runs', match: ['/runs'] },
 ]
 
 function isActive(item: typeof NAV[number]) {
@@ -165,7 +166,10 @@ const userMenu: DropdownMenuItem[][] = [
       </div>
     </aside>
 
-    <main class="relative z-10 min-w-0 flex-1 overflow-y-auto">
+    <!-- scrollbar-gutter keeps the content width identical whether a page is
+         tall enough to scroll or not — otherwise the ~15px scrollbar makes
+         screens visibly "jump" in width between routes. -->
+    <main class="relative z-10 min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
       <div class="mx-auto max-w-[1920px] px-8 py-7">
         <slot />
       </div>

@@ -16,6 +16,7 @@ const { data: projects } = await useFetch('/api/projects', {
   default: () => [],
   transform: rows => rows.map(p => ({ ...p, label: p.fullName })),
 })
+const { data: allTriggers, refresh: refreshTriggers } = await useFetch('/api/triggers', { default: () => [] })
 
 // The persisted record (null for a new draft or an unknown name).
 const saved = computed(() => isNew.value ? null : (workflows.value?.find(w => w.name === routeName.value) ?? null))
@@ -57,6 +58,66 @@ watch(routeName, () => {
 
 const steps = computed(() => draft.value.steps)
 const editable = computed(() => !activeRun.value)
+
+// ── triggers wired to this workflow (the head of the flow) ──────────────────
+// Manual is always implicit; configured triggers (schedule/webhook/saved
+// manual) stack above it and are managed right here.
+const workflowTriggers = computed(() =>
+  saved.value ? (allTriggers.value ?? []).filter(t => t.workflow === saved.value!.name) : [])
+const triggerModalOpen = ref(false)
+// Clicking a trigger row edits it; "Add trigger" opens a blank form.
+const editingTrigger = ref<(typeof workflowTriggers)['value'][number] | null>(null)
+
+function editTrigger(t: (typeof workflowTriggers)['value'][number]) {
+  editingTrigger.value = t
+  triggerModalOpen.value = true
+}
+watch(triggerModalOpen, (isOpen) => {
+  if (!isOpen) editingTrigger.value = null
+})
+
+async function toggleTrigger(t: { id: number, active: boolean }) {
+  try {
+    await $fetch(`/api/triggers/${t.id}`, { method: 'PATCH', body: { active: !t.active } })
+    await refreshTriggers()
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to update trigger', description: errMsg(e, ''), color: 'error' })
+  }
+}
+
+async function removeTrigger(t: { id: number }) {
+  try {
+    await $fetch(`/api/triggers/${t.id}`, { method: 'DELETE' })
+    await refreshTriggers()
+    toast.add({ title: 'Trigger deleted', color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to delete trigger', description: errMsg(e, ''), color: 'error' })
+  }
+}
+
+// The workflow's automation master switch. Sends the PERSISTED body (not the
+// in-progress draft) plus the flipped flag, so toggling never clobbers an
+// unsaved edit. Manual runs / tests are unaffected by this.
+const togglingEnabled = ref(false)
+async function toggleEnabled() {
+  if (!saved.value) return
+  togglingEnabled.value = true
+  try {
+    await $fetch(`/api/workflows/${encodeURIComponent(saved.value.name)}`, {
+      method: 'PATCH',
+      body: { name: saved.value.name, description: saved.value.description, steps: saved.value.steps, enabled: !saved.value.enabled },
+    })
+    await refresh()
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to update workflow', description: errMsg(e, ''), color: 'error' })
+  }
+  finally {
+    togglingEnabled.value = false
+  }
+}
 
 // ── step mutations (step identity/fields come from the registry) ────────────
 function addStep(type: WorkflowStep['type']) {
@@ -142,12 +203,11 @@ function endDrag() {
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'invalid' | 'error'
 const saveStatus = ref<SaveStatus>('idle')
 const saveError = ref<string>()
-// A built-in we've created an override for this session — so "Reset to default"
-// shows immediately without re-fetching the flags.
-const localOverridden = ref(false)
-const overridden = computed(() => !!saved.value?.overridden || localOverridden.value)
 
-const nameValid = computed(() => /^[a-z0-9][a-z0-9-]*$/.test(draft.value.name.trim()))
+// Friendly name: letters/numbers/spaces/hyphens/underscores (URL-safe once
+// encoded). Mirrors the server's workflowInputSchema.
+const NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u
+const nameValid = computed(() => NAME_RE.test(draft.value.name.trim()))
 const valid = computed(() => nameValid.value && draft.value.steps.every(stepValid))
 
 function saveBody() {
@@ -191,7 +251,6 @@ async function persist() {
     }
     else {
       const updated = await $fetch(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'PATCH', body: saveBody() })
-      if (saved.value.builtin) localOverridden.value = true
       original.value = JSON.stringify(draft.value)
       saveStatus.value = 'saved'
       if (updated.name !== saved.value.name) {
@@ -207,23 +266,57 @@ async function persist() {
   }
 }
 
+// ── rename (existing workflows) ─────────────────────────────────────────────
+// The title is a static heading; renaming is an explicit, atomic action so a
+// stray keystroke can't rename-and-navigate mid-typing. The input binds a local
+// value and only commits (one PATCH → reference cascade → navigate) on
+// Enter/blur; Escape cancels.
+const renaming = ref(false)
+const renameValue = ref('')
+const renameInput = ref<HTMLInputElement>()
+const renameValid = computed(() => NAME_RE.test(renameValue.value.trim()))
+
+async function startRename() {
+  renameValue.value = draft.value.name
+  renaming.value = true
+  await nextTick()
+  renameInput.value?.focus()
+  renameInput.value?.select()
+}
+function cancelRename() {
+  renaming.value = false
+}
+async function commitRename() {
+  if (!renaming.value) return
+  renaming.value = false
+  const next = renameValue.value.trim()
+  if (next === draft.value.name || !renameValid.value) return
+  const prev = draft.value.name
+  draft.value.name = next
+  clearTimeout(saveTimer)
+  await persist()
+  // Rename failed (e.g. the name is taken) → keep the current identity. The
+  // rest of the workflow is unchanged, so clear the transient error state.
+  if (saveStatus.value === 'error') {
+    toast.add({ title: 'Rename failed', description: saveError.value, color: 'error' })
+    draft.value.name = prev
+    saveStatus.value = 'saved'
+  }
+}
+
 const removing = ref(false)
 async function removeWorkflow() {
   if (!saved.value) return
-  const wasBuiltin = saved.value.builtin
   removing.value = true
   try {
-    await $fetch(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'DELETE' })
+    const res = await $fetch(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'DELETE' })
     await refresh()
-    if (wasBuiltin) {
-      toast.add({ title: 'Reset to default', color: 'success' })
-      localOverridden.value = false
-      resetDraft()
-    }
-    else {
-      toast.add({ title: 'Workflow deleted', color: 'success' })
-      await navigateTo('/workflows')
-    }
+    toast.add({
+      title: 'Workflow deleted',
+      description: res.deletedTriggers ? `${res.deletedTriggers} trigger(s) removed with it` : undefined,
+      color: 'success',
+    })
+    await navigateTo('/workflows')
   }
   catch (e) {
     toast.add({ title: 'Failed to delete', description: errMsg(e, ''), color: 'error' })
@@ -423,18 +516,44 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
             :radius="9"
           />
           <div class="min-w-0 flex-1">
+            <!-- New draft: the name is entered directly (no identity yet). -->
             <input
-              v-if="editable"
+              v-if="!saved && editable"
               v-model="draft.name"
-              placeholder="workflow-name"
+              placeholder="Workflow name"
               spellcheck="false"
               class="k-mono w-full bg-transparent text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted) outline-none placeholder:text-(--text-dimmed)"
             >
+            <!-- Renaming an existing workflow: deliberate + atomic. -->
+            <input
+              v-else-if="renaming"
+              ref="renameInput"
+              v-model="renameValue"
+              spellcheck="false"
+              class="k-mono w-full bg-transparent text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted) outline-none"
+              @keyup.enter="commitRename"
+              @keyup.esc="cancelRename"
+              @blur="commitRename"
+            >
+            <!-- Saved: the title itself is the rename affordance — click it. -->
+            <UTooltip
+              v-else-if="saved && editable"
+              text="Click to rename"
+            >
+              <h1
+                tabindex="0"
+                class="k-mono min-w-0 cursor-text truncate text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted) outline-none transition-opacity hover:opacity-70"
+                @click="startRename"
+                @keyup.enter="startRename"
+              >
+                {{ saved?.name ?? draft.name }}
+              </h1>
+            </UTooltip>
             <h1
               v-else
-              class="text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted)"
+              class="k-mono min-w-0 truncate text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted)"
             >
-              {{ saved?.name }}
+              {{ saved?.name ?? draft.name }}
             </h1>
             <div class="mt-1.5 flex items-center gap-1.5">
               <UBadge
@@ -443,13 +562,6 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                 variant="subtle"
                 size="sm"
                 label="Draft"
-              />
-              <UBadge
-                v-else-if="mode === 'edit'"
-                :color="overridden ? 'warning' : 'neutral'"
-                variant="subtle"
-                size="sm"
-                :label="overridden ? 'Customized' : saved?.builtin ? 'Built-in' : 'Saved'"
               />
               <span
                 v-else-if="mode === 'running'"
@@ -471,7 +583,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                 /> Test succeeded
               </span>
               <span
-                v-else
+                v-else-if="mode === 'failed'"
                 class="k-mono flex items-center gap-1.5 text-[11px] text-(--status-error)"
               >
                 <KStatusDot
@@ -479,6 +591,15 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                   :size="5"
                 /> Test failed
               </span>
+              <!-- Independent of the mode chain: automation paused. -->
+              <UBadge
+                v-if="mode === 'edit' && saved && !saved.enabled"
+                color="warning"
+                variant="subtle"
+                size="sm"
+                icon="i-lucide-pause"
+                label="Paused"
+              />
             </div>
           </div>
         </div>
@@ -572,16 +693,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
             </UTooltip>
 
             <UButton
-              v-if="overridden"
-              color="neutral"
-              variant="ghost"
-              icon="i-lucide-rotate-ccw"
-              label="Reset to default"
-              :loading="removing"
-              @click="removeWorkflow"
-            />
-            <UButton
-              v-else-if="saved && !saved.builtin"
+              v-if="saved"
               color="error"
               variant="ghost"
               icon="i-lucide-trash-2"
@@ -665,13 +777,16 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
         </div>
       </div>
 
-      <!-- Two columns: step rail (settings expand inline in the cards) + library -->
-      <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_360px]">
+      <!-- Two columns: step rail (settings expand inline in the cards) +
+           library. Sidebar sizing matches projects/[id].vue exactly
+           (viewport-based clamp — can't drift between screens). -->
+      <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
         <div
           @dragover="onRailOver"
           @drop.prevent="onRailDrop"
         >
-          <!-- Trigger chip -->
+          <!-- Triggers: the head of the flow. Configured ones stack above the
+               always-available manual start. -->
           <div class="mb-3 flex gap-3.5">
             <div class="flex w-[30px] flex-none justify-center">
               <UIcon
@@ -679,23 +794,123 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                 class="mt-[5px] size-[18px] text-(--accent-violet)"
               />
             </div>
-            <div
-              class="flex flex-1 items-center gap-3 rounded-(--radius-lg) border border-(--border-default) px-[15px] py-3"
-              style="background: linear-gradient(90deg, color-mix(in oklab, var(--accent-violet) 8%, var(--surface-muted)), var(--surface-muted))"
-            >
-              <KStepIcon
-                icon="i-lucide-zap"
-                color="var(--accent-violet)"
-                :size="34"
-                :radius="8"
-              />
-              <div class="flex-1">
-                <span class="k-mono text-[10px] uppercase tracking-[0.1em] text-(--accent-violet)">Trigger</span>
-                <div class="mt-0.5 text-[13.5px] text-(--text-highlighted)">
-                  Manual
+            <div class="flex min-w-0 flex-1 flex-col gap-2">
+              <!-- Master switch: pauses every trigger of this workflow at once.
+                   Manual runs / tests are unaffected. -->
+              <div
+                v-if="saved"
+                class="flex items-center justify-between gap-3 pb-0.5"
+              >
+                <div class="min-w-0">
+                  <div class="text-[13.5px] text-(--text-highlighted)">
+                    Automation
+                  </div>
+                  <div class="k-mono truncate text-[11px] text-(--text-dimmed)">
+                    {{ saved.enabled ? 'Triggers fire automatically' : 'Paused — triggers won’t fire' }}
+                  </div>
                 </div>
+                <UTooltip :text="saved.enabled ? 'Pause automation' : 'Enable automation'">
+                  <button
+                    type="button"
+                    :aria-label="saved.enabled ? 'Pause automation' : 'Enable automation'"
+                    :disabled="togglingEnabled"
+                    class="relative h-[19px] w-[34px] flex-none cursor-pointer rounded-full border border-(--border-default) transition-colors"
+                    :style="{ background: saved.enabled ? 'var(--primary)' : 'var(--surface-accented)' }"
+                    @click="toggleEnabled"
+                  >
+                    <span
+                      class="absolute top-0.5 size-[13px] rounded-full transition-all"
+                      :style="{ left: saved.enabled ? '17px' : '2px', background: saved.enabled ? 'var(--accent-ink)' : 'var(--text-dimmed)' }"
+                    />
+                  </button>
+                </UTooltip>
               </div>
-              <span class="k-mono text-[11px] text-(--text-dimmed)">started from the dashboard</span>
+
+              <div
+                v-for="t in workflowTriggers"
+                :key="t.id"
+                class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted) py-2.5 pl-[15px] pr-3"
+                :style="{ opacity: t.active ? 1 : 0.55 }"
+              >
+                <button
+                  type="button"
+                  class="group flex min-w-0 flex-1 items-center gap-3 text-left"
+                  aria-label="Edit trigger"
+                  :disabled="!editable"
+                  @click="editTrigger(t)"
+                >
+                  <KStepIcon
+                    :icon="triggerSourceMeta(t.source).icon"
+                    :color="triggerSourceMeta(t.source).color"
+                    :size="34"
+                    :radius="8"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block text-[13.5px] text-(--text-highlighted)">
+                      {{ triggerSourceMeta(t.source).label }}
+                    </span>
+                    <span class="k-mono block truncate text-[11px] text-(--text-dimmed) transition-colors group-hover:text-(--text-muted)">
+                      {{ t.event }} · {{ t.projects.length ? t.projects.join(', ') : 'no projects' }}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  :aria-label="t.active ? 'Pause trigger' : 'Activate trigger'"
+                  :disabled="!editable"
+                  class="relative h-[19px] w-[34px] flex-none cursor-pointer rounded-full border border-(--border-default) transition-colors"
+                  :style="{ background: t.active ? 'var(--primary)' : 'var(--surface-accented)' }"
+                  @click="toggleTrigger(t)"
+                >
+                  <span
+                    class="absolute top-0.5 size-[13px] rounded-full transition-all"
+                    :style="{ left: t.active ? '17px' : '2px', background: t.active ? 'var(--accent-ink)' : 'var(--text-dimmed)' }"
+                  />
+                </button>
+                <UButton
+                  color="error"
+                  variant="ghost"
+                  size="xs"
+                  icon="i-lucide-trash-2"
+                  aria-label="Delete trigger"
+                  :disabled="!editable"
+                  @click="removeTrigger(t)"
+                />
+              </div>
+
+              <div
+                class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) py-2.5 pl-[15px] pr-3"
+                style="background: linear-gradient(90deg, color-mix(in oklab, var(--accent-violet) 8%, var(--surface-muted)), var(--surface-muted))"
+              >
+                <KStepIcon
+                  icon="i-lucide-zap"
+                  color="var(--accent-violet)"
+                  :size="34"
+                  :radius="8"
+                />
+                <div class="min-w-0 flex-1">
+                  <div class="text-[13.5px] text-(--text-highlighted)">
+                    Manual
+                  </div>
+                  <div class="k-mono truncate text-[11px] text-(--text-dimmed)">
+                    always available · started from the dashboard
+                  </div>
+                </div>
+                <UTooltip
+                  text="Save the workflow first"
+                  :disabled="!!saved"
+                >
+                  <UButton
+                    color="neutral"
+                    variant="subtle"
+                    size="xs"
+                    icon="i-lucide-plus"
+                    label="Add trigger"
+                    :disabled="!saved || !editable"
+                    @click="triggerModalOpen = true"
+                  />
+                </UTooltip>
+              </div>
             </div>
           </div>
 
@@ -999,6 +1214,13 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
         </div>
       </div>
     </template>
+
+    <TriggerCreateModal
+      v-model:open="triggerModalOpen"
+      :preset-workflow="saved?.name"
+      :trigger="editingTrigger"
+      @created="refreshTriggers"
+    />
 
     <!-- Start-test modal -->
     <UModal

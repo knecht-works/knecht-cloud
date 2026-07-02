@@ -138,12 +138,11 @@ body {
   box-shadow: var(--shadow-panel);
 }
 
-/* Hover-lift variant — pair with `.k-card` on interactive cards. */
+/* Hover-highlight variant — pair with `.k-card` on interactive cards. */
 @utility k-lift {
-  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 .k-lift:hover {
-  transform: translateY(-4px);
   border-color: var(--border-accented);
   box-shadow: var(--shadow-panel-lg);
 }

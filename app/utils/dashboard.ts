@@ -39,6 +39,25 @@ export const RUN_BADGE_COLOR: Record<RunStatus, 'neutral' | 'info' | 'success' |
   failed: 'error',
 }
 
+// Trigger-source presentation, shared by every place a trigger (or the trigger
+// that fired a run) shows up: run meta, project panel, editor head.
+export interface TriggerSourceMeta {
+  icon: string
+  label: string
+  color: string
+}
+
+export const TRIGGER_SOURCE_META: Record<string, TriggerSourceMeta> = {
+  manual: { icon: 'i-lucide-mouse-pointer-click', label: 'Manual', color: 'var(--text-primary)' },
+  schedule: { icon: 'i-lucide-clock', label: 'Schedule', color: 'var(--accent-orange)' },
+  github: { icon: 'i-simple-icons-github', label: 'GitHub', color: 'var(--text-toned)' },
+}
+
+// Unknown sources (added later) render generically instead of breaking.
+export function triggerSourceMeta(source: string): TriggerSourceMeta {
+  return TRIGGER_SOURCE_META[source] ?? { icon: 'i-lucide-zap', label: source, color: 'var(--accent-violet)' }
+}
+
 // Framework presentation, keyed by the DDEV project `type` read from the repo's
 // `.ddev/config.yaml`. Drives the label + accent colour across the dashboard.
 export interface FrameworkMeta {

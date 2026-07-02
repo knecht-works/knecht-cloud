@@ -1,9 +1,9 @@
-import type { H3Event } from 'h3'
 import type { Octokit } from 'octokit'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { DdevEnv, Project } from '../db/schema'
-import { fetchDdevConfig, fetchFrameworkVersion, fetchPackageManager, getGithubClient } from './github'
+import { fetchDdevConfig, fetchFrameworkVersion, fetchPackageManager } from './github'
+import { getInstallationClient } from './github-app'
 
 export interface ProjectMeta {
   framework: string | null
@@ -40,27 +40,26 @@ export async function resolveProjectMeta(
 }
 
 // Resolve missing framework/environment metadata from each repo and persist it,
-// mutating the passed rows in place. Best-effort: if there's no session/token or
-// a repo can't be read, the affected projects keep their nulls and the caller
-// renders them without the data. Re-runs while `framework` is still unresolved.
-export async function backfillFrameworks(event: H3Event, projects: Project[]): Promise<void> {
+// mutating the passed rows in place. Best-effort: if the GitHub App isn't
+// configured/installed or a repo can't be read, the affected projects keep their
+// nulls and the caller renders them without the data. Re-runs while `framework`
+// is still unresolved.
+export async function backfillFrameworks(projects: Project[]): Promise<void> {
   const missing = projects.filter(p => p.framework == null || p.ddevEnv == null)
   if (!missing.length) return
 
-  let octokit
-  try {
-    octokit = await getGithubClient(event)
-  }
-  catch {
-    return
-  }
-
   await Promise.all(missing.map(async (p) => {
-    const meta = await resolveProjectMeta(octokit, p.owner, p.name, p.defaultBranch)
-    db.update(schema.projects)
-      .set(meta)
-      .where(eq(schema.projects.id, p.id))
-      .run()
-    Object.assign(p, meta)
+    try {
+      const octokit = await getInstallationClient(p.owner, p.name)
+      const meta = await resolveProjectMeta(octokit, p.owner, p.name, p.defaultBranch)
+      db.update(schema.projects)
+        .set(meta)
+        .where(eq(schema.projects.id, p.id))
+        .run()
+      Object.assign(p, meta)
+    }
+    catch {
+      // App not configured/installed or repo unreadable — keep nulls, retry later.
+    }
   }))
 }

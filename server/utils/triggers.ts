@@ -2,7 +2,8 @@ import { eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Trigger } from '../db/schema'
 import { startRun } from '../daemon/runner'
-import { getServiceToken } from './credentials'
+import { isWorkflowEnabled } from '../workflows'
+import { isGithubAppConfigured } from './github-app'
 
 // Display + firing logic for triggers, shared by the API and the scheduler.
 
@@ -19,6 +20,7 @@ export interface TriggerSummary {
   kind: TriggerKind
   workflow: string
   projects: string[]
+  projectIds: number[]
   endpoint: string | null
   active: boolean
   lastFiredAt: number | null
@@ -82,6 +84,7 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
     event: eventLabel(t),
     workflow: t.workflow,
     projects: t.projectIds.map(id => names.get(id)).filter((n): n is string => !!n),
+    projectIds: t.projectIds,
     endpoint: endpoint(t),
     active: t.active,
     lastFiredAt: t.lastFiredAt ? Math.floor(t.lastFiredAt.getTime() / 1000) : null,
@@ -90,11 +93,15 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
 }
 
 // Start the trigger's workflow against each of its projects (one run each), then
-// bump the fire counters. Returns the created run ids. With no remembered token
-// (nobody has logged in) each run is recorded as failed with a clear reason
-// rather than failing silently — the scheduler runs with no session.
+// bump the fire counters. Returns the created run ids. Runs authenticate via the
+// GitHub App (no session needed); with the app unconfigured each run is recorded
+// as failed with a clear reason rather than failing silently.
 export function fireTrigger(t: Trigger): number[] {
-  const token = getServiceToken()
+  // The workflow's master switch is off → automation is paused. Don't create
+  // runs or bump counters; the trigger stays configured and resumes when
+  // re-enabled. Manual runs bypass this path entirely.
+  if (!isWorkflowEnabled(t.workflow)) return []
+
   const projects = t.projectIds.length
     ? db.select().from(schema.projects).where(inArray(schema.projects.id, t.projectIds)).all()
     : []
@@ -107,21 +114,22 @@ export function fireTrigger(t: Trigger): number[] {
         projectId: project.id,
         workflow: t.workflow,
         trigger: t.source,
+        triggerId: t.id,
         branch: project.defaultBranch,
       })
       .returning()
       .get()
     runIds.push(run.id)
 
-    if (token) {
-      startRun(run.id, project, token)
+    if (isGithubAppConfigured()) {
+      startRun(run.id, project)
     }
     else {
       db.update(schema.runs)
         .set({
           status: 'failed',
           finishedAt: new Date(),
-          log: 'No stored GitHub credentials — log in to Knecht once to enable background trigger runs.\n',
+          log: 'GitHub App not configured — set KNECHT_GITHUB_APP_ID and KNECHT_GITHUB_APP_PRIVATE_KEY to enable runs.\n',
         })
         .where(eq(schema.runs.id, run.id))
         .run()

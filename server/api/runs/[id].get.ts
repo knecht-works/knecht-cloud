@@ -18,6 +18,7 @@ export default defineEventHandler((event) => {
       envState: schema.runs.envState,
       previewHosts: schema.runs.previewHosts,
       trigger: schema.runs.trigger,
+      triggerId: schema.runs.triggerId,
       branch: schema.runs.branch,
       prUrl: schema.runs.prUrl,
       log: schema.runs.log,

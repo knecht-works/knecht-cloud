@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
+import { getSettings, updateSettings } from '../utils/settings'
 import { parseWorkflow, type Workflow } from './schema'
 
 // Default workflows ship inside the Knecht repo (workflows.md §11). They are
@@ -39,34 +40,41 @@ steps:
         Automated demo change by Knecht — run {{ run.id }} on {{ project.name }}.
 `
 
-// Parsed + validated once at module load — a bad bundled definition fails fast
-// on boot rather than at run time.
-const BUILTINS: Map<string, Workflow> = new Map(
-  [BOOT_AND_PREVIEW, DEMO_PR].map((yaml) => {
-    const wf = parseWorkflow(yaml)
-    return [wf.name, wf]
-  }),
-)
-
-export function isBuiltin(name: string): boolean {
-  return BUILTINS.has(name)
-}
+// The bundled starter templates, parsed + validated once at module load (a bad
+// definition fails fast on boot). They're seeded into the table on first boot
+// (seedWorkflows) and thereafter owned by the user — there's no runtime fallback.
+const STARTERS: Workflow[] = [BOOT_AND_PREVIEW, DEMO_PR].map(parseWorkflow)
 
 function rowToWorkflow(row: typeof schema.workflows.$inferSelect): Workflow {
   return { name: row.name, description: row.description, steps: row.steps }
 }
 
-// DB rows first, then every built-in that isn't overridden by a DB row.
 export function listWorkflows(): Workflow[] {
-  const rows = db.select().from(schema.workflows).all()
-  const dbNames = new Set(rows.map(r => r.name))
-  return [
-    ...rows.map(rowToWorkflow),
-    ...[...BUILTINS.values()].filter(w => !dbNames.has(w.name)),
-  ]
+  return db.select().from(schema.workflows).all().map(rowToWorkflow)
 }
 
 export function getWorkflow(name: string): Workflow | undefined {
   const row = db.select().from(schema.workflows).where(eq(schema.workflows.name, name)).get()
-  return row ? rowToWorkflow(row) : BUILTINS.get(name)
+  return row ? rowToWorkflow(row) : undefined
+}
+
+// Whether the workflow's automation is on. A missing row (already deleted)
+// counts as off — nothing to fire.
+export function isWorkflowEnabled(name: string): boolean {
+  const row = db.select({ enabled: schema.workflows.enabled }).from(schema.workflows).where(eq(schema.workflows.name, name)).get()
+  return row ? row.enabled : false
+}
+
+// Insert the starter templates on first boot only (tracked by the settings
+// flag), skipping any name that already exists. After that, workflows are fully
+// user-owned — deletions and renames stick, so we never re-seed.
+export function seedWorkflows(): void {
+  if (getSettings().workflowsSeeded) return
+  const existing = new Set(db.select({ name: schema.workflows.name }).from(schema.workflows).all().map(r => r.name))
+  for (const wf of STARTERS) {
+    if (!existing.has(wf.name)) {
+      db.insert(schema.workflows).values({ name: wf.name, description: wf.description, steps: wf.steps }).run()
+    }
+  }
+  updateSettings({ workflowsSeeded: true })
 }

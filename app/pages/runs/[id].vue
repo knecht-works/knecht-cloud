@@ -2,28 +2,23 @@
 const route = useRoute()
 const toast = useToast()
 const id = Number(route.params.id)
+const NuxtLink = resolveComponent('NuxtLink')
 
 const { data: run, refresh } = await useFetch(`/api/runs/${id}`)
 
 const isLive = computed(() => run.value?.status === 'queued' || run.value?.status === 'running')
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
 
-const TRIGGER_META: Record<string, { icon: string, label: string }> = {
-  manual: { icon: 'i-lucide-mouse-pointer-click', label: 'Manual' },
-  schedule: { icon: 'i-lucide-clock', label: 'Schedule' },
-  github: { icon: 'i-lucide-github', label: 'GitHub webhook' },
-}
-
 // The run's meta facts (how it was triggered, the branch it works on, timing,
 // the PR it opened) — chips are skipped when a run predates the recorded field.
+// A run fired by a configured trigger links back to its workflow (where its
+// triggers are managed).
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
-  const trigger = r.trigger
-    ? TRIGGER_META[r.trigger] ?? { icon: 'i-lucide-zap', label: r.trigger }
-    : null
+  const trigger = r.trigger ? triggerSourceMeta(r.trigger) : null
   return [
-    trigger && { icon: trigger.icon, text: trigger.label },
+    trigger && { icon: trigger.icon, text: trigger.label, href: r.triggerId ? `/workflows/${encodeURIComponent(r.workflow)}` : undefined },
     r.branch && { icon: 'i-lucide-git-branch', text: r.branch },
     r.startedAt && { icon: 'i-lucide-timer', text: runDuration(r.startedAt, r.finishedAt) },
     r.createdAt && { icon: 'i-lucide-calendar', text: timeAgo(r.createdAt) },
@@ -113,11 +108,11 @@ usePollWhile(() => isLive.value, refresh)
       class="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2"
     >
       <component
-        :is="m.href ? 'a' : 'span'"
+        :is="m.href ? NuxtLink : 'span'"
         v-for="m in meta"
         :key="m.icon"
         :href="m.href"
-        :target="m.href ? '_blank' : undefined"
+        :target="m.href?.startsWith('http') ? '_blank' : undefined"
         class="flex items-center gap-1.5 text-(--text-dimmed)"
         :class="m.href ? 'transition-colors hover:text-(--text-muted)' : ''"
       >

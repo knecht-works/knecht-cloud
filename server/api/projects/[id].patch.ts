@@ -7,6 +7,9 @@ const bodySchema = z.object({
   envVars: z
     .array(z.object({ key: z.string(), value: z.string() }))
     .optional(),
+  // The branch runs check out and open PRs against. New runs pick it up on
+  // their next checkout; the shared base clone just fetches the new branch.
+  defaultBranch: z.string().min(1).optional(),
 })
 
 export default defineEventHandler(async (event) => {

@@ -1,13 +1,33 @@
 <script setup lang="ts">
-const { data: workflows } = await useFetch('/api/workflows', { default: () => [] })
+const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
 const { data: runs } = await useFetch('/api/runs', { default: () => [] })
+const { data: triggers } = await useFetch('/api/triggers', { default: () => [] })
+const toast = useToast()
+
+type WorkflowItem = NonNullable<typeof workflows.value>[number]
+
+// Flip the workflow's automation master switch. Sends the full persisted body
+// (the PATCH endpoint takes it) plus the new enabled flag.
+async function toggleEnabled(w: WorkflowItem) {
+  try {
+    await $fetch(`/api/workflows/${encodeURIComponent(w.name)}`, {
+      method: 'PATCH',
+      body: { name: w.name, description: w.description, steps: w.steps, enabled: !w.enabled },
+    })
+    await refresh()
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to update workflow', description: errMsg(e, ''), color: 'error' })
+  }
+}
 
 function fmt(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
 }
 
-// Each workflow enriched with stats derived from its runs (rate, avg, status,
-// attached projects). Triggers aren't wired yet, so every run is "Manual".
+// Each workflow enriched with run stats (rate, avg, status) plus its configured
+// automation: the triggers it owns give both the projects it fires against and
+// the trigger summary — no run needs to have happened yet.
 const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const wRuns = (runs.value ?? []).filter(r => r.workflow === w.name)
   const completed = wRuns.filter(r => r.status === 'success' || r.status === 'failed')
@@ -24,10 +44,17 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const status = latest ? RUN_STATUS_META[latest.status] : IDLE_STATUS_META
   const statusText = latest ? `${status.label} · ${timeAgo(latest.createdAt)}` : 'No runs yet'
 
-  const names = [...new Set(wRuns.map(r => r.project.split('/').pop()!))]
+  // Projects + trigger summary from the workflow's triggers (its automation).
+  const wTriggers = (triggers.value ?? []).filter(t => t.workflow === w.name)
+  const names = [...new Set(wTriggers.flatMap(t => t.projects))]
   const projects = names.length > 3 ? [...names.slice(0, 2), `+${names.length - 2}`] : names
+  const trigger = wTriggers.length === 0
+    ? 'Manual'
+    : wTriggers.length === 1
+      ? triggerSourceMeta(wTriggers[0]!.source).label
+      : `${wTriggers.length} triggers`
 
-  return { ...w, rate, avg, status, statusText, projects, runsCount: wRuns.length }
+  return { ...w, rate, avg, status, statusText, projects, trigger, triggerCount: wTriggers.length }
 }))
 
 const metrics = computed(() => {
@@ -45,13 +72,13 @@ const metrics = computed(() => {
 const tab = ref<'all' | 'used' | 'unused'>('all')
 const TABS = [
   { id: 'all', label: 'All' },
-  { id: 'used', label: 'Active' },
-  { id: 'unused', label: 'Unused' },
+  { id: 'used', label: 'Automated' },
+  { id: 'unused', label: 'Manual only' },
 ] as const
 
 const filtered = computed(() =>
   enriched.value.filter(w =>
-    tab.value === 'all' || (tab.value === 'used' ? w.runsCount > 0 : w.runsCount === 0),
+    tab.value === 'all' || (tab.value === 'used' ? w.triggerCount > 0 : w.triggerCount === 0),
   ),
 )
 </script>
@@ -134,9 +161,12 @@ const filtered = computed(() =>
         :steps="w.steps"
         :status="w.status"
         :status-text="w.statusText"
+        :trigger="w.trigger"
+        :enabled="w.enabled"
         :rate="w.rate"
         :avg="w.avg"
         :projects="w.projects"
+        @toggle="toggleEnabled(w)"
       />
     </div>
   </div>

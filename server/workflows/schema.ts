@@ -81,12 +81,16 @@ const normalizedStepSchema: z.ZodType<Step> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('create-pr'), title: z.string().min(1), body: z.string().default(''), ...stepMeta }),
 ])
 
-// A workflow name doubles as its URL segment and the `runs.workflow` reference,
-// so keep it to a lowercase slug. Steps may be empty (a saved draft).
+// A workflow name doubles as its URL segment and the `runs.workflow` reference.
+// It's a free-form friendly name (spaces allowed), constrained only to what's
+// URL-safe once encoded — no slash/percent/etc. Steps may be empty (a draft).
 export const workflowInputSchema = z.object({
-  name: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'Use a lowercase slug (a–z, 0–9, hyphens)'),
+  name: z.string().regex(/^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u, 'Letters, numbers, spaces, hyphens and underscores'),
   description: z.string().default(''),
   steps: z.array(normalizedStepSchema),
+  // The automation master switch. Optional so the editor's full-body auto-saves
+  // (which don't send it) leave the stored value untouched.
+  enabled: z.boolean().optional(),
 })
 
 export type WorkflowInput = z.infer<typeof workflowInputSchema>

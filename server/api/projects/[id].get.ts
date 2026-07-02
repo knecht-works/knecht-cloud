@@ -20,6 +20,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Project not found' })
   }
 
-  await backfillFrameworks(event, [project])
+  await backfillFrameworks([project])
   return project
 })

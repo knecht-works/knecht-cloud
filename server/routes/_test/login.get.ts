@@ -13,16 +13,15 @@
 //      This is the primary gate: the app runs inside a Docker container, so a
 //      network/loopback check can't work (requests arrive via the docker
 //      gateway and a published port can't distinguish host-local from LAN).
-//   3. The seeded session carries a REAL GitHub token from
-//      `KNECHT_TEST_GITHUB_TOKEN`, kept local to the dev machine (same posture
-//      as the existing plaintext-token-at-rest MVP debt).
+//   3. `KNECHT_TEST_GITHUB_TOKEN` must be a REAL GitHub token — it resolves the
+//      session's identity from the GitHub API, mirroring the OAuth callback.
+//      (Repo access itself comes from the GitHub App, not the session.)
 //
 // Usage (cookie must round-trip to the app's cookie domain — use the same host
 // the app runs on; with KNECHT_BASE_DOMAIN=lvh.me that is lvh.me:3000):
 //   curl -c jar.txt 'http://lvh.me:3000/_test/login?secret=<KNECHT_TEST_AUTH>'
 //   curl -b jar.txt  'http://lvh.me:3000/api/projects'
 import { timingSafeEqual } from 'node:crypto'
-import { rememberGithubToken } from '../../utils/credentials'
 
 export default defineEventHandler(async (event) => {
   // (1) Absent from production builds; a defensive 404 if the guard is ever
@@ -41,8 +40,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, statusMessage: 'Bad or missing secret' })
   }
 
-  // (3) A real GitHub token is required — the whole point is to test real
-  // clone/PR operations, not a token-less stub.
+  // (3) A real GitHub token is required to resolve a real identity — not a
+  // token-less stub.
   const token = process.env.KNECHT_TEST_GITHUB_TOKEN
   if (!token) {
     throw createError({ statusCode: 500, statusMessage: 'Set KNECHT_TEST_GITHUB_TOKEN to seed a session' })
@@ -63,13 +62,7 @@ export default defineEventHandler(async (event) => {
       name: ghUser.name,
       avatarUrl: ghUser.avatar_url,
     },
-    secure: {
-      githubToken: token,
-    },
   })
-  // Mirror the OAuth callback: persist the token so background trigger runs
-  // (scheduled/webhook, no session) share the same clone/PR credential.
-  rememberGithubToken(token, ghUser.login)
 
   return { ok: true, login: ghUser.login }
 })

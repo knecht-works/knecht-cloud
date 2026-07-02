@@ -84,6 +84,10 @@ export const runs = sqliteTable('runs', {
   // rendering for values it doesn't know. Null on runs from before this was
   // recorded.
   trigger: text('trigger'),
+  // The configured trigger that fired this run (null for UI-started runs and
+  // runs from before this was recorded) — links a run back to its automation.
+  triggerId: integer('trigger_id')
+    .references(() => triggers.id, { onDelete: 'set null' }),
   // The branch the run works on: the project's default branch at checkout,
   // replaced by the branch a `create-branch` step creates.
   branch: text('branch'),
@@ -120,9 +124,9 @@ export const runs = sqliteTable('runs', {
 export type Run = typeof runs.$inferSelect
 export type NewRun = typeof runs.$inferInsert
 
-// User-created (or edited) workflows. The bundled workflows live in code
-// (server/workflows/index.ts) as a fallback; a row here with the same `name`
-// overrides its built-in, and deleting that row reverts to the built-in. Steps
+// Workflows. Every workflow is a row here, including the bundled starter
+// templates (server/workflows/index.ts), which are seeded once on first boot
+// and thereafter owned by the user — freely renamed, edited or deleted. Steps
 // are stored in their normalized form — the same shape the runner consumes.
 export const workflows = sqliteTable('workflows', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -132,6 +136,10 @@ export const workflows = sqliteTable('workflows', {
     .$type<Step[]>()
     .notNull()
     .default(sql`'[]'`),
+  // Master switch for the workflow's automation: when false, its triggers don't
+  // fire (manual "run now" / test are unaffected). Built-ins with no row are
+  // enabled by default.
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -163,6 +171,11 @@ export const settings = sqliteTable('settings', {
   // been untouched this many minutes. 0 disables auto-deletion (kept until the
   // run is deleted).
   teardownStoppedMinutes: integer('teardown_stopped_minutes').notNull().default(180),
+
+  // Whether the bundled starter workflows have been seeded into the table. Seeded
+  // once on first boot; afterwards workflows are fully user-owned (deletions and
+  // renames stick), so we never re-seed.
+  workflowsSeeded: integer('workflows_seeded', { mode: 'boolean' }).notNull().default(false),
 })
 
 export type Settings = typeof settings.$inferSelect
@@ -207,19 +220,3 @@ export const triggers = sqliteTable('triggers', {
 
 export type Trigger = typeof triggers.$inferSelect
 export type NewTrigger = typeof triggers.$inferInsert
-
-// The latest GitHub OAuth token, remembered so background trigger runs (fired by
-// the scheduler or an inbound webhook — both without a session) have the same
-// clone/PR credential the session would carry. The token otherwise only lives in
-// the encrypted session cookie. Single row (id = 1), refreshed on login and on
-// every manual run. A single-user instance, so "the last token" is "the token".
-export const credentials = sqliteTable('credentials', {
-  id: integer('id').primaryKey(), // singleton — always 1
-  githubToken: text('github_token').notNull(),
-  githubLogin: text('github_login'),
-  updatedAt: integer('updated_at', { mode: 'timestamp' })
-    .notNull()
-    .default(sql`(unixepoch())`),
-})
-
-export type Credentials = typeof credentials.$inferSelect

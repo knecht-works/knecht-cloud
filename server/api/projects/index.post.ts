@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db, schema } from '../../db'
 import type { ProjectMeta } from '../../utils/framework'
 import { resolveProjectMeta } from '../../utils/framework'
-import { getGithubClient } from '../../utils/github'
+import { getInstallationClient } from '../../utils/github-app'
 
 // POST /api/projects → connect a repo (creates a project). Body comes from a
 // repo the user picked out of GET /api/github/repos.
@@ -36,11 +36,11 @@ export default defineEventHandler(async (event) => {
   // time (best-effort; backfilled later if it can't be read now).
   let meta: Partial<ProjectMeta> = {}
   try {
-    const octokit = await getGithubClient(event)
+    const octokit = await getInstallationClient(result.data.owner, result.data.name)
     meta = await resolveProjectMeta(octokit, result.data.owner, result.data.name, result.data.defaultBranch)
   }
   catch {
-    // No token / unreadable — leave null; the GET handlers will retry.
+    // App not installed / unreadable — leave null; the GET handlers will retry.
   }
 
   return db.insert(schema.projects).values({ ...result.data, ...meta }).returning().get()

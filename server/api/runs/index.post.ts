@@ -3,24 +3,18 @@ import { z } from 'zod'
 import { db, schema } from '../../db'
 import { getWorkflow } from '../../workflows'
 import { startRun } from '../../daemon/runner'
-import { rememberGithubToken } from '../../utils/credentials'
 
-// POST /api/runs → start a workflow against one project. The OAuth token is read
-// from the session and injected into the run (tech-stack.md §4) as the clone
-// credential. Returns the created run row; the UI then polls GET /api/runs/:id.
+// POST /api/runs → start a workflow against one project. Repo credentials come
+// from the GitHub App (server/utils/github-app.ts), minted inside the runner.
+// Returns the created run row; the UI then polls GET /api/runs/:id.
 const bodySchema = z.object({
   projectId: z.number().int(),
   workflow: z.string().min(1),
+  // The branch to check out and run against; defaults to the repo's default.
+  branch: z.string().min(1).optional(),
 })
 
 export default defineEventHandler(async (event) => {
-  const { user, secure } = await requireUserSession(event)
-  if (!secure?.githubToken) {
-    throw createError({ statusCode: 401, statusMessage: 'No GitHub token in session' })
-  }
-  // Keep the token available for background trigger runs that have no session.
-  rememberGithubToken(secure.githubToken, user?.login)
-
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid run request' })
@@ -45,12 +39,12 @@ export default defineEventHandler(async (event) => {
       projectId: project.id,
       workflow: result.data.workflow,
       trigger: 'manual',
-      branch: project.defaultBranch,
+      branch: result.data.branch ?? project.defaultBranch,
     })
     .returning()
     .get()
 
-  startRun(run.id, project, secure.githubToken)
+  startRun(run.id, project)
 
   return run
 })

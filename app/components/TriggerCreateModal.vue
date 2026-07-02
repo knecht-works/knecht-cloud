@@ -1,10 +1,27 @@
 <script setup lang="ts">
-// Create a trigger: pick a source (schedule / GitHub / manual), the workflow it
-// fires and the projects it fires against. Schedule triggers take a cron
-// expression (with quick presets); GitHub triggers, once created, show the
-// webhook URL + generated secret to paste into the repo's webhook settings.
+// Create OR edit a trigger. Creating: pick a source (schedule / GitHub /
+// manual), the workflow it fires and the projects it fires against; GitHub
+// triggers, once created, show the webhook URL + generated secret to paste
+// into the repo's webhook settings. Editing (`trigger` prop set): the source
+// is fixed, everything the PATCH endpoint supports — workflow, projects,
+// cron — is editable. Contextual entry points (project page, workflow editor)
+// prefill their part via the preset props.
 const open = defineModel<boolean>('open', { required: true })
+const props = defineProps<{
+  presetWorkflow?: string
+  presetProjectIds?: number[]
+  /** Edit this trigger instead of creating one. */
+  trigger?: {
+    id: number
+    source: 'schedule' | 'github' | 'manual'
+    workflow: string
+    projectIds: number[]
+    endpoint: string | null
+  } | null
+}>()
 const emit = defineEmits<{ created: [] }>()
+
+const editing = computed(() => !!props.trigger)
 
 const toast = useToast()
 
@@ -54,6 +71,19 @@ async function create() {
   if (!canCreate.value) return
   creating.value = true
   try {
+    if (props.trigger) {
+      const body: Record<string, unknown> = {
+        workflow: workflow.value,
+        projectIds: projectIds.value,
+      }
+      if (source.value === 'schedule') body.cron = cron.value.trim()
+      await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body })
+      emit('created')
+      toast.add({ title: 'Trigger updated', color: 'success' })
+      open.value = false
+      return
+    }
+
     const body: Record<string, unknown> = {
       source: source.value,
       workflow: workflow.value,
@@ -74,7 +104,11 @@ async function create() {
     }
   }
   catch (e) {
-    toast.add({ title: 'Failed to create trigger', description: errMsg(e, ''), color: 'error' })
+    toast.add({
+      title: editing.value ? 'Failed to update trigger' : 'Failed to create trigger',
+      description: errMsg(e, ''),
+      color: 'error',
+    })
   }
   finally {
     creating.value = false
@@ -88,9 +122,23 @@ function copy(text: string | null) {
   }
 }
 
-// Reset to a fresh form whenever the modal closes.
+// Prefill from the trigger being edited or the opening context; reset to a
+// fresh form on close.
 watch(open, (isOpen) => {
-  if (isOpen) return
+  if (isOpen) {
+    if (props.trigger) {
+      source.value = props.trigger.source
+      workflow.value = props.trigger.workflow
+      projectIds.value = [...props.trigger.projectIds]
+      if (props.trigger.source === 'schedule' && props.trigger.endpoint) {
+        cron.value = props.trigger.endpoint
+      }
+      return
+    }
+    if (props.presetWorkflow) workflow.value = props.presetWorkflow
+    if (props.presetProjectIds?.length) projectIds.value = [...props.presetProjectIds]
+    return
+  }
   source.value = 'schedule'
   workflow.value = undefined
   projectIds.value = []
@@ -103,8 +151,10 @@ watch(open, (isOpen) => {
 <template>
   <UModal
     v-model:open="open"
-    title="New trigger"
-    description="Fire a workflow automatically — on a schedule, a GitHub webhook, or on demand."
+    :title="editing ? 'Edit trigger' : 'New trigger'"
+    :description="editing
+      ? 'Change what this trigger fires.'
+      : 'Fire a workflow automatically.'"
     :ui="{ content: 'sm:max-w-lg' }"
   >
     <template #body>
@@ -176,8 +226,18 @@ watch(open, (isOpen) => {
         v-else
         class="space-y-5"
       >
-        <!-- Source -->
-        <div>
+        <!-- Source (fixed while editing) -->
+        <div v-if="editing">
+          <span class="k-label">Source</span>
+          <div class="mt-2 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
+            <UIcon
+              :name="SOURCES.find(s => s.key === source)?.icon ?? 'i-lucide-zap'"
+              class="size-4 text-(--text-dimmed)"
+            />
+            <span class="text-[12.5px] text-(--text-toned)">{{ SOURCES.find(s => s.key === source)?.label }}</span>
+          </div>
+        </div>
+        <div v-else>
           <span class="k-label">Source</span>
           <div class="mt-2 grid grid-cols-3 gap-2">
             <button
@@ -204,8 +264,19 @@ watch(open, (isOpen) => {
           </div>
         </div>
 
-        <!-- Workflow -->
-        <div>
+        <!-- Workflow — fixed when opened from within a workflow (you're already
+             on it), a picker only when the context doesn't set one. -->
+        <div v-if="presetWorkflow">
+          <span class="k-label">Workflow</span>
+          <div class="mt-2 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
+            <UIcon
+              name="i-lucide-workflow"
+              class="size-4 text-(--text-dimmed)"
+            />
+            <span class="text-[12.5px] text-(--text-toned)">{{ workflow }}</span>
+          </div>
+        </div>
+        <div v-else>
           <span class="k-label">Workflow</span>
           <USelectMenu
             v-model="workflow"
@@ -265,8 +336,8 @@ watch(open, (isOpen) => {
           </p>
         </div>
 
-        <!-- GitHub: event -->
-        <div v-else-if="source === 'github'">
+        <!-- GitHub: event (create-only — the PATCH endpoint doesn't change it) -->
+        <div v-else-if="source === 'github' && !editing">
           <span class="k-label">GitHub event</span>
           <USelectMenu
             v-model="githubEvent"
@@ -287,7 +358,7 @@ watch(open, (isOpen) => {
             @click="open = false"
           />
           <UButton
-            label="Create trigger"
+            :label="editing ? 'Save changes' : 'Create trigger'"
             color="primary"
             :loading="creating"
             :disabled="!canCreate"

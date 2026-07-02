@@ -7,10 +7,13 @@ const props = defineProps<{
   status: RunStatusMeta
   statusText: string
   trigger?: string
+  enabled: boolean
   rate: number | null
   avg: string | null
   projects: string[]
 }>()
+
+const emit = defineEmits<{ toggle: [] }>()
 
 const stepMetas = computed(() => props.steps.map(workflowStepMeta))
 const rateColor = computed(() => {
@@ -25,6 +28,7 @@ const rateColor = computed(() => {
   <NuxtLink
     :to="`/workflows/${encodeURIComponent(name)}`"
     class="k-card k-lift flex items-center gap-5 overflow-hidden px-5 py-4"
+    :style="{ opacity: enabled ? 1 : 0.6 }"
   >
     <!-- identity -->
     <div class="flex w-56 min-w-0 flex-none items-center gap-3">
@@ -117,6 +121,21 @@ const rateColor = computed(() => {
         >{{ p }}</span>
       </div>
     </div>
+
+    <UTooltip :text="enabled ? 'Automation on — click to pause' : 'Automation paused — click to enable'">
+      <button
+        type="button"
+        :aria-label="enabled ? 'Pause automation' : 'Enable automation'"
+        class="relative h-[19px] w-[34px] flex-none cursor-pointer rounded-full border border-(--border-default) transition-colors"
+        :style="{ background: enabled ? 'var(--primary)' : 'var(--surface-accented)', opacity: 1 }"
+        @click.stop.prevent="emit('toggle')"
+      >
+        <span
+          class="absolute top-0.5 size-[13px] rounded-full transition-all"
+          :style="{ left: enabled ? '17px' : '2px', background: enabled ? 'var(--accent-ink)' : 'var(--text-dimmed)' }"
+        />
+      </button>
+    </UTooltip>
 
     <UIcon
       name="i-lucide-chevron-right"

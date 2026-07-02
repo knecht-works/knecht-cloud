@@ -37,6 +37,28 @@ const { data: repos, status: reposStatus, execute: loadRepos } = useFetch('/api/
 const selected = ref()
 const connecting = ref(false)
 
+// The branch the project will work on (checkout + PR base). Defaults to the
+// repo's default branch; the full list loads once a repo is picked.
+const branch = ref<string>()
+const branches = ref<string[]>([])
+const loadingBranches = ref(false)
+
+watch(selected, async (repo) => {
+  branch.value = repo?.defaultBranch
+  branches.value = repo ? [repo.defaultBranch] : []
+  if (!repo) return
+  loadingBranches.value = true
+  try {
+    branches.value = await $fetch<string[]>(`/api/github/repos/${repo.owner}/${repo.name}/branches`)
+  }
+  catch {
+    // Branch list unavailable — the default branch stays the only option.
+  }
+  finally {
+    loadingBranches.value = false
+  }
+})
+
 async function connect() {
   if (!selected.value) return
   connecting.value = true
@@ -48,7 +70,7 @@ async function connect() {
         owner: selected.value.owner,
         name: selected.value.name,
         fullName: selected.value.fullName,
-        defaultBranch: selected.value.defaultBranch,
+        defaultBranch: branch.value ?? selected.value.defaultBranch,
         private: selected.value.private,
         cloneUrl: selected.value.cloneUrl,
       },
@@ -148,6 +170,8 @@ watch(open, (isOpen) => {
   step.value = 'repo'
   project.value = null
   selected.value = undefined
+  branch.value = undefined
+  branches.value = []
   envText.value = ''
 })
 </script>
@@ -207,9 +231,19 @@ watch(open, (isOpen) => {
           icon="i-simple-icons-github"
           class="w-full"
         />
+        <USelectMenu
+          v-model="branch"
+          :items="branches"
+          :loading="loadingBranches"
+          :disabled="!selected"
+          placeholder="Branch…"
+          icon="i-lucide-git-branch"
+          class="w-full"
+        />
         <p class="text-[12.5px] text-(--text-dimmed)">
           The repo must contain a <span class="k-mono">.ddev/config.yaml</span>. Framework, PHP and
-          database are read from it automatically.
+          database are read from it automatically. Runs check out the selected branch and open PRs
+          against it.
         </p>
         <div class="flex justify-end gap-2">
           <UButton

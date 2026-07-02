@@ -1,13 +1,13 @@
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { eq, sql } from 'drizzle-orm'
-import { Octokit } from 'octokit'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { getWorkflow } from '../workflows'
 import type { Step } from '../workflows/schema'
 import { createContext, render, type RunContext } from '../workflows/context'
 import { projectDumpDir, runSandboxName } from '../utils/storage'
+import { getInstallationClient, getInstallationToken } from '../utils/github-app'
 import { createBranch, commitAll, prepareRunCheckout, pushBranch } from './git'
 import { readDdevHosts, writeDdevConfig } from './ddev'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
@@ -23,14 +23,17 @@ import { ensureEnvUp } from './envs'
 // idle-stopper read. SSE is deferred — the UI polls the row.
 
 // Kick off a run. Returns immediately; execution continues in the background.
-export function startRun(runId: number, project: Project, token: string): void {
-  void execRun(runId, project, token).catch((e) => {
+// Repo credentials are minted on demand from the GitHub App (github-app.ts) —
+// installation tokens expire after 1h, so each git network operation fetches a
+// fresh one instead of holding a single token across a possibly-long run.
+export function startRun(runId: number, project: Project): void {
+  void execRun(runId, project).catch((e) => {
     appendLog(runId, `\nRunner crashed: ${(e as Error).message}\n`)
     finish(runId, 'failed')
   })
 }
 
-async function execRun(runId: number, project: Project, token: string): Promise<void> {
+async function execRun(runId: number, project: Project): Promise<void> {
   const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()
   const workflow = run && getWorkflow(run.workflow)
   if (!run || !workflow) {
@@ -45,7 +48,8 @@ async function execRun(runId: number, project: Project, token: string): Promise<
 
   try {
     appendLog(runId, `▶ Preparing isolated checkout\n`)
-    const dir = await prepareRunCheckout(project, runId, token, line => appendLog(runId, line))
+    const token = await getInstallationToken(project.owner, project.name)
+    const dir = await prepareRunCheckout(project, runId, token, line => appendLog(runId, line), run.branch ?? project.defaultBranch)
 
     // Read the repo's own ddev host set and store it (the proxy serves the
     // whole set — readDdevHosts — under per-run preview origins; the UI builds
@@ -61,7 +65,7 @@ async function execRun(runId: number, project: Project, token: string): Promise<
 
     const ctx = createContext(runId, project)
     for (const step of workflow.steps) {
-      await runStep(runId, dir, step, project, ctx, token)
+      await runStep(runId, dir, step, project, ctx)
     }
     appendLog(runId, `\n✓ Done\n`)
     finish(runId, 'success')
@@ -78,7 +82,6 @@ async function runStep(
   step: Step,
   project: Project,
   ctx: RunContext,
-  token: string,
 ): Promise<void> {
   switch (step.type) {
     case 'ddev-start': {
@@ -133,9 +136,11 @@ async function runStep(
       const title = render(step.title, ctx)
       const body = render(step.body, ctx)
       appendLog(runId, `\n▶ create-pr: ${title}\n`)
+      // Fresh token: the run may have outlived the 1h token from checkout.
+      const token = await getInstallationToken(project.owner, project.name)
       await pushBranch(cwd, branch, token)
       try {
-        const octokit = new Octokit({ auth: token })
+        const octokit = await getInstallationClient(project.owner, project.name)
         const { data } = await octokit.rest.pulls.create({
           owner: project.owner,
           repo: project.name,
