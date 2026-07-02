@@ -16,9 +16,14 @@ export default defineEventHandler((event) => {
       workflow: schema.runs.workflow,
       status: schema.runs.status,
       envState: schema.runs.envState,
+      previewHosts: schema.runs.previewHosts,
+      trigger: schema.runs.trigger,
+      branch: schema.runs.branch,
+      prUrl: schema.runs.prUrl,
       log: schema.runs.log,
       startedAt: schema.runs.startedAt,
       finishedAt: schema.runs.finishedAt,
+      createdAt: schema.runs.createdAt,
     })
     .from(schema.runs)
     .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))

@@ -104,7 +104,12 @@ export function fireTrigger(t: Trigger): number[] {
   for (const project of projects) {
     const run = db
       .insert(schema.runs)
-      .values({ projectId: project.id, workflow: t.workflow })
+      .values({
+        projectId: project.id,
+        workflow: t.workflow,
+        trigger: t.source,
+        branch: project.defaultBranch,
+      })
       .returning()
       .get()
     runIds.push(run.id)

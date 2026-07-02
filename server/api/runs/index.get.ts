@@ -12,6 +12,7 @@ export default defineEventHandler(() => {
       workflow: schema.runs.workflow,
       status: schema.runs.status,
       envState: schema.runs.envState,
+      previewHosts: schema.runs.previewHosts,
       startedAt: schema.runs.startedAt,
       finishedAt: schema.runs.finishedAt,
       createdAt: schema.runs.createdAt,

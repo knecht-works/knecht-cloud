@@ -34,6 +34,36 @@ import { runWorktreeDir } from './storage'
 // Content types whose bodies we rewrite URLs in. Everything else streams as-is.
 const REWRITABLE = /text\/html|text\/css|javascript|json|xml|svg|text\/plain/i
 
+// Injected into every proxied HTML document so the dashboard's embedded
+// preview behaves like a browser: the frame reports each navigation to its
+// parent (address bar) and takes back/forward/reload/go commands from it
+// (KPreviewBrowser.vue). Both directions are pinned to the dashboard origin,
+// which the script recovers from its own preview host.
+const BRIDGE_SCRIPT = `<script>(function () {
+  if (window === window.parent) return
+  var dash = location.protocol + '//' + location.host.replace(/^(?:[a-z0-9-]+--)?\\d+\\.preview\\./, '')
+  addEventListener('message', function (e) {
+    var d = e.data || {}
+    if (e.origin !== dash || d.knecht !== 'cmd') return
+    if (d.action === 'back') history.back()
+    else if (d.action === 'forward') history.forward()
+    else if (d.action === 'reload') location.reload()
+    else if (d.action === 'go' && typeof d.url === 'string') location.href = d.url
+  })
+  parent.postMessage({ knecht: 'nav', href: location.href, title: document.title }, dash)
+})()</script>`
+
+// Add the bridge right after <head> so it is listening before the app's own
+// scripts run; documents without a head get it appended (still executes).
+function injectBridge(html: string): string {
+  const openHead = /<head[^>]*>/i.exec(html)
+  if (openHead) {
+    const at = openHead.index + openHead[0].length
+    return html.slice(0, at) + BRIDGE_SCRIPT + html.slice(at)
+  }
+  return html + BRIDGE_SCRIPT
+}
+
 export async function proxyRunPreview(event: H3Event, runId: number, label?: string): Promise<void> {
   const session = await getUserSession(event)
   if (!session?.user) {
@@ -125,6 +155,16 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
           const lower = key.toLowerCase()
           // The Knecht UI embeds previews in an iframe.
           if (lower === 'x-frame-options') continue
+          // Same for a CSP frame-ancestors directive (Craft's CP sends
+          // `frame-ancestors 'self'`) — drop just that directive, keep the
+          // rest of the policy.
+          if (lower === 'content-security-policy' || lower === 'content-security-policy-report-only') {
+            const values = (Array.isArray(value) ? value : [String(value)])
+              .map(v => v.replace(/frame-ancestors[^;]*(;\s*|$)/i, '').trim())
+              .filter(Boolean)
+            if (values.length) res.setHeader(key, values)
+            continue
+          }
           // Recomputed below for rewritten bodies.
           if (rewrite && (lower === 'content-length' || lower === 'transfer-encoding')) continue
           if (lower === 'location') {
@@ -144,7 +184,8 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
         const chunks: Buffer[] = []
         up.on('data', (c: Buffer) => chunks.push(c))
         up.on('end', () => {
-          const body = rewriteUrls(Buffer.concat(chunks).toString('utf8'), mappings, url.protocol)
+          let body = rewriteUrls(Buffer.concat(chunks).toString('utf8'), mappings, url.protocol)
+          if (/text\/html/i.test(type)) body = injectBridge(body)
           const buf = Buffer.from(body, 'utf8')
           res.setHeader('content-length', String(buf.byteLength))
           res.end(buf)
@@ -171,27 +212,33 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
   })
 }
 
-// Replace every project host with ITS preview origin. Covers absolute URLs
-// (both schemes), protocol-relative, AND the JSON escaped-slash form
-// (`https:\/\/host`) that PHP's json_encode emits — that's how Craft ships its
-// CP config (Craft.actionUrl, …), and missing it sends CP requests straight to
-// the unreachable *.ddev.site. Scheme-full forms are replaced before the bare
-// `//host` so the latter only catches genuine protocol-relative URLs.
+// Replace every project host with ITS preview origin, whatever the textual
+// form: absolute URLs (both schemes), protocol-relative, the JSON
+// escaped-slash form (`https:\/\/host`) PHP's json_encode emits — Craft ships
+// its CP config that way — at ANY escaping depth (`https:\\\/\\\/host` when
+// JSON is nested in a JSON string, e.g. Craft's element editor settings with
+// the live-preview targets), and the percent-encoded form URLs take inside
+// query strings. Scheme-full forms adopt the preview protocol; protocol-
+// relative ones stay relative (they follow the page's scheme anyway). The
+// replacement mirrors the matched slash (with its backslashes), so the
+// rewritten URL keeps the surrounding encoding intact.
 function rewriteUrls(
   text: string,
   mappings: { host: string, previewHost: string }[],
   protocol: string,
 ): string {
   for (const { host, previewHost } of mappings) {
-    const origin = `${protocol}//${previewHost}`
-    const esc = origin.replaceAll('/', '\\/')
+    const h = host.replaceAll('.', '\\.')
     text = text
-      .replaceAll(`https://${host}`, origin)
-      .replaceAll(`http://${host}`, origin)
-      .replaceAll(`//${host}`, `//${previewHost}`)
-      .replaceAll(`https:\\/\\/${host}`, esc)
-      .replaceAll(`http:\\/\\/${host}`, esc)
-      .replaceAll(`\\/\\/${host}`, `\\/\\/${previewHost}`)
+      .replace(
+        new RegExp(`(https?:)?((?:\\\\+)?/)(?:\\\\+)?/${h}`, 'gi'),
+        (_, scheme: string | undefined, slash: string) =>
+          `${scheme ? protocol : ''}${slash}${slash}${previewHost}`,
+      )
+      .replace(
+        new RegExp(`https?%3A%2F%2F${h}`, 'gi'),
+        `${protocol.slice(0, -1)}%3A%2F%2F${previewHost.replace(':', '%3A')}`,
+      )
   }
   return text
 }

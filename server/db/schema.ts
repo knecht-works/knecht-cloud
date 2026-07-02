@@ -78,6 +78,17 @@ export const runs = sqliteTable('runs', {
   status: text('status', { enum: ['queued', 'running', 'success', 'failed'] })
     .notNull()
     .default('queued'),
+  // What started the run: the UI's "Start workflow" button ('manual' — also a
+  // manually fired trigger, same gesture) or a trigger's source. Free-form so
+  // new sources don't need a schema change; the UI falls back to a generic
+  // rendering for values it doesn't know. Null on runs from before this was
+  // recorded.
+  trigger: text('trigger'),
+  // The branch the run works on: the project's default branch at checkout,
+  // replaced by the branch a `create-branch` step creates.
+  branch: text('branch'),
+  // The pull request a `create-pr` step opened, if the run opened one.
+  prUrl: text('pr_url'),
   log: text('log').notNull().default(''),
   // The run's isolated ddev environment: 'down' (not booted / torn down), 'up'
   // (running, previewable), 'stopped' (idle-stopped — volumes kept, rebootable).
@@ -89,6 +100,13 @@ export const runs = sqliteTable('runs', {
   // (the pasted .env points at it) and the Host header the proxy sends — and
   // what the proxy rewrites to the preview origin in responses.
   previewHost: text('preview_host'),
+  // ALL hostnames the run's ddev environment serves (primary first), read from
+  // .ddev/config.yaml at boot — the same set the preview proxy maps to per-run
+  // origins. The UI builds its preview host switcher from this list.
+  previewHosts: text('preview_hosts', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
   // Last time the preview was accessed; the idle-stopper stops envs that have
   // been quiet longer than the idle timeout.
   previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),

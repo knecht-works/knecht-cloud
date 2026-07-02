@@ -166,7 +166,7 @@ const userMenu: DropdownMenuItem[][] = [
     </aside>
 
     <main class="relative z-10 min-w-0 flex-1 overflow-y-auto">
-      <div class="mx-auto max-w-[1320px] px-8 py-7">
+      <div class="mx-auto max-w-[1920px] px-8 py-7">
         <slot />
       </div>
     </main>

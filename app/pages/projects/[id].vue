@@ -241,30 +241,22 @@ usePollWhile(() => isLive.value, refreshRuns)
     <div class="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1fr_360px]">
       <!-- LEFT -->
       <div class="flex flex-col gap-[18px]">
-        <KBrowserFrame
-          :url="previewOnline ? previewUrl.replace(/^https?:\/\//, '') : 'no live preview'"
-          :action="previewOnline ? 'live' : 'offline'"
+        <KPreviewBrowser
+          :key="latest?.id ?? 0"
+          :run-id="latest?.id ?? 0"
+          :hosts="latest?.previewHosts ?? []"
+          :online="previewOnline"
         >
-          <iframe
-            v-if="previewOnline"
-            :src="previewUrl"
-            class="h-[260px] w-full"
-          />
-          <div
-            v-else
-            class="flex h-[260px] flex-col items-center justify-center gap-3 text-center"
+          <img
+            src="/mascot/mascotRight.png"
+            alt="Knecht"
+            class="h-16 w-auto"
+            style="filter: var(--drop-shadow-mascot)"
           >
-            <img
-              src="/mascot/mascotRight.png"
-              alt="Knecht"
-              class="h-16 w-auto"
-              style="filter: var(--drop-shadow-mascot)"
-            >
-            <p class="max-w-[280px] text-[13px] text-(--text-muted)">
-              No live preview yet. Start a workflow to boot the project, then preview it here.
-            </p>
-          </div>
-        </KBrowserFrame>
+          <p class="max-w-[280px] text-[13px] text-(--text-muted)">
+            No live preview yet. Start a workflow to boot the project, then preview it here.
+          </p>
+        </KPreviewBrowser>
 
         <KPanel
           title="Runs"
@@ -305,6 +297,7 @@ usePollWhile(() => isLive.value, refreshRuns)
               class="k-mono ml-auto text-[11px]"
               :style="{ color: RUN_STATUS_META[r.status].text }"
             >{{ RUN_STATUS_META[r.status].label }}</span>
+            <span class="k-mono w-14 text-right text-[11px] text-(--text-dimmed)">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
             <span class="k-mono hidden text-[11px] text-(--text-dimmed) sm:block">{{ timeAgo(r.createdAt) }}</span>
             <UIcon
               name="i-lucide-chevron-right"

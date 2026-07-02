@@ -32,10 +32,17 @@ export default defineNuxtConfig({
 
   // Inside the dev VM the repo is a macOS virtiofs share whose inotify
   // forwarding is unreliable — silently missed events leave the dev server on
-  // stale code. scripts/vm-dev.sh sets KNECHT_DEV_POLLING; then both watchers
-  // (Nuxt's chokidar + Vite's) poll instead of trusting inotify.
+  // stale code. scripts/vm-dev.sh sets KNECHT_DEV_POLLING; then ALL watchers
+  // (Nuxt's chokidar, Vite's, and Nitro's — the one rebuilding server/) poll
+  // instead of trusting inotify.
   watchers: {
     chokidar: {
+      usePolling: !!process.env.KNECHT_DEV_POLLING,
+    },
+  },
+
+  nitro: {
+    watchOptions: {
       usePolling: !!process.env.KNECHT_DEV_POLLING,
     },
   },

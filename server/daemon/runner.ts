@@ -47,13 +47,17 @@ async function execRun(runId: number, project: Project, token: string): Promise<
     appendLog(runId, `▶ Preparing isolated checkout\n`)
     const dir = await prepareRunCheckout(project, runId, token, line => appendLog(runId, line))
 
-    // Read the repo's own primary ddev host and store it (the proxy serves
-    // the whole host set — readDdevHosts — under per-run preview origins).
-    const previewHost = readDdevHosts(dir).primary
-    db.update(schema.runs).set({ previewHost }).where(eq(schema.runs.id, runId)).run()
+    // Read the repo's own ddev host set and store it (the proxy serves the
+    // whole set — readDdevHosts — under per-run preview origins; the UI builds
+    // its host switcher from the stored list).
+    const hosts = readDdevHosts(dir)
+    db.update(schema.runs)
+      .set({ previewHost: hosts.primary, previewHosts: hosts.all })
+      .where(eq(schema.runs.id, runId))
+      .run()
 
     const injected = writeDdevConfig(dir, project.envVars)
-    appendLog(runId, `Sandbox: ${runSandboxName(runId)} (host ${previewHost ?? '?'}, +${injected} env var(s))\n`)
+    appendLog(runId, `Sandbox: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
 
     const ctx = createContext(runId, project)
     for (const step of workflow.steps) {
@@ -106,6 +110,7 @@ async function runStep(
       appendLog(runId, `\n▶ create-branch: ${name}\n`)
       await createBranch(cwd, name)
       ctx.branch = { name }
+      db.update(schema.runs).set({ branch: name }).where(eq(schema.runs.id, runId)).run()
       break
     }
     case 'create-commit': {
@@ -140,6 +145,7 @@ async function runStep(
           base: project.defaultBranch,
         })
         ctx.pr = { url: data.html_url, number: data.number }
+        db.update(schema.runs).set({ prUrl: data.html_url }).where(eq(schema.runs.id, runId)).run()
         appendLog(runId, `Opened PR #${data.number}: ${data.html_url}\n`)
       }
       catch (e) {

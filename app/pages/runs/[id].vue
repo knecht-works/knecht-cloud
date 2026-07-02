@@ -8,9 +8,28 @@ const { data: run, refresh } = await useFetch(`/api/runs/${id}`)
 const isLive = computed(() => run.value?.status === 'queued' || run.value?.status === 'running')
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
 
-const reqUrl = useRequestURL()
-const previewUrl = computed(() =>
-  run.value ? `${reqUrl.protocol}//${previewHostname(run.value.id, reqUrl.host)}/` : '')
+const TRIGGER_META: Record<string, { icon: string, label: string }> = {
+  manual: { icon: 'i-lucide-mouse-pointer-click', label: 'Manual' },
+  schedule: { icon: 'i-lucide-clock', label: 'Schedule' },
+  github: { icon: 'i-lucide-github', label: 'GitHub webhook' },
+}
+
+// The run's meta facts (how it was triggered, the branch it works on, timing,
+// the PR it opened) — chips are skipped when a run predates the recorded field.
+const meta = computed(() => {
+  const r = run.value
+  if (!r) return []
+  const trigger = r.trigger
+    ? TRIGGER_META[r.trigger] ?? { icon: 'i-lucide-zap', label: r.trigger }
+    : null
+  return [
+    trigger && { icon: trigger.icon, text: trigger.label },
+    r.branch && { icon: 'i-lucide-git-branch', text: r.branch },
+    r.startedAt && { icon: 'i-lucide-timer', text: runDuration(r.startedAt, r.finishedAt) },
+    r.createdAt && { icon: 'i-lucide-calendar', text: timeAgo(r.createdAt) },
+    r.prUrl && { icon: 'i-lucide-git-pull-request', text: 'Pull request', href: r.prUrl },
+  ].filter(Boolean) as { icon: string, text: string, href?: string }[]
+})
 
 const deleting = ref(false)
 async function remove() {
@@ -89,43 +108,35 @@ usePollWhile(() => isLive.value, refresh)
       </template>
     </KTopBar>
 
-    <div class="mb-5 flex items-center gap-3">
-      <span
-        class="k-mono inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11.5px]"
-        :style="{ color: statusMeta.text, borderColor: 'var(--border-default)' }"
+    <div
+      v-if="meta.length"
+      class="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2"
+    >
+      <component
+        :is="m.href ? 'a' : 'span'"
+        v-for="m in meta"
+        :key="m.icon"
+        :href="m.href"
+        :target="m.href ? '_blank' : undefined"
+        class="flex items-center gap-1.5 text-(--text-dimmed)"
+        :class="m.href ? 'transition-colors hover:text-(--text-muted)' : ''"
       >
-        <KStatusDot
-          :color="statusMeta.dot"
-          :pulse="statusMeta.pulse"
-          :size="5"
+        <UIcon
+          :name="m.icon"
+          class="size-[13px]"
         />
-        {{ statusMeta.label }}
-      </span>
-      <span class="k-mono text-xs text-(--text-muted)">{{ run.workflow }} · {{ run.project }}</span>
+        <span class="k-mono text-xs text-(--text-muted)">{{ m.text }}</span>
+      </component>
     </div>
 
     <div class="flex flex-col gap-[18px]">
-      <KPanel
-        title="Log"
-        icon="i-lucide-terminal"
-        :pad="0"
-      >
-        <div class="k-mono max-h-[420px] overflow-auto whitespace-pre-wrap px-[18px] py-4 text-xs leading-[1.85] text-(--text-muted)">
-          {{ run.log || '…' }}
-        </div>
-      </KPanel>
-
       <template v-if="run.envState !== 'down'">
-        <KBrowserFrame
+        <KPreviewBrowser
           v-if="run.envState === 'up'"
-          :url="previewUrl.replace(/^https?:\/\//, '')"
-          action="live"
-        >
-          <iframe
-            :src="previewUrl"
-            class="h-[600px] w-full"
-          />
-        </KBrowserFrame>
+          :run-id="run.id"
+          :hosts="run.previewHosts ?? []"
+          online
+        />
 
         <div
           v-else
@@ -143,20 +154,27 @@ usePollWhile(() => isLive.value, refresh)
             @click="reboot"
           />
         </div>
-
-        <p
-          v-if="run.envState === 'up'"
-          class="k-mono px-1 text-[11px] text-(--text-dimmed)"
-        >
-          Served from {{ previewUrl }} — open in a new tab if the frame is blank
-          (some apps block embedding via CSP).
-          <a
-            :href="previewUrl"
-            target="_blank"
-            class="text-(--text-primary) hover:underline"
-          >Open ↗</a>
-        </p>
       </template>
+
+      <KPanel
+        title="Log"
+        icon="i-lucide-terminal"
+        :pad="0"
+      >
+        <template #action>
+          <span class="flex items-center gap-2">
+            <KStatusDot
+              :color="statusMeta.dot"
+              :pulse="statusMeta.pulse"
+              :size="6"
+            />
+            <span class="k-mono text-[11px] text-(--text-muted)">{{ run.workflow }} · {{ run.project }}</span>
+          </span>
+        </template>
+        <div class="k-mono max-h-[420px] overflow-auto whitespace-pre-wrap px-[18px] py-4 text-xs leading-[1.85] text-(--text-muted)">
+          {{ run.log || '…' }}
+        </div>
+      </KPanel>
     </div>
   </div>
 </template>

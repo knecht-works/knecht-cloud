@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `preview_hosts` text DEFAULT '[]' NOT NULL;

@@ -41,7 +41,12 @@ export default defineEventHandler(async (event) => {
 
   const run = db
     .insert(schema.runs)
-    .values({ projectId: project.id, workflow: result.data.workflow })
+    .values({
+      projectId: project.id,
+      workflow: result.data.workflow,
+      trigger: 'manual',
+      branch: project.defaultBranch,
+    })
     .returning()
     .get()
 

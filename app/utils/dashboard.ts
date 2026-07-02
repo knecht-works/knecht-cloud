@@ -135,15 +135,22 @@ export function errMsg(e: unknown, fallback: string): string {
   return (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? fallback
 }
 
-// Compact relative time ("4m ago", "2h ago"). Accepts a Date, epoch seconds,
-// or an ISO string; returns '' for nullish input.
-export function timeAgo(value: Date | string | number | null | undefined): string {
-  if (value === null || value === undefined) return ''
+type TimeValue = Date | string | number | null | undefined
+
+function toDate(value: TimeValue): Date | null {
+  if (value === null || value === undefined) return null
   const date = value instanceof Date
     ? value
     : new Date(typeof value === 'number' ? value * 1000 : value)
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+// Compact relative time ("4m ago", "2h ago"). Accepts a Date, epoch seconds,
+// or an ISO string; returns '' for nullish input.
+export function timeAgo(value: TimeValue): string {
+  const date = toDate(value)
+  if (!date) return ''
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
-  if (Number.isNaN(seconds)) return ''
   if (seconds < 60) return 'just now'
   const mins = Math.floor(seconds / 60)
   if (mins < 60) return `${mins}m ago`
@@ -151,4 +158,18 @@ export function timeAgo(value: Date | string | number | null | undefined): strin
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   return `${days}d ago`
+}
+
+// Compact run duration ("42s", "3m 12s", "1h 04m"). A missing end measures
+// against now (a still-running run); returns '' when the run never started.
+export function runDuration(start: TimeValue, end: TimeValue): string {
+  const from = toDate(start)
+  if (!from) return ''
+  const to = toDate(end) ?? new Date()
+  const seconds = Math.max(0, Math.floor((to.getTime() - from.getTime()) / 1000))
+  if (seconds < 60) return `${seconds}s`
+  const mins = Math.floor(seconds / 60)
+  if (mins < 60) return `${mins}m ${seconds % 60}s`
+  const hours = Math.floor(mins / 60)
+  return `${hours}h ${String(mins % 60).padStart(2, '0')}m`
 }
