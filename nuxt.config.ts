@@ -41,13 +41,13 @@ export default defineNuxtConfig({
     },
   },
 
+  compatibilityDate: '2025-07-15',
+
   nitro: {
     watchOptions: {
       usePolling: !!process.env.KNECHT_DEV_POLLING,
     },
   },
-
-  compatibilityDate: '2025-07-15',
 
   vite: {
     server: {

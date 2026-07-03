@@ -62,7 +62,7 @@ const userMenu: DropdownMenuItem[][] = [
           variant="ghost"
           size="sm"
           :aria-label="collapsed ? 'Expand sidebar' : 'Collapse sidebar'"
-          @click="collapsed = !collapsed"
+          @click="() => { collapsed = !collapsed }"
         />
       </div>
 

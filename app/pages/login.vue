@@ -52,7 +52,6 @@ const error = computed(() => {
       Sign in with GitHub
     </UButton>
 
-    <p class="k-mono mt-4 flex items-center justify-center gap-1.5 text-[11px] text-(--text-dimmed)">
-    </p>
+    <p class="k-mono mt-4 flex items-center justify-center gap-1.5 text-[11px] text-(--text-dimmed)" />
   </div>
 </template>

@@ -56,7 +56,7 @@ const groups = computed(() => [
     color="neutral"
     variant="outline"
     class="hidden sm:flex"
-    @click="open = true"
+    @click="() => { open = true }"
   >
     <UIcon
       name="i-lucide-search"
