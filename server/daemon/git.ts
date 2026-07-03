@@ -14,12 +14,16 @@ import { projectCheckoutDir, runWorktreeDir } from '../utils/storage'
 // operation as an HTTP header — NEVER stored in the remote URL (it would go
 // stale) and NEVER streamed to the run log — git output is captured quietly
 // here and any error is redacted before it surfaces.
+// `sha` pins the worktree to an exact commit instead of the branch tip —
+// restoring an archived run (daemon/envs.ts) passes the HEAD recorded at
+// archive time.
 export async function prepareRunCheckout(
   project: Project,
   runId: number,
   token: string,
   onLog: (line: string) => void,
   branch: string = project.defaultBranch,
+  sha?: string | null,
 ): Promise<string> {
   const base = projectCheckoutDir(project)
   const runDir = runWorktreeDir(runId)
@@ -31,7 +35,10 @@ export async function prepareRunCheckout(
     await ensureBaseClone(base, project, token, project.defaultBranch, onLog)
     shieldGeneratedFiles(base)
 
-    if (branch !== project.defaultBranch) {
+    // With a pinned sha the branch tip is irrelevant — and the run's branch may
+    // only ever have existed locally (a create-branch that never pushed), so
+    // fetching it would fail.
+    if (!sha && branch !== project.defaultBranch) {
       onLog(`Fetching ${branch}…\n`)
       await git(['-C', base, ...authFlags(token), 'fetch', '--depth', '1', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`])
     }
@@ -41,7 +48,16 @@ export async function prepareRunCheckout(
     }
     else {
       onLog(`Creating isolated worktree for run ${runId}…\n`)
-      await git(['-C', base, 'worktree', 'add', '--detach', '--force', runDir, `origin/${branch}`])
+      try {
+        await git(['-C', base, 'worktree', 'add', '--detach', '--force', runDir, sha ?? `origin/${branch}`])
+      }
+      catch (e) {
+        if (!sha) throw e
+        // The pinned commit isn't in the shallow store (anymore) — GitHub
+        // serves arbitrary-SHA fetches, so pull exactly it and retry.
+        await git(['-C', base, ...authFlags(token), 'fetch', '--depth', '1', 'origin', sha])
+        await git(['-C', base, 'worktree', 'add', '--detach', '--force', runDir, sha])
+      }
     }
     return runDir
   }

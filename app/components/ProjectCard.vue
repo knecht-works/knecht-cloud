@@ -3,7 +3,7 @@ import type { RunStatus } from '~/utils/dashboard'
 
 interface RunSummary {
   status: RunStatus
-  envState: 'down' | 'up' | 'stopped'
+  envState: 'down' | 'up' | 'stopped' | 'archived'
   workflow: string
   createdAt: string | number | Date | null
 }

@@ -88,6 +88,12 @@ export async function copyIntoSandbox(runId: number, file: string, dest: string)
   await execa('docker', ['cp', file, `${runSandboxName(runId)}:${dest}`])
 }
 
+// Copy a file out of the sandbox to the host (e.g. the DB export taken before
+// an env is stopped, headed for the run's archive).
+export async function copyOutOfSandbox(runId: number, src: string, dest: string): Promise<void> {
+  await execa('docker', ['cp', `${runSandboxName(runId)}:${src}`, dest])
+}
+
 // Resolve the address the preview proxy targets: the sandbox's IP on the
 // ingress network (the inner router listens there on :80). Resolved by IP, not
 // container name, so it works both when Knecht runs as a container (prod) and

@@ -76,7 +76,7 @@ async function reboot() {
   }
   catch (e) {
     toast.add({
-      title: 'Reboot failed',
+      title: run.value?.envState === 'archived' ? 'Restore failed' : 'Reboot failed',
       description: errMsg(e, ''),
       color: 'error',
     })
@@ -162,14 +162,24 @@ usePollWhile(() => isLive.value, refresh)
           v-else
           class="k-card flex flex-wrap items-center justify-between gap-4 p-5"
         >
-          <p class="max-w-[520px] text-[13px] text-(--text-muted)">
-            The environment was stopped after being idle. Reboot it to preview again — the
-            imported database and built files are kept.
+          <p
+            v-if="run.envState === 'archived'"
+            class="max-w-[520px] text-[13px] text-(--text-muted)"
+          >
+            This environment was archived. Its exact code state and database are kept,
+            and restoring rebuilds it in a few minutes.
+          </p>
+          <p
+            v-else
+            class="max-w-[520px] text-[13px] text-(--text-muted)"
+          >
+            The environment was stopped after being idle. Reboot it to preview again;
+            the imported database and built files are kept.
           </p>
           <UButton
             color="primary"
-            label="Reboot"
-            icon="i-lucide-power"
+            :label="run.envState === 'archived' ? 'Restore' : 'Reboot'"
+            :icon="run.envState === 'archived' ? 'i-lucide-archive-restore' : 'i-lucide-power'"
             :loading="rebooting"
             @click="reboot"
           />
@@ -181,8 +191,8 @@ usePollWhile(() => isLive.value, refresh)
         class="k-card flex flex-wrap items-center justify-between gap-4 p-5"
       >
         <p class="max-w-[520px] text-[13px] text-(--text-muted)">
-          This run's environment was torn down, so there is nothing left to preview or
-          reboot. Run the workflow again to get a fresh environment.
+          This run's environment and its archive are gone, so there is nothing left to
+          restore. Run the workflow again to get a fresh environment.
         </p>
         <UButton
           color="primary"

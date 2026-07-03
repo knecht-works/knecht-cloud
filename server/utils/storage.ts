@@ -35,6 +35,13 @@ export function runSandboxName(runId: number): string {
   return `knecht-run-${runId}`
 }
 
+// A run's archive folder: the small artifacts (DB export, worktree patch) that
+// survive the env teardown so an archived run can be restored exactly. NOT
+// created here — writers mkdir, readers probe.
+export function runArchiveDir(runId: number): string {
+  return join(dataDir(), 'archives', `run-${runId}`)
+}
+
 // Per-project folder for uploaded DB dumps (created on demand).
 export function projectDumpDir(projectId: number): string {
   const dir = join(dataDir(), 'dumps', String(projectId))

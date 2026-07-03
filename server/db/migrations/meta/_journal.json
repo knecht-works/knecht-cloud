@@ -134,6 +134,20 @@
       "when": 1783103580087,
       "tag": "0018_cooing_quasar",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1783105174950,
+      "tag": "0019_omniscient_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1783108326095,
+      "tag": "0020_left_leper_queen",
+      "breakpoints": true
     }
   ]
 }

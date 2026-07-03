@@ -2,7 +2,7 @@ import { rmSync } from 'node:fs'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
 import { teardownRun } from '../../daemon/envs'
-import { projectCheckoutDir } from '../../utils/storage'
+import { projectCheckoutDir, runArchiveDir } from '../../utils/storage'
 
 // DELETE /api/projects/:id → disconnect a project and clean up after it: every
 // run's isolated ddev env + worktree, then the base clone. Without this the
@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
   const runs = db.select({ id: schema.runs.id }).from(schema.runs).where(eq(schema.runs.projectId, id)).all()
   for (const run of runs) {
     await teardownRun(run.id, baseDir)
+    rmSync(runArchiveDir(run.id), { recursive: true, force: true })
   }
   rmSync(baseDir, { recursive: true, force: true })
 

@@ -1,17 +1,8 @@
 <script setup lang="ts">
-const { user } = useUserSession()
+const { user, clear } = useUserSession()
 const toast = useToast()
 
-interface Settings {
-  idleStopMinutes: number
-  maxConcurrentEnvs: number
-  teardownStoppedMinutes: number
-}
-
-const { data: settings } = await useFetch<Settings>('/api/settings')
-
-// Members — the login allowlist. Every member has full access; the owner can't
-// be removed.
+// ── Access: your account + the login allowlist ────────────────────────────────
 interface Member {
   login: string
   name: string | null
@@ -20,11 +11,20 @@ interface Member {
 }
 const { data: members } = await useFetch<Member[]>('/api/members')
 
-// Member logins are stored lowercased; the session login keeps GitHub's
-// original casing — normalise before comparing.
+// Member logins are stored lowercased; the session login keeps GitHub's original
+// casing — normalise before comparing. `me` is the signed-in member's own row
+// (always present: the /api gate only lets members through); `others` is the
+// rest of the team.
 const myLogin = computed(() => user.value?.login.toLowerCase())
+const me = computed(() => members.value?.find(m => m.login === myLogin.value))
+const others = computed(() => members.value?.filter(m => m.login !== myLogin.value) ?? [])
 
 const errMsg = (e: unknown) => (e as { data?: { statusMessage?: string } })?.data?.statusMessage ?? 'Please try again.'
+
+async function logout() {
+  await clear()
+  await navigateTo('/login')
+}
 
 const newLogin = ref('')
 const inviting = ref(false)
@@ -60,8 +60,16 @@ async function remove(login: string) {
   }
 }
 
-// Local editable copy + dirty tracking.
-const form = reactive<Settings>({ idleStopMinutes: 30, maxConcurrentEnvs: 5, teardownStoppedMinutes: 180 })
+// ── Environments: tunable lifecycle limits ────────────────────────────────────
+interface Settings {
+  idleStopMinutes: number
+  previewRetentionDays: number
+  archiveRetentionDays: number
+}
+const { data: settings } = await useFetch<Settings>('/api/settings')
+
+// Local editable copy; changes autosave shortly after the last edit.
+const form = reactive<Settings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30 })
 const original = ref('')
 function load() {
   if (!settings.value) return
@@ -69,27 +77,38 @@ function load() {
   original.value = JSON.stringify(settings.value)
 }
 watch(settings, load, { immediate: true })
-const dirty = computed(() => JSON.stringify({ idleStopMinutes: form.idleStopMinutes, maxConcurrentEnvs: form.maxConcurrentEnvs, teardownStoppedMinutes: form.teardownStoppedMinutes }) !== original.value)
 
-const ENV_FIELDS: { key: keyof Settings, label: string, unit: string, hint: string }[] = [
-  { key: 'maxConcurrentEnvs', label: 'Max concurrent previews', unit: 'envs', hint: 'Most environments kept running at once. Booting more first stops the least-recently-viewed — keeps Docker from running out of networks.' },
-  { key: 'idleStopMinutes', label: 'Idle stop', unit: 'min', hint: 'Stop an environment after this long without a preview view. Volumes are kept, so reopening reboots it quickly.' },
-  { key: 'teardownStoppedMinutes', label: 'Delete stopped after', unit: 'min', hint: 'Fully remove a stopped environment (and its volumes) once untouched this long. 0 keeps it until the run is deleted.' },
+// Each field is one step down the preview lifecycle ladder (live → stopped →
+// archived → deleted): "after how long of nobody touching it does a preview
+// take the next step". The labels name the transition, not an internal state.
+const ENV_FIELDS: { key: keyof Settings, label: string, unit: string, min: number, hint: string }[] = [
+  { key: 'idleStopMinutes', label: 'Live → stopped', unit: 'min', min: 1, hint: 'Every live preview keeps a full environment running, eating server memory even when nobody looks at it. After this long without a visit it\'s stopped to free that memory. Opening it again brings it back in seconds, nothing is lost.' },
+  { key: 'previewRetentionDays', label: 'Stopped → archived', unit: 'days', min: 0, hint: 'A stopped preview untouched for this long is archived: the heavy environment is deleted, a small snapshot (database + code changes) is kept. Restoring takes a few minutes. 0 never archives.' },
+  { key: 'archiveRetentionDays', label: 'Archived → deleted', unit: 'days', min: 0, hint: 'An archive untouched for this long is deleted for good. After that, only running the workflow again boots the run. 0 never deletes.' },
 ]
 
-const saving = ref(false)
+// Autosave, debounced so a keystroke doesn't fire a request. An emptied number
+// input is '' until retyped — hold off (keep "Saving…") rather than send an
+// invalid body; out-of-range values are the server's call and surface as the
+// error state. `load()` refreshing `original` is what stops the save loop.
+const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+let saveTimer: ReturnType<typeof setTimeout> | undefined
+watch(form, () => {
+  if (JSON.stringify({ ...form }) === original.value) return
+  saveState.value = 'saving'
+  clearTimeout(saveTimer)
+  saveTimer = setTimeout(save, 800)
+})
+
 async function save() {
-  saving.value = true
+  if (!ENV_FIELDS.every(f => Number.isInteger(form[f.key]))) return
   try {
     settings.value = await $fetch<Settings>('/api/settings', { method: 'PATCH', body: { ...form } })
     load()
-    toast.add({ title: 'Settings saved', color: 'success' })
+    saveState.value = 'saved'
   }
   catch {
-    toast.add({ title: 'Failed to save settings', color: 'error' })
-  }
-  finally {
-    saving.value = false
+    saveState.value = 'error'
   }
 }
 </script>
@@ -98,7 +117,7 @@ async function save() {
   <div>
     <KTopBar
       title="Settings"
-      sub="Account, host environment and agent configuration."
+      sub="Access, host environment and agent configuration."
     >
       <template #actions>
         <AppSearch />
@@ -107,39 +126,59 @@ async function save() {
 
     <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
       <KPanel
-        title="Account"
-        icon="i-simple-icons-github"
-      >
-        <div class="flex items-center gap-3.5">
-          <UAvatar
-            :src="user?.avatarUrl"
-            :alt="user?.login"
-            size="lg"
-            class="flex-none"
-          />
-          <div class="min-w-0">
-            <div class="text-sm text-(--text-toned)">
-              {{ user?.name || user?.login }}
-            </div>
-            <div class="k-mono text-[11.5px] text-(--text-dimmed)">
-              @{{ user?.login }}
-            </div>
-          </div>
-        </div>
-      </KPanel>
-
-      <SystemPanel />
-
-      <KPanel
-        title="Members"
+        title="Access"
         icon="i-lucide-users"
         class="lg:col-span-2"
       >
-        <div class="divide-y divide-(--border-muted)">
+        <template #action>
+          <span class="k-mono text-[11px] text-(--text-dimmed)">
+            {{ members?.length ?? 0 }} {{ (members?.length ?? 0) === 1 ? 'member' : 'members' }}
+          </span>
+        </template>
+
+        <!-- One compact card per person in a grid, so the panel's full width is
+             used instead of one person per full-width row. You come first (with
+             sign-out where your account is); the invite form is the grid's
+             still-empty card — dashed, with an inline input — so adding someone
+             reads as "filling the next slot". -->
+        <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+          <div class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted) px-3.5 py-3">
+            <UAvatar
+              :src="user?.avatarUrl"
+              :alt="user?.login"
+              size="sm"
+              class="flex-none"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="truncate text-sm text-(--text-toned)">{{ user?.name || user?.login }}</span>
+                <UBadge
+                  :color="me?.isOwner ? 'primary' : 'neutral'"
+                  variant="subtle"
+                  size="sm"
+                  :label="me?.isOwner ? 'Owner' : 'You'"
+                />
+              </div>
+              <div class="k-mono text-[11.5px] text-(--text-dimmed)">
+                @{{ user?.login }}
+              </div>
+            </div>
+            <UTooltip text="Sign out">
+              <UButton
+                icon="i-lucide-log-out"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Sign out"
+                @click="logout"
+              />
+            </UTooltip>
+          </div>
+
           <div
-            v-for="m in members"
+            v-for="m in others"
             :key="m.login"
-            class="flex items-center gap-3 py-2.5 first:pt-0"
+            class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted) px-3.5 py-3"
           >
             <UAvatar
               :src="m.avatarUrl ?? undefined"
@@ -152,60 +191,77 @@ async function save() {
                 <span class="truncate text-sm text-(--text-toned)">{{ m.name || m.login }}</span>
                 <UBadge
                   v-if="m.isOwner"
-                  color="neutral"
-                  variant="subtle"
-                  size="sm"
-                  label="Owner"
-                />
-                <UBadge
-                  v-else-if="m.login === myLogin"
                   color="primary"
                   variant="subtle"
                   size="sm"
-                  label="You"
+                  label="Owner"
                 />
               </div>
               <div class="k-mono text-[11.5px] text-(--text-dimmed)">
                 @{{ m.login }}
               </div>
             </div>
-            <UButton
-              v-if="!m.isOwner && m.login !== myLogin"
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              :loading="removing === m.login"
-              :aria-label="`Remove ${m.login}`"
-              @click="remove(m.login)"
-            />
+            <UTooltip
+              v-if="!m.isOwner"
+              text="Remove"
+            >
+              <UButton
+                icon="i-lucide-x"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                :loading="removing === m.login"
+                :aria-label="`Remove ${m.login}`"
+                @click="remove(m.login)"
+              />
+            </UTooltip>
           </div>
-        </div>
 
-        <form
-          class="mt-4 flex gap-2"
-          @submit.prevent="invite"
-        >
-          <UInput
-            v-model="newLogin"
-            placeholder="GitHub username"
-            autocapitalize="off"
-            autocomplete="off"
-            spellcheck="false"
-            class="flex-1"
-            :disabled="inviting"
-          />
-          <UButton
-            type="submit"
-            label="Invite"
-            icon="i-simple-icons-github"
-            color="neutral"
-            :loading="inviting"
-            :disabled="!newLogin.trim()"
-          />
-        </form>
-        <p class="mt-2.5 text-[12px] leading-[1.5] text-(--text-muted)">
-          Invited users sign in with GitHub and currently have the same full access as the owner.
+          <form
+            class="flex items-center gap-3 rounded-(--radius-lg) border border-dashed border-(--border-default) px-3.5 py-3"
+            @submit.prevent="invite"
+          >
+            <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-(--border-default) text-(--text-dimmed)">
+              <UIcon
+                name="i-lucide-plus"
+                class="size-3.5"
+              />
+            </span>
+            <UInput
+              v-model="newLogin"
+              placeholder="GitHub username…"
+              variant="none"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              :disabled="inviting"
+              class="min-w-0 flex-1"
+              :ui="{ base: 'px-0 text-sm' }"
+            />
+            <UButton
+              type="submit"
+              label="Invite"
+              color="primary"
+              size="xs"
+              :loading="inviting"
+              :disabled="!newLogin.trim()"
+            />
+          </form>
+        </div>
+      </KPanel>
+
+      <SystemPanel />
+
+      <KPanel
+        title="Agent"
+        icon="i-lucide-sparkles"
+        accent="var(--accent-orange)"
+      >
+        <template #action>
+          <span class="k-mono text-[11px] text-(--text-dimmed)">Planned</span>
+        </template>
+        <p class="text-[13px] text-(--text-muted)">
+          OpenRouter key, model selection and run limits will live here. Not wired up yet.
         </p>
       </KPanel>
 
@@ -215,15 +271,18 @@ async function save() {
         class="lg:col-span-2"
       >
         <template #action>
-          <UButton
-            color="primary"
-            size="sm"
-            label="Save"
-            :loading="saving"
-            :disabled="!dirty"
-            @click="save"
-          />
+          <span
+            v-if="saveState !== 'idle'"
+            class="k-mono text-[11px]"
+            :class="saveState === 'error' ? 'text-(--status-error)' : 'text-(--text-dimmed)'"
+          >
+            {{ saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Not saved, check the values' }}
+          </span>
         </template>
+        <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
+          To free up the server, every run's preview steps down a ladder when nobody uses it:
+          <span class="k-mono text-[12px] text-(--text-toned)">live → stopped → archived → deleted</span>.
+        </p>
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
             v-for="f in ENV_FIELDS"
@@ -234,7 +293,7 @@ async function save() {
               <UInput
                 v-model.number="form[f.key]"
                 type="number"
-                :min="0"
+                :min="f.min"
                 class="w-24"
               />
               <span class="k-mono text-[11.5px] text-(--text-dimmed)">{{ f.unit }}</span>
@@ -244,20 +303,6 @@ async function save() {
             </p>
           </div>
         </div>
-      </KPanel>
-
-      <KPanel
-        title="Agent"
-        icon="i-lucide-sparkles"
-        accent="var(--accent-orange)"
-        class="lg:col-span-2"
-      >
-        <template #action>
-          <span class="k-mono text-[11px] text-(--text-dimmed)">Planned</span>
-        </template>
-        <p class="text-[13px] text-(--text-muted)">
-          OpenRouter key, model selection and run limits will live here. Not wired up yet.
-        </p>
       </KPanel>
     </div>
   </div>

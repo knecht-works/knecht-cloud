@@ -91,12 +91,17 @@ export const runs = sqliteTable('runs', {
   // The branch the run works on: the project's default branch at checkout,
   // replaced by the branch a `create-branch` step creates.
   branch: text('branch'),
+  // The worktree's HEAD, captured when the env is archived (includes commits
+  // the run itself made). Restoring an archived env checks out exactly this.
+  commitSha: text('commit_sha'),
   // The pull request a `create-pr` step opened, if the run opened one.
   prUrl: text('pr_url'),
   log: text('log').notNull().default(''),
-  // The run's isolated ddev environment: 'down' (not booted / torn down), 'up'
-  // (running, previewable), 'stopped' (idle-stopped — volumes kept, rebootable).
-  envState: text('env_state', { enum: ['down', 'up', 'stopped'] })
+  // The run's isolated ddev environment: 'down' (not booted / expired), 'up'
+  // (running, previewable), 'stopped' (idle-stopped — volumes kept, rebootable),
+  // 'archived' (sandbox + worktree deleted, but the run's DB export + worktree
+  // patch are kept so it can be restored exactly — daemon/envs.ts).
+  envState: text('env_state', { enum: ['down', 'up', 'stopped', 'archived'] })
     .notNull()
     .default('down'),
   // The repo's own ddev host (e.g. ganzlebendig.ddev.site), read from
@@ -158,19 +163,22 @@ export type NewWorkflowRow = typeof workflows.$inferInsert
 export const settings = sqliteTable('settings', {
   id: integer('id').primaryKey(), // singleton — always 1
 
-  // Stop a run's env (frees its network + host ports, keeps volumes so it can be
-  // rebooted) after it has been idle — no preview access — this many minutes.
-  idleStopMinutes: integer('idle_stop_minutes').notNull().default(30),
+  // Stop a run's env (its DB is exported for the archive, the sandbox keeps its
+  // filesystem so a reboot is quick) after it has been idle — no preview
+  // access — this many minutes. This is the RAM guard: each 'up' env is a full
+  // nested Docker host. Defaults to a day: during active work nothing ever
+  // stops, and overnight the memory comes back.
+  idleStopMinutes: integer('idle_stop_minutes').notNull().default(1440),
 
-  // Hard cap on simultaneously-running ('up') envs. Booting a new run first
-  // stops the least-recently-previewed envs until fewer than this remain, so the
-  // docker network pool can never be exhausted by Knecht.
-  maxConcurrentEnvs: integer('max_concurrent_envs').notNull().default(5),
+  // Archive a 'stopped' env once untouched this many days: its sandbox +
+  // worktree (the GBs) are deleted, keeping only the DB export + worktree patch
+  // (MBs) so it can still be restored exactly. 0 keeps stopped envs forever.
+  previewRetentionDays: integer('preview_retention_days').notNull().default(7),
 
-  // Fully delete a 'stopped' env (reclaiming its volumes + worktree) once it has
-  // been untouched this many minutes. 0 disables auto-deletion (kept until the
-  // run is deleted).
-  teardownStoppedMinutes: integer('teardown_stopped_minutes').notNull().default(180),
+  // Delete a run's archive (DB export + patch) once untouched this many days —
+  // after that only re-running the workflow gets a fresh environment. 0 keeps
+  // archives until the run is deleted.
+  archiveRetentionDays: integer('archive_retention_days').notNull().default(30),
 
   // Whether the bundled starter workflows have been seeded into the table. Seeded
   // once on first boot; afterwards workflows are fully user-owned (deletions and
