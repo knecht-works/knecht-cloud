@@ -39,16 +39,26 @@ export async function resolveProjectMeta(
   }
 }
 
+// Projects whose resolution failed or stayed unresolved recently. Without this,
+// a repo that legitimately has no `.ddev/config.yaml` (or is unreadable) would
+// re-trigger 3-4 GitHub calls on EVERY projects page load, blocking SSR.
+const attemptedAt = new Map<number, number>()
+const RETRY_MS = 10 * 60_000
+
 // Resolve missing framework/environment metadata from each repo and persist it,
 // mutating the passed rows in place. Best-effort: if the GitHub App isn't
 // configured/installed or a repo can't be read, the affected projects keep their
-// nulls and the caller renders them without the data. Re-runs while `framework`
-// is still unresolved.
+// nulls and the caller renders them without the data. Re-attempts an unresolved
+// project at most every RETRY_MS.
 export async function backfillFrameworks(projects: Project[]): Promise<void> {
-  const missing = projects.filter(p => p.framework == null || p.ddevEnv == null)
+  const now = Date.now()
+  const missing = projects.filter(p =>
+    (p.framework == null || p.ddevEnv == null)
+    && now - (attemptedAt.get(p.id) ?? 0) > RETRY_MS)
   if (!missing.length) return
 
   await Promise.all(missing.map(async (p) => {
+    attemptedAt.set(p.id, now)
     try {
       const octokit = await getInstallationClient(p.owner, p.name)
       const meta = await resolveProjectMeta(octokit, p.owner, p.name, p.defaultBranch)
@@ -57,9 +67,11 @@ export async function backfillFrameworks(projects: Project[]): Promise<void> {
         .where(eq(schema.projects.id, p.id))
         .run()
       Object.assign(p, meta)
+      if (meta.framework != null) attemptedAt.delete(p.id)
     }
     catch {
-      // App not configured/installed or repo unreadable — keep nulls, retry later.
+      // App not configured/installed or repo unreadable — keep nulls; the next
+      // attempt happens after the retry window.
     }
   }))
 }

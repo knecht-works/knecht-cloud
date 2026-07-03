@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm'
+import { asc, count, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { members, type Member } from '../db/schema'
 
@@ -34,7 +34,7 @@ export function isMember(login: string): boolean {
 // this to let the first successful login claim ownership (covers instances set
 // up before member gating existed).
 export function memberCount(): number {
-  return db.select({ id: members.id }).from(members).all().length
+  return db.select({ count: count() }).from(members).get()?.count ?? 0
 }
 
 // Add a member. An already-present login is left untouched (never downgrades an
