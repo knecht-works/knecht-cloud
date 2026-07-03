@@ -46,7 +46,7 @@ function parseField(field: string, min: number, max: number): Set<number> {
   return out
 }
 
-export function parseCron(expr: string): CronSpec {
+function parseCron(expr: string): CronSpec {
   const fields = expr.trim().split(/\s+/)
   if (fields.length !== 5) throw new Error('Cron must have exactly 5 fields')
   const [minute, hour, dom, month, dowField] = fields as [string, string, string, string, string]

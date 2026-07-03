@@ -117,7 +117,7 @@ export function stepDef(type: WorkflowStep['type']): StepDef {
 }
 
 // Variables seeded into every run before the first step (workflows/context.ts).
-export const CONTEXT_VARS: StepVar[] = [
+const CONTEXT_VARS: StepVar[] = [
   { path: 'run.id', hint: 'This run\'s number' },
   { path: 'project.name', hint: 'Repo name' },
   { path: 'project.owner', hint: 'Repo owner' },

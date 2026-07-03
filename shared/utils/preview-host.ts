@@ -11,7 +11,7 @@
 
 const PREVIEW_HOST_RE = /^(?:([a-z0-9-]+)--)?(\d+)\.preview\./
 
-export interface PreviewHostRef {
+interface PreviewHostRef {
   runId: number
   /** Present for an additional (non-primary) hostname's origin. */
   label?: string
