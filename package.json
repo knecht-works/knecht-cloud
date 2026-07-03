@@ -28,12 +28,13 @@
     "nuxt-auth-utils": "^0.5.29",
     "octokit": "^5.0.5",
     "tailwindcss": "^4.3.1",
-    "yaml": "^2.9.0",
     "vue": "^3.5.35",
     "vue-router": "^5.1.0",
+    "yaml": "^2.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@iconify-json/lucide": "^1.2.116",
     "@nuxt/eslint": "^1.16.0",
     "@types/better-sqlite3": "^7.6.13",
     "drizzle-kit": "^0.31.10",
