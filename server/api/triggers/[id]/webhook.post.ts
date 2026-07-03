@@ -1,6 +1,4 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../../db'
 import { fireTrigger } from '../../../utils/triggers'
 
 // POST /api/triggers/:id/webhook → GitHub webhook receiver. Exempt from the
@@ -10,13 +8,8 @@ import { fireTrigger } from '../../../utils/triggers'
 // setup" path: it only works once the webhook + secret are configured on GitHub
 // and Knecht is reachable at a public URL.
 export default defineEventHandler(async (event) => {
-  const id = Number(getRouterParam(event, 'id'))
-  if (!Number.isInteger(id)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid trigger id' })
-  }
-
-  const row = db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()
-  if (!row || row.source !== 'github' || !row.webhookSecret) {
+  const row = requireTrigger(requireIntParam(event))
+  if (row.source !== 'github' || !row.webhookSecret) {
     throw createError({ statusCode: 404, statusMessage: 'Trigger not found' })
   }
 

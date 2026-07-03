@@ -13,10 +13,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const id = Number(getRouterParam(event, 'id'))
-  if (!Number.isInteger(id)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid ID' })
-  }
+  const id = requireIntParam(event)
 
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {

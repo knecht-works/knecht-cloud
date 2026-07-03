@@ -7,10 +7,7 @@ import { db, schema } from '../../db'
 export default defineEventHandler((event) => {
   const name = decodeURIComponent(getRouterParam(event, 'name') ?? '')
 
-  const row = db.select().from(schema.workflows).where(eq(schema.workflows.name, name)).get()
-  if (!row) {
-    throw createError({ statusCode: 404, statusMessage: 'Workflow not found' })
-  }
+  const row = requireWorkflowRow(name)
 
   const orphanTriggers = db.select({ id: schema.triggers.id }).from(schema.triggers).where(eq(schema.triggers.workflow, name)).all()
 

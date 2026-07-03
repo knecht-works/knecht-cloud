@@ -4,15 +4,8 @@ import { db, schema } from '../../../db'
 
 // DELETE /api/projects/:id/dump → remove the uploaded DB dump.
 export default defineEventHandler((event) => {
-  const id = Number(getRouterParam(event, 'id'))
-  if (!Number.isInteger(id)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid ID' })
-  }
-
-  const project = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get()
-  if (!project) {
-    throw createError({ statusCode: 404, statusMessage: 'Project not found' })
-  }
+  const id = requireIntParam(event)
+  const project = requireProject(id)
 
   if (project.dbDumpPath) {
     try {

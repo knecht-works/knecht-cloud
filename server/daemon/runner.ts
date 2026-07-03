@@ -7,7 +7,7 @@ import { getWorkflow } from '../workflows'
 import type { Step } from '../workflows/schema'
 import { createContext, render, type RunContext } from '../workflows/context'
 import { projectDumpDir, runSandboxName } from '../utils/storage'
-import { getInstallationClient, getInstallationToken } from '../utils/github-app'
+import { createPullRequest, getInstallationToken } from '../utils/github-app'
 import { createBranch, commitAll, prepareRunCheckout, pushBranch } from './git'
 import { readDdevHosts, writeDdevConfig } from './ddev'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
@@ -56,7 +56,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     // its host switcher from the stored list).
     const hosts = readDdevHosts(dir)
     db.update(schema.runs)
-      .set({ previewHost: hosts.primary, previewHosts: hosts.all })
+      .set({ previewHosts: hosts.all })
       .where(eq(schema.runs.id, runId))
       .run()
 
@@ -139,30 +139,27 @@ async function runStep(
       // Fresh token: the run may have outlived the 1h token from checkout.
       const token = await getInstallationToken(project.owner, project.name)
       await pushBranch(cwd, branch, token)
+      let pr: { url: string, number: number } | null
       try {
-        const octokit = await getInstallationClient(project.owner, project.name)
-        const { data } = await octokit.rest.pulls.create({
-          owner: project.owner,
-          repo: project.name,
+        pr = await createPullRequest(project.owner, project.name, {
           title,
           body,
           head: branch,
           base: project.defaultBranch,
         })
-        ctx.pr = { url: data.html_url, number: data.number }
-        db.update(schema.runs).set({ prUrl: data.html_url }).where(eq(schema.runs.id, runId)).run()
-        appendLog(runId, `Opened PR #${data.number}: ${data.html_url}\n`)
       }
       catch (e) {
-        const msg = (e as Error).message
-        // Nothing was committed (e.g. an empty agent run) — there's no diff to
-        // open a PR for. Treat as a skip, not a failure.
-        if (/No commits between/i.test(msg)) {
-          appendLog(runId, `No changes to open a PR for — skipping\n`)
-          break
-        }
-        throw new Error(`create-pr failed: ${msg}`, { cause: e })
+        throw new Error(`create-pr failed: ${(e as Error).message}`, { cause: e })
       }
+      // Nothing was committed (e.g. an empty agent run) — there's no diff to
+      // open a PR for. Treat as a skip, not a failure.
+      if (!pr) {
+        appendLog(runId, `No changes to open a PR for — skipping\n`)
+        break
+      }
+      ctx.pr = pr
+      db.update(schema.runs).set({ prUrl: pr.url }).where(eq(schema.runs.id, runId)).run()
+      appendLog(runId, `Opened PR #${pr.number}: ${pr.url}\n`)
       break
     }
   }

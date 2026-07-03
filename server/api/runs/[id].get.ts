@@ -3,10 +3,7 @@ import { db, schema } from '../../db'
 
 // GET /api/runs/:id → a single run incl. its log, for the detail page's poll.
 export default defineEventHandler((event) => {
-  const id = Number(getRouterParam(event, 'id'))
-  if (!Number.isInteger(id)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid ID' })
-  }
+  const id = requireIntParam(event)
 
   const run = db
     .select({

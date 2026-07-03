@@ -1,4 +1,3 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../../db'
 import { getWorkflow } from '../../workflows'
@@ -24,14 +23,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Unknown workflow' })
   }
 
-  const project = db
-    .select()
-    .from(schema.projects)
-    .where(eq(schema.projects.id, result.data.projectId))
-    .get()
-  if (!project) {
-    throw createError({ statusCode: 404, statusMessage: 'Project not found' })
-  }
+  const project = requireProject(result.data.projectId)
 
   const run = db
     .insert(schema.runs)

@@ -6,15 +6,8 @@ import { db, schema } from '../../../db'
 // POST /api/projects/:id/dump → upload a DB dump (multipart). Stored on disk so a
 // later `ddev import-db --file=<dbDumpPath>` can stream it into the project.
 export default defineEventHandler(async (event) => {
-  const id = Number(getRouterParam(event, 'id'))
-  if (!Number.isInteger(id)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid ID' })
-  }
-
-  const project = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get()
-  if (!project) {
-    throw createError({ statusCode: 404, statusMessage: 'Project not found' })
-  }
+  const id = requireIntParam(event)
+  requireProject(id)
 
   const form = await readMultipartFormData(event)
   const file = form?.find(part => part.name === 'file' && part.filename)

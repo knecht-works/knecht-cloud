@@ -13,13 +13,10 @@ export default defineEventHandler(async (event) => {
   }
   const data = result.data
 
-  const row = db.select().from(schema.workflows).where(eq(schema.workflows.name, target)).get()
-  if (!row) {
-    throw createError({ statusCode: 404, statusMessage: 'Workflow not found' })
-  }
+  const row = requireWorkflowRow(target)
 
   const renaming = data.name !== target
-  if (renaming && db.select().from(schema.workflows).where(eq(schema.workflows.name, data.name)).get()) {
+  if (renaming && getWorkflowRow(data.name)) {
     throw createError({ statusCode: 409, statusMessage: 'A workflow with this name already exists' })
   }
 

@@ -84,3 +84,32 @@ export async function listAppRepositories() {
   }
   return repos
 }
+
+// The repo's branch names, for the branch pickers (setup modal, run branch).
+export async function listRepoBranches(owner: string, repo: string): Promise<string[]> {
+  const octokit = await getInstallationClient(owner, repo)
+  const branches = await octokit.paginate(octokit.rest.repos.listBranches, {
+    owner,
+    repo,
+    per_page: 100,
+  })
+  return branches.map(b => b.name)
+}
+
+// Open a pull request as the app. Returns null when there is no diff to open a
+// PR for (e.g. an empty agent run committed nothing) — a skip, not a failure.
+export async function createPullRequest(
+  owner: string,
+  repo: string,
+  params: { title: string, body: string, head: string, base: string },
+): Promise<{ url: string, number: number } | null> {
+  const octokit = await getInstallationClient(owner, repo)
+  try {
+    const { data } = await octokit.rest.pulls.create({ owner, repo, ...params })
+    return { url: data.html_url, number: data.number }
+  }
+  catch (e) {
+    if (/No commits between/i.test((e as Error).message)) return null
+    throw e
+  }
+}

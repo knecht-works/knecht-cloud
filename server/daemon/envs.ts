@@ -5,6 +5,7 @@ import { and, eq, lt } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { getSettings } from '../utils/settings'
+import { getProject, getRun } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
 import { projectCheckoutDir, projectDumpDir, runArchiveDir, runWorktreeDir } from '../utils/storage'
 import { writeDdevConfig } from './ddev'
@@ -46,8 +47,8 @@ export async function rebootEnv(runId: number): Promise<void> {
 // run's own DB export (falling back to the project dump for archives without
 // one). Takes minutes — the price of archives costing MBs instead of GBs.
 export async function rehydrateEnv(runId: number): Promise<void> {
-  const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()
-  const project = run && db.select().from(schema.projects).where(eq(schema.projects.id, run.projectId)).get()
+  const run = getRun(runId)
+  const project = run && getProject(run.projectId)
   if (!run || !project) throw new Error('Run or project not found')
 
   const token = await getInstallationToken(project.owner, project.name)
@@ -143,7 +144,7 @@ export async function archiveStaleEnvs(): Promise<void> {
     .where(and(eq(schema.runs.envState, 'stopped'), lt(schema.runs.previewLastSeen, cutoff)))
     .all()
   for (const run of stale) {
-    const project = db.select().from(schema.projects).where(eq(schema.projects.id, run.projectId)).get()
+    const project = getProject(run.projectId)
     if (!project) continue
     await snapshotWorktree(run.id)
     await teardownRun(run.id, projectCheckoutDir(project))

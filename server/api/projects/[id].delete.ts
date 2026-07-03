@@ -8,12 +8,8 @@ import { projectCheckoutDir, runArchiveDir } from '../../utils/storage'
 // run's isolated ddev env + worktree, then the base clone. Without this the
 // envs/worktrees would linger on disk forever (run rows cascade-delete via FK).
 export default defineEventHandler(async (event) => {
-  const id = Number(getRouterParam(event, 'id'))
-  if (!Number.isInteger(id)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid ID' })
-  }
-
-  const project = db.select().from(schema.projects).where(eq(schema.projects.id, id)).get()
+  const id = requireIntParam(event)
+  const project = getProject(id)
   if (!project) {
     return { ok: true }
   }

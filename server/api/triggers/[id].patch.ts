@@ -22,10 +22,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const id = Number(getRouterParam(event, 'id'))
-  if (!Number.isInteger(id)) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid trigger id' })
-  }
+  const id = requireIntParam(event)
 
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {
@@ -33,10 +30,7 @@ export default defineEventHandler(async (event) => {
   }
   const data = result.data
 
-  const row = db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()
-  if (!row) {
-    throw createError({ statusCode: 404, statusMessage: 'Trigger not found' })
-  }
+  const row = requireTrigger(id)
 
   const patch: Partial<NewTrigger> = { updatedAt: new Date() }
   if (data.workflow !== undefined) {
