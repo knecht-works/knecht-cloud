@@ -1,52 +1,31 @@
 import type { Octokit } from 'octokit'
 import { App } from 'octokit'
+import { githubAppCredentials } from './github-credentials'
 
 // GitHub App auth — the app's own identity replaces user OAuth tokens for all
 // repo access (clone, push, PR, file reads). The app authenticates with its
 // private key and mints short-lived (1h) installation tokens per repo, so no
 // user credential is ever stored. Login (OAuth) is identity-only now.
 //
-// Setup: create a GitHub App with Contents read/write, Pull requests read/write
-// and Metadata read, install it on the repos Knecht should manage, and set
-// KNECHT_GITHUB_APP_ID + KNECHT_GITHUB_APP_PRIVATE_KEY.
+// The app is created from the UI on first run (server/routes/setup/*) and its
+// credentials live encrypted in the DB — see server/utils/github-credentials.ts.
 
 let cachedApp: App | null = null
-
-export function isGithubAppConfigured(): boolean {
-  return !!(process.env.KNECHT_GITHUB_APP_ID && process.env.KNECHT_GITHUB_APP_PRIVATE_KEY)
-}
+let cachedForAppId: string | null = null
 
 function getApp(): App {
-  if (cachedApp) return cachedApp
-  if (!isGithubAppConfigured()) {
+  const creds = githubAppCredentials()
+  if (!creds) {
     throw new Error(
-      'GitHub App not configured — set KNECHT_GITHUB_APP_ID and KNECHT_GITHUB_APP_PRIVATE_KEY (see .env.example).',
+      'GitHub App not configured — open the dashboard and complete the GitHub App setup.',
     )
   }
-  cachedApp = new App({
-    appId: process.env.KNECHT_GITHUB_APP_ID!,
-    privateKey: normalizePrivateKey(process.env.KNECHT_GITHUB_APP_PRIVATE_KEY!),
-  })
+  // Rebuild if the configured app changed (e.g. first-run setup happened after a
+  // failed repo call). Steady state: built once, reused.
+  if (cachedApp && cachedForAppId === creds.appId) return cachedApp
+  cachedApp = new App({ appId: creds.appId, privateKey: creds.privateKey })
+  cachedForAppId = creds.appId
   return cachedApp
-}
-
-// Accept the PEM in any of the shapes an env var realistically carries it:
-// real newlines, literal \n escapes, or base64-encoded (the foolproof one-liner:
-// `base64 < key.pem | tr -d '\n'`). Fails loudly here instead of surfacing as a
-// cryptic ASN.1 error from the crypto layer.
-function normalizePrivateKey(raw: string): string {
-  let key = raw.trim().replace(/\\n/g, '\n')
-  if (!key.includes('-----BEGIN')) {
-    key = Buffer.from(key, 'base64').toString('utf8')
-  }
-  if (!key.includes('-----BEGIN') || !key.includes('-----END')) {
-    throw new Error(
-      'KNECHT_GITHUB_APP_PRIVATE_KEY is not a valid PEM — paste the .pem file\'s '
-      + 'content (base64-encoded, \\n-escaped, or with real newlines). Note that '
-      + '$(…) command substitution does not work inside .env files.',
-    )
-  }
-  return key
 }
 
 // owner/repo → installation id. Installations change rarely (uninstall/reinstall),

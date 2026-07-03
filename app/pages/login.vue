@@ -2,6 +2,15 @@
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
+
+// `forbidden` = a valid GitHub login that isn't on this instance's allowlist;
+// anything else is a generic OAuth failure.
+const error = computed(() => {
+  if (!route.query.error) return null
+  return route.query.error === 'forbidden'
+    ? { title: 'Access denied', description: 'This GitHub account isn’t a member of this Knecht instance. Ask the owner to invite you.' }
+    : { title: 'Login failed', description: 'Please try again.' }
+})
 </script>
 
 <template>
@@ -23,12 +32,12 @@ const route = useRoute()
     </div>
 
     <UAlert
-      v-if="route.query.error"
+      v-if="error"
       color="error"
       variant="subtle"
       class="mt-6"
-      title="Login failed"
-      description="Please try again."
+      :title="error.title"
+      :description="error.description"
     />
 
     <UButton

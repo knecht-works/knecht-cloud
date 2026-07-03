@@ -3,7 +3,7 @@ import { db, schema } from '../db'
 import type { Trigger } from '../db/schema'
 import { startRun } from '../daemon/runner'
 import { isWorkflowEnabled } from '../workflows'
-import { isGithubAppConfigured } from './github-app'
+import { isGithubAppConfigured } from './github-credentials'
 
 // Display + firing logic for triggers, shared by the API and the scheduler.
 
@@ -22,6 +22,7 @@ export interface TriggerSummary {
   projects: string[]
   projectIds: number[]
   endpoint: string | null
+  webhookEvent: string | null
   active: boolean
   lastFiredAt: number | null
   firedCount: number
@@ -86,6 +87,7 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
     projects: t.projectIds.map(id => names.get(id)).filter((n): n is string => !!n),
     projectIds: t.projectIds,
     endpoint: endpoint(t),
+    webhookEvent: t.webhookEvent,
     active: t.active,
     lastFiredAt: t.lastFiredAt ? Math.floor(t.lastFiredAt.getTime() / 1000) : null,
     firedCount: t.firedCount,
@@ -129,7 +131,7 @@ export function fireTrigger(t: Trigger): number[] {
         .set({
           status: 'failed',
           finishedAt: new Date(),
-          log: 'GitHub App not configured — set KNECHT_GITHUB_APP_ID and KNECHT_GITHUB_APP_PRIVATE_KEY to enable runs.\n',
+          log: 'GitHub App not configured — complete the GitHub App setup (/setup) to enable runs.\n',
         })
         .where(eq(schema.runs.id, run.id))
         .run()

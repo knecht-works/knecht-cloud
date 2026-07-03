@@ -162,6 +162,23 @@ async function removeDump() {
   toast.add({ title: 'Dump removed', color: 'success' })
 }
 
+// ── Disconnect (delete project + its runs, envs and checkouts) ─────────────
+const removing = ref(false)
+async function removeProject() {
+  removing.value = true
+  try {
+    await $fetch(`/api/projects/${id}`, { method: 'DELETE' })
+    toast.add({ title: 'Project disconnected', color: 'success' })
+    await navigateTo('/projects')
+  }
+  catch (e) {
+    toast.add({ title: 'Failed to disconnect', description: errMsg(e, ''), color: 'error' })
+  }
+  finally {
+    removing.value = false
+  }
+}
+
 // ── Automation on this project (read-only) ─────────────────────────────────
 // Which workflow fires on this project and how — configured on the workflow
 // itself, so each row links there. The play button starts a workflow here now.
@@ -231,6 +248,16 @@ usePollWhile(() => isLive.value, refreshRuns)
         </div>
       </div>
       <div class="flex flex-none items-center gap-2.5">
+        <UTooltip text="Disconnect the repo and remove its runs and environments">
+          <UButton
+            color="error"
+            variant="ghost"
+            icon="i-lucide-trash-2"
+            label="Disconnect"
+            :loading="removing"
+            @click="removeProject"
+          />
+        </UTooltip>
         <UButton
           v-if="previewOnline"
           :to="previewUrl"

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
+import { isMember, memberCount } from './members'
 import { runWorktreeDir } from './storage'
 
 // Reverse-proxy a whole request to a RUN's isolated environment (projects.md
@@ -79,6 +80,13 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
       sameSite: 'lax',
     })
     return sendRedirect(event, `${reqUrl.protocol}//${baseHost}/login`, 302)
+  }
+
+  // Same per-request re-check as the /api gate (server/middleware/auth.ts):
+  // removing a member must also revoke their still-valid session cookie here.
+  if (memberCount() > 0 && !isMember(session.user.login)) {
+    await clearUserSession(event)
+    throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
   }
 
   const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()

@@ -342,13 +342,32 @@ const starting = ref(false)
 const activeRun = ref<RunRow | null>(null)
 let timer: ReturnType<typeof setInterval> | undefined
 
+// Branch the test runs against; follows the picked project (default = its
+// default branch) and offers that project's branches.
+const testBranch = ref<string>()
+const testBranches = ref<string[]>([])
+const testBranchItems = computed(() =>
+  [...new Set([...(project.value?.defaultBranch ? [project.value.defaultBranch] : []), ...testBranches.value])])
+
+watch(project, async (p) => {
+  testBranch.value = p?.defaultBranch ?? 'main'
+  testBranches.value = []
+  if (!p) return
+  try {
+    testBranches.value = await $fetch<string[]>(`/api/projects/${p.id}/branches`)
+  }
+  catch {
+    testBranches.value = []
+  }
+})
+
 async function start() {
   if (!project.value || !saved.value) return
   starting.value = true
   try {
     activeRun.value = await $fetch<RunRow>('/api/runs', {
       method: 'POST',
-      body: { projectId: project.value.id, workflow: saved.value.name },
+      body: { projectId: project.value.id, workflow: saved.value.name, branch: testBranch.value },
     })
     open.value = false
     openSteps.value.clear()
@@ -591,15 +610,6 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                   :size="5"
                 /> Test failed
               </span>
-              <!-- Independent of the mode chain: automation paused. -->
-              <UBadge
-                v-if="mode === 'edit' && saved && !saved.enabled"
-                color="warning"
-                variant="subtle"
-                size="sm"
-                icon="i-lucide-pause"
-                label="Paused"
-              />
             </div>
           </div>
         </div>
@@ -701,19 +711,6 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
               :loading="removing"
               @click="removeWorkflow"
             />
-            <UTooltip
-              :text="!saved ? 'Add a name and a step first' : !valid ? 'Finish the step config first' : !projects?.length ? 'Connect a project first' : ''"
-              :disabled="!!saved && valid && !!projects?.length"
-            >
-              <UButton
-                color="neutral"
-                variant="outline"
-                icon="i-lucide-play"
-                label="Start test"
-                :disabled="!saved || !valid || saveStatus === 'saving' || !projects?.length"
-                @click="open = true"
-              />
-            </UTooltip>
           </template>
         </div>
       </div>
@@ -785,28 +782,53 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
           @dragover="onRailOver"
           @drop.prevent="onRailDrop"
         >
-          <!-- Triggers: the head of the flow. Configured ones stack above the
-               always-available manual start. -->
+          <!-- Triggers: the head of the flow — ONE grouped panel (master switch,
+               configured triggers, the always-available manual start), joined to
+               the steps below by the rail spine so it reads as a single flow. -->
           <div class="mb-3 flex gap-3.5">
-            <div class="flex w-[30px] flex-none justify-center">
-              <UIcon
-                name="i-lucide-zap"
-                class="mt-[5px] size-[18px] text-(--accent-violet)"
+            <div class="flex w-[30px] flex-none flex-col items-center">
+              <span
+                class="grid size-[30px] flex-none place-items-center rounded-full"
+                style="background: color-mix(in oklab, var(--accent-violet) 16%, var(--surface-muted)); border: 1px solid color-mix(in oklab, var(--accent-violet) 55%, transparent)"
+              >
+                <UIcon
+                  name="i-lucide-zap"
+                  class="size-[15px] text-(--accent-violet)"
+                />
+              </span>
+              <span
+                class="my-1 w-0.5 flex-1 rounded-sm bg-(--border-default)"
+                style="min-height: 16px"
               />
             </div>
-            <div class="flex min-w-0 flex-1 flex-col gap-2">
-              <!-- Master switch: pauses every trigger of this workflow at once.
-                   Manual runs / tests are unaffected. -->
+
+            <div
+              class="min-w-0 flex-1 overflow-hidden rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted)"
+              style="box-shadow: var(--shadow-panel)"
+            >
+              <!-- Header + master switch: pauses every trigger at once (manual
+                   runs / tests are unaffected). -->
               <div
                 v-if="saved"
-                class="flex items-center justify-between gap-3 pb-0.5"
+                class="flex items-center justify-between gap-3 border-b border-(--border-muted) px-4 py-2.5 transition-colors"
+                :style="saved.enabled ? {} : { background: 'color-mix(in oklab, var(--accent-orange) 9%, transparent)' }"
               >
-                <div class="min-w-0">
-                  <div class="text-[13.5px] text-(--text-highlighted)">
-                    Automation
-                  </div>
-                  <div class="k-mono truncate text-[11px] text-(--text-dimmed)">
-                    {{ saved.enabled ? 'Triggers fire automatically' : 'Paused — triggers won’t fire' }}
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <UIcon
+                    :name="saved.enabled ? 'i-lucide-zap' : 'i-lucide-pause'"
+                    class="size-4 flex-none transition-colors"
+                    :class="saved.enabled ? 'text-(--text-dimmed)' : 'text-(--accent-orange)'"
+                  />
+                  <div class="min-w-0">
+                    <div class="text-[13px] font-medium text-(--text-highlighted)">
+                      Automation
+                    </div>
+                    <div
+                      class="k-mono truncate text-[11px] transition-colors"
+                      :class="saved.enabled ? 'text-(--text-dimmed)' : 'text-(--accent-orange)'"
+                    >
+                      {{ saved.enabled ? 'Triggers fire automatically' : 'Paused — triggers won’t fire' }}
+                    </div>
                   </div>
                 </div>
                 <UTooltip :text="saved.enabled ? 'Pause automation' : 'Enable automation'">
@@ -826,11 +848,14 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                 </UTooltip>
               </div>
 
+              <!-- Configured triggers (divided rows within the group). Dimmed
+                   when the row is paused individually OR the master switch is
+                   off — so a paused automation is visibly inert. -->
               <div
                 v-for="t in workflowTriggers"
                 :key="t.id"
-                class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted) py-2.5 pl-[15px] pr-3"
-                :style="{ opacity: t.active ? 1 : 0.55 }"
+                class="flex items-center gap-3 border-b border-(--border-muted) px-3 py-2.5 transition-opacity"
+                :style="{ opacity: (t.active && saved?.enabled) ? 1 : 0.45 }"
               >
                 <button
                   type="button"
@@ -842,11 +867,11 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                   <KStepIcon
                     :icon="triggerSourceMeta(t.source).icon"
                     :color="triggerSourceMeta(t.source).color"
-                    :size="34"
+                    :size="32"
                     :radius="8"
                   />
                   <span class="min-w-0 flex-1">
-                    <span class="block text-[13.5px] text-(--text-highlighted)">
+                    <span class="block text-[13px] text-(--text-highlighted)">
                       {{ triggerSourceMeta(t.source).label }}
                     </span>
                     <span class="k-mono block truncate text-[11px] text-(--text-dimmed) transition-colors group-hover:text-(--text-muted)">
@@ -878,39 +903,98 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                 />
               </div>
 
-              <div
-                class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) py-2.5 pl-[15px] pr-3"
-                style="background: linear-gradient(90deg, color-mix(in oklab, var(--accent-violet) 8%, var(--surface-muted)), var(--surface-muted))"
-              >
+              <!-- Manual: always available — run it now against a chosen
+                   project + branch (right here, not from a separate button). -->
+              <div class="flex items-center gap-3 px-3 py-2.5">
                 <KStepIcon
-                  icon="i-lucide-zap"
+                  icon="i-lucide-play"
                   color="var(--accent-violet)"
-                  :size="34"
+                  :size="32"
                   :radius="8"
                 />
                 <div class="min-w-0 flex-1">
-                  <div class="text-[13.5px] text-(--text-highlighted)">
+                  <div class="text-[13px] text-(--text-highlighted)">
                     Manual
                   </div>
                   <div class="k-mono truncate text-[11px] text-(--text-dimmed)">
-                    always available · started from the dashboard
+                    always available · run on demand
                   </div>
                 </div>
-                <UTooltip
-                  text="Save the workflow first"
-                  :disabled="!!saved"
+                <UPopover
+                  v-model:open="open"
+                  :content="{ side: 'bottom', align: 'end' }"
                 >
-                  <UButton
-                    color="neutral"
-                    variant="subtle"
-                    size="xs"
-                    icon="i-lucide-plus"
-                    label="Add trigger"
-                    :disabled="!saved || !editable"
-                    @click="triggerModalOpen = true"
-                  />
-                </UTooltip>
+                  <UTooltip
+                    :text="!saved ? 'Add a name and a step first' : !valid ? 'Finish the step config first' : !projects?.length ? 'Connect a project first' : ''"
+                    :disabled="!!saved && valid && !!projects?.length"
+                  >
+                    <UButton
+                      color="primary"
+                      size="xs"
+                      icon="i-lucide-play"
+                      label="Run"
+                      :disabled="!saved || !valid || saveStatus === 'saving' || !projects?.length"
+                    />
+                  </UTooltip>
+                  <template #content>
+                    <div class="w-72 p-3">
+                      <div class="k-label mb-1.5">
+                        Project
+                      </div>
+                      <USelectMenu
+                        v-model="project"
+                        :items="projects ?? []"
+                        placeholder="Select a project…"
+                        icon="i-lucide-folder-git-2"
+                        class="w-full"
+                      />
+
+                      <template v-if="project">
+                        <div class="k-label mb-1.5 mt-3.5">
+                          Branch
+                        </div>
+                        <USelectMenu
+                          v-model="testBranch"
+                          :items="testBranchItems"
+                          icon="i-lucide-git-branch"
+                          :search-input="{ placeholder: 'Filter branches…' }"
+                          class="w-full"
+                        />
+                      </template>
+
+                      <UButton
+                        class="mt-3.5 w-full justify-center"
+                        color="primary"
+                        icon="i-lucide-play"
+                        label="Run workflow"
+                        :loading="starting"
+                        :disabled="!project"
+                        @click="start"
+                      />
+                    </div>
+                  </template>
+                </UPopover>
               </div>
+
+              <!-- Add another trigger (group footer) -->
+              <UTooltip
+                text="Save the workflow first"
+                :disabled="!!saved"
+                class="block"
+              >
+                <button
+                  type="button"
+                  class="flex w-full cursor-pointer items-center gap-2 border-t border-(--border-muted) px-3 py-2.5 text-left text-[12.5px] text-(--text-muted) transition-colors hover:bg-(--surface-glass) disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="!saved || !editable"
+                  @click="triggerModalOpen = true"
+                >
+                  <UIcon
+                    name="i-lucide-plus"
+                    class="size-4 flex-none text-(--text-dimmed)"
+                  />
+                  Add trigger
+                </button>
+              </UTooltip>
             </div>
           </div>
 
@@ -1221,40 +1305,5 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
       :trigger="editingTrigger"
       @created="refreshTriggers"
     />
-
-    <!-- Start-test modal -->
-    <UModal
-      v-model:open="open"
-      title="Start test"
-      description="Pick a project to run this workflow against."
-    >
-      <template #body>
-        <div class="space-y-4">
-          <USelectMenu
-            v-model="project"
-            :items="projects ?? []"
-            placeholder="Select a project…"
-            icon="i-lucide-folder-git-2"
-            class="w-full"
-          />
-          <div class="flex justify-end gap-2">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              label="Cancel"
-              @click="open = false"
-            />
-            <UButton
-              color="primary"
-              icon="i-lucide-play"
-              label="Start test"
-              :loading="starting"
-              :disabled="!project"
-              @click="start"
-            />
-          </div>
-        </div>
-      </template>
-    </UModal>
   </div>
 </template>

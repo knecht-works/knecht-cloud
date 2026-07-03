@@ -1,11 +1,9 @@
 <script setup lang="ts">
-// Create OR edit a trigger. Creating: pick a source (schedule / GitHub /
-// manual), the workflow it fires and the projects it fires against; GitHub
-// triggers, once created, show the webhook URL + generated secret to paste
-// into the repo's webhook settings. Editing (`trigger` prop set): the source
-// is fixed, everything the PATCH endpoint supports — workflow, projects,
-// cron — is editable. Contextual entry points (project page, workflow editor)
-// prefill their part via the preset props.
+// Create OR edit a trigger — the edit form mirrors create: source, projects and
+// the source-specific settings (cron / GitHub event) are all editable. The
+// workflow is never shown (the modal only opens from within a workflow, so it's
+// implicit). A GitHub trigger shows its webhook URL + secret once, right after
+// it's created or converted to GitHub.
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
   presetWorkflow?: string
@@ -17,6 +15,7 @@ const props = defineProps<{
     workflow: string
     projectIds: number[]
     endpoint: string | null
+    webhookEvent: string | null
   } | null
 }>()
 const emit = defineEmits<{ created: [] }>()
@@ -40,10 +39,6 @@ const CRON_PRESETS = [
   { label: 'Weekly · Mon 09:00', cron: '0 9 * * 1' },
 ]
 
-const { data: workflows } = await useFetch('/api/workflows', {
-  default: () => [],
-  transform: rows => rows.map(w => ({ label: w.name, value: w.name })),
-})
 const { data: projects } = await useFetch('/api/projects', {
   default: () => [],
   transform: rows => rows.map(p => ({ label: p.fullName, value: p.id })),
@@ -73,14 +68,21 @@ async function create() {
   try {
     if (props.trigger) {
       const body: Record<string, unknown> = {
-        workflow: workflow.value,
+        source: source.value,
         projectIds: projectIds.value,
       }
       if (source.value === 'schedule') body.cron = cron.value.trim()
-      await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body })
+      if (source.value === 'github') body.webhookEvent = githubEvent.value
+      const updated = await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body })
       emit('created')
-      toast.add({ title: 'Trigger updated', color: 'success' })
-      open.value = false
+      // If the edit turned it into a GitHub trigger, show its secret once.
+      if (updated.webhookSecret) {
+        done.value = { endpoint: updated.endpoint ?? null, webhookSecret: updated.webhookSecret }
+      }
+      else {
+        toast.add({ title: 'Trigger updated', color: 'success' })
+        open.value = false
+      }
       return
     }
 
@@ -133,6 +135,7 @@ watch(open, (isOpen) => {
       if (props.trigger.source === 'schedule' && props.trigger.endpoint) {
         cron.value = props.trigger.endpoint
       }
+      githubEvent.value = props.trigger.webhookEvent ?? 'push'
       return
     }
     if (props.presetWorkflow) workflow.value = props.presetWorkflow
@@ -153,8 +156,8 @@ watch(open, (isOpen) => {
     v-model:open="open"
     :title="editing ? 'Edit trigger' : 'New trigger'"
     :description="editing
-      ? 'Change what this trigger fires.'
-      : 'Fire a workflow automatically.'"
+      ? 'Change how and when this workflow runs automatically.'
+      : 'Fire this workflow automatically.'"
     :ui="{ content: 'sm:max-w-lg' }"
   >
     <template #body>
@@ -226,18 +229,8 @@ watch(open, (isOpen) => {
         v-else
         class="space-y-5"
       >
-        <!-- Source (fixed while editing) -->
-        <div v-if="editing">
-          <span class="k-label">Source</span>
-          <div class="mt-2 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
-            <UIcon
-              :name="SOURCES.find(s => s.key === source)?.icon ?? 'i-lucide-zap'"
-              class="size-4 text-(--text-dimmed)"
-            />
-            <span class="text-[12.5px] text-(--text-toned)">{{ SOURCES.find(s => s.key === source)?.label }}</span>
-          </div>
-        </div>
-        <div v-else>
+        <!-- Source -->
+        <div>
           <span class="k-label">Source</span>
           <div class="mt-2 grid grid-cols-3 gap-2">
             <button
@@ -262,30 +255,6 @@ watch(open, (isOpen) => {
               <span class="text-[10.5px] leading-[1.3] text-(--text-dimmed)">{{ src.hint }}</span>
             </button>
           </div>
-        </div>
-
-        <!-- Workflow — fixed when opened from within a workflow (you're already
-             on it), a picker only when the context doesn't set one. -->
-        <div v-if="presetWorkflow">
-          <span class="k-label">Workflow</span>
-          <div class="mt-2 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
-            <UIcon
-              name="i-lucide-workflow"
-              class="size-4 text-(--text-dimmed)"
-            />
-            <span class="text-[12.5px] text-(--text-toned)">{{ workflow }}</span>
-          </div>
-        </div>
-        <div v-else>
-          <span class="k-label">Workflow</span>
-          <USelectMenu
-            v-model="workflow"
-            value-key="value"
-            :items="workflows"
-            placeholder="Select a workflow…"
-            icon="i-lucide-workflow"
-            class="mt-2 w-full"
-          />
         </div>
 
         <!-- Projects -->
@@ -336,8 +305,8 @@ watch(open, (isOpen) => {
           </p>
         </div>
 
-        <!-- GitHub: event (create-only — the PATCH endpoint doesn't change it) -->
-        <div v-else-if="source === 'github' && !editing">
+        <!-- GitHub: event -->
+        <div v-else-if="source === 'github'">
           <span class="k-label">GitHub event</span>
           <USelectMenu
             v-model="githubEvent"
@@ -345,8 +314,33 @@ watch(open, (isOpen) => {
             :items="[{ label: 'Push', value: 'push' }, { label: 'Pull request', value: 'pull_request' }]"
             class="mt-2 w-full"
           />
-          <p class="mt-2 text-[11.5px] text-(--text-dimmed)">
-            The webhook URL + secret to set on GitHub are shown after you create it.
+          <!-- Already a GitHub trigger → show its webhook URL (copyable); the
+               secret was only shown once, at creation. -->
+          <div
+            v-if="editing && trigger?.source === 'github'"
+            class="mt-3"
+          >
+            <span class="k-label">Payload URL</span>
+            <div class="mt-1.5 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
+              <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ trigger.endpoint || '— set KNECHT_BASE_DOMAIN —' }}</span>
+              <UButton
+                icon="i-lucide-copy"
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :disabled="!trigger.endpoint"
+                @click="copy(trigger.endpoint)"
+              />
+            </div>
+            <p class="k-mono mt-2 text-[11px] text-(--text-dimmed)">
+              The secret was shown once at creation.
+            </p>
+          </div>
+          <p
+            v-else
+            class="mt-2 text-[11.5px] text-(--text-dimmed)"
+          >
+            The webhook URL + secret to set on GitHub are shown after you save.
           </p>
         </div>
 

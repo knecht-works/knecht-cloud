@@ -220,3 +220,59 @@ export const triggers = sqliteTable('triggers', {
 
 export type Trigger = typeof triggers.$inferSelect
 export type NewTrigger = typeof triggers.$inferInsert
+
+// The GitHub App that powers login (its OAuth client id/secret) and repo access
+// (its app id/private key). A single row (id = 1). Created from the UI on first
+// run via the GitHub App manifest flow (server/routes/setup/*), so a fresh
+// instance needs no GitHub env vars — GitHub mints the app and returns all its
+// credentials at once. Secrets are encrypted at rest (server/utils/crypto.ts).
+export const githubApp = sqliteTable('github_app', {
+  id: integer('id').primaryKey(), // singleton — always 1
+
+  appId: text('app_id').notNull(),
+  slug: text('slug'),
+  htmlUrl: text('html_url'),
+  clientId: text('client_id').notNull(),
+
+  // Encrypted (AES-256-GCM). Never read these directly — go through the
+  // credentials store (server/utils/github-credentials.ts), which decrypts.
+  clientSecretEnc: text('client_secret_enc').notNull(),
+  privateKeyEnc: text('private_key_enc').notNull(),
+  webhookSecretEnc: text('webhook_secret_enc'),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+export type GithubAppRow = typeof githubApp.$inferSelect
+export type NewGithubAppRow = typeof githubApp.$inferInsert
+
+// The login allowlist — who may obtain a session. First-run setup claims the
+// GitHub App's owner as the initial member (server/routes/setup/callback), and
+// the login gate (server/routes/auth/github.get.ts) rejects any GitHub identity
+// not listed here. Members can invite more logins (server/api/members/*); every
+// member currently has the same full access as the owner. The `isOwner` row is
+// protected from removal so the instance always keeps its original claim.
+// GitHub logins are case-insensitive, so `login` is always stored lowercased.
+export const members = sqliteTable('members', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  login: text('login').notNull().unique(),
+
+  // Display profile, refreshed from GitHub on each login. Null until the member
+  // has logged in at least once (an invited login is known before its profile).
+  name: text('name'),
+  avatarUrl: text('avatar_url'),
+
+  // The claimed owner (seeded at setup). Exactly one; can't be removed.
+  isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
+  // Login of the member who invited this one (null for the claimed owner).
+  invitedBy: text('invited_by'),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+export type Member = typeof members.$inferSelect
+export type NewMember = typeof members.$inferInsert

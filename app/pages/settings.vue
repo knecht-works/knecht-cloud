@@ -10,6 +10,56 @@ interface Settings {
 
 const { data: settings } = await useFetch<Settings>('/api/settings')
 
+// Members — the login allowlist. Every member has full access; the owner can't
+// be removed.
+interface Member {
+  login: string
+  name: string | null
+  avatarUrl: string | null
+  isOwner: boolean
+}
+const { data: members } = await useFetch<Member[]>('/api/members')
+
+// Member logins are stored lowercased; the session login keeps GitHub's
+// original casing — normalise before comparing.
+const myLogin = computed(() => user.value?.login.toLowerCase())
+
+const errMsg = (e: unknown) => (e as { data?: { statusMessage?: string } })?.data?.statusMessage ?? 'Please try again.'
+
+const newLogin = ref('')
+const inviting = ref(false)
+async function invite() {
+  const login = newLogin.value.trim()
+  if (!login) return
+  inviting.value = true
+  try {
+    members.value = await $fetch<Member[]>('/api/members', { method: 'POST', body: { login } })
+    newLogin.value = ''
+    toast.add({ title: `Invited @${login}`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Could not invite', description: errMsg(e), color: 'error' })
+  }
+  finally {
+    inviting.value = false
+  }
+}
+
+const removing = ref('')
+async function remove(login: string) {
+  removing.value = login
+  try {
+    members.value = await $fetch<Member[]>(`/api/members/${login}`, { method: 'DELETE' })
+    toast.add({ title: `Removed @${login}`, color: 'success' })
+  }
+  catch (e) {
+    toast.add({ title: 'Could not remove', description: errMsg(e), color: 'error' })
+  }
+  finally {
+    removing.value = ''
+  }
+}
+
 // Local editable copy + dirty tracking.
 const form = reactive<Settings>({ idleStopMinutes: 30, maxConcurrentEnvs: 5, teardownStoppedMinutes: 180 })
 const original = ref('')
@@ -79,6 +129,85 @@ async function save() {
       </KPanel>
 
       <SystemPanel />
+
+      <KPanel
+        title="Members"
+        icon="i-lucide-users"
+        class="lg:col-span-2"
+      >
+        <div class="divide-y divide-(--border-muted)">
+          <div
+            v-for="m in members"
+            :key="m.login"
+            class="flex items-center gap-3 py-2.5 first:pt-0"
+          >
+            <UAvatar
+              :src="m.avatarUrl ?? undefined"
+              :alt="m.login"
+              size="sm"
+              class="flex-none"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="truncate text-sm text-(--text-toned)">{{ m.name || m.login }}</span>
+                <UBadge
+                  v-if="m.isOwner"
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                  label="Owner"
+                />
+                <UBadge
+                  v-else-if="m.login === myLogin"
+                  color="primary"
+                  variant="subtle"
+                  size="sm"
+                  label="You"
+                />
+              </div>
+              <div class="k-mono text-[11.5px] text-(--text-dimmed)">
+                @{{ m.login }}
+              </div>
+            </div>
+            <UButton
+              v-if="!m.isOwner && m.login !== myLogin"
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              :loading="removing === m.login"
+              :aria-label="`Remove ${m.login}`"
+              @click="remove(m.login)"
+            />
+          </div>
+        </div>
+
+        <form
+          class="mt-4 flex gap-2"
+          @submit.prevent="invite"
+        >
+          <UInput
+            v-model="newLogin"
+            placeholder="GitHub username"
+            autocapitalize="off"
+            autocomplete="off"
+            spellcheck="false"
+            class="flex-1"
+            :disabled="inviting"
+          />
+          <UButton
+            type="submit"
+            label="Invite"
+            icon="i-simple-icons-github"
+            color="neutral"
+            :loading="inviting"
+            :disabled="!newLogin.trim()"
+          />
+        </form>
+        <p class="mt-2.5 text-[12px] leading-[1.5] text-(--text-muted)">
+          Invited users sign in with GitHub and currently have the same full access as the owner.
+        </p>
+      </KPanel>
 
       <KPanel
         title="Environments"

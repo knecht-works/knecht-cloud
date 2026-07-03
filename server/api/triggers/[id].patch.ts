@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../../db'
@@ -6,14 +7,18 @@ import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import type { NewTrigger } from '../../db/schema'
 
-// PATCH /api/triggers/:id → update a trigger. Used for the active toggle and for
-// editing the workflow, projects or schedule. Toggling a schedule trigger on (or
-// changing its cron) recomputes the next fire; pausing it clears the next fire.
+// PATCH /api/triggers/:id → update a trigger. Covers the active toggle and full
+// edits (source, projects, schedule, GitHub event). Changing the source rebuilds
+// the source-specific fields: a schedule gets its cron + next-fire, a GitHub
+// trigger a webhook secret (freshly minted when it becomes GitHub, returned once
+// so the UI can show it), a manual trigger clears both.
 const bodySchema = z.object({
   active: z.boolean().optional(),
   workflow: z.string().min(1).optional(),
+  source: z.enum(['schedule', 'github', 'manual']).optional(),
   projectIds: z.array(z.number().int()).optional(),
   cron: z.string().min(1).optional(),
+  webhookEvent: z.string().min(1).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -42,20 +47,42 @@ export default defineEventHandler(async (event) => {
   }
   if (data.projectIds !== undefined) patch.projectIds = data.projectIds
   if (data.active !== undefined) patch.active = data.active
-  if (data.cron !== undefined && row.source === 'schedule') {
-    if (!isValidCron(data.cron)) {
+
+  const nextSource = data.source ?? row.source
+  if (data.source !== undefined) patch.source = data.source
+
+  // Rebuild the source-specific fields for the (possibly new) source. Returned
+  // to the client only when a fresh secret is minted (becoming a GitHub trigger).
+  let newSecret: string | null = null
+  if (nextSource === 'schedule') {
+    const cron = data.cron ?? row.cron
+    if (!cron || !isValidCron(cron)) {
       throw createError({ statusCode: 400, statusMessage: 'Invalid cron expression' })
     }
-    patch.cron = data.cron
-  }
-
-  // Keep the scheduler's next-fire in sync with active state + cron.
-  if (row.source === 'schedule') {
+    patch.cron = cron
+    patch.webhookSecret = null
+    patch.webhookEvent = null
     const active = patch.active ?? row.active
-    const cron = patch.cron ?? row.cron
-    patch.nextFireAt = active && cron ? nextRun(cron) : null
+    patch.nextFireAt = active ? nextRun(cron) : null
+  }
+  else if (nextSource === 'github') {
+    patch.cron = null
+    patch.nextFireAt = null
+    patch.webhookEvent = data.webhookEvent ?? row.webhookEvent ?? 'push'
+    // Mint a secret when the trigger becomes GitHub (or lacks one somehow);
+    // keep the existing secret when it was already a GitHub trigger.
+    if (row.source !== 'github' || !row.webhookSecret) {
+      newSecret = randomBytes(24).toString('hex')
+      patch.webhookSecret = newSecret
+    }
+  }
+  else {
+    patch.cron = null
+    patch.nextFireAt = null
+    patch.webhookSecret = null
+    patch.webhookEvent = null
   }
 
   const updated = db.update(schema.triggers).set(patch).where(eq(schema.triggers.id, id)).returning().get()
-  return toSummaries([updated])[0]
+  return { ...toSummaries([updated])[0], webhookSecret: newSecret }
 })

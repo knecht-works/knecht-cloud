@@ -43,6 +43,31 @@ async function remove() {
   }
 }
 
+// Start the same workflow on the same project as a NEW run. A torn-down env
+// ('down') can't be rebooted — its sandbox and worktree are gone — so re-running
+// is the way to get a fresh preview. Deliberately does not reuse run.branch:
+// a create-branch step overwrote it with the run's own work branch.
+const restarting = ref(false)
+async function runAgain() {
+  if (!run.value) return
+  restarting.value = true
+  try {
+    const created = await $fetch('/api/runs', {
+      method: 'POST',
+      body: { projectId: run.value.projectId, workflow: run.value.workflow },
+    })
+    await navigateTo(`/runs/${created.id}`)
+  }
+  catch (e) {
+    restarting.value = false
+    toast.add({
+      title: 'Failed to start run',
+      description: errMsg(e, ''),
+      color: 'error',
+    })
+  }
+}
+
 const rebooting = ref(false)
 async function reboot() {
   rebooting.value = true
@@ -150,6 +175,23 @@ usePollWhile(() => isLive.value, refresh)
           />
         </div>
       </template>
+
+      <div
+        v-else-if="!isLive"
+        class="k-card flex flex-wrap items-center justify-between gap-4 p-5"
+      >
+        <p class="max-w-[520px] text-[13px] text-(--text-muted)">
+          This run's environment was torn down, so there is nothing left to preview or
+          reboot. Run the workflow again to get a fresh environment.
+        </p>
+        <UButton
+          color="primary"
+          label="Run again"
+          icon="i-lucide-play"
+          :loading="restarting"
+          @click="runAgain"
+        />
+      </div>
 
       <KPanel
         title="Log"
