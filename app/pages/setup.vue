@@ -16,23 +16,19 @@ const { data: status } = await useFetch('/api/_setup/status', { server: false })
 // template can reach state/manifest.
 const setup = computed(() => (status.value && !status.value.configured ? status.value : null))
 
-// Optional GitHub org to own the app. A private app can only be installed on the
-// account that owns it, so to manage an org's repos the app must be created under
-// that org. Empty → the personal account.
-const org = ref('')
-const actionUrl = computed(() => {
-  if (!setup.value) return ''
-  const owner = org.value.trim()
-  const base = owner
-    ? `https://github.com/organizations/${encodeURIComponent(owner)}/settings/apps/new`
-    : 'https://github.com/settings/apps/new'
-  return `${base}?state=${setup.value.state}`
-})
+// Created under the operator's personal account. The app is public (see
+// server/api/_setup/status.get.ts), so it can still be installed on any org's
+// repos afterwards — no need to own it there. Creating it personally also makes
+// the manifest's `owner.login` the operator, who /setup/callback claims as the
+// instance owner.
+const actionUrl = computed(() =>
+  setup.value ? `https://github.com/settings/apps/new?state=${setup.value.state}` : '',
+)
 
 const errorMessage = computed(() => {
   if (status.value?.configured) return null
   switch (route.query.error) {
-    case 'state': return 'Setup session expired — please try again.'
+    case 'state': return 'Setup session expired, please try again.'
     case 'conversion': return 'GitHub could not create the app. Please try again.'
     default: return null
   }
@@ -87,32 +83,23 @@ const errorMessage = computed(() => {
       />
 
       <p class="mt-6 text-[13px] leading-relaxed text-(--text-muted)">
-        Knecht creates its own GitHub App — this covers both login and repo access.
+        Knecht creates its own GitHub App, this covers both login and repo access.
         Click below, confirm on GitHub, then install the app on the repos Knecht
         should manage. No tokens or env variables to copy.
       </p>
 
+      <!-- Rendered from the first paint (not gated behind the client-only fetch)
+           so the button never pops in — it just sits in a loading state until the
+           manifest + CSRF state have loaded, then enables. -->
       <form
-        v-if="setup"
         :action="actionUrl"
         method="post"
-        class="mt-6 space-y-3"
+        class="mt-6"
       >
-        <UFormField
-          label="GitHub organization"
-          hint="optional"
-          description="To manage an org's repos, create the app under that org. Leave empty for your personal account."
-        >
-          <UInput
-            v-model="org"
-            placeholder="e.g. knecht"
-            class="w-full"
-          />
-        </UFormField>
         <input
           type="hidden"
           name="manifest"
-          :value="JSON.stringify(setup.manifest)"
+          :value="setup ? JSON.stringify(setup.manifest) : ''"
         >
         <UButton
           type="submit"
@@ -120,6 +107,8 @@ const errorMessage = computed(() => {
           color="neutral"
           size="lg"
           block
+          :loading="!setup"
+          :disabled="!setup"
         >
           Create GitHub App
         </UButton>
