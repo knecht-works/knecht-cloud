@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // Only mounts when logged in (gated by the parent), so this fetch — and the
 // requireUserSession on /api/system — never runs for anonymous visitors.
-const { data, status, error, refresh } = await useFetch('/api/system')
+// Lazy: /api/system spawns docker probes; the panel streams in after paint.
+const { data, status, error, refresh } = useFetch('/api/system', { lazy: true })
 </script>
 
 <template>

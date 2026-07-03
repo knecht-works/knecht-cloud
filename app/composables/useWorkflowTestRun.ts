@@ -1,0 +1,89 @@
+import type { RunStatus } from '~/utils/dashboard'
+
+export interface TestRunRow {
+  id: number
+  projectId: number
+  status: RunStatus
+  log: string
+  startedAt: string | number | null
+  finishedAt: string | number | null
+}
+
+interface TestProject {
+  id: number
+  defaultBranch: string
+}
+
+// The workflow editor's inline test run: pick a project + branch, start a real
+// run against the saved workflow, poll it while live. `onStarted` lets the
+// page react when a test kicks off (it collapses the open step settings).
+// `P` is the caller's project row shape (the picker binds the full row).
+export function useWorkflowTestRun<P extends TestProject>(
+  workflowName: () => string | undefined,
+  onStarted?: () => void,
+) {
+  const toastError = useToastError()
+
+  // The "Run" popover (project + branch picker together).
+  const open = ref(false)
+  const project = ref<P>()
+  const starting = ref(false)
+  const activeRun = ref<TestRunRow | null>(null)
+
+  // Branch the test runs against; follows the picked project (default = its
+  // default branch) and offers that project's branches.
+  const testBranch = ref<string>()
+  watch(project, p => testBranch.value = p?.defaultBranch ?? 'main')
+  const { items: testBranchItems } = useBranchPicker(
+    () => project.value ? `/api/projects/${project.value.id}/branches` : null,
+    () => project.value?.defaultBranch,
+  )
+
+  async function start() {
+    const workflow = workflowName()
+    if (!project.value || !workflow) return
+    starting.value = true
+    try {
+      activeRun.value = await $fetch<TestRunRow>('/api/runs', {
+        method: 'POST',
+        body: { projectId: project.value.id, workflow, branch: testBranch.value },
+      })
+      open.value = false
+      onStarted?.()
+    }
+    catch (e) {
+      toastError('Failed to start test', e)
+    }
+    finally {
+      starting.value = false
+    }
+  }
+
+  usePollWhile(
+    () => !!activeRun.value && isLiveStatus(activeRun.value.status),
+    async () => {
+      if (!activeRun.value) return
+      activeRun.value = await $fetch<TestRunRow>(`/api/runs/${activeRun.value.id}`)
+    },
+  )
+
+  function detach() {
+    activeRun.value = null
+  }
+
+  async function retest() {
+    const workflow = workflowName()
+    if (!activeRun.value || !workflow) return
+    const projectId = activeRun.value.projectId
+    detach()
+    try {
+      activeRun.value = await $fetch<TestRunRow>('/api/runs', {
+        method: 'POST',
+        body: { projectId, workflow },
+      })
+    }
+    catch { /* surfaced via the run page if it fails to start */ }
+  }
+
+  return { open, project, starting, activeRun, testBranch, testBranchItems, start, detach, retest }
+}

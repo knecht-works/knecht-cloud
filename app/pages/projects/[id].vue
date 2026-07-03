@@ -1,10 +1,17 @@
 <script setup lang="ts">
 const route = useRoute()
 const toast = useToast()
+const toastError = useToastError()
 const id = Number(route.params.id)
 
+// Only the project itself blocks rendering; everything else streams in lazily
+// (and the runs poll stays scoped to this project instead of the global list).
 const { data: project } = await useFetch(`/api/projects/${id}`)
-const { data: runs, refresh: refreshRuns } = await useFetch('/api/runs', { default: () => [] })
+const { data: runs, refresh: refreshRuns } = useFetch('/api/runs', {
+  query: { projectId: id },
+  default: () => [],
+  lazy: true,
+})
 
 const fw = computed(() => frameworkMeta(project.value?.framework))
 const fwLabel = computed(() =>
@@ -13,11 +20,10 @@ const repoName = computed(() => project.value?.fullName.split('/').pop() ?? 'Pro
 
 // This project's runs, newest first (the list is already ordered); the first is
 // the latest and drives the preview + status. Per-run logs live on the run page.
-const projectRuns = computed(() => (runs.value ?? []).filter(r => r.projectId === id))
+const projectRuns = computed(() => runs.value ?? [])
 const latest = computed(() => projectRuns.value[0] ?? null)
 
-const isLive = computed(() =>
-  latest.value?.status === 'queued' || latest.value?.status === 'running')
+const isLive = computed(() => isLiveStatus(latest.value?.status))
 
 const statusMeta = computed(() =>
   latest.value ? RUN_STATUS_META[latest.value.status] : IDLE_STATUS_META)
@@ -39,17 +45,18 @@ const previewUrl = computed(() =>
 const previewOnline = computed(() => latest.value?.envState === 'up')
 
 // ── Start a workflow (picked from the list, right at the project) ──────────
-const { data: workflowList } = await useFetch('/api/workflows', { default: () => [] })
+const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
 const starting = ref(false)
 // The "Start workflow" popover (branch + workflow picker together).
 const startOpen = ref(false)
 
 // Branch the run checks out; defaults to the repo's default branch (main). The
 // list is fetched lazily from GitHub; the picker always includes the default.
-const { data: branchList } = await useFetch(`/api/projects/${id}/branches`, { default: () => [], lazy: true })
 const selectedBranch = ref(project.value?.defaultBranch ?? 'main')
-const branchItems = computed(() =>
-  [...new Set([project.value?.defaultBranch ?? 'main', ...(branchList.value ?? [])])])
+const { items: branchItems } = useBranchPicker(
+  () => `/api/projects/${id}/branches`,
+  () => project.value?.defaultBranch ?? 'main',
+)
 
 async function startWorkflow(workflow: string) {
   startOpen.value = false
@@ -63,11 +70,7 @@ async function startWorkflow(workflow: string) {
   }
   catch (e) {
     starting.value = false
-    toast.add({
-      title: 'Failed to start run',
-      description: errMsg(e, ''),
-      color: 'error',
-    })
+    toastError('Failed to start run', e)
   }
 }
 
@@ -106,11 +109,7 @@ async function persistEnv() {
   }
   catch (e) {
     envSaveState.value = 'idle'
-    toast.add({
-      title: 'Failed to save',
-      description: errMsg(e, ''),
-      color: 'error',
-    })
+    toastError('Failed to save', e)
   }
 }
 
@@ -128,39 +127,9 @@ onUnmounted(() => {
   }
 })
 
-// Database dump upload
+// Database dump upload (shared with the setup wizard — useProjectDump).
 const dumpInput = ref<HTMLInputElement>()
-const uploadingDump = ref(false)
-const dumpName = computed(() => project.value?.dbDumpPath?.split('/').pop() ?? null)
-
-async function uploadDump(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  uploadingDump.value = true
-  try {
-    const form = new FormData()
-    form.append('file', file)
-    project.value = await $fetch(`/api/projects/${id}/dump`, { method: 'POST', body: form })
-    toast.add({ title: 'Database dump uploaded', color: 'success' })
-  }
-  catch (e) {
-    toast.add({
-      title: 'Upload failed',
-      description: errMsg(e, ''),
-      color: 'error',
-    })
-  }
-  finally {
-    uploadingDump.value = false
-    input.value = ''
-  }
-}
-
-async function removeDump() {
-  project.value = await $fetch(`/api/projects/${id}/dump`, { method: 'DELETE' })
-  toast.add({ title: 'Dump removed', color: 'success' })
-}
+const { uploading: uploadingDump, dumpName, upload: uploadDump, remove: removeDump } = useProjectDump(project)
 
 // ── Disconnect (delete project + its runs, envs and checkouts) ─────────────
 const removing = ref(false)
@@ -172,7 +141,7 @@ async function removeProject() {
     await navigateTo('/projects')
   }
   catch (e) {
-    toast.add({ title: 'Failed to disconnect', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to disconnect', e)
   }
   finally {
     removing.value = false
@@ -182,7 +151,7 @@ async function removeProject() {
 // ── Automation on this project (read-only) ─────────────────────────────────
 // Which workflow fires on this project and how — configured on the workflow
 // itself, so each row links there. The play button starts a workflow here now.
-const { data: triggers } = await useFetch('/api/triggers', { default: () => [] })
+const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 const projectTriggers = computed(() =>
   (triggers.value ?? []).filter(t => t.projectIds.includes(id)))
 

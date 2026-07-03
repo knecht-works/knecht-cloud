@@ -7,7 +7,7 @@
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ created: [] }>()
 
-const toast = useToast()
+const toastError = useToastError()
 
 interface ProjectRow {
   id: number
@@ -40,24 +40,11 @@ const connecting = ref(false)
 // The branch the project will work on (checkout + PR base). Defaults to the
 // repo's default branch; the full list loads once a repo is picked.
 const branch = ref<string>()
-const branches = ref<string[]>([])
-const loadingBranches = ref(false)
-
-watch(selected, async (repo) => {
-  branch.value = repo?.defaultBranch
-  branches.value = repo ? [repo.defaultBranch] : []
-  if (!repo) return
-  loadingBranches.value = true
-  try {
-    branches.value = await $fetch<string[]>(`/api/github/repos/${repo.owner}/${repo.name}/branches`)
-  }
-  catch {
-    // Branch list unavailable — the default branch stays the only option.
-  }
-  finally {
-    loadingBranches.value = false
-  }
-})
+watch(selected, repo => branch.value = repo?.defaultBranch)
+const { items: branches, loading: loadingBranches } = useBranchPicker(
+  () => selected.value ? `/api/github/repos/${selected.value.owner}/${selected.value.name}/branches` : null,
+  () => selected.value?.defaultBranch,
+)
 
 async function connect() {
   if (!selected.value) return
@@ -79,7 +66,7 @@ async function connect() {
     step.value = 'env'
   }
   catch (e) {
-    toast.add({ title: 'Failed to connect', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to connect', e)
   }
   finally {
     connecting.value = false
@@ -101,37 +88,16 @@ async function saveEnvAndContinue() {
     step.value = 'database'
   }
   catch (e) {
-    toast.add({ title: 'Failed to save', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to save', e)
   }
   finally {
     savingEnv.value = false
   }
 }
 
-// ── Step 3 · database dump ───────────────────────────────────────────────────
+// ── Step 3 · database dump (shared with the project page — useProjectDump) ──
 const dumpInput = ref<HTMLInputElement>()
-const uploadingDump = ref(false)
-const dumpName = computed(() => project.value?.dbDumpPath?.split('/').pop() ?? null)
-
-async function uploadDump(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file || !project.value) return
-  uploadingDump.value = true
-  try {
-    const form = new FormData()
-    form.append('file', file)
-    project.value = await $fetch(`/api/projects/${project.value.id}/dump`, { method: 'POST', body: form })
-    toast.add({ title: 'Database dump uploaded', color: 'success' })
-  }
-  catch (e) {
-    toast.add({ title: 'Upload failed', description: errMsg(e, ''), color: 'error' })
-  }
-  finally {
-    uploadingDump.value = false
-    input.value = ''
-  }
-}
+const { uploading: uploadingDump, dumpName, upload: uploadDump } = useProjectDump(project)
 
 // ── Step 4 · finish ──────────────────────────────────────────────────────────
 const booting = ref(false)
@@ -156,7 +122,7 @@ async function bootAndPreview() {
   }
   catch (e) {
     booting.value = false
-    toast.add({ title: 'Failed to start run', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to start run', e)
   }
 }
 
@@ -171,7 +137,6 @@ watch(open, (isOpen) => {
   project.value = null
   selected.value = undefined
   branch.value = undefined
-  branches.value = []
   envText.value = ''
 })
 </script>
@@ -250,7 +215,7 @@ watch(open, (isOpen) => {
             color="neutral"
             variant="ghost"
             label="Cancel"
-            @click="open = false"
+            @click="() => { open = false }"
           />
           <UButton
             label="Connect"
@@ -289,7 +254,7 @@ watch(open, (isOpen) => {
             color="neutral"
             variant="ghost"
             label="Skip"
-            @click="step = 'database'"
+            @click="() => { step = 'database' }"
           />
           <UButton
             label="Continue"
@@ -348,14 +313,14 @@ watch(open, (isOpen) => {
             color="neutral"
             variant="ghost"
             :label="dumpName ? 'Continue' : 'Skip'"
-            @click="step = 'done'"
+            @click="() => { step = 'done' }"
           />
           <UButton
             v-if="dumpName"
             label="Done"
             color="primary"
             trailing-icon="i-lucide-arrow-right"
-            @click="step = 'done'"
+            @click="() => { step = 'done' }"
           />
         </div>
       </div>

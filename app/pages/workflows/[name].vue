@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { TestRunRow } from '~/composables/useWorkflowTestRun'
+
 // The workflow create/edit surface. A numbered step rail on the left (editable:
 // add from the library, reorder, remove, edit each step's params) and a context
 // panel on the right. Edits live in a local `draft` and persist via the
@@ -7,16 +9,20 @@
 
 const route = useRoute()
 const toast = useToast()
+const toastError = useToastError()
 
 const isNew = computed(() => String(route.params.name) === 'new')
 const routeName = computed(() => decodeURIComponent(String(route.params.name)))
 
 const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
-const { data: projects } = await useFetch('/api/projects', {
+// The run picker's projects and the trigger panel load lazily — neither blocks
+// rendering the editor itself.
+const { data: projects } = useFetch('/api/projects', {
   default: () => [],
+  lazy: true,
   transform: rows => rows.map(p => ({ ...p, label: p.fullName })),
 })
-const { data: allTriggers, refresh: refreshTriggers } = await useFetch('/api/triggers', { default: () => [] })
+const { data: allTriggers, refresh: refreshTriggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 
 // The persisted record (null for a new draft or an unknown name).
 const saved = computed(() => isNew.value ? null : (workflows.value?.find(w => w.name === routeName.value) ?? null))
@@ -57,6 +63,11 @@ watch(routeName, () => {
 })
 
 const steps = computed(() => draft.value.steps)
+
+// ── inline test run (composable owns picker, run state and polling) ────────
+const { open, project, starting, activeRun, testBranch, testBranchItems, start, detach, retest }
+  = useWorkflowTestRun<(typeof projects.value)[number]>(() => saved.value?.name, () => openSteps.value.clear())
+
 const editable = computed(() => !activeRun.value)
 
 // ── triggers wired to this workflow (the head of the flow) ──────────────────
@@ -82,7 +93,7 @@ async function toggleTrigger(t: { id: number, active: boolean }) {
     await refreshTriggers()
   }
   catch (e) {
-    toast.add({ title: 'Failed to update trigger', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to update trigger', e)
   }
 }
 
@@ -93,7 +104,7 @@ async function removeTrigger(t: { id: number }) {
     toast.add({ title: 'Trigger deleted', color: 'success' })
   }
   catch (e) {
-    toast.add({ title: 'Failed to delete trigger', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to delete trigger', e)
   }
 }
 
@@ -112,7 +123,7 @@ async function toggleEnabled() {
     await refresh()
   }
   catch (e) {
-    toast.add({ title: 'Failed to update workflow', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to update workflow', e)
   }
   finally {
     togglingEnabled.value = false
@@ -129,72 +140,10 @@ function removeStep(i: number) {
   const [removed] = draft.value.steps.splice(i, 1)
   if (removed) openSteps.value.delete(removed)
 }
-// Move a step from → to (the open state tracks step objects, so it follows).
-function reorder(from: number, to: number) {
-  const s = draft.value.steps
-  if (to < 0 || to >= s.length || from === to) return
-  const [item] = s.splice(from, 1)
-  s.splice(to, 0, item!)
-}
 
 // ── drag & drop: reorder rows + drop new steps from the library ─────────────
-// Rows: the grip handle arms its row (HTML5 `draggable` needs to sit on the
-// row, but dragging should only start from the grip); rows reorder live while
-// dragging over each other. Library items: the library reports the dragged
-// step type; hovering the rail tracks an insertion point (upper/lower row
-// half → before/after), rendered as a drop line; dropping inserts there.
-const dragIndex = ref<number | null>(null)
-const dragArmed = ref<number | null>(null)
-const libDrag = ref<WorkflowStep['type'] | null>(null)
-const dropIndex = ref<number | null>(null)
-
-function onDragStart(i: number, e: DragEvent) {
-  dragIndex.value = i
-  // Collapse open settings for the drag: expanded cards are tall, and live
-  // reordering around a tall card makes the rows jump under the cursor.
-  openSteps.value.clear()
-  if (e.dataTransfer) {
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(i))
-  }
-}
-function onDragOver(i: number, e: DragEvent) {
-  e.preventDefault()
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  const pastMidpoint = e.clientY > rect.top + rect.height / 2
-  if (dragIndex.value !== null) {
-    if (dragIndex.value === i) return
-    // Swap only once the cursor crosses the hovered card's midpoint —
-    // otherwise unequal card heights make the rows oscillate.
-    if (dragIndex.value < i ? pastMidpoint : !pastMidpoint) {
-      reorder(dragIndex.value, i)
-      dragIndex.value = i
-    }
-  }
-  else if (libDrag.value) {
-    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
-    dropIndex.value = pastMidpoint ? i + 1 : i
-  }
-}
-// The rail column accepts library drops anywhere (rows refine the position).
-function onRailOver(e: DragEvent) {
-  if (!libDrag.value) return
-  e.preventDefault()
-  if (dropIndex.value === null) dropIndex.value = steps.value.length
-}
-function onRailDrop() {
-  if (libDrag.value && dropIndex.value !== null) {
-    draft.value.steps.splice(dropIndex.value, 0, stepDef(libDrag.value).make())
-    openSteps.value.add(draft.value.steps[dropIndex.value]!)
-  }
-  endDrag()
-}
-function endDrag() {
-  dragIndex.value = null
-  dragArmed.value = null
-  libDrag.value = null
-  dropIndex.value = null
-}
+const { dragIndex, dragArmed, libDrag, dropIndex, onDragStart, onDragOver, onRailOver, onRailDrop, endDrag }
+  = useStepDnd(steps, openSteps)
 
 // ── auto-save ────────────────────────────────────────────────────────────────
 // There's no save button — edits persist automatically (debounced) once the
@@ -204,10 +153,9 @@ type SaveStatus = 'idle' | 'saving' | 'saved' | 'invalid' | 'error'
 const saveStatus = ref<SaveStatus>('idle')
 const saveError = ref<string>()
 
-// Friendly name: letters/numbers/spaces/hyphens/underscores (URL-safe once
-// encoded). Mirrors the server's workflowInputSchema.
-const NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u
-const nameValid = computed(() => NAME_RE.test(draft.value.name.trim()))
+// The shared name rule (shared/utils/workflow.ts) — the same regex the
+// server's workflowInputSchema validates with.
+const nameValid = computed(() => WORKFLOW_NAME_RE.test(draft.value.name.trim()))
 const valid = computed(() => nameValid.value && draft.value.steps.every(stepValid))
 
 function saveBody() {
@@ -274,7 +222,7 @@ async function persist() {
 const renaming = ref(false)
 const renameValue = ref('')
 const renameInput = ref<HTMLInputElement>()
-const renameValid = computed(() => NAME_RE.test(renameValue.value.trim()))
+const renameValid = computed(() => WORKFLOW_NAME_RE.test(renameValue.value.trim()))
 
 async function startRename() {
   renameValue.value = draft.value.name
@@ -319,97 +267,12 @@ async function removeWorkflow() {
     await navigateTo('/workflows')
   }
   catch (e) {
-    toast.add({ title: 'Failed to delete', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to delete', e)
   }
   finally {
     removing.value = false
   }
 }
-
-// ── inline test run ───────────────────────────────────────────────────────
-interface RunRow {
-  id: number
-  projectId: number
-  status: RunStatus
-  log: string
-  startedAt: string | number | null
-  finishedAt: string | number | null
-}
-
-const open = ref(false)
-const project = ref()
-const starting = ref(false)
-const activeRun = ref<RunRow | null>(null)
-let timer: ReturnType<typeof setInterval> | undefined
-
-// Branch the test runs against; follows the picked project (default = its
-// default branch) and offers that project's branches.
-const testBranch = ref<string>()
-const testBranches = ref<string[]>([])
-const testBranchItems = computed(() =>
-  [...new Set([...(project.value?.defaultBranch ? [project.value.defaultBranch] : []), ...testBranches.value])])
-
-watch(project, async (p) => {
-  testBranch.value = p?.defaultBranch ?? 'main'
-  testBranches.value = []
-  if (!p) return
-  try {
-    testBranches.value = await $fetch<string[]>(`/api/projects/${p.id}/branches`)
-  }
-  catch {
-    testBranches.value = []
-  }
-})
-
-async function start() {
-  if (!project.value || !saved.value) return
-  starting.value = true
-  try {
-    activeRun.value = await $fetch<RunRow>('/api/runs', {
-      method: 'POST',
-      body: { projectId: project.value.id, workflow: saved.value.name, branch: testBranch.value },
-    })
-    open.value = false
-    openSteps.value.clear()
-    poll()
-  }
-  catch (e) {
-    toast.add({ title: 'Failed to start test', description: errMsg(e, ''), color: 'error' })
-  }
-  finally {
-    starting.value = false
-  }
-}
-
-function poll() {
-  clearInterval(timer)
-  timer = setInterval(async () => {
-    if (!activeRun.value) return clearInterval(timer)
-    activeRun.value = await $fetch<RunRow>(`/api/runs/${activeRun.value.id}`)
-    if (activeRun.value.status === 'success' || activeRun.value.status === 'failed') clearInterval(timer)
-  }, 1500)
-}
-
-function detach() {
-  activeRun.value = null
-  clearInterval(timer)
-}
-
-async function retest() {
-  if (!activeRun.value || !saved.value) return
-  const projectId = activeRun.value.projectId
-  detach()
-  try {
-    activeRun.value = await $fetch<RunRow>('/api/runs', {
-      method: 'POST',
-      body: { projectId, workflow: saved.value.name },
-    })
-    poll()
-  }
-  catch { /* surfaced via the run page if it fails to start */ }
-}
-
-onUnmounted(() => clearInterval(timer))
 
 // Flush a pending edit (PATCH only — no navigation) when leaving the page.
 onUnmounted(() => {
@@ -480,7 +343,7 @@ const pr = computed(() => {
   return m ? { number: m[1], url: m[2] } : null
 })
 
-function fmtDuration(a: RunRow['startedAt'], b: RunRow['finishedAt']): string {
+function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): string {
   if (!a || !b) return '—'
   const ms = new Date(b).getTime() - new Date(a).getTime()
   if (!Number.isFinite(ms) || ms < 0) return '—'
@@ -626,7 +489,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
               color="neutral"
               variant="ghost"
               label="Run in background"
-              @click="navigateTo(`/runs/${activeRun!.id}`)"
+              @click="() => { navigateTo(`/runs/${activeRun!.id}`) }"
             />
           </template>
           <template v-else-if="mode === 'success'">
@@ -650,7 +513,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
               color="neutral"
               variant="ghost"
               label="View log"
-              @click="navigateTo(`/runs/${activeRun!.id}`)"
+              @click="() => { navigateTo(`/runs/${activeRun!.id}`) }"
             />
             <UButton
               color="primary"

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 const { data: projects, refresh } = await useFetch('/api/projects')
-// Runs power the per-project live status, counts and the metric row.
-const { data: runs } = await useFetch('/api/runs', { default: () => [] })
+// Runs power the per-project live status, counts and the metric row — they
+// stream in lazily so they don't gate the project grid.
+const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
 
 // Newest run per project (the list is already newest-first) + a run count.
 const runsByProject = computed(() => {
@@ -18,7 +19,7 @@ const metrics = computed(() => {
   const list = runs.value ?? []
   return {
     projects: projects.value?.length ?? 0,
-    active: list.filter(r => r.status === 'running' || r.status === 'queued').length,
+    active: list.filter(r => isLiveStatus(r.status)).length,
     previews: list.filter(r => r.envState === 'up').length,
     runs: list.length,
   }
@@ -54,7 +55,7 @@ const open = ref(false)
           icon="i-lucide-plus"
           label="New project"
           color="neutral"
-          @click="open = true"
+          @click="() => { open = true }"
         />
       </template>
     </KTopBar>

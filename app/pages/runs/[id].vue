@@ -1,12 +1,12 @@
 <script setup lang="ts">
 const route = useRoute()
-const toast = useToast()
+const toastError = useToastError()
 const id = Number(route.params.id)
 const NuxtLink = resolveComponent('NuxtLink')
 
 const { data: run, refresh } = await useFetch(`/api/runs/${id}`)
 
-const isLive = computed(() => run.value?.status === 'queued' || run.value?.status === 'running')
+const isLive = computed(() => isLiveStatus(run.value?.status))
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
 
 // The run's meta facts (how it was triggered, the branch it works on, timing,
@@ -35,11 +35,7 @@ async function remove() {
   }
   catch (e) {
     deleting.value = false
-    toast.add({
-      title: 'Delete failed',
-      description: errMsg(e, ''),
-      color: 'error',
-    })
+    toastError('Delete failed', e)
   }
 }
 
@@ -60,11 +56,7 @@ async function runAgain() {
   }
   catch (e) {
     restarting.value = false
-    toast.add({
-      title: 'Failed to start run',
-      description: errMsg(e, ''),
-      color: 'error',
-    })
+    toastError('Failed to start run', e)
   }
 }
 
@@ -75,11 +67,7 @@ async function reboot() {
     run.value = await $fetch(`/api/runs/${id}/reboot`, { method: 'POST' })
   }
   catch (e) {
-    toast.add({
-      title: run.value?.envState === 'archived' ? 'Restore failed' : 'Reboot failed',
-      description: errMsg(e, ''),
-      color: 'error',
-    })
+    toastError(run.value?.envState === 'archived' ? 'Restore failed' : 'Reboot failed', e)
   }
   finally {
     rebooting.value = false

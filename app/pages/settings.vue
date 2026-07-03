@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const { user, clear } = useUserSession()
 const toast = useToast()
+const toastError = useToastError()
 
 // ── Access: your account + the login allowlist ────────────────────────────────
 interface Member {
@@ -19,8 +20,6 @@ const myLogin = computed(() => user.value?.login.toLowerCase())
 const me = computed(() => members.value?.find(m => m.login === myLogin.value))
 const others = computed(() => members.value?.filter(m => m.login !== myLogin.value) ?? [])
 
-const errMsg = (e: unknown) => (e as { data?: { statusMessage?: string } })?.data?.statusMessage ?? 'Please try again.'
-
 async function logout() {
   await clear()
   await navigateTo('/login')
@@ -38,7 +37,7 @@ async function invite() {
     toast.add({ title: `Invited @${login}`, color: 'success' })
   }
   catch (e) {
-    toast.add({ title: 'Could not invite', description: errMsg(e), color: 'error' })
+    toastError('Could not invite', e)
   }
   finally {
     inviting.value = false
@@ -53,7 +52,7 @@ async function remove(login: string) {
     toast.add({ title: `Removed @${login}`, color: 'success' })
   }
   catch (e) {
-    toast.add({ title: 'Could not remove', description: errMsg(e), color: 'error' })
+    toastError('Could not remove', e)
   }
   finally {
     removing.value = ''
@@ -66,7 +65,7 @@ interface Settings {
   previewRetentionDays: number
   archiveRetentionDays: number
 }
-const { data: settings } = await useFetch<Settings>('/api/settings')
+const { data: settings } = useFetch<Settings>('/api/settings', { lazy: true })
 
 // Local editable copy; changes autosave shortly after the last edit.
 const form = reactive<Settings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30 })

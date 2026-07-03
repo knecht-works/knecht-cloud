@@ -3,8 +3,7 @@
 // A run drills into /runs/:id; the list itself polls while anything is live.
 const { data: runs, refresh } = await useFetch('/api/runs', { default: () => [] })
 
-const anyLive = computed(() =>
-  (runs.value ?? []).some(r => r.status === 'running' || r.status === 'queued'))
+const anyLive = computed(() => (runs.value ?? []).some(r => isLiveStatus(r.status)))
 usePollWhile(() => anyLive.value, refresh)
 
 const metrics = computed(() => {
@@ -13,7 +12,7 @@ const metrics = computed(() => {
   const success = list.filter(r => r.status === 'success').length
   return {
     total: list.length,
-    running: list.filter(r => r.status === 'running' || r.status === 'queued').length,
+    running: list.filter(r => isLiveStatus(r.status)).length,
     rate: completed.length ? Math.round((success / completed.length) * 100) : 0,
     automated: list.filter(r => r.triggerId !== null).length,
   }

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
-const { data: runs } = await useFetch('/api/runs', { default: () => [] })
-const { data: triggers } = await useFetch('/api/triggers', { default: () => [] })
-const toast = useToast()
+// Stats + automation columns stream in lazily — they don't gate the list.
+const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
+const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
+const toastError = useToastError()
 
 type WorkflowItem = NonNullable<typeof workflows.value>[number]
 
@@ -17,7 +18,7 @@ async function toggleEnabled(w: WorkflowItem) {
     await refresh()
   }
   catch (e) {
-    toast.add({ title: 'Failed to update workflow', description: errMsg(e, ''), color: 'error' })
+    toastError('Failed to update workflow', e)
   }
 }
 
@@ -63,7 +64,7 @@ const metrics = computed(() => {
   const success = list.filter(r => r.status === 'success').length
   return {
     workflows: workflows.value?.length ?? 0,
-    running: list.filter(r => r.status === 'running' || r.status === 'queued').length,
+    running: list.filter(r => isLiveStatus(r.status)).length,
     rate: completed.length ? Math.round((success / completed.length) * 100) : 0,
     runs: list.length,
   }
@@ -92,7 +93,7 @@ const filtered = computed(() =>
           icon="i-lucide-plus"
           label="New workflow"
           color="neutral"
-          @click="navigateTo('/workflows/new')"
+          @click="() => { navigateTo('/workflows/new') }"
         />
       </template>
     </KTopBar>

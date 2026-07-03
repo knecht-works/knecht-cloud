@@ -23,6 +23,7 @@ const emit = defineEmits<{ created: [] }>()
 const editing = computed(() => !!props.trigger)
 
 const toast = useToast()
+const toastError = useToastError()
 
 type Source = 'schedule' | 'github' | 'manual'
 const SOURCES: { key: Source, label: string, icon: string, hint: string }[] = [
@@ -39,8 +40,11 @@ const CRON_PRESETS = [
   { label: 'Weekly · Mon 09:00', cron: '0 9 * * 1' },
 ]
 
-const { data: projects } = await useFetch('/api/projects', {
+// Lazy: the modal is mounted (closed) on every workflow page — the project
+// list only matters once it opens, so it must not block the page.
+const { data: projects } = useFetch('/api/projects', {
   default: () => [],
+  lazy: true,
   transform: rows => rows.map(p => ({ label: p.fullName, value: p.id })),
 })
 
@@ -106,11 +110,7 @@ async function create() {
     }
   }
   catch (e) {
-    toast.add({
-      title: editing.value ? 'Failed to update trigger' : 'Failed to create trigger',
-      description: errMsg(e, ''),
-      color: 'error',
-    })
+    toastError(editing.value ? 'Failed to update trigger' : 'Failed to create trigger', e)
   }
   finally {
     creating.value = false
@@ -219,7 +219,7 @@ watch(open, (isOpen) => {
           <UButton
             label="Done"
             color="primary"
-            @click="open = false"
+            @click="() => { open = false }"
           />
         </div>
       </div>
@@ -349,7 +349,7 @@ watch(open, (isOpen) => {
             color="neutral"
             variant="ghost"
             label="Cancel"
-            @click="open = false"
+            @click="() => { open = false }"
           />
           <UButton
             :label="editing ? 'Save changes' : 'Create trigger'"
