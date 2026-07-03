@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
-import type { EnvVar } from '../db/schema'
+import type { EnvVar } from '../../shared/utils/env'
 
 // Write the per-run ddev override (`.ddev/config.knecht.yaml`). ddev merges all
 // `.ddev/config.*.yaml` files, so this injects two things without touching the

@@ -1,9 +1,11 @@
+import type { Step } from '#shared/utils/workflow'
+
 // Shared display helpers for the dashboard screens — keeps status mapping and
 // formatting in one place so the screens stay free of ad-hoc logic.
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed'
 
-export type DotColor = 'primary' | 'orange' | 'neutral' | 'error'
+type DotColor = 'primary' | 'orange' | 'neutral' | 'error'
 
 export interface RunStatusMeta {
   dot: DotColor
@@ -23,6 +25,11 @@ export const RUN_STATUS_META: Record<RunStatus, RunStatusMeta> = {
   failed: { dot: 'error', pulse: false, text: 'var(--status-error)', label: 'Failed' },
 }
 
+// True while the run still occupies the runner (drives polling + live UI).
+export function isLiveStatus(status: RunStatus | null | undefined): boolean {
+  return status === 'queued' || status === 'running'
+}
+
 // "Ready / no runs yet" state for a project that has never been run.
 export const IDLE_STATUS_META: RunStatusMeta = {
   dot: 'neutral',
@@ -31,23 +38,15 @@ export const IDLE_STATUS_META: RunStatusMeta = {
   label: 'No runs yet',
 }
 
-// Coloured by run state for the badge in the runs list.
-export const RUN_BADGE_COLOR: Record<RunStatus, 'neutral' | 'info' | 'success' | 'error'> = {
-  queued: 'neutral',
-  running: 'info',
-  success: 'success',
-  failed: 'error',
-}
-
 // Trigger-source presentation, shared by every place a trigger (or the trigger
 // that fired a run) shows up: run meta, project panel, editor head.
-export interface TriggerSourceMeta {
+interface TriggerSourceMeta {
   icon: string
   label: string
   color: string
 }
 
-export const TRIGGER_SOURCE_META: Record<string, TriggerSourceMeta> = {
+const TRIGGER_SOURCE_META: Record<string, TriggerSourceMeta> = {
   manual: { icon: 'i-lucide-mouse-pointer-click', label: 'Manual', color: 'var(--text-primary)' },
   schedule: { icon: 'i-lucide-clock', label: 'Schedule', color: 'var(--accent-orange)' },
   github: { icon: 'i-simple-icons-github', label: 'GitHub', color: 'var(--text-toned)' },
@@ -60,7 +59,7 @@ export function triggerSourceMeta(source: string): TriggerSourceMeta {
 
 // Framework presentation, keyed by the DDEV project `type` read from the repo's
 // `.ddev/config.yaml`. Drives the label + accent colour across the dashboard.
-export interface FrameworkMeta {
+interface FrameworkMeta {
   label: string
   color: string
 }
@@ -98,15 +97,9 @@ export const STEP_KIND_COLOR: Record<StepKind, string> = {
   trigger: 'var(--accent-violet)',
 }
 
-// A workflow step as returned by /api/workflows. `label`/`description` are the
-// optional per-step name + note the builder can set.
-export type WorkflowStep = { label?: string, description?: string } & (
-  | { type: 'ddev-start' }
-  | { type: 'bash', command: string, continueOnError?: boolean }
-  | { type: 'create-branch', name: string }
-  | { type: 'create-commit', message: string }
-  | { type: 'create-pr', title: string, body: string }
-)
+// A workflow step as returned by /api/workflows — the shared step model
+// (shared/utils/workflow.ts) under the name the app code grew up with.
+export type WorkflowStep = Step
 
 export interface StepMeta {
   icon: string

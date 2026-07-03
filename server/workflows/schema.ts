@@ -1,5 +1,8 @@
 import { parse } from 'yaml'
 import { z } from 'zod'
+import { WORKFLOW_NAME_RE, type Step } from '../../shared/utils/workflow'
+
+export type { Step }
 
 // The workflow definition format (workflows.md §10, mvp.md §3.2): a linear
 // sequence of blocks. The visual builder will read/write this same YAML later;
@@ -10,22 +13,6 @@ import { z } from 'zod'
 // (e.g. `- bash: { command: ... }`). We normalize both into a tagged union the
 // runner can switch on. Only the blocks this slice needs are implemented;
 // adding a block is: extend the union here + handle it in the runner.
-
-// Optional per-step metadata the visual builder can set: a custom display name
-// (`label`) and a note (`description`). They don't affect execution — the runner
-// switches on `type` — they're just for the builder/overview.
-export interface StepMeta {
-  label?: string
-  description?: string
-}
-
-export type Step = StepMeta & (
-  | { type: 'ddev-start' }
-  | { type: 'bash', command: string, continueOnError: boolean }
-  | { type: 'create-branch', name: string }
-  | { type: 'create-commit', message: string }
-  | { type: 'create-pr', title: string, body: string }
-)
 
 const bashParams = z.object({
   'command': z.string().min(1),
@@ -81,11 +68,10 @@ const normalizedStepSchema: z.ZodType<Step> = z.discriminatedUnion('type', [
   z.object({ type: z.literal('create-pr'), title: z.string().min(1), body: z.string().default(''), ...stepMeta }),
 ])
 
-// A workflow name doubles as its URL segment and the `runs.workflow` reference.
-// It's a free-form friendly name (spaces allowed), constrained only to what's
-// URL-safe once encoded — no slash/percent/etc. Steps may be empty (a draft).
+// Steps may be empty (a draft). The name rule lives in shared/utils/workflow.ts
+// so the editor validates with the same regex.
 export const workflowInputSchema = z.object({
-  name: z.string().regex(/^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u, 'Letters, numbers, spaces, hyphens and underscores'),
+  name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores'),
   description: z.string().default(''),
   steps: z.array(normalizedStepSchema),
   // The automation master switch. Optional so the editor's full-body auto-saves

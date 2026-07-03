@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { RunStatus } from '~/utils/dashboard'
+import type { EnvState } from '#shared/utils/run'
 
 interface RunSummary {
   status: RunStatus
-  envState: 'down' | 'up' | 'stopped' | 'archived'
+  envState: EnvState
   workflow: string
   createdAt: string | number | Date | null
 }
