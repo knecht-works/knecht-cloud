@@ -1,1 +1,0 @@
-ALTER TABLE `projects` ADD `db_imported` integer DEFAULT false NOT NULL;

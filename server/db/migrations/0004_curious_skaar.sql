@@ -1,1 +1,0 @@
-ALTER TABLE `runs` ADD `preview_host` text;

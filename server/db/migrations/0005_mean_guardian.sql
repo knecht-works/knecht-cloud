@@ -1,1 +1,0 @@
-ALTER TABLE `projects` ADD `framework` text;

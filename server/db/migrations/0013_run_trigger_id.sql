@@ -1,1 +1,0 @@
-ALTER TABLE `runs` ADD `trigger_id` integer REFERENCES triggers(id);

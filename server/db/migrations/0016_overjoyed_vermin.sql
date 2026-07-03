@@ -1,1 +1,0 @@
-ALTER TABLE `settings` ADD `workflows_seeded` integer DEFAULT false NOT NULL;

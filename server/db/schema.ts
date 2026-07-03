@@ -1,11 +1,8 @@
 import { sql } from 'drizzle-orm'
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
-import type { Step } from '../workflows/schema'
-
-export interface EnvVar {
-  key: string
-  value: string
-}
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { ENV_STATES } from '../../shared/utils/run'
+import type { EnvVar } from '../../shared/utils/env'
+import type { Step } from '../../shared/utils/workflow'
 
 // The DDEV environment spec, read from the repo's `.ddev/config.yaml` (+ the
 // `packageManager` field of its `package.json`). Shown read-only on the project
@@ -101,14 +98,9 @@ export const runs = sqliteTable('runs', {
   // (running, previewable), 'stopped' (idle-stopped — volumes kept, rebootable),
   // 'archived' (sandbox + worktree deleted, but the run's DB export + worktree
   // patch are kept so it can be restored exactly — daemon/envs.ts).
-  envState: text('env_state', { enum: ['down', 'up', 'stopped', 'archived'] })
+  envState: text('env_state', { enum: ENV_STATES })
     .notNull()
     .default('down'),
-  // The repo's own ddev host (e.g. ganzlebendig.ddev.site), read from
-  // .ddev/config.yaml at boot. It's the host the booted app generates URLs for
-  // (the pasted .env points at it) and the Host header the proxy sends — and
-  // what the proxy rewrites to the preview origin in responses.
-  previewHost: text('preview_host'),
   // ALL hostnames the run's ddev environment serves (primary first), read from
   // .ddev/config.yaml at boot — the same set the preview proxy maps to per-run
   // origins. The UI builds its preview host switcher from this list.
@@ -124,7 +116,10 @@ export const runs = sqliteTable('runs', {
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-})
+}, table => [
+  // The runs list and the per-project poll both filter by project.
+  index('runs_project_id_idx').on(table.projectId),
+])
 
 export type Run = typeof runs.$inferSelect
 export type NewRun = typeof runs.$inferInsert
