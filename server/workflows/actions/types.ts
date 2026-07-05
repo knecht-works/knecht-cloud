@@ -68,7 +68,8 @@ export interface ActionDef<T extends Step['type']> {
   /**
    * Execute the step. String params arrive already `render()`ed. The returned
    * outputs land in the run context under steps.<id> (and legacyKey, if set) —
-   * they're what STEP_OUTPUTS (shared/utils/workflow.ts) describes.
+   * they're what the client def's `outputs` (app/utils/steps/<type>.ts)
+   * describes for autocomplete.
    */
   run(step: Extract<Step, { type: T }>, rt: ActionRuntime): Promise<Record<string, unknown> | undefined>
 }

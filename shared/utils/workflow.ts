@@ -1,7 +1,8 @@
 // The workflow step model, shared by the visual builder (app) and the engine
-// (server/workflows) so the two sides can't drift. A step is a tagged union the
-// runner switches on; adding a block is: extend the union here, handle it in
-// the runner, and describe it in app/utils/workflow-steps.ts.
+// (server/workflows) so the two sides can't drift. A step is a tagged union;
+// adding a block is: extend the union here, write its action module
+// (server/workflows/actions/<type>.ts — schema + execution) and its client def
+// (app/utils/steps/<type>.ts — editor fields, outputs, presentation).
 
 // A step's retry policy, applied by the runner around ANY action: up to
 // `attempts` total tries, waiting backoffSeconds, then double per retry.
@@ -89,53 +90,6 @@ export function stepTreeDepth(steps: Step[]): number {
 // It's a free-form friendly name (spaces allowed), constrained only to what's
 // URL-safe once encoded — no slash/percent/etc.
 export const WORKFLOW_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u
-
-// A variable a step contributes to the run context for later steps. Shared so
-// the builder's autocomplete and the engine describe step outputs in one place.
-export interface StepVar {
-  /** Output name relative to the step, e.g. 'name' → {{ steps.<id>.name }} */
-  path: string
-  hint: string
-}
-
-// What each step type writes into the run context, keyed by step type.
-export const STEP_OUTPUTS: Record<Step['type'], StepVar[]> = {
-  'ddev-start': [
-    { path: 'url', hint: 'The booted environment\'s preview URL' },
-  ],
-  'bash': [
-    { path: 'stdout', hint: 'The command\'s output (tail)' },
-    { path: 'exitCode', hint: 'The exit code (0 on success)' },
-  ],
-  'ai': [
-    { path: 'text', hint: 'The model\'s response' },
-    { path: 'json', hint: 'The response parsed as JSON (when it is valid JSON)' },
-  ],
-  'js': [
-    { path: 'result', hint: 'What main() returned' },
-  ],
-  'http': [
-    { path: 'status', hint: 'The HTTP status code' },
-    { path: 'body', hint: 'The response body (parsed JSON when possible)' },
-  ],
-  'if': [
-    { path: 'matched', hint: 'Whether the conditions matched (then ran)' },
-  ],
-  'loop': [
-    { path: 'results', hint: 'Per-iteration outputs of the loop\'s steps' },
-    { path: 'count', hint: 'How many iterations ran' },
-  ],
-  'create-branch': [
-    { path: 'name', hint: 'The created branch' },
-  ],
-  'create-commit': [
-    { path: 'sha', hint: 'The commit\'s SHA (empty when nothing changed)' },
-  ],
-  'create-pr': [
-    { path: 'url', hint: 'The opened pull request' },
-    { path: 'number', hint: 'Its number' },
-  ],
-}
 
 // The lowest free `s<n>` id — deterministic, so backfilling the same stored
 // list always produces the same ids even before they're persisted.

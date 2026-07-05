@@ -1,165 +1,40 @@
-// The client-side step registry — the ONE place that describes a step type for
-// the editor: identity (icon/label/kind), its settings fields (rendered by the
-// inspector), defaults, and validation. The variables a step contributes live
-// in the shared model (STEP_OUTPUTS, shared/utils/workflow.ts) so the engine
-// and the editor can't drift; the server side pairs this registry with an
-// action module (server/workflows/actions).
+// The client-side step registry, assembled from one def file per step type
+// (app/utils/steps/<type>.ts) — each carries the step's complete client-side
+// description: identity, editor fields, defaults, outputs and list
+// presentation. The server pairs each def with an action module
+// (server/workflows/actions/<type>.ts); the shared Step union
+// (shared/utils/workflow.ts) is the type-level single source both build on.
 
-import { nextStepId, STEP_OUTPUTS, type StepVar } from '#shared/utils/workflow'
+import { nextStepId } from '#shared/utils/workflow'
+import type { RegisteredStepDef, StepMeta, StepVar } from '~/utils/steps/define'
+import { ddevStartStep } from '~/utils/steps/ddev-start'
+import { bashStep } from '~/utils/steps/bash'
+import { aiStep } from '~/utils/steps/ai'
+import { jsStep } from '~/utils/steps/js'
+import { httpStep } from '~/utils/steps/http'
+import { ifStep } from '~/utils/steps/if'
+import { loopStep } from '~/utils/steps/loop'
+import { createBranchStep } from '~/utils/steps/create-branch'
+import { createCommitStep } from '~/utils/steps/create-commit'
+import { createPrStep } from '~/utils/steps/create-pr'
 
-export type { StepVar }
+export type { RegisteredStepDef, StepDef, StepField, StepMeta, StepVar } from '~/utils/steps/define'
 
-export interface StepField {
-  /** Property on the step object this field edits. */
-  key: string
-  label: string
-  input: 'text' | 'textarea' | 'switch'
-  placeholder?: string
-  required?: boolean
-  rows?: number
-  /** Field supports {{ }} templating (gets autocomplete + chip inserts). */
-  vars?: boolean
-}
-
-export interface StepDef {
-  type: WorkflowStep['type']
-  label: string
-  hint: string
-  kind: StepKind
-  icon: string
-  group: string
-  fields: StepField[]
-  make: () => WorkflowStep
-}
-
-export const STEP_DEFS: StepDef[] = [
-  {
-    type: 'ddev-start',
-    label: 'Boot project',
-    hint: 'Start the ddev stack + import the DB',
-    kind: 'det',
-    icon: 'i-lucide-play',
-    group: 'Deterministic',
-    fields: [],
-    make: () => ({ type: 'ddev-start' }),
-  },
-  {
-    type: 'bash',
-    label: 'Shell command',
-    hint: 'Run a command inside the sandbox',
-    kind: 'det',
-    icon: 'i-lucide-terminal',
-    group: 'Deterministic',
-    fields: [
-      { key: 'command', label: 'Command', input: 'textarea', rows: 2, required: true, vars: true, placeholder: 'ddev composer install' },
-      { key: 'continueOnError', label: 'Continue on error', input: 'switch' },
-    ],
-    make: () => ({ type: 'bash', command: '', continueOnError: false }),
-  },
-  {
-    type: 'ai',
-    label: 'AI',
-    hint: 'Ask a model via OpenRouter',
-    kind: 'ai',
-    icon: 'i-lucide-sparkles',
-    group: 'AI',
-    fields: [
-      { key: 'prompt', label: 'Prompt', input: 'textarea', rows: 4, required: true, vars: true, placeholder: 'Summarize this build output: {{ steps.s2.stdout }}' },
-      { key: 'system', label: 'System prompt', input: 'textarea', rows: 2, vars: true, placeholder: 'Optional instructions for the model' },
-      { key: 'model', label: 'Model', input: 'text', placeholder: 'Default from Settings → Agent' },
-    ],
-    make: () => ({ type: 'ai', prompt: '' }),
-  },
-  {
-    type: 'js',
-    label: 'JavaScript',
-    hint: 'Run a script inside the sandbox',
-    kind: 'det',
-    icon: 'i-lucide-braces',
-    group: 'Deterministic',
-    fields: [
-      { key: 'code', label: 'Code — define main(input), return a JSON value', input: 'textarea', rows: 6, required: true, placeholder: 'function main(input) {\n  return { ok: true }\n}' },
-      { key: 'input', label: 'Input', input: 'text', vars: true, placeholder: '{{ steps.s1.result }} — a single reference passes the raw value' },
-    ],
-    make: () => ({ type: 'js', code: '' }),
-  },
-  {
-    type: 'http',
-    label: 'HTTP request',
-    hint: 'Call an external API or webhook',
-    kind: 'det',
-    icon: 'i-lucide-globe',
-    group: 'Deterministic',
-    fields: [
-      { key: 'method', label: 'Method', input: 'text', required: true, placeholder: 'GET' },
-      { key: 'url', label: 'URL', input: 'text', required: true, vars: true, placeholder: 'https://example.com/api' },
-      { key: 'headers', label: 'Headers (one "Name: value" per line)', input: 'textarea', rows: 2, vars: true },
-      { key: 'body', label: 'Body', input: 'textarea', rows: 3, vars: true },
-    ],
-    make: () => ({ type: 'http', method: 'GET', url: '' }),
-  },
-  {
-    type: 'if',
-    label: 'If / else',
-    hint: 'Branch on conditions',
-    kind: 'flow',
-    icon: 'i-lucide-git-fork',
-    group: 'Control flow',
-    fields: [],
-    make: () => ({ type: 'if', conditions: [[{ left: '', op: 'eq', right: '' }]], then: [], else: [] }),
-  },
-  {
-    type: 'loop',
-    label: 'Loop',
-    hint: 'Repeat steps per item or N times',
-    kind: 'flow',
-    icon: 'i-lucide-repeat',
-    group: 'Control flow',
-    fields: [
-      { key: 'items', label: 'Items — an array reference or a number', input: 'text', required: true, vars: true, placeholder: '{{ steps.s1.result }} or 3' },
-    ],
-    make: () => ({ type: 'loop', items: '', steps: [] }),
-  },
-  {
-    type: 'create-branch',
-    label: 'Create branch',
-    hint: 'Branch off the current checkout',
-    kind: 'out',
-    icon: 'i-lucide-git-branch',
-    group: 'Output',
-    fields: [
-      { key: 'name', label: 'Branch name', input: 'text', required: true, vars: true, placeholder: 'knecht/{{ run.id }}' },
-    ],
-    make: () => ({ type: 'create-branch', name: '' }),
-  },
-  {
-    type: 'create-commit',
-    label: 'Create commit',
-    hint: 'Commit everything the run changed',
-    kind: 'out',
-    icon: 'i-lucide-git-commit-horizontal',
-    group: 'Output',
-    fields: [
-      { key: 'message', label: 'Commit message', input: 'text', required: true, vars: true, placeholder: 'Automated change' },
-    ],
-    make: () => ({ type: 'create-commit', message: '' }),
-  },
-  {
-    type: 'create-pr',
-    label: 'Pull request',
-    hint: 'Push the branch and open a PR',
-    kind: 'out',
-    icon: 'i-lucide-git-pull-request',
-    group: 'Output',
-    fields: [
-      { key: 'title', label: 'Title', input: 'text', required: true, vars: true, placeholder: 'Knecht change' },
-      { key: 'body', label: 'Description', input: 'textarea', rows: 3, vars: true, placeholder: 'What this PR changes — {{ preview.url }} links the live preview.' },
-    ],
-    make: () => ({ type: 'create-pr', title: '', body: '' }),
-  },
+// Registry order = library order (grouped by `group` in the UI).
+export const STEP_DEFS: RegisteredStepDef[] = [
+  ddevStartStep,
+  bashStep,
+  aiStep,
+  jsStep,
+  httpStep,
+  ifStep,
+  loopStep,
+  createBranchStep,
+  createCommitStep,
+  createPrStep,
 ]
 
-export function stepDef(type: WorkflowStep['type']): StepDef {
+export function stepDef(type: WorkflowStep['type']): RegisteredStepDef {
   return STEP_DEFS.find(d => d.type === type)!
 }
 
@@ -167,6 +42,19 @@ export function stepDef(type: WorkflowStep['type']): StepDef {
 // steps it's joining — the single creation path (library click AND drag-drop).
 export function makeStep(type: WorkflowStep['type'], steps: WorkflowStep[]): WorkflowStep {
   return { ...stepDef(type).make(), id: nextStepId(steps) }
+}
+
+// How a step instance presents in lists: the def's identity, overlaid with its
+// instance-specific derivation (def.meta) and the user's custom label/note.
+export function workflowStepMeta(step: WorkflowStep): StepMeta {
+  const def = stepDef(step.type)
+  const derived = def.meta?.(step) ?? {}
+  return {
+    icon: derived.icon ?? def.icon,
+    kind: derived.kind ?? def.kind,
+    label: step.label?.trim() || derived.label || def.label,
+    detail: step.description?.trim() || derived.detail || '',
+  }
 }
 
 // Variables seeded into every run before the first step (workflows/context.ts).
@@ -186,7 +74,7 @@ export interface VarGroup {
 // The {{ steps.<id>.… }} group one prior step contributes, or null when it has
 // no outputs (or no id yet).
 export function stepOutputGroup(step: WorkflowStep, position: number): VarGroup | null {
-  const outputs = STEP_OUTPUTS[step.type]
+  const outputs = stepDef(step.type).outputs
   if (!outputs.length || !step.id) return null
   return {
     label: `${position} · ${workflowStepMeta(step).label}`,
