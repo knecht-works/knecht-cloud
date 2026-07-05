@@ -1,5 +1,5 @@
 import type { Project } from '../db/schema'
-import type { Step } from '../../shared/utils/workflow'
+import type { Condition, Step } from '../../shared/utils/workflow'
 
 // The run-scoped variable namespace (workflows.md §6): a single object seeded
 // at run start, into which each block's outputs land as it runs — so values
@@ -78,4 +78,67 @@ export function renderStepParams<S extends Step>(step: S, ctx: RunContext, rawPa
     rendered[key] = single ? lookup(single[1]!, ctx) : render(value, ctx)
   }
   return rendered as S
+}
+
+// Evaluate an if step's conditions: outer array = OR groups, inner = AND. Both
+// sides render against the context; operators compare the rendered strings
+// (gt/lt coerce to numbers). An empty conditions list matches.
+export function evalConditions(groups: Condition[][], ctx: RunContext): boolean {
+  if (!groups.length) return true
+  return groups.some(group => group.length > 0 && group.every(c => evalCondition(c, ctx)))
+}
+
+function evalCondition(c: Condition, ctx: RunContext): boolean {
+  const left = render(c.left, ctx)
+  const right = render(c.right ?? '', ctx)
+  switch (c.op) {
+    case 'eq': return left === right
+    case 'neq': return left !== right
+    case 'contains': return left.includes(right)
+    case 'not-contains': return !left.includes(right)
+    case 'empty': return left.trim() === ''
+    case 'not-empty': return left.trim() !== ''
+    case 'gt': return Number(left) > Number(right)
+    case 'lt': return Number(left) < Number(right)
+    case 'regex':
+      try {
+        return new RegExp(right).test(left)
+      }
+      catch {
+        return false
+      }
+  }
+}
+
+// A loop iterates at most this many times — the runaway guard.
+export const MAX_LOOP_ITERATIONS = 1000
+
+// Resolve a loop's `items` template to the values to iterate: an array (a
+// single {{ ref }} passes it raw; a JSON-array string parses) or a number N
+// (repeat N times, iterating 0..N-1).
+export function resolveLoopItems(items: string, ctx: RunContext): unknown[] {
+  const single = items.trim().match(SINGLE_REF_RE)
+  let value: unknown = single ? lookup(single[1]!, ctx) : render(items, ctx)
+  if (typeof value === 'string') {
+    const text = value.trim()
+    if (/^\d+$/.test(text)) {
+      value = Number(text)
+    }
+    else {
+      try {
+        value = JSON.parse(text)
+      }
+      catch {
+        // Falls through to the type check below.
+      }
+    }
+  }
+  const list = Array.isArray(value)
+    ? value
+    : (typeof value === 'number' && Number.isInteger(value) && value >= 0)
+        ? Array.from({ length: value }, (_, i) => i)
+        : null
+  if (!list) throw new Error(`loop items must resolve to an array or a non-negative number (got: ${JSON.stringify(value)?.slice(0, 120) ?? typeof value})`)
+  if (list.length > MAX_LOOP_ITERATIONS) throw new Error(`loop would run ${list.length} iterations (max ${MAX_LOOP_ITERATIONS})`)
+  return list
 }

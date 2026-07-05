@@ -216,6 +216,7 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
             v-for="s in timeline"
             :key="s.id"
             class="flex items-center gap-3 px-[18px] py-3"
+            :class="s.parentStepId ? 'pl-12' : ''"
           >
             <KStepIcon
               :icon="s.icon"
@@ -227,6 +228,10 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
               <div class="flex items-baseline gap-2">
                 <span class="truncate text-[13px] text-(--text-highlighted)">{{ s.label }}</span>
                 <span class="k-mono text-[10px] text-(--text-dimmed)">{{ s.stepId }}</span>
+                <span
+                  v-if="s.iteration !== null"
+                  class="k-mono text-[10px] text-(--text-dimmed)"
+                >#{{ s.iteration + 1 }}</span>
                 <span
                   v-if="s.attempt > 1"
                   class="k-mono text-[10px] text-(--accent-orange)"

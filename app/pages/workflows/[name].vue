@@ -65,7 +65,7 @@ watch(routeName, () => {
 const steps = computed(() => draft.value.steps)
 
 // ── inline test run (composable owns picker, run state and polling) ────────
-const { open, project, starting, activeRun, testBranch, testBranchItems, start, detach, retest }
+const { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, start, detach, retest }
   = useWorkflowTestRun<(typeof projects.value)[number]>(() => saved.value?.name, () => openSteps.value.clear())
 
 const editable = computed(() => !activeRun.value)
@@ -298,23 +298,24 @@ const mode = computed<Mode>(() => {
 // ── per-step status ───────────────────────────────────────────────────────
 type StepStatus = 'idle' | 'selected' | 'done' | 'running' | 'error' | 'pending' | 'skipped'
 
-// Count the workflow-step markers the runner has written so far (it logs one
-// `▶ <type>…` line per step, in order). Excludes non-step markers like
-// `▶ Preparing isolated checkout` and `▶ import-db`.
-function startedCount(log: string): number {
-  return (log.match(/^▶ (ddev-start|bash:|create-branch:|create-commit:|create-pr:)/gm) ?? []).length
-}
-
+// Per-card status from the run's step records (run_steps, polled alongside the
+// run): a top-level step's row is matched by its position in the sequence.
 const statuses = computed<StepStatus[]>(() => {
   const run = activeRun.value
   if (!run) return steps.value.map(s => (openSteps.value.has(s) ? 'selected' : 'idle'))
-  const started = startedCount(run.log)
+  const topRows = activeRunSteps.value.filter(r => !r.parentStepId)
   return steps.value.map((_, i) => {
-    if (i < started - 1) return 'done'
-    if (i === started - 1) return run.status === 'failed' ? 'error' : run.status === 'success' ? 'done' : 'running'
-    return run.status === 'failed' ? 'skipped' : 'pending'
+    const row = topRows.find(r => r.stepIndex === i)
+    if (!row) return run.status === 'failed' ? 'skipped' : 'pending'
+    if (row.status === 'running') return 'running'
+    if (row.status === 'failed') return 'error'
+    return 'done'
   })
 })
+
+// 1-based "step N of M" for the live banner.
+const startedSteps = computed(() =>
+  Math.max(1, activeRunSteps.value.filter(r => !r.parentStepId).length))
 
 const railSteps = computed(() =>
   steps.value.map((step, i) => ({ step, meta: workflowStepMeta(step), status: statuses.value[i]!, n: i + 1 })),
@@ -598,13 +599,13 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
             class="size-[17px] flex-none text-(--accent-orange)"
           />
           <div class="text-[13.5px] leading-[1.4] text-(--text-toned)">
-            Test run in the real project · <b>Step {{ Math.max(1, startedCount(activeRun!.log)) }} of {{ steps.length }}</b> · executing…
+            Test run in the real project · <b>Step {{ startedSteps }} of {{ steps.length }}</b> · executing…
           </div>
         </div>
         <div class="h-[3px] bg-(--surface-accented)">
           <div
             class="h-full bg-(--accent-orange)"
-            :style="{ width: `${(startedCount(activeRun!.log) / steps.length) * 100}%`, boxShadow: '0 0 12px var(--accent-orange)' }"
+            :style="{ width: `${(startedSteps / steps.length) * 100}%`, boxShadow: '0 0 12px var(--accent-orange)' }"
           />
         </div>
       </div>
@@ -633,7 +634,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
           class="size-[17px] flex-none text-(--status-error)"
         />
         <div class="text-[13.5px] leading-[1.4] text-(--text-toned)">
-          <b>Test failed at step {{ startedCount(activeRun!.log) }}.</b> The following steps were skipped.
+          <b>Test failed at step {{ startedSteps }}.</b> The following steps were skipped.
         </div>
       </div>
 
@@ -1046,6 +1047,8 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                       :step="r.step"
                       :groups="availableVars(steps, i)"
                       :editable="editable"
+                      :root="steps"
+                      :depth="1"
                     />
                   </div>
                 </div>
@@ -1142,7 +1145,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
               <div class="flex flex-col gap-3.5">
                 <div class="flex items-center justify-between">
                   <span class="k-mono text-[11.5px] text-(--text-dimmed)">Failed at step</span>
-                  <span class="k-mono text-[11.5px] text-(--status-error)">{{ startedCount(activeRun.log) }} of {{ steps.length }}</span>
+                  <span class="k-mono text-[11.5px] text-(--status-error)">{{ startedSteps }} of {{ steps.length }}</span>
                 </div>
                 <pre class="k-mono max-h-[340px] overflow-auto whitespace-pre-wrap rounded-(--radius-md) border border-(--border-muted) bg-(--surface-base) p-3 text-[11.5px] leading-[1.7] text-(--text-muted)">{{ logTail || '—' }}</pre>
               </div>

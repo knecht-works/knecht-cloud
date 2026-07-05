@@ -1,0 +1,171 @@
+<script setup lang="ts">
+import { MAX_STEP_DEPTH } from '#shared/utils/workflow'
+
+// A composite step's nested step list (if branches, loop body), edited inline
+// inside the parent's settings card. Deliberately simpler than the top-level
+// rail: reorder via up/down, add via a type menu — no drag & drop.
+const props = defineProps<{
+  /** The branch array — mutated in place (the draft owns the state). */
+  steps: WorkflowStep[]
+  /** The workflow's ROOT step list — ids are unique across the whole tree. */
+  root: WorkflowStep[]
+  /** Variable groups visible at the composite step itself. */
+  varsBase: VarGroup[]
+  /** True when these steps run inside a loop ({{ loop.item }} available). */
+  loop?: boolean
+  /** Nesting depth of THESE steps (top-level = 1); caps further composites. */
+  depth: number
+  editable: boolean
+  title: string
+}>()
+
+const open = ref(new Set<WorkflowStep>())
+
+// The branch is edited in place — the draft object owns the state, the same
+// contract as StepSettings' `record`.
+const list = computed(() => props.steps)
+
+function toggle(step: WorkflowStep) {
+  if (open.value.has(step)) open.value.delete(step)
+  else open.value.add(step)
+}
+
+// Composites are offered only while their children would stay within the
+// depth cap; the schema enforces the same limit server-side.
+const addItems = computed(() => STEP_DEFS
+  .filter(d => props.depth < MAX_STEP_DEPTH || !['if', 'loop'].includes(d.type))
+  .map(d => ({
+    label: d.label,
+    icon: d.icon,
+    onSelect: () => {
+      const step = makeStep(d.type, props.root)
+      list.value.push(step)
+      open.value.add(step)
+    },
+  })))
+
+function move(i: number, delta: -1 | 1) {
+  const to = i + delta
+  if (to < 0 || to >= list.value.length) return
+  const [step] = list.value.splice(i, 1)
+  list.value.splice(to, 0, step!)
+}
+
+function remove(i: number) {
+  const [removed] = list.value.splice(i, 1)
+  if (removed) open.value.delete(removed)
+}
+
+// What sub-step `i` can reference: everything the composite sees, the loop
+// vars when applicable, and the outputs of its prior siblings.
+function groupsFor(i: number): VarGroup[] {
+  const groups = [...props.varsBase]
+  if (props.loop) groups.push(LOOP_VARS)
+  props.steps.slice(0, i).forEach((step, k) => {
+    const group = stepOutputGroup(step, k + 1)
+    if (group) groups.push(group)
+  })
+  return groups
+}
+</script>
+
+<template>
+  <div>
+    <div class="flex items-center justify-between">
+      <span class="k-label">{{ title }}</span>
+      <UDropdownMenu :items="addItems">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          icon="i-lucide-plus"
+          label="Add step"
+          :disabled="!editable"
+        />
+      </UDropdownMenu>
+    </div>
+    <p
+      v-if="!steps.length"
+      class="mt-1.5 rounded-(--radius-md) border border-dashed border-(--border-muted) px-3 py-2.5 text-[12px] text-(--text-dimmed)"
+    >
+      No steps yet.
+    </p>
+    <div
+      v-else
+      class="mt-1.5 flex flex-col gap-1.5"
+    >
+      <div
+        v-for="(s, i) in steps"
+        :key="s.id ?? i"
+        class="rounded-(--radius-md) border bg-(--surface-muted)"
+        :style="{ borderColor: stepValid(s) ? 'var(--border-default)' : 'var(--accent-orange)' }"
+      >
+        <div class="flex items-center gap-2.5 px-2.5 py-2">
+          <KStepIcon
+            :icon="workflowStepMeta(s).icon"
+            :color="STEP_KIND_COLOR[workflowStepMeta(s).kind]"
+            :size="26"
+            :radius="6"
+          />
+          <button
+            type="button"
+            class="min-w-0 flex-1 text-left"
+            @click="toggle(s)"
+          >
+            <span class="block truncate text-[12.5px] font-medium text-(--text-highlighted)">{{ workflowStepMeta(s).label }}</span>
+            <span
+              v-if="workflowStepMeta(s).detail"
+              class="k-mono block truncate text-[10.5px] text-(--text-dimmed)"
+            >{{ workflowStepMeta(s).detail }}</span>
+          </button>
+          <span class="k-mono text-[10px] text-(--text-dimmed)">{{ s.id }}</span>
+          <div class="flex flex-none items-center">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-chevron-up"
+              aria-label="Move up"
+              :disabled="!editable || i === 0"
+              @click="move(i, -1)"
+            />
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-chevron-down"
+              aria-label="Move down"
+              :disabled="!editable || i === steps.length - 1"
+              @click="move(i, 1)"
+            />
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-lucide-trash-2"
+              aria-label="Remove step"
+              :disabled="!editable"
+              @click="remove(i)"
+            />
+            <UButton
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :icon="open.has(s) ? 'i-lucide-chevron-down' : 'i-lucide-settings-2'"
+              :aria-label="open.has(s) ? 'Collapse' : 'Settings'"
+              @click="toggle(s)"
+            />
+          </div>
+        </div>
+        <WorkflowStepSettings
+          v-if="open.has(s)"
+          :step="s"
+          :groups="groupsFor(i)"
+          :editable="editable"
+          :root="root"
+          :depth="depth"
+        />
+      </div>
+    </div>
+  </div>
+</template>

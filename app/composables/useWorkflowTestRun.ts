@@ -9,6 +9,17 @@ export interface TestRunRow {
   finishedAt: string | number | null
 }
 
+// The run's per-step execution records (run_steps) — drives per-card status.
+export interface TestRunStepRow {
+  id: number
+  stepIndex: number
+  stepId: string
+  type: string
+  status: 'running' | 'success' | 'failed'
+  parentStepId: string | null
+  iteration: number | null
+}
+
 interface TestProject {
   id: number
   defaultBranch: string
@@ -29,6 +40,7 @@ export function useWorkflowTestRun<P extends TestProject>(
   const project = ref<P>()
   const starting = ref(false)
   const activeRun = ref<TestRunRow | null>(null)
+  const activeRunSteps = ref<TestRunStepRow[]>([])
 
   // Branch the test runs against; follows the picked project (default = its
   // default branch) and offers that project's branches.
@@ -48,6 +60,7 @@ export function useWorkflowTestRun<P extends TestProject>(
         method: 'POST',
         body: { projectId: project.value.id, workflow, branch: testBranch.value },
       })
+      activeRunSteps.value = []
       open.value = false
       onStarted?.()
     }
@@ -63,12 +76,17 @@ export function useWorkflowTestRun<P extends TestProject>(
     () => !!activeRun.value && isLiveStatus(activeRun.value.status),
     async () => {
       if (!activeRun.value) return
-      activeRun.value = await $fetch<TestRunRow>(`/api/runs/${activeRun.value.id}`)
+      const id = activeRun.value.id
+      ;[activeRun.value, activeRunSteps.value] = await Promise.all([
+        $fetch<TestRunRow>(`/api/runs/${id}`),
+        $fetch<TestRunStepRow[]>(`/api/runs/${id}/steps`),
+      ])
     },
   )
 
   function detach() {
     activeRun.value = null
+    activeRunSteps.value = []
   }
 
   async function retest() {
@@ -85,5 +103,5 @@ export function useWorkflowTestRun<P extends TestProject>(
     catch { /* surfaced via the run page if it fails to start */ }
   }
 
-  return { open, project, starting, activeRun, testBranch, testBranchItems, start, detach, retest }
+  return { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, start, detach, retest }
 }

@@ -28,6 +28,20 @@ export interface StepMeta {
   retry?: StepRetry
 }
 
+// A structured condition row (workflow-engine-plan.md D8): both sides are
+// templates rendered against the run context; the operator compares the
+// rendered strings (gt/lt coerce to numbers). Deliberately NOT evaluated JS —
+// user code belongs in the sandboxed js step, not the control plane.
+export const CONDITION_OPS = ['eq', 'neq', 'contains', 'not-contains', 'empty', 'not-empty', 'gt', 'lt', 'regex'] as const
+export type ConditionOp = typeof CONDITION_OPS[number]
+
+export interface Condition {
+  left: string
+  op: ConditionOp
+  /** Unused for empty/not-empty; missing means ''. */
+  right?: string
+}
+
 export type Step = StepMeta & (
   | { type: 'ddev-start' }
   | { type: 'bash', command: string }
@@ -36,10 +50,40 @@ export type Step = StepMeta & (
   // the referenced value RAW (object/array), not stringified — see rawParams.
   | { type: 'js', code: string, input?: string }
   | { type: 'http', method: string, url: string, headers?: string, body?: string }
+  // Composite control flow: outer conditions array = OR groups, inner = AND.
+  | { type: 'if', conditions: Condition[][], then: Step[], else: Step[] }
+  // `items` resolves to an array (iterate it) or a number (repeat N times).
+  | { type: 'loop', items: string, steps: Step[] }
   | { type: 'create-branch', name: string }
   | { type: 'create-commit', message: string }
   | { type: 'create-pr', title: string, body: string }
 )
+
+// Composite steps embed sub-step lists the engine recurses into.
+export function stepChildren(step: Step): Step[][] {
+  if (step.type === 'if') return [step.then, step.else]
+  if (step.type === 'loop') return [step.steps]
+  return []
+}
+
+// Every step in the tree, depth-first — the step-id namespace is FLAT, so id
+// uniqueness and lookups always work on this.
+export function flattenSteps(steps: Step[]): Step[] {
+  return steps.flatMap(step => [step, ...flattenSteps(stepChildren(step).flat())])
+}
+
+// Nesting is capped to keep the builder and variable scoping comprehensible.
+export const MAX_STEP_DEPTH = 3
+
+export function stepTreeDepth(steps: Step[]): number {
+  let max = 0
+  for (const step of steps) {
+    const children = stepChildren(step)
+    const depth = 1 + (children.length ? Math.max(...children.map(stepTreeDepth)) : 0)
+    if (depth > max) max = depth
+  }
+  return max
+}
 
 // A workflow name doubles as its URL segment and the `runs.workflow` reference.
 // It's a free-form friendly name (spaces allowed), constrained only to what's
@@ -74,6 +118,13 @@ export const STEP_OUTPUTS: Record<Step['type'], StepVar[]> = {
     { path: 'status', hint: 'The HTTP status code' },
     { path: 'body', hint: 'The response body (parsed JSON when possible)' },
   ],
+  'if': [
+    { path: 'matched', hint: 'Whether the conditions matched (then ran)' },
+  ],
+  'loop': [
+    { path: 'results', hint: 'Per-iteration outputs of the loop\'s steps' },
+    { path: 'count', hint: 'How many iterations ran' },
+  ],
   'create-branch': [
     { path: 'name', hint: 'The created branch' },
   ],
@@ -94,23 +145,29 @@ function freeStepId(taken: Set<string>): string {
   }
 }
 
-// Backfill missing (or duplicated) step ids without touching valid ones.
-// Applied on every load/save boundary: the API schemas, the engine's row
+// Backfill missing (or duplicated) step ids without touching valid ones,
+// recursing into composite steps — the id namespace is flat across the whole
+// tree. Applied on every load/save boundary: the API schemas, the engine's row
 // loader, and the workflows GET — so pre-id rows behave as if they had ids.
-export function ensureStepIds<S extends StepMeta>(steps: S[]): S[] {
-  const declared = new Set(steps.map(s => s.id).filter((id): id is string => !!id))
+export function ensureStepIds(steps: Step[]): Step[] {
+  const declared = new Set(flattenSteps(steps).map(s => s.id).filter((id): id is string => !!id))
   const assigned = new Set<string>()
-  return steps.map((step) => {
+  const assign = (list: Step[]): Step[] => list.map((step) => {
     let id = step.id
     if (!id || assigned.has(id)) {
       id = freeStepId(new Set([...declared, ...assigned]))
     }
     assigned.add(id)
-    return step.id === id ? step : { ...step, id }
+    let next: Step = step.id === id ? step : { ...step, id }
+    if (next.type === 'if') next = { ...next, then: assign(next.then), else: assign(next.else) }
+    if (next.type === 'loop') next = { ...next, steps: assign(next.steps) }
+    return next
   })
+  return assign(steps)
 }
 
-// The id for a step the builder is about to append/insert.
-export function nextStepId(steps: StepMeta[]): string {
-  return freeStepId(new Set(steps.map(s => s.id).filter((id): id is string => !!id)))
+// The id for a step the builder is about to append/insert; `steps` is the
+// workflow's ROOT list (ids are unique across the whole tree).
+export function nextStepId(steps: Step[]): string {
+  return freeStepId(new Set(flattenSteps(steps).map(s => s.id).filter((id): id is string => !!id)))
 }
