@@ -5,7 +5,7 @@
 // and the editor can't drift; the server side pairs this registry with an
 // action module (server/workflows/actions).
 
-import { STEP_OUTPUTS, type StepVar } from '#shared/utils/workflow'
+import { nextStepId, STEP_OUTPUTS, type StepVar } from '#shared/utils/workflow'
 
 export type { StepVar }
 
@@ -99,6 +99,12 @@ export function stepDef(type: WorkflowStep['type']): StepDef {
   return STEP_DEFS.find(d => d.type === type)!
 }
 
+// A fresh step for the given type, with its stable id assigned against the
+// steps it's joining — the single creation path (library click AND drag-drop).
+export function makeStep(type: WorkflowStep['type'], steps: WorkflowStep[]): WorkflowStep {
+  return { ...stepDef(type).make(), id: nextStepId(steps) }
+}
+
 // Variables seeded into every run before the first step (workflows/context.ts).
 const CONTEXT_VARS: StepVar[] = [
   { path: 'run.id', hint: 'This run\'s number' },
@@ -114,13 +120,18 @@ export interface VarGroup {
 }
 
 // Everything a step at `index` can reference: the run context plus the outputs
-// of every step BEFORE it — the n8n model, values flow front to back.
+// of every step BEFORE it — values flow front to back. Outputs are offered
+// under the step's stable id ({{ steps.<id>.<output> }}), so a step type used
+// twice stays unambiguous.
 export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
   const groups: VarGroup[] = [{ label: 'Context', vars: CONTEXT_VARS }]
   steps.slice(0, index).forEach((step, i) => {
     const outputs = STEP_OUTPUTS[step.type]
-    if (outputs.length) {
-      groups.push({ label: `${i + 1} · ${workflowStepMeta(step).label}`, vars: outputs })
+    if (outputs.length && step.id) {
+      groups.push({
+        label: `${i + 1} · ${workflowStepMeta(step).label}`,
+        vars: outputs.map(v => ({ ...v, path: `steps.${step.id}.${v.path}` })),
+      })
     }
   })
   return groups

@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
+import { ensureStepIds } from '../../shared/utils/workflow'
 import { getSettings, updateSettings } from '../utils/settings'
 import { parseWorkflow, type Workflow } from './schema'
 
@@ -46,7 +47,9 @@ steps:
 const STARTERS: Workflow[] = [BOOT_AND_PREVIEW, DEMO_PR].map(parseWorkflow)
 
 function rowToWorkflow(row: typeof schema.workflows.$inferSelect): Workflow {
-  return { name: row.name, description: row.description, steps: row.steps }
+  // Pre-id rows get ids backfilled on read (deterministic, so the engine and
+  // the API agree without persisting); saves from the builder persist them.
+  return { name: row.name, description: row.description, steps: ensureStepIds(row.steps) }
 }
 
 export function listWorkflows(): Workflow[] {

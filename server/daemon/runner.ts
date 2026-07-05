@@ -79,8 +79,14 @@ async function execRun(runId: number, project: Project): Promise<void> {
       },
     }
     for (const step of workflow.steps) {
-      const patch = await actionFor(step.type).run(renderStepParams(step, ctx), rt)
-      if (patch) Object.assign(ctx, patch)
+      const action = actionFor(step.type)
+      const outputs = await action.run(renderStepParams(step, ctx), rt)
+      if (outputs) {
+        // steps.<id> is the collision-free reference; the legacy top-level key
+        // keeps pre-id templates ({{ branch.name }}, {{ pr.url }}) rendering.
+        if (step.id) ctx.steps[step.id] = outputs
+        if (action.legacyKey) ctx[action.legacyKey] = outputs
+      }
     }
     appendLog(runId, `\n✓ Done\n`)
     finish(runId, 'success')

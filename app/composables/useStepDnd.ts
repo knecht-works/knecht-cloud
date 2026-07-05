@@ -63,7 +63,7 @@ export function useStepDnd(
 
   function onRailDrop() {
     if (libDrag.value && dropIndex.value !== null) {
-      steps.value.splice(dropIndex.value, 0, stepDef(libDrag.value).make())
+      steps.value.splice(dropIndex.value, 0, makeStep(libDrag.value, steps.value))
       openSteps.value.add(steps.value[dropIndex.value]!)
     }
     endDrag()

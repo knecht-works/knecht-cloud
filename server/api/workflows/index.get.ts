@@ -1,4 +1,5 @@
 import { db, schema } from '../../db'
+import { ensureStepIds } from '../../../shared/utils/workflow'
 
 // GET /api/workflows → the workflows for the overview + builder: name,
 // description, the normalized step sequence and the `enabled` automation switch.
@@ -14,4 +15,7 @@ export default defineEventHandler(() => {
     })
     .from(schema.workflows)
     .all()
+    // Pre-id rows get ids backfilled (the same deterministic assignment the
+    // engine uses), so the builder can offer steps.<id> outputs immediately.
+    .map(row => ({ ...row, steps: ensureStepIds(row.steps) }))
 })

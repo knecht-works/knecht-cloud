@@ -3,10 +3,14 @@
 // runner switches on; adding a block is: extend the union here, handle it in
 // the runner, and describe it in app/utils/workflow-steps.ts.
 
-// Optional per-step metadata the visual builder can set: a custom display name
-// (`label`) and a note (`description`). They don't affect execution — they're
-// just for the builder/overview.
+// Per-step metadata. `id` is the step's stable identity: unique within its
+// workflow, immutable once assigned (reorders and label edits keep it), and the
+// key later steps reference outputs under ({{ steps.<id>.<output> }}). It's
+// optional in the type because pre-id definitions exist in the DB — every
+// load/save path backfills via ensureStepIds. `label`/`description` are
+// builder-only presentation.
 export interface StepMeta {
+  id?: string
   label?: string
   description?: string
 }
@@ -27,7 +31,7 @@ export const WORKFLOW_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u
 // A variable a step contributes to the run context for later steps. Shared so
 // the builder's autocomplete and the engine describe step outputs in one place.
 export interface StepVar {
-  /** Template path, e.g. 'branch.name' → {{ branch.name }} */
+  /** Output name relative to the step, e.g. 'name' → {{ steps.<id>.name }} */
   path: string
   hint: string
 }
@@ -35,17 +39,46 @@ export interface StepVar {
 // What each step type writes into the run context, keyed by step type.
 export const STEP_OUTPUTS: Record<Step['type'], StepVar[]> = {
   'ddev-start': [
-    { path: 'preview.url', hint: 'The booted environment\'s preview URL' },
+    { path: 'url', hint: 'The booted environment\'s preview URL' },
   ],
   'bash': [],
   'create-branch': [
-    { path: 'branch.name', hint: 'The created branch' },
+    { path: 'name', hint: 'The created branch' },
   ],
   'create-commit': [
-    { path: 'commit.sha', hint: 'The commit\'s SHA (empty when nothing changed)' },
+    { path: 'sha', hint: 'The commit\'s SHA (empty when nothing changed)' },
   ],
   'create-pr': [
-    { path: 'pr.url', hint: 'The opened pull request' },
-    { path: 'pr.number', hint: 'Its number' },
+    { path: 'url', hint: 'The opened pull request' },
+    { path: 'number', hint: 'Its number' },
   ],
+}
+
+// The lowest free `s<n>` id — deterministic, so backfilling the same stored
+// list always produces the same ids even before they're persisted.
+function freeStepId(taken: Set<string>): string {
+  for (let n = 1; ; n++) {
+    if (!taken.has(`s${n}`)) return `s${n}`
+  }
+}
+
+// Backfill missing (or duplicated) step ids without touching valid ones.
+// Applied on every load/save boundary: the API schemas, the engine's row
+// loader, and the workflows GET — so pre-id rows behave as if they had ids.
+export function ensureStepIds<S extends StepMeta>(steps: S[]): S[] {
+  const declared = new Set(steps.map(s => s.id).filter((id): id is string => !!id))
+  const assigned = new Set<string>()
+  return steps.map((step) => {
+    let id = step.id
+    if (!id || assigned.has(id)) {
+      id = freeStepId(new Set([...declared, ...assigned]))
+    }
+    assigned.add(id)
+    return step.id === id ? step : { ...step, id }
+  })
+}
+
+// The id for a step the builder is about to append/insert.
+export function nextStepId(steps: StepMeta[]): string {
+  return freeStepId(new Set(steps.map(s => s.id).filter((id): id is string => !!id)))
 }
