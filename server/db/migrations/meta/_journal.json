@@ -15,6 +15,13 @@
       "when": 1783281945090,
       "tag": "0001_lonely_sister_grimm",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1783282323471,
+      "tag": "0002_mean_goblin_queen",
+      "breakpoints": true
     }
   ]
 }

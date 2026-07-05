@@ -1,7 +1,6 @@
 import { eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Trigger } from '../db/schema'
-import { startRun } from '../daemon/runner'
 import { isWorkflowEnabled } from '../workflows'
 import { isGithubAppConfigured } from './github-credentials'
 
@@ -94,10 +93,11 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
   }))
 }
 
-// Start the trigger's workflow against each of its projects (one run each), then
-// bump the fire counters. Returns the created run ids. Runs authenticate via the
-// GitHub App (no session needed); with the app unconfigured each run is recorded
-// as failed with a clear reason rather than failing silently.
+// Queue the trigger's workflow against each of its projects (one run each; the
+// dispatcher starts them as concurrency slots free up), then bump the fire
+// counters. Returns the created run ids. Runs authenticate via the GitHub App
+// (no session needed); with the app unconfigured each run is recorded as failed
+// with a clear reason rather than failing silently.
 export function fireTrigger(t: Trigger): number[] {
   // The workflow's master switch is off → automation is paused. Don't create
   // runs or bump counters; the trigger stays configured and resumes when
@@ -123,10 +123,7 @@ export function fireTrigger(t: Trigger): number[] {
       .get()
     runIds.push(run.id)
 
-    if (isGithubAppConfigured()) {
-      startRun(run.id, project)
-    }
-    else {
+    if (!isGithubAppConfigured()) {
       db.update(schema.runs)
         .set({
           status: 'failed',

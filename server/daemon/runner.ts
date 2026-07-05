@@ -33,12 +33,14 @@ import { ensureEnvUp } from './envs'
 // path/reference.
 const MAX_OUTPUT_BYTES = 64 * 1024
 
-// Kick off a run. Returns immediately; execution continues in the background.
-// Repo credentials are minted on demand from the GitHub App (github-app.ts) —
-// installation tokens expire after 1h, so each git network operation fetches a
-// fresh one instead of holding a single token across a possibly-long run.
-export function startRun(runId: number, project: Project): void {
-  void execRun(runId, project).catch((e) => {
+// Execute a run. Called only by the dispatcher (server/plugins/dispatcher.ts),
+// which awaits the returned promise to track the concurrency slot; the promise
+// never rejects. Repo credentials are minted on demand from the GitHub App
+// (github-app.ts) — installation tokens expire after 1h, so each git network
+// operation fetches a fresh one instead of holding a single token across a
+// possibly-long run.
+export function startRun(runId: number, project: Project): Promise<void> {
+  return execRun(runId, project).catch((e) => {
     appendLog(runId, `\nRunner crashed: ${(e as Error).message}\n`)
     finish(runId, 'failed')
   })

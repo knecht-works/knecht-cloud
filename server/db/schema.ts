@@ -214,6 +214,11 @@ export const settings = sqliteTable('settings', {
   // archives until the run is deleted.
   archiveRetentionDays: integer('archive_retention_days').notNull().default(30),
 
+  // How many runs may execute at once (each boots a full sandbox — this is the
+  // CPU/RAM guard). Queued runs wait; the dispatcher (server/plugins/
+  // dispatcher.ts) starts them as slots free up.
+  maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
+
   // Whether the bundled starter workflows have been seeded into the table. Seeded
   // once on first boot; afterwards workflows are fully user-owned (deletions and
   // renames stick), so we never re-seed.
