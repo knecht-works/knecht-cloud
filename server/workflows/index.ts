@@ -12,6 +12,7 @@ import { parseWorkflow, type Workflow } from './schema'
 // built-in, and deleting that row reverts to the built-in.
 
 const BOOT_AND_PREVIEW = `
+version: 1
 name: boot-and-preview
 description: Boot the project, install dependencies, import the DB, and preview it.
 steps:
@@ -26,6 +27,7 @@ steps:
 // change, branches, commits, and opens a real PR — no ddev boot needed, so it
 // runs fast and shows the front-to-back {{ run.id }} flow producing a PR.
 const DEMO_PR = `
+version: 1
 name: demo-pr
 description: Make a small change and open a PR — demonstrates the git blocks and variable passing.
 steps:

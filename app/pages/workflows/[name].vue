@@ -130,6 +130,15 @@ async function toggleEnabled() {
   }
 }
 
+// ── export (a browser download; the endpoint sets content-disposition) ──────
+const exportItems = computed(() => (['yaml', 'json'] as const).map(format => ({
+  label: format.toUpperCase(),
+  icon: 'i-lucide-file-down',
+  onSelect: () => {
+    if (saved.value) window.location.assign(`/api/workflows/${encodeURIComponent(saved.value.name)}/export?format=${format}`)
+  },
+})))
+
 // ── step mutations (step identity/fields come from the registry) ────────────
 function addStep(type: WorkflowStep['type']) {
   const step = makeStep(type, draft.value.steps)
@@ -198,7 +207,9 @@ async function persist() {
       await navigateTo(`/workflows/${encodeURIComponent(created.name)}`)
     }
     else {
-      const updated = await $fetch(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'PATCH', body: saveBody() })
+      // Typed explicitly: `/api/workflows/${string}` also matches the export
+      // sub-route since it exists, which degrades Nitro's inference to unknown.
+      const updated = await $fetch<{ name: string }>(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'PATCH', body: saveBody() })
       original.value = JSON.stringify(draft.value)
       saveStatus.value = 'saved'
       if (updated.name !== saved.value.name) {
@@ -257,7 +268,7 @@ async function removeWorkflow() {
   if (!saved.value) return
   removing.value = true
   try {
-    const res = await $fetch(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'DELETE' })
+    const res = await $fetch<{ deletedTriggers: number }>(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'DELETE' })
     await refresh()
     toast.add({
       title: 'Workflow deleted',
@@ -566,6 +577,17 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
               </span>
             </UTooltip>
 
+            <UDropdownMenu
+              v-if="saved"
+              :items="exportItems"
+            >
+              <UButton
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-download"
+                label="Export"
+              />
+            </UDropdownMenu>
             <UButton
               v-if="saved"
               color="error"

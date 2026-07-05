@@ -1,4 +1,4 @@
-import { parse } from 'yaml'
+import { parse, stringify } from 'yaml'
 import { z } from 'zod'
 import {
   CONDITION_OPS,
@@ -61,19 +61,10 @@ const maxDepth = (steps: Step[], ctx: z.RefinementCtx) => {
   }
 }
 
-const workflowSchema = z.object({
-  name: z.string().min(1),
-  description: z.string().default(''),
-  // The YAML authoring form carries no ids — backfill deterministically.
-  steps: z.array(stepSchema).min(1).superRefine(maxDepth).transform(ensureStepIds),
-})
-
-export type Workflow = z.infer<typeof workflowSchema>
-
-// Parse + validate a workflow from its YAML source. Throws on invalid YAML or a
-// definition that doesn't match the schema.
-export function parseWorkflow(yaml: string): Workflow {
-  return workflowSchema.parse(parse(yaml))
+export interface Workflow {
+  name: string
+  description: string
+  steps: Step[]
 }
 
 // Validation for workflows coming from the visual builder (the API). Unlike
@@ -125,3 +116,44 @@ export const workflowInputSchema = z.object({
 })
 
 export type WorkflowInput = z.infer<typeof workflowInputSchema>
+
+// ── import / export (workflow-engine-plan.md D9) ─────────────────────────────
+// The normalized JSON shape is canonical; YAML is the same document serialized.
+// The envelope carries an integer format version — older exports migrate here
+// as the format evolves (none yet: v1 is the first), newer ones are rejected
+// with a clear message instead of being half-read.
+export const WORKFLOW_FORMAT_VERSION = 1
+
+// Import accepts steps in BOTH forms: the explicit normalized shape that
+// exports write, and the terse authoring sugar for hand-written files.
+const importedStepSchema = z.union([normalizedStepSchema, stepSchema])
+
+export const workflowDocumentSchema = z.object({
+  version: z.number().int().min(1)
+    .max(WORKFLOW_FORMAT_VERSION, `This file uses a newer workflow format than this instance understands (max: ${WORKFLOW_FORMAT_VERSION})`)
+    .default(1),
+  name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores'),
+  description: z.string().default(''),
+  steps: z.array(importedStepSchema).min(1).superRefine(maxDepth).transform(ensureStepIds),
+})
+
+// Parse + validate a workflow from its YAML (or JSON — YAML is a superset)
+// source. Throws on invalid input; used for the bundled starter templates.
+// The import API uses `workflowDocumentSchema` directly for path-precise errors.
+export function parseWorkflow(source: string): Workflow {
+  const doc = workflowDocumentSchema.parse(parse(source))
+  return { name: doc.name, description: doc.description, steps: doc.steps }
+}
+
+// Serialize a workflow to its export document: the explicit normalized step
+// form (ids included, so an export→import round-trip is identity), wrapped in
+// the version envelope.
+export function serializeWorkflow(workflow: Workflow, format: 'yaml' | 'json'): string {
+  const doc = {
+    version: WORKFLOW_FORMAT_VERSION,
+    name: workflow.name,
+    description: workflow.description,
+    steps: workflow.steps,
+  }
+  return format === 'json' ? `${JSON.stringify(doc, null, 2)}\n` : stringify(doc)
+}
