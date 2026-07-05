@@ -361,6 +361,29 @@ steps:
   migrations (`migrateDefinition(v, doc)`), so future format changes never strand
   exported files. Starter templates in `server/workflows/index.ts` move to format v1.
 
+## 3b. Adding a step type — the contract
+
+A step type is exactly two files plus one type line; everything else
+(validation schemas, runner dispatch, retry/continueOnError, `steps.<id>`
+outputs, builder library, autocomplete, import/export, run timeline) derives
+from the registries:
+
+1. **Type** — one member in the `Step` union (`shared/utils/workflow.ts`).
+   This is the cross-boundary anchor: both files below are compiler-checked
+   against it.
+2. **Server** — `server/workflows/actions/<type>.ts` (`defineAction`: Zod
+   params, YAML authoring form, `run()`, optional `legacyKey`/`rawParams`),
+   registered with one line in `server/workflows/actions/index.ts`.
+3. **Client** — `app/utils/steps/<type>.ts` (`defineStep`: label/icon/kind/
+   group, editor fields, defaults, contributed `outputs`, list presentation),
+   registered with one line in `app/utils/workflow-steps.ts` (`STEP_DEFS` —
+   list order is the library's display order).
+
+Two files instead of one because the server module imports process-only
+dependencies (execa, DB, fs) that must never reach the browser bundle, and the
+registration lines stay explicit because Nitro doesn't reliably support glob
+imports server-side and the client list doubles as the ordering spec.
+
 ## 4. Roadmap
 
 Each phase is independently shippable and verified before the next.
