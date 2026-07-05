@@ -1,40 +1,24 @@
 import { parse } from 'yaml'
 import { z } from 'zod'
 import { WORKFLOW_NAME_RE, type Step } from '../../shared/utils/workflow'
+import { ACTIONS } from './actions'
 
 export type { Step }
 
 // The workflow definition format (workflows.md §10, mvp.md §3.2): a linear
-// sequence of blocks. The visual builder will read/write this same YAML later;
-// for now the engine just parses + Zod-validates it.
+// sequence of blocks. Both schemas below are assembled from the action registry
+// (./actions) — adding a step type never touches this file.
 //
 // A step is written in YAML either as a bare string (a block with no params,
 // e.g. `- ddev-start`) or as a single-key object carrying that block's params
-// (e.g. `- bash: { command: ... }`). We normalize both into a tagged union the
-// runner can switch on. Only the blocks this slice needs are implemented;
-// adding a block is: extend the union here + handle it in the runner.
+// (e.g. `- bash: { command: ... }`). Each action's `yaml` schema normalizes its
+// form into the tagged union the runner switches on.
 
-const bashParams = z.object({
-  'command': z.string().min(1),
-  'continue-on-error': z.boolean().optional(),
-})
-
-// One raw YAML step → a normalized Step. Kept as a Zod transform so a bad
+// One raw YAML step → a normalized Step. Kept as Zod transforms so a bad
 // definition fails validation with a useful path/message.
-const stepSchema = z.union([
-  z.literal('ddev-start').transform((): Step => ({ type: 'ddev-start' })),
-  z.object({ bash: bashParams }).transform(({ bash }): Step => ({
-    type: 'bash',
-    command: bash.command,
-    continueOnError: bash['continue-on-error'] ?? false,
-  })),
-  z.object({ 'create-branch': z.object({ name: z.string().min(1) }) })
-    .transform(({ 'create-branch': p }): Step => ({ type: 'create-branch', name: p.name })),
-  z.object({ 'create-commit': z.object({ message: z.string().min(1) }) })
-    .transform(({ 'create-commit': p }): Step => ({ type: 'create-commit', message: p.message })),
-  z.object({ 'create-pr': z.object({ title: z.string().min(1), description: z.string().default('') }) })
-    .transform(({ 'create-pr': p }): Step => ({ type: 'create-pr', title: p.title, body: p.description })),
-])
+const stepSchema = z.union(
+  ACTIONS.map(a => a.yaml) as [z.ZodType<Step>, z.ZodType<Step>, ...z.ZodType<Step>[]],
+)
 
 const workflowSchema = z.object({
   name: z.string().min(1),
@@ -55,18 +39,11 @@ export function parseWorkflow(yaml: string): Workflow {
 // already in their NORMALIZED, `type`-tagged shape — so this validates that
 // shape directly. Required params are enforced (a half-filled step can't save).
 const stepMeta = { label: z.string().optional(), description: z.string().optional() }
-const normalizedStepSchema: z.ZodType<Step> = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('ddev-start'), ...stepMeta }),
-  z.object({
-    type: z.literal('bash'),
-    command: z.string().min(1),
-    continueOnError: z.boolean().default(false),
-    ...stepMeta,
-  }),
-  z.object({ type: z.literal('create-branch'), name: z.string().min(1), ...stepMeta }),
-  z.object({ type: z.literal('create-commit'), message: z.string().min(1), ...stepMeta }),
-  z.object({ type: z.literal('create-pr'), title: z.string().min(1), body: z.string().default(''), ...stepMeta }),
-])
+type StepOption = z.ZodObject<z.ZodRawShape>
+const stepOptions = ACTIONS.map(a =>
+  z.object({ type: z.literal(a.type), ...a.params, ...stepMeta }),
+) as unknown as [StepOption, ...StepOption[]]
+const normalizedStepSchema = z.discriminatedUnion('type', stepOptions) as unknown as z.ZodType<Step>
 
 // Steps may be empty (a draft). The name rule lives in shared/utils/workflow.ts
 // so the editor validates with the same regex.

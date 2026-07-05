@@ -23,3 +23,29 @@ export type Step = StepMeta & (
 // It's a free-form friendly name (spaces allowed), constrained only to what's
 // URL-safe once encoded — no slash/percent/etc.
 export const WORKFLOW_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u
+
+// A variable a step contributes to the run context for later steps. Shared so
+// the builder's autocomplete and the engine describe step outputs in one place.
+export interface StepVar {
+  /** Template path, e.g. 'branch.name' → {{ branch.name }} */
+  path: string
+  hint: string
+}
+
+// What each step type writes into the run context, keyed by step type.
+export const STEP_OUTPUTS: Record<Step['type'], StepVar[]> = {
+  'ddev-start': [
+    { path: 'preview.url', hint: 'The booted environment\'s preview URL' },
+  ],
+  'bash': [],
+  'create-branch': [
+    { path: 'branch.name', hint: 'The created branch' },
+  ],
+  'create-commit': [
+    { path: 'commit.sha', hint: 'The commit\'s SHA (empty when nothing changed)' },
+  ],
+  'create-pr': [
+    { path: 'pr.url', hint: 'The opened pull request' },
+    { path: 'pr.number', hint: 'Its number' },
+  ],
+}
