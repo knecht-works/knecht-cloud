@@ -1,11 +1,10 @@
 import { z } from 'zod'
 import { db, schema } from '../../db'
 import { getWorkflow } from '../../workflows'
-import { startRun } from '../../daemon/runner'
 
-// POST /api/runs → start a workflow against one project. Repo credentials come
-// from the GitHub App (server/utils/github-app.ts), minted inside the runner.
-// Returns the created run row; the UI then polls GET /api/runs/:id.
+// POST /api/runs → queue a workflow against one project. The dispatcher
+// (server/plugins/dispatcher.ts) starts it as soon as a concurrency slot is
+// free. Returns the created run row; the UI then polls GET /api/runs/:id.
 const bodySchema = z.object({
   projectId: z.number().int(),
   workflow: z.string().min(1),
@@ -35,8 +34,6 @@ export default defineEventHandler(async (event) => {
     })
     .returning()
     .get()
-
-  startRun(run.id, project)
 
   return run
 })

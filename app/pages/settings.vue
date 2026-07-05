@@ -64,11 +64,12 @@ interface Settings {
   idleStopMinutes: number
   previewRetentionDays: number
   archiveRetentionDays: number
+  maxConcurrentRuns: number
 }
 const { data: settings } = useFetch<Settings>('/api/settings', { lazy: true })
 
 // Local editable copy; changes autosave shortly after the last edit.
-const form = reactive<Settings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30 })
+const form = reactive<Settings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30, maxConcurrentRuns: 2 })
 const original = ref('')
 function load() {
   if (!settings.value) return
@@ -84,6 +85,7 @@ const ENV_FIELDS: { key: keyof Settings, label: string, unit: string, min: numbe
   { key: 'idleStopMinutes', label: 'Live → stopped', unit: 'min', min: 1, hint: 'Every live preview keeps a full environment running, eating server memory even when nobody looks at it. After this long without a visit it\'s stopped to free that memory. Opening it again brings it back in seconds, nothing is lost.' },
   { key: 'previewRetentionDays', label: 'Stopped → archived', unit: 'days', min: 0, hint: 'A stopped preview untouched for this long is archived: the heavy environment is deleted, a small snapshot (database + code changes) is kept. Restoring takes a few minutes. 0 never archives.' },
   { key: 'archiveRetentionDays', label: 'Archived → deleted', unit: 'days', min: 0, hint: 'An archive untouched for this long is deleted for good. After that, only running the workflow again boots the run. 0 never deletes.' },
+  { key: 'maxConcurrentRuns', label: 'Parallel runs', unit: 'runs', min: 1, hint: 'How many workflow runs may execute at the same time — each boots a full isolated environment, so this caps the server load. Further runs queue and start as slots free up.' },
 ]
 
 // Autosave, debounced so a keystroke doesn't fire a request. An emptied number

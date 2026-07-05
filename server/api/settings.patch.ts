@@ -8,6 +8,7 @@ const bodySchema = z.object({
   idleStopMinutes: z.number().int().min(1).max(10080).optional(),
   previewRetentionDays: z.number().int().min(0).max(365).optional(),
   archiveRetentionDays: z.number().int().min(0).max(3650).optional(),
+  maxConcurrentRuns: z.number().int().min(1).max(20).optional(),
 })
 
 export default defineEventHandler(async (event) => {
