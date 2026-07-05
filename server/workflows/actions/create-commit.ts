@@ -10,14 +10,15 @@ export const createCommitAction = defineAction({
   },
   yaml: z.object({ 'create-commit': z.object({ message: z.string().min(1) }) })
     .transform(({ 'create-commit': p }): Step => ({ type: 'create-commit', message: p.message })),
+  legacyKey: 'commit',
   async run(step, rt) {
     rt.log(`\n▶ create-commit: ${step.message}\n`)
     const sha = await commitAll(rt.checkoutDir, step.message)
     if (sha) {
       rt.log(`Committed ${sha.slice(0, 8)}\n`)
-      return { commit: { sha, created: true } }
+      return { sha, created: true }
     }
     rt.log(`Nothing to commit — skipping\n`)
-    return { commit: { created: false } }
+    return { created: false }
   },
 })

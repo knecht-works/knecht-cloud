@@ -1,17 +1,23 @@
 import type { Project } from '../db/schema'
 import type { Step } from '../../shared/utils/workflow'
 
-// The run-scoped variable namespace (workflows.md §6). This is the n8n/Buddy
-// model: a single object seeded at run start, into which each block writes its
-// outputs (`branch`, `commit`, `pr`, …) as it runs — so values flow front to
-// back through the linear sequence and any block can read everything produced
-// before it. Block params are `render()`ed against this just before the block
-// runs.
+// The run-scoped variable namespace (workflows.md §6): a single object seeded
+// at run start, into which each block's outputs land as it runs — so values
+// flow front to back through the linear sequence and any block can read
+// everything produced before it. Block params are `render()`ed against this
+// just before the block runs.
+//
+// Outputs live under `steps.<id>` (collision-free — two create-branch steps
+// don't overwrite each other). The runner ALSO writes each action's legacy
+// top-level key (`branch`, `pr`, `preview`, `commit`) so templates written
+// before step ids existed keep rendering; the legacy key holds the LAST such
+// step's outputs, exactly as before.
 export interface RunContext {
   run: { id: number }
   project: { name: string, owner: string, fullName: string, defaultBranch: string }
   inputs: Record<string, string>
-  // Blocks add their own namespaced outputs here as the run proceeds.
+  steps: Record<string, Record<string, unknown>>
+  // Legacy top-level output keys land here as the run proceeds.
   [output: string]: unknown
 }
 
@@ -29,6 +35,7 @@ export function createContext(
       defaultBranch: project.defaultBranch,
     },
     inputs,
+    steps: {},
   }
 }
 
@@ -36,14 +43,20 @@ export function createContext(
 // walk nested objects; an unknown path resolves to '' — templating is
 // best-effort, so an optional value a block hasn't produced yet (e.g.
 // `{{ preview.url }}` before ddev-start) just renders empty rather than failing.
+// Objects/arrays render as JSON (a step's whole output bag is referenceable).
 export function render(template: string, ctx: RunContext): string {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => {
-    const value = path.split('.').reduce<unknown>(
-      (acc, key) => (acc != null && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined),
-      ctx,
-    )
-    return value == null ? '' : String(value)
+    const value = lookup(path, ctx)
+    if (value == null) return ''
+    return typeof value === 'object' ? JSON.stringify(value) : String(value)
   })
+}
+
+function lookup(path: string, ctx: RunContext): unknown {
+  return path.split('.').reduce<unknown>(
+    (acc, key) => (acc != null && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined),
+    ctx,
+  )
 }
 
 // Step meta never reaches execution — don't render it.

@@ -132,7 +132,7 @@ async function toggleEnabled() {
 
 // ── step mutations (step identity/fields come from the registry) ────────────
 function addStep(type: WorkflowStep['type']) {
-  const step = stepDef(type).make()
+  const step = makeStep(type, draft.value.steps)
   draft.value.steps.push(step)
   openSteps.value.add(draft.value.steps.at(-1)!)
 }

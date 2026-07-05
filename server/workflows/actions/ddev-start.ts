@@ -10,6 +10,7 @@ export const ddevStartAction = defineAction({
   type: 'ddev-start',
   params: {},
   yaml: z.literal('ddev-start').transform((): Step => ({ type: 'ddev-start' })),
+  legacyKey: 'preview',
   async run(_step, rt) {
     rt.log(`\n▶ ddev-start\n`)
     await rt.sandbox.ensureUp()
@@ -19,7 +20,7 @@ export const ddevStartAction = defineAction({
     // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
     // per-run origin the preview proxy serves.
     const previewUrl = previewOrigin(rt.runId)
-    return previewUrl ? { preview: { url: previewUrl } } : undefined
+    return previewUrl ? { url: previewUrl } : undefined
   },
 })
 

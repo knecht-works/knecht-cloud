@@ -14,6 +14,7 @@ export const createPrAction = defineAction({
   },
   yaml: z.object({ 'create-pr': z.object({ title: z.string().min(1), description: z.string().default('') }) })
     .transform(({ 'create-pr': p }): Step => ({ type: 'create-pr', title: p.title, body: p.description })),
+  legacyKey: 'pr',
   async run(step, rt) {
     const branch = (rt.ctx.branch as { name?: string } | undefined)?.name
     if (!branch) throw new Error('create-pr requires a preceding create-branch step')
@@ -41,6 +42,6 @@ export const createPrAction = defineAction({
     }
     db.update(schema.runs).set({ prUrl: pr.url }).where(eq(schema.runs.id, rt.runId)).run()
     rt.log(`Opened PR #${pr.number}: ${pr.url}\n`)
-    return { pr }
+    return { url: pr.url, number: pr.number }
   },
 })

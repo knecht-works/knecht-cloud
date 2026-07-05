@@ -1,6 +1,6 @@
 import { parse } from 'yaml'
 import { z } from 'zod'
-import { WORKFLOW_NAME_RE, type Step } from '../../shared/utils/workflow'
+import { ensureStepIds, WORKFLOW_NAME_RE, type Step } from '../../shared/utils/workflow'
 import { ACTIONS } from './actions'
 
 export type { Step }
@@ -23,7 +23,8 @@ const stepSchema = z.union(
 const workflowSchema = z.object({
   name: z.string().min(1),
   description: z.string().default(''),
-  steps: z.array(stepSchema).min(1),
+  // The YAML authoring form carries no ids — backfill deterministically.
+  steps: z.array(stepSchema).min(1).transform(ensureStepIds),
 })
 
 export type Workflow = z.infer<typeof workflowSchema>
@@ -38,7 +39,7 @@ export function parseWorkflow(yaml: string): Workflow {
 // `stepSchema` (which parses the YAML authoring form), the builder sends steps
 // already in their NORMALIZED, `type`-tagged shape — so this validates that
 // shape directly. Required params are enforced (a half-filled step can't save).
-const stepMeta = { label: z.string().optional(), description: z.string().optional() }
+const stepMeta = { id: z.string().optional(), label: z.string().optional(), description: z.string().optional() }
 type StepOption = z.ZodObject<z.ZodRawShape>
 const stepOptions = ACTIONS.map(a =>
   z.object({ type: z.literal(a.type), ...a.params, ...stepMeta }),
@@ -50,7 +51,9 @@ const normalizedStepSchema = z.discriminatedUnion('type', stepOptions) as unknow
 export const workflowInputSchema = z.object({
   name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores'),
   description: z.string().default(''),
-  steps: z.array(normalizedStepSchema),
+  // Saves from pre-id clients (or hand-edited bodies) get ids backfilled, and
+  // duplicates de-duplicated, before the steps hit the DB.
+  steps: z.array(normalizedStepSchema).transform(ensureStepIds),
   // The automation master switch. Optional so the editor's full-body auto-saves
   // (which don't send it) leave the stored value untouched.
   enabled: z.boolean().optional(),

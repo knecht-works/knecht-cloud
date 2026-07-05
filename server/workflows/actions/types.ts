@@ -37,8 +37,16 @@ export interface ActionDef<T extends Step['type']> {
   /** The step's YAML authoring form (bare string or single-key object) → normalized Step. */
   yaml: z.ZodType<Step>
   /**
+   * Pre-step-id templates referenced this action's outputs under a fixed
+   * top-level context key ({{ branch.name }}, {{ pr.url }}). The runner keeps
+   * writing outputs there (last step of this type wins — the old behavior)
+   * alongside the collision-free steps.<id> namespace.
+   */
+  legacyKey?: string
+  /**
    * Execute the step. String params arrive already `render()`ed. The returned
-   * record is merged into the run context.
+   * outputs land in the run context under steps.<id> (and legacyKey, if set) —
+   * they're what STEP_OUTPUTS (shared/utils/workflow.ts) describes.
    */
   run(step: Extract<Step, { type: T }>, rt: ActionRuntime): Promise<Record<string, unknown> | undefined>
 }
@@ -50,6 +58,7 @@ export interface RegisteredAction {
   type: Step['type']
   params: z.ZodRawShape
   yaml: z.ZodType<Step>
+  legacyKey?: string
   run(step: Step, rt: ActionRuntime): Promise<Record<string, unknown> | undefined>
 }
 
