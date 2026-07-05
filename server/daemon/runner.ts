@@ -5,7 +5,7 @@ import type { Project } from '../db/schema'
 import type { Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
 import { actionFor, type ActionError, type ActionRuntime } from '../workflows/actions'
-import { createContext, renderStepParams, type RunContext } from '../workflows/context'
+import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
 import { runSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
 import { prepareRunCheckout } from './git'
@@ -70,13 +70,15 @@ async function execRun(runId: number, project: Project): Promise<void> {
 
   // Log routing: everything lands in runs.log (the UI's live stream); while a
   // step is executing, its slice is ALSO appended to that step's run_steps row.
-  let currentStepRow: number | null = null
+  // Nested steps (if/loop) re-point this to their own row and restore the
+  // parent's when done.
+  const rowLog: RowLog = { current: null }
   const log = (text: string) => {
     appendLog(runId, text)
-    if (currentStepRow !== null) {
+    if (rowLog.current !== null) {
       db.update(schema.runSteps)
         .set({ log: sql`${schema.runSteps.log} || ${text}` })
-        .where(eq(schema.runSteps.id, currentStepRow))
+        .where(eq(schema.runSteps.id, rowLog.current))
         .run()
     }
   }
@@ -111,25 +113,95 @@ async function execRun(runId: number, project: Project): Promise<void> {
         copyIn: (hostPath, sandboxPath) => copyIntoSandbox(runId, hostPath, sandboxPath),
       },
     }
-    for (const [index, step] of steps.entries()) {
-      const outputs = await execStep(runId, index, step, ctx, rt, rowId => currentStepRow = rowId)
-      currentStepRow = null
-      if (outputs) {
-        // steps.<id> is the collision-free reference; the legacy top-level key
-        // keeps pre-id templates ({{ branch.name }}, {{ pr.url }}) rendering.
-        if (step.id) ctx.steps[step.id] = outputs
-        const legacyKey = actionFor(step.type).legacyKey
-        if (legacyKey) ctx[legacyKey] = outputs
-      }
-    }
+    await execSteps(runId, steps, ctx, rt, rowLog)
     log(`\n✓ Done\n`)
     finish(runId, 'success')
   }
   catch (e) {
-    currentStepRow = null
+    rowLog.current = null
     log(`\n✗ ${(e as Error).message}\n`)
     finish(runId, 'failed')
   }
+}
+
+// Where step-scoped log slices go (see execRun). A one-field holder so nested
+// execution can push/restore like a stack.
+interface RowLog { current: number | null }
+
+// Position of a nested step list: which composite step owns it and — inside a
+// loop — which iteration; `collect` gathers the iteration's outputs.
+interface StepScope {
+  parentStepId?: string
+  iteration?: number
+  collect?: Record<string, unknown>
+}
+
+// Execute a step list in order, merging each step's outputs into the context.
+// Recurses through composite steps (if/loop) via execStep → runComposite.
+async function execSteps(
+  runId: number,
+  steps: Step[],
+  ctx: RunContext,
+  rt: ActionRuntime,
+  rowLog: RowLog,
+  scope: StepScope = {},
+): Promise<void> {
+  for (const [index, step] of steps.entries()) {
+    const outputs = await execStep(runId, index, step, ctx, rt, rowLog, scope)
+    if (outputs && step.id) {
+      // steps.<id> is the collision-free reference; the legacy top-level key
+      // keeps pre-id templates ({{ branch.name }}, {{ pr.url }}) rendering.
+      ctx.steps[step.id] = outputs
+      if (scope.collect) scope.collect[step.id] = outputs
+      const legacyKey = isComposite(step) ? undefined : actionFor(step.type).legacyKey
+      if (legacyKey) ctx[legacyKey] = outputs
+    }
+  }
+}
+
+function isComposite(step: Step): step is Extract<Step, { type: 'if' | 'loop' }> {
+  return step.type === 'if' || step.type === 'loop'
+}
+
+// Run a composite step's body. The composite's own run_steps row is already
+// open (execStep); each sub-step gets its own row tagged with
+// parentStepId/iteration so the timeline renders the tree.
+async function runComposite(
+  runId: number,
+  step: Extract<Step, { type: 'if' | 'loop' }>,
+  ctx: RunContext,
+  rt: ActionRuntime,
+  rowLog: RowLog,
+  scope: StepScope,
+): Promise<Record<string, unknown>> {
+  if (step.type === 'if') {
+    const matched = evalConditions(step.conditions, ctx)
+    rt.log(`\n▶ if: conditions ${matched ? 'matched → then' : 'not matched → else'}\n`)
+    const branch = matched ? step.then : step.else
+    // An if is transparent to an enclosing loop: its sub-steps keep the
+    // iteration tag and contribute to the iteration's collected outputs.
+    await execSteps(runId, branch, ctx, rt, rowLog, { parentStepId: step.id, iteration: scope.iteration, collect: scope.collect })
+    return { matched }
+  }
+
+  const items = resolveLoopItems(step.items, ctx)
+  rt.log(`\n▶ loop: ${items.length} iteration(s)\n`)
+  const results: Record<string, unknown>[] = []
+  // Innermost loop wins for {{ loop.item }}/{{ loop.index }}; restore the
+  // outer loop's values when done (nested loops).
+  const prevLoop = ctx.loop
+  try {
+    for (const [index, item] of items.entries()) {
+      ctx.loop = { item, index }
+      const collect: Record<string, unknown> = {}
+      await execSteps(runId, step.steps, ctx, rt, rowLog, { parentStepId: step.id, iteration: index, collect })
+      results.push(collect)
+    }
+  }
+  finally {
+    ctx.loop = prevLoop
+  }
+  return { results, count: items.length }
 }
 
 // Execute one step under its error policy. The run_steps row is inserted
@@ -142,62 +214,83 @@ async function execStep(
   step: Step,
   ctx: RunContext,
   rt: ActionRuntime,
-  onRow: (rowId: number) => void,
+  rowLog: RowLog,
+  scope: StepScope,
 ): Promise<Record<string, unknown> | undefined> {
-  const action = actionFor(step.type)
-  const rendered = renderStepParams(step, ctx, action.rawParams)
+  // Composites render nothing up front: conditions/loop items are evaluated
+  // against the LIVE context as the body executes.
+  const action = isComposite(step) ? null : actionFor(step.type)
+  const rendered = action ? renderStepParams(step, ctx, action.rawParams) : step
   const row = db.insert(schema.runSteps).values({
     runId,
     stepIndex: index,
     stepId: step.id ?? `i${index}`,
     type: step.type,
     params: stepParams(rendered),
+    parentStepId: scope.parentStepId,
+    iteration: scope.iteration,
     startedAt: new Date(),
   }).returning({ id: schema.runSteps.id }).get()
-  onRow(row.id)
+  const prevRow = rowLog.current
+  rowLog.current = row.id
 
-  const maxAttempts = Math.max(1, step.retry?.attempts ?? 1)
-  for (let attempt = 1; ; attempt++) {
-    try {
-      const outputs = capOutputs(await action.run(rendered, rt))
-      db.update(schema.runSteps)
-        .set({ status: 'success', outputs, attempt, finishedAt: new Date() })
-        .where(eq(schema.runSteps.id, row.id))
-        .run()
-      return outputs
-    }
-    catch (e) {
-      const error = (e as Error).message
-      if (attempt < maxAttempts) {
-        const delay = (step.retry?.backoffSeconds ?? 0) * 2 ** (attempt - 1)
-        rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error} — retrying in ${delay}s\n`)
+  try {
+    const maxAttempts = Math.max(1, step.retry?.attempts ?? 1)
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const outputs = capOutputs(action
+          ? await action.run(rendered, rt)
+          : await runComposite(runId, step as Extract<Step, { type: 'if' | 'loop' }>, ctx, rt, rowLog, scope))
         db.update(schema.runSteps)
-          .set({ error, attempt })
+          .set({ status: 'success', outputs, attempt, finishedAt: new Date() })
           .where(eq(schema.runSteps.id, row.id))
           .run()
-        await sleep(delay * 1000)
-        continue
+        return outputs
       }
-      // An ActionError carries the failure's outputs (bash exit code + output
-      // tail, an HTTP error response) — recorded, and still referencable by
-      // later steps when the run continues.
-      const failOutputs = capOutputs((e as ActionError).outputs)
-      db.update(schema.runSteps)
-        .set({ status: 'failed', error, attempt, outputs: failOutputs, finishedAt: new Date() })
-        .where(eq(schema.runSteps.id, row.id))
-        .run()
-      if (step.continueOnError) {
-        rt.log(`\nStep failed: ${error} — continuing (continue on error)\n`)
-        return failOutputs
+      catch (e) {
+        const error = (e as Error).message
+        if (attempt < maxAttempts) {
+          const delay = (step.retry?.backoffSeconds ?? 0) * 2 ** (attempt - 1)
+          rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error} — retrying in ${delay}s\n`)
+          db.update(schema.runSteps)
+            .set({ error, attempt })
+            .where(eq(schema.runSteps.id, row.id))
+            .run()
+          await sleep(delay * 1000)
+          continue
+        }
+        // An ActionError carries the failure's outputs (bash exit code + output
+        // tail, an HTTP error response) — recorded, and still referencable by
+        // later steps when the run continues.
+        const failOutputs = capOutputs((e as ActionError).outputs)
+        db.update(schema.runSteps)
+          .set({ status: 'failed', error, attempt, outputs: failOutputs, finishedAt: new Date() })
+          .where(eq(schema.runSteps.id, row.id))
+          .run()
+        if (step.continueOnError) {
+          rt.log(`\nStep failed: ${error} — continuing (continue on error)\n`)
+          return failOutputs
+        }
+        throw e
       }
-      throw e
     }
+  }
+  finally {
+    rowLog.current = prevRow
   }
 }
 
-// The step's own params for the run_steps snapshot — meta stripped.
+// The step's own params for the run_steps snapshot — meta stripped, and
+// composite sub-step definitions dropped (they live in the pinned run
+// snapshot; duplicating whole subtrees into every row helps nobody).
 function stepParams(step: Step): Record<string, unknown> {
-  const { type: _t, id: _i, label: _l, description: _d, continueOnError: _c, retry: _r, ...params } = step
+  const { type: _t, id: _i, label: _l, description: _d, continueOnError: _c, retry: _r, ...rest } = step
+  const params = rest as Record<string, unknown>
+  if (step.type === 'if' || step.type === 'loop') {
+    delete params.then
+    delete params.else
+    delete params.steps
+  }
   return params
 }
 

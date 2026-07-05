@@ -7,6 +7,10 @@ const props = defineProps<{
   step: WorkflowStep
   groups: VarGroup[]
   editable: boolean
+  /** The workflow's ROOT step list — composite steps create sub-steps with tree-unique ids. */
+  root?: WorkflowStep[]
+  /** The step's nesting depth (top-level = 1); composites cap at MAX_STEP_DEPTH. */
+  depth?: number
 }>()
 
 const def = computed(() => stepDef(props.step.type))
@@ -72,11 +76,45 @@ const hasVarFields = computed(() => def.value.fields.some(f => f.vars))
       />
     </template>
     <p
-      v-else
+      v-else-if="step.type !== 'if' && step.type !== 'loop'"
       class="text-[12.5px] text-(--text-muted)"
     >
       {{ meta.detail }} — this step has no settings.
     </p>
+
+    <!-- composite steps: conditions + nested step lists -->
+    <template v-if="step.type === 'if'">
+      <WorkflowConditionEditor
+        :step="step"
+        :editable="editable"
+      />
+      <WorkflowSubSteps
+        :steps="step.then"
+        title="Then"
+        :root="root ?? []"
+        :vars-base="groups"
+        :depth="(depth ?? 1) + 1"
+        :editable="editable"
+      />
+      <WorkflowSubSteps
+        :steps="step.else"
+        title="Else"
+        :root="root ?? []"
+        :vars-base="groups"
+        :depth="(depth ?? 1) + 1"
+        :editable="editable"
+      />
+    </template>
+    <WorkflowSubSteps
+      v-if="step.type === 'loop'"
+      :steps="step.steps"
+      title="Loop steps"
+      loop
+      :root="root ?? []"
+      :vars-base="groups"
+      :depth="(depth ?? 1) + 1"
+      :editable="editable"
+    />
 
     <!-- available variables (n8n-style): context + prior steps' outputs -->
     <div

@@ -87,13 +87,15 @@ export function frameworkMeta(type?: string | null): FrameworkMeta {
 }
 
 // Workflow step "kind" → accent colour, shared by the builder and the overview
-// step chain. det = deterministic, ai = agent, out = output, trigger.
-export type StepKind = 'det' | 'ai' | 'out' | 'trigger'
+// step chain. det = deterministic, ai = agent, out = output, flow = control
+// flow (if/loop), trigger.
+export type StepKind = 'det' | 'ai' | 'out' | 'flow' | 'trigger'
 
 export const STEP_KIND_COLOR: Record<StepKind, string> = {
   det: 'var(--text-toned)',
   ai: 'var(--accent-orange)',
   out: 'var(--primary)',
+  flow: 'var(--accent-violet)',
   trigger: 'var(--accent-violet)',
 }
 
@@ -131,6 +133,14 @@ function deriveStepMeta(step: WorkflowStep): StepMeta {
   }
   if (step.type === 'http') {
     return { icon: 'i-lucide-globe', kind: 'det', label: 'HTTP request', detail: `${step.method.toUpperCase()} ${step.url}` }
+  }
+  if (step.type === 'if') {
+    const conditions = step.conditions.flat().length
+    const steps = step.then.length + step.else.length
+    return { icon: 'i-lucide-git-fork', kind: 'flow', label: 'If / else', detail: `${conditions} condition${conditions === 1 ? '' : 's'} · ${steps} step${steps === 1 ? '' : 's'}` }
+  }
+  if (step.type === 'loop') {
+    return { icon: 'i-lucide-repeat', kind: 'flow', label: 'Loop', detail: step.items }
   }
   if (step.type === 'create-branch') {
     return { icon: 'i-lucide-git-branch', kind: 'out', label: 'Create branch', detail: step.name }

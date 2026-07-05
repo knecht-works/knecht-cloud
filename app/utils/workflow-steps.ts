@@ -99,6 +99,28 @@ export const STEP_DEFS: StepDef[] = [
     make: () => ({ type: 'http', method: 'GET', url: '' }),
   },
   {
+    type: 'if',
+    label: 'If / else',
+    hint: 'Branch on conditions',
+    kind: 'flow',
+    icon: 'i-lucide-git-fork',
+    group: 'Control flow',
+    fields: [],
+    make: () => ({ type: 'if', conditions: [[{ left: '', op: 'eq', right: '' }]], then: [], else: [] }),
+  },
+  {
+    type: 'loop',
+    label: 'Loop',
+    hint: 'Repeat steps per item or N times',
+    kind: 'flow',
+    icon: 'i-lucide-repeat',
+    group: 'Control flow',
+    fields: [
+      { key: 'items', label: 'Items — an array reference or a number', input: 'text', required: true, vars: true, placeholder: '{{ steps.s1.result }} or 3' },
+    ],
+    make: () => ({ type: 'loop', items: '', steps: [] }),
+  },
+  {
     type: 'create-branch',
     label: 'Create branch',
     hint: 'Branch off the current checkout',
@@ -161,26 +183,49 @@ export interface VarGroup {
   vars: StepVar[]
 }
 
+// The {{ steps.<id>.… }} group one prior step contributes, or null when it has
+// no outputs (or no id yet).
+export function stepOutputGroup(step: WorkflowStep, position: number): VarGroup | null {
+  const outputs = STEP_OUTPUTS[step.type]
+  if (!outputs.length || !step.id) return null
+  return {
+    label: `${position} · ${workflowStepMeta(step).label}`,
+    vars: outputs.map(v => ({ ...v, path: `steps.${step.id}.${v.path}` })),
+  }
+}
+
+// What a loop's body can additionally reference.
+export const LOOP_VARS: VarGroup = {
+  label: 'Loop',
+  vars: [
+    { path: 'loop.item', hint: 'The current item' },
+    { path: 'loop.index', hint: 'The current index (0-based)' },
+  ],
+}
+
 // Everything a step at `index` can reference: the run context plus the outputs
 // of every step BEFORE it — values flow front to back. Outputs are offered
 // under the step's stable id ({{ steps.<id>.<output> }}), so a step type used
-// twice stays unambiguous.
+// twice stays unambiguous. (Sub-steps of composites extend this — see
+// WorkflowSubSteps — with the loop vars and their prior siblings.)
 export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
   const groups: VarGroup[] = [{ label: 'Context', vars: CONTEXT_VARS }]
   steps.slice(0, index).forEach((step, i) => {
-    const outputs = STEP_OUTPUTS[step.type]
-    if (outputs.length && step.id) {
-      groups.push({
-        label: `${i + 1} · ${workflowStepMeta(step).label}`,
-        vars: outputs.map(v => ({ ...v, path: `steps.${step.id}.${v.path}` })),
-      })
-    }
+    const group = stepOutputGroup(step, i + 1)
+    if (group) groups.push(group)
   })
   return groups
 }
 
-// A step is saveable when its required fields are filled.
+// A step is saveable when its required fields are filled; composites also need
+// at least one usable condition (if) and valid sub-steps throughout.
 export function stepValid(step: WorkflowStep): boolean {
+  if (step.type === 'if') {
+    const conditionsOk = step.conditions.length > 0
+      && step.conditions.every(g => g.length > 0 && g.every(c => !!c.left.trim()))
+    return conditionsOk && [...step.then, ...step.else].every(stepValid)
+  }
+  if (step.type === 'loop' && !step.steps.every(stepValid)) return false
   const s = step as unknown as Record<string, unknown>
   return stepDef(step.type).fields.every(f =>
     !f.required || !!String(s[f.key] ?? '').trim())
