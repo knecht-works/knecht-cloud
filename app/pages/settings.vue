@@ -65,11 +65,14 @@ interface Settings {
   previewRetentionDays: number
   archiveRetentionDays: number
   maxConcurrentRuns: number
+  aiModel: string
+  /** Whether an OpenRouter key is stored (the key itself never leaves the server). */
+  aiKeyConfigured?: boolean
 }
 const { data: settings } = useFetch<Settings>('/api/settings', { lazy: true })
 
 // Local editable copy; changes autosave shortly after the last edit.
-const form = reactive<Settings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30, maxConcurrentRuns: 2 })
+const form = reactive<Settings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30, maxConcurrentRuns: 2, aiModel: 'openrouter/auto' })
 const original = ref('')
 function load() {
   if (!settings.value) return
@@ -101,8 +104,26 @@ watch(form, () => {
   saveTimer = setTimeout(save, 800)
 })
 
+// ── Agent: OpenRouter key (write-only) ───────────────────────────────────────
+const aiKey = ref('')
+const savingAiKey = ref(false)
+async function saveAiKey() {
+  if (!aiKey.value.trim()) return
+  savingAiKey.value = true
+  try {
+    settings.value = await $fetch<Settings>('/api/settings', { method: 'PATCH', body: { openrouterKey: aiKey.value.trim() } })
+    aiKey.value = ''
+  }
+  catch (e) {
+    toastError('Could not save the key', e)
+  }
+  finally {
+    savingAiKey.value = false
+  }
+}
+
 async function save() {
-  if (!ENV_FIELDS.every(f => Number.isInteger(form[f.key]))) return
+  if (!ENV_FIELDS.every(f => Number.isInteger(form[f.key] as number))) return
   try {
     settings.value = await $fetch<Settings>('/api/settings', { method: 'PATCH', body: { ...form } })
     load()
@@ -259,11 +280,56 @@ async function save() {
         accent="var(--accent-orange)"
       >
         <template #action>
-          <span class="k-mono text-[11px] text-(--text-dimmed)">Planned</span>
+          <span
+            class="k-mono text-[11px]"
+            :class="settings?.aiKeyConfigured ? 'text-(--text-muted)' : 'text-(--text-dimmed)'"
+          >
+            {{ settings?.aiKeyConfigured ? 'Configured' : 'Not configured' }}
+          </span>
         </template>
-        <p class="text-[13px] text-(--text-muted)">
-          OpenRouter key, model selection and run limits will live here. Not wired up yet.
+        <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
+          The <span class="k-mono text-[12px] text-(--text-toned)">ai</span> workflow step
+          calls a model through OpenRouter with this key. The key is stored encrypted and
+          never shown again; each step can override the default model.
         </p>
+        <div class="flex flex-col gap-5">
+          <div>
+            <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">OpenRouter API key</span>
+            <form
+              class="mt-2 flex items-center gap-2"
+              @submit.prevent="saveAiKey"
+            >
+              <UInput
+                v-model="aiKey"
+                type="password"
+                :placeholder="settings?.aiKeyConfigured ? 'Configured — enter a key to replace it' : 'sk-or-…'"
+                class="flex-1"
+              />
+              <UButton
+                type="submit"
+                color="primary"
+                size="xs"
+                label="Save"
+                :loading="savingAiKey"
+                :disabled="!aiKey.trim()"
+              />
+            </form>
+          </div>
+          <div>
+            <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Default model</span>
+            <div class="mt-2">
+              <UInput
+                v-model="form.aiModel"
+                placeholder="openrouter/auto"
+                class="w-full sm:w-72"
+              />
+            </div>
+            <p class="mt-2 text-[12px] leading-[1.5] text-(--text-muted)">
+              Any OpenRouter model id, e.g.
+              <span class="k-mono text-[11px]">anthropic/claude-sonnet-4.5</span>.
+            </p>
+          </div>
+        </div>
       </KPanel>
 
       <KPanel

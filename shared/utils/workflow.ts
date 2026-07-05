@@ -31,6 +31,11 @@ export interface StepMeta {
 export type Step = StepMeta & (
   | { type: 'ddev-start' }
   | { type: 'bash', command: string }
+  | { type: 'ai', prompt: string, system?: string, model?: string }
+  // `input` is a template; when it is exactly one {{ ref }} the runner passes
+  // the referenced value RAW (object/array), not stringified — see rawParams.
+  | { type: 'js', code: string, input?: string }
+  | { type: 'http', method: string, url: string, headers?: string, body?: string }
   | { type: 'create-branch', name: string }
   | { type: 'create-commit', message: string }
   | { type: 'create-pr', title: string, body: string }
@@ -54,7 +59,21 @@ export const STEP_OUTPUTS: Record<Step['type'], StepVar[]> = {
   'ddev-start': [
     { path: 'url', hint: 'The booted environment\'s preview URL' },
   ],
-  'bash': [],
+  'bash': [
+    { path: 'stdout', hint: 'The command\'s output (tail)' },
+    { path: 'exitCode', hint: 'The exit code (0 on success)' },
+  ],
+  'ai': [
+    { path: 'text', hint: 'The model\'s response' },
+    { path: 'json', hint: 'The response parsed as JSON (when it is valid JSON)' },
+  ],
+  'js': [
+    { path: 'result', hint: 'What main() returned' },
+  ],
+  'http': [
+    { path: 'status', hint: 'The HTTP status code' },
+    { path: 'body', hint: 'The response body (parsed JSON when possible)' },
+  ],
   'create-branch': [
     { path: 'name', hint: 'The created branch' },
   ],
