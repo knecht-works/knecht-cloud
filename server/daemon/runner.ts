@@ -1,14 +1,12 @@
-import { existsSync } from 'node:fs'
-import { basename, join } from 'node:path'
 import { eq, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { getWorkflow } from '../workflows'
-import type { Step } from '../workflows/schema'
-import { createContext, render, type RunContext } from '../workflows/context'
-import { projectDumpDir, runSandboxName } from '../utils/storage'
-import { createPullRequest, getInstallationToken } from '../utils/github-app'
-import { createBranch, commitAll, prepareRunCheckout, pushBranch } from './git'
+import { actionFor, type ActionRuntime } from '../workflows/actions'
+import { createContext, renderStepParams } from '../workflows/context'
+import { runSandboxName } from '../utils/storage'
+import { getInstallationToken } from '../utils/github-app'
+import { prepareRunCheckout } from './git'
 import { readDdevHosts, writeDdevConfig } from './ddev'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
 import { ensureEnvUp } from './envs'
@@ -21,6 +19,10 @@ import { ensureEnvUp } from './envs'
 // the worktree. The run row tracks both the run status and the environment
 // state (envState = the sandbox's state), which the preview proxy and the
 // idle-stopper read. SSE is deferred — the UI polls the row.
+//
+// Step execution is generic: each step's params are rendered against the run
+// context, the registered action (server/workflows/actions) runs, and its
+// returned patch is merged into the context for later steps to reference.
 
 // Kick off a run. Returns immediately; execution continues in the background.
 // Repo credentials are minted on demand from the GitHub App (github-app.ts) —
@@ -64,8 +66,21 @@ async function execRun(runId: number, project: Project): Promise<void> {
     appendLog(runId, `Sandbox: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
 
     const ctx = createContext(runId, project)
+    const rt: ActionRuntime = {
+      runId,
+      project,
+      checkoutDir: dir,
+      ctx,
+      log: text => appendLog(runId, text),
+      sandbox: {
+        ensureUp: () => ensureEnvUp(runId),
+        stream: command => streamInSandbox(runId, command),
+        copyIn: (hostPath, sandboxPath) => copyIntoSandbox(runId, hostPath, sandboxPath),
+      },
+    }
     for (const step of workflow.steps) {
-      await runStep(runId, dir, step, project, ctx)
+      const patch = await actionFor(step.type).run(renderStepParams(step, ctx), rt)
+      if (patch) Object.assign(ctx, patch)
     }
     appendLog(runId, `\n✓ Done\n`)
     finish(runId, 'success')
@@ -74,116 +89,6 @@ async function execRun(runId: number, project: Project): Promise<void> {
     appendLog(runId, `\n✗ ${(e as Error).message}\n`)
     finish(runId, 'failed')
   }
-}
-
-async function runStep(
-  runId: number,
-  cwd: string,
-  step: Step,
-  project: Project,
-  ctx: RunContext,
-): Promise<void> {
-  switch (step.type) {
-    case 'ddev-start': {
-      appendLog(runId, `\n▶ ddev-start\n`)
-      await ensureEnvUp(runId)
-      const code = await streamInSandbox(runId, ['ddev', 'start'])
-      if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
-      // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
-      // per-run origin the preview proxy serves.
-      const previewUrl = previewOrigin(runId)
-      if (previewUrl) ctx.preview = { url: previewUrl }
-      await importDb(runId, project)
-      break
-    }
-    case 'bash': {
-      const command = render(step.command, ctx)
-      appendLog(runId, `\n▶ bash: ${command}\n`)
-      // Project-facing commands (ddev, the agent, builds) run INSIDE the run's
-      // sandbox, in the mounted checkout — never on the Knecht host.
-      await ensureEnvUp(runId)
-      const code = await streamInSandbox(runId, ['bash', '-lc', command])
-      if (code !== 0 && !step.continueOnError) {
-        throw new Error(`Command exited with code ${code}`)
-      }
-      break
-    }
-    case 'create-branch': {
-      const name = render(step.name, ctx)
-      appendLog(runId, `\n▶ create-branch: ${name}\n`)
-      await createBranch(cwd, name)
-      ctx.branch = { name }
-      db.update(schema.runs).set({ branch: name }).where(eq(schema.runs.id, runId)).run()
-      break
-    }
-    case 'create-commit': {
-      const message = render(step.message, ctx)
-      appendLog(runId, `\n▶ create-commit: ${message}\n`)
-      const sha = await commitAll(cwd, message)
-      if (sha) {
-        ctx.commit = { sha, created: true }
-        appendLog(runId, `Committed ${sha.slice(0, 8)}\n`)
-      }
-      else {
-        ctx.commit = { created: false }
-        appendLog(runId, `Nothing to commit — skipping\n`)
-      }
-      break
-    }
-    case 'create-pr': {
-      const branch = (ctx.branch as { name?: string } | undefined)?.name
-      if (!branch) throw new Error('create-pr requires a preceding create-branch step')
-      const title = render(step.title, ctx)
-      const body = render(step.body, ctx)
-      appendLog(runId, `\n▶ create-pr: ${title}\n`)
-      // Fresh token: the run may have outlived the 1h token from checkout.
-      const token = await getInstallationToken(project.owner, project.name)
-      await pushBranch(cwd, branch, token)
-      let pr: { url: string, number: number } | null
-      try {
-        pr = await createPullRequest(project.owner, project.name, {
-          title,
-          body,
-          head: branch,
-          base: project.defaultBranch,
-        })
-      }
-      catch (e) {
-        throw new Error(`create-pr failed: ${(e as Error).message}`, { cause: e })
-      }
-      // Nothing was committed (e.g. an empty agent run) — there's no diff to
-      // open a PR for. Treat as a skip, not a failure.
-      if (!pr) {
-        appendLog(runId, `No changes to open a PR for — skipping\n`)
-        break
-      }
-      ctx.pr = pr
-      db.update(schema.runs).set({ prUrl: pr.url }).where(eq(schema.runs.id, runId)).run()
-      appendLog(runId, `Opened PR #${pr.number}: ${pr.url}\n`)
-      break
-    }
-  }
-}
-
-// Import the project's DB dump into this run's fresh environment (projects.md
-// §6). Each run env is isolated, so the import happens per run (idle reboots
-// keep the sandbox and don't re-import). The dump lives in Knecht's data dir,
-// which the sandbox can't see — copy it in, then import inside.
-async function importDb(runId: number, project: Project): Promise<void> {
-  if (!project.dbDumpPath) return
-
-  // Rebuild the path against the current data dir + filename so it's valid here,
-  // where the upload landed (the stored path reflects wherever the upload ran).
-  const file = join(projectDumpDir(project.id), basename(project.dbDumpPath))
-  if (!existsSync(file)) {
-    throw new Error(`DB dump not found at ${file}`)
-  }
-
-  appendLog(runId, `\n▶ import-db (${basename(file)})\n`)
-  const inSandbox = `/tmp/${basename(file)}`
-  await copyIntoSandbox(runId, file, inSandbox)
-  const code = await streamInSandbox(runId, ['ddev', 'import-db', `--file=${inSandbox}`])
-  if (code !== 0) throw new Error(`ddev import-db exited with code ${code}`)
 }
 
 // Run a command in the sandbox, streaming its stdout/stderr into the run log.

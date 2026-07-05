@@ -1,8 +1,13 @@
 // The client-side step registry — the ONE place that describes a step type for
 // the editor: identity (icon/label/kind), its settings fields (rendered by the
-// inspector), defaults, validation, and the variables it contributes to later
-// steps. Adding a step type here is all the editor needs; the server side pairs
-// this with a schema entry (server/workflows/schema.ts) and a runner case.
+// inspector), defaults, and validation. The variables a step contributes live
+// in the shared model (STEP_OUTPUTS, shared/utils/workflow.ts) so the engine
+// and the editor can't drift; the server side pairs this registry with an
+// action module (server/workflows/actions).
+
+import { STEP_OUTPUTS, type StepVar } from '#shared/utils/workflow'
+
+export type { StepVar }
 
 export interface StepField {
   /** Property on the step object this field edits. */
@@ -16,12 +21,6 @@ export interface StepField {
   vars?: boolean
 }
 
-export interface StepVar {
-  /** Template path, e.g. 'branch.name' → {{ branch.name }} */
-  path: string
-  hint: string
-}
-
 export interface StepDef {
   type: WorkflowStep['type']
   label: string
@@ -30,8 +29,6 @@ export interface StepDef {
   icon: string
   group: string
   fields: StepField[]
-  /** Variables this step writes into the run context for LATER steps. */
-  outputs: StepVar[]
   make: () => WorkflowStep
 }
 
@@ -44,9 +41,6 @@ export const STEP_DEFS: StepDef[] = [
     icon: 'i-lucide-play',
     group: 'Deterministic',
     fields: [],
-    outputs: [
-      { path: 'preview.url', hint: 'The booted environment\'s preview URL' },
-    ],
     make: () => ({ type: 'ddev-start' }),
   },
   {
@@ -60,7 +54,6 @@ export const STEP_DEFS: StepDef[] = [
       { key: 'command', label: 'Command', input: 'textarea', rows: 2, required: true, vars: true, placeholder: 'ddev composer install' },
       { key: 'continueOnError', label: 'Continue on error', input: 'switch' },
     ],
-    outputs: [],
     make: () => ({ type: 'bash', command: '', continueOnError: false }),
   },
   {
@@ -72,9 +65,6 @@ export const STEP_DEFS: StepDef[] = [
     group: 'Output',
     fields: [
       { key: 'name', label: 'Branch name', input: 'text', required: true, vars: true, placeholder: 'knecht/{{ run.id }}' },
-    ],
-    outputs: [
-      { path: 'branch.name', hint: 'The created branch' },
     ],
     make: () => ({ type: 'create-branch', name: '' }),
   },
@@ -88,9 +78,6 @@ export const STEP_DEFS: StepDef[] = [
     fields: [
       { key: 'message', label: 'Commit message', input: 'text', required: true, vars: true, placeholder: 'Automated change' },
     ],
-    outputs: [
-      { path: 'commit.sha', hint: 'The commit\'s SHA (empty when nothing changed)' },
-    ],
     make: () => ({ type: 'create-commit', message: '' }),
   },
   {
@@ -103,10 +90,6 @@ export const STEP_DEFS: StepDef[] = [
     fields: [
       { key: 'title', label: 'Title', input: 'text', required: true, vars: true, placeholder: 'Knecht change' },
       { key: 'body', label: 'Description', input: 'textarea', rows: 3, vars: true, placeholder: 'What this PR changes — {{ preview.url }} links the live preview.' },
-    ],
-    outputs: [
-      { path: 'pr.url', hint: 'The opened pull request' },
-      { path: 'pr.number', hint: 'Its number' },
     ],
     make: () => ({ type: 'create-pr', title: '', body: '' }),
   },
@@ -135,9 +118,9 @@ export interface VarGroup {
 export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
   const groups: VarGroup[] = [{ label: 'Context', vars: CONTEXT_VARS }]
   steps.slice(0, index).forEach((step, i) => {
-    const def = stepDef(step.type)
-    if (def.outputs.length) {
-      groups.push({ label: `${i + 1} · ${workflowStepMeta(step).label}`, vars: def.outputs })
+    const outputs = STEP_OUTPUTS[step.type]
+    if (outputs.length) {
+      groups.push({ label: `${i + 1} · ${workflowStepMeta(step).label}`, vars: outputs })
     }
   })
   return groups

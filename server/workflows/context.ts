@@ -1,4 +1,5 @@
 import type { Project } from '../db/schema'
+import type { Step } from '../../shared/utils/workflow'
 
 // The run-scoped variable namespace (workflows.md §6). This is the n8n/Buddy
 // model: a single object seeded at run start, into which each block writes its
@@ -43,4 +44,18 @@ export function render(template: string, ctx: RunContext): string {
     )
     return value == null ? '' : String(value)
   })
+}
+
+// Step meta never reaches execution — don't render it.
+const META_KEYS = new Set(['type', 'label', 'description'])
+
+// Render every templated string param of a step against the context, just
+// before the step runs. Non-string params (booleans, nested shapes) pass
+// through untouched.
+export function renderStepParams<S extends Step>(step: S, ctx: RunContext): S {
+  const rendered = { ...step } as Record<string, unknown>
+  for (const [key, value] of Object.entries(rendered)) {
+    if (typeof value === 'string' && !META_KEYS.has(key)) rendered[key] = render(value, ctx)
+  }
+  return rendered as S
 }
