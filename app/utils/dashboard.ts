@@ -101,64 +101,9 @@ export const STEP_KIND_COLOR: Record<StepKind, string> = {
 
 // A workflow step as returned by /api/workflows — the shared step model
 // (shared/utils/workflow.ts) under the name the app code grew up with.
+// Presentation of a step instance lives with its def: workflowStepMeta
+// (~/utils/workflow-steps.ts) reads the per-step registry.
 export type WorkflowStep = Step
-
-export interface StepMeta {
-  icon: string
-  kind: StepKind
-  label: string
-  detail: string
-}
-
-// Map a step to an icon + label/detail. A custom `label`/`description` wins;
-// otherwise both are inferred from the step type and shell command.
-export function workflowStepMeta(step: WorkflowStep): StepMeta {
-  const m = deriveStepMeta(step)
-  return {
-    ...m,
-    label: step.label?.trim() || m.label,
-    detail: step.description?.trim() || m.detail,
-  }
-}
-
-function deriveStepMeta(step: WorkflowStep): StepMeta {
-  if (step.type === 'ddev-start') {
-    return { icon: 'i-lucide-play', kind: 'det', label: 'Boot project', detail: 'DDEV starts web + database' }
-  }
-  if (step.type === 'ai') {
-    return { icon: 'i-lucide-sparkles', kind: 'ai', label: 'AI', detail: step.prompt }
-  }
-  if (step.type === 'js') {
-    return { icon: 'i-lucide-braces', kind: 'det', label: 'JavaScript', detail: step.code.split('\n')[0] ?? '' }
-  }
-  if (step.type === 'http') {
-    return { icon: 'i-lucide-globe', kind: 'det', label: 'HTTP request', detail: `${step.method.toUpperCase()} ${step.url}` }
-  }
-  if (step.type === 'if') {
-    const conditions = step.conditions.flat().length
-    const steps = step.then.length + step.else.length
-    return { icon: 'i-lucide-git-fork', kind: 'flow', label: 'If / else', detail: `${conditions} condition${conditions === 1 ? '' : 's'} · ${steps} step${steps === 1 ? '' : 's'}` }
-  }
-  if (step.type === 'loop') {
-    return { icon: 'i-lucide-repeat', kind: 'flow', label: 'Loop', detail: step.items }
-  }
-  if (step.type === 'create-branch') {
-    return { icon: 'i-lucide-git-branch', kind: 'out', label: 'Create branch', detail: step.name }
-  }
-  if (step.type === 'create-commit') {
-    return { icon: 'i-lucide-git-commit-horizontal', kind: 'out', label: 'Create commit', detail: step.message }
-  }
-  if (step.type === 'create-pr') {
-    return { icon: 'i-lucide-git-pull-request', kind: 'out', label: 'Open pull request', detail: step.title }
-  }
-  const cmd = step.command
-  const c = cmd.toLowerCase()
-  if (c.includes('composer')) return { icon: 'i-lucide-package', kind: 'det', label: 'Composer', detail: cmd }
-  if (/\b(npm|pnpm|yarn)\b|build/.test(c)) return { icon: 'i-lucide-hammer', kind: 'det', label: 'Build assets', detail: cmd }
-  if (/test|phpunit|playwright|pest/.test(c)) return { icon: 'i-lucide-flask-conical', kind: 'det', label: 'Run tests', detail: cmd }
-  if (/\bgit\b|gh pr|pull request/.test(c)) return { icon: 'i-lucide-git-pull-request', kind: 'out', label: 'Pull request', detail: cmd }
-  return { icon: 'i-lucide-terminal', kind: 'det', label: 'Shell', detail: cmd }
-}
 
 // Human-readable message from a failed `$fetch` call — H3 packs it into
 // `error.data.statusMessage`; returns `fallback` when the response has none.

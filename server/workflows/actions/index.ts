@@ -13,9 +13,9 @@ export type { ActionDef, ActionRuntime, RegisteredAction } from './types'
 export { ActionError } from './types'
 
 // The action registry. Adding a step type is: extend the Step union
-// (shared/utils/workflow.ts, incl. STEP_OUTPUTS), write an action module here,
-// list it below, and describe it for the editor (app/utils/workflow-steps.ts).
-// Both workflow schemas (server/workflows/schema.ts) assemble from this list.
+// (shared/utils/workflow.ts), write an action module here and list it below,
+// and describe it for the client in app/utils/steps/<type>.ts. Both workflow
+// schemas (server/workflows/schema.ts) assemble from this list.
 export const ACTIONS: RegisteredAction[] = [
   ddevStartAction,
   bashAction,

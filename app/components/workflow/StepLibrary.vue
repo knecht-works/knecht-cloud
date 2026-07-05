@@ -17,7 +17,7 @@ const groups = computed(() => {
     ? STEP_DEFS.filter(d =>
         d.label.toLowerCase().includes(q) || d.type.includes(q) || d.hint.toLowerCase().includes(q))
     : STEP_DEFS
-  const byGroup = new Map<string, StepDef[]>()
+  const byGroup = new Map<string, RegisteredStepDef[]>()
   for (const d of defs) {
     byGroup.set(d.group, [...(byGroup.get(d.group) ?? []), d])
   }

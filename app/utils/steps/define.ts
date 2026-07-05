@@ -1,0 +1,74 @@
+import type { Step } from '#shared/utils/workflow'
+import type { StepKind } from '~/utils/dashboard'
+
+// The client-side step definition: ONE file per step type under
+// app/utils/steps/ carries everything the editor and the overviews know about
+// it — identity (label/kind/icon/group), the settings fields the inspector
+// renders, defaults, the variables it contributes to later steps, and how a
+// step instance presents in lists. The server pairs each def with an action
+// module (server/workflows/actions/<type>.ts) holding schema + execution.
+
+export interface StepField {
+  /** Property on the step object this field edits. */
+  key: string
+  label: string
+  input: 'text' | 'textarea' | 'switch'
+  placeholder?: string
+  required?: boolean
+  rows?: number
+  /** Field supports {{ }} templating (gets autocomplete + chip inserts). */
+  vars?: boolean
+}
+
+// A variable a step contributes to the run context for later steps.
+export interface StepVar {
+  /** Output name relative to the step, e.g. 'name' → {{ steps.<id>.name }} */
+  path: string
+  hint: string
+}
+
+// How a step instance presents in lists (builder rail, workflow overview).
+export interface StepMeta {
+  icon: string
+  kind: StepKind
+  label: string
+  detail: string
+}
+
+export interface StepDef<T extends Step['type']> {
+  type: T
+  label: string
+  hint: string
+  kind: StepKind
+  icon: string
+  group: string
+  fields: StepField[]
+  /** Variables this step writes into the run context for LATER steps. */
+  outputs: StepVar[]
+  make(): Extract<Step, { type: T }>
+  /**
+   * Instance-specific presentation, merged over the def's icon/kind/label
+   * (e.g. bash showing the command as detail, or picking a composer icon).
+   */
+  meta?(step: Extract<Step, { type: T }>): Partial<StepMeta>
+}
+
+// The type-erased form the registry holds — callers only ever have a plain
+// `Step` in hand. `defineStep` is the single point where the narrowing cast
+// happens; def modules stay fully typed against their own step shape.
+export interface RegisteredStepDef {
+  type: Step['type']
+  label: string
+  hint: string
+  kind: StepKind
+  icon: string
+  group: string
+  fields: StepField[]
+  outputs: StepVar[]
+  make(): Step
+  meta?(step: Step): Partial<StepMeta>
+}
+
+export function defineStep<T extends Step['type']>(def: StepDef<T>): RegisteredStepDef {
+  return def as unknown as RegisteredStepDef
+}
