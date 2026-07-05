@@ -85,12 +85,13 @@ Documented pitfalls to design around:
 
 ## 3. Design decisions
 
-### D1 — Keep the linear list; control flow comes later as composite steps
+### D1 — Keep the linear list; control flow as composite steps
 
-No DAG/canvas. When branching/looping is needed, add *composite* step types
-(`branch` with per-case sub-steps, `loop` over items) the way Activepieces routers
-and SW-spec `switch`/`for` work. Everything in this plan (IDs, registry, per-step
-runs) is forward-compatible with that. **Out of scope for now.**
+No DAG/canvas. Branching and looping are *composite* step types that embed their
+own sub-step lists (`if` with then/else, `loop` over items) — the way Activepieces
+routers, Windmill `branchone`/`forloopflow` and SW-spec `switch`/`for` work.
+No cycles are possible by construction and the builder stays a nested list.
+The concrete design is D8.
 
 ### D2 — Stable step IDs and a `steps.<id>.<output>` namespace
 
@@ -175,8 +176,13 @@ run_steps
   outputs       JSON         -- what the action returned (size-capped)
   log           text         -- this step's slice of the log
   attempt       int          -- 1..n (retries)
+  parentStepId  text | null  -- enclosing composite step (if/loop), null at top level
+  iteration     int | null   -- loop iteration index this row belongs to
   startedAt / finishedAt / createdAt
 ```
+
+`parentStepId`/`iteration` exist from day one so the step timeline can render
+composite steps (D8) as a tree without a later migration.
 
 - `runs.log` stays as the live aggregate stream the UI already polls; per-step rows
   power a step-timeline UI and post-mortems.
@@ -245,9 +251,66 @@ Initial catalog additions, in order:
    dedicated integrations.
 
 Each lands as: `Step` union member + action module + `STEP_DEFS` entry + shared
-outputs metadata. (`ddev-start`'s implicit DB import and the git steps stay as-is.)
+outputs metadata. Alongside, the existing `bash` step gains real outputs —
+`exitCode` and a tail-capped `stdout` — so its result is referenceable
+(`{{ steps.<id>.stdout }}`) instead of log-only. (`ddev-start`'s implicit DB
+import and the git steps stay as-is.)
 
-### D8 — Import/export as versioned YAML/JSON
+### D8 — Control-flow steps: `if` and `loop`
+
+Two composite step types whose params include *nested step lists*:
+
+```ts
+| { type: 'if',
+    // Outer array = OR groups, inner array = AND conditions (the proven
+    // Activepieces shape; the builder starts with a single AND group).
+    conditions: Condition[][],
+    then: Step[],
+    else: Step[] }                        // may be empty
+| { type: 'loop',
+    items: string,                        // template → array (raw-value rule) or a number (repeat N times)
+    steps: Step[] }
+
+interface Condition {
+  left: string                            // templated
+  op: 'eq' | 'neq' | 'contains' | 'not-contains' | 'empty' | 'not-empty'
+    | 'gt' | 'lt' | 'regex'
+  right?: string                          // templated; unused for empty/not-empty
+}
+```
+
+**No expression language for conditions.** Conditions are structured
+left/operator/right rows, rendered with the existing templating — deliberately
+*not* evaluated JS (that would put user code back in the control-plane process,
+see D7/`js`). `gt`/`lt` coerce both sides to numbers; everything else compares
+rendered strings. This is the Activepieces `BranchCondition` model; SW-spec-style
+jq expressions are the rejected alternative (more power, new dependency, worse
+builder UX).
+
+**Loop semantics** (serial — parallel iterations stay a non-goal):
+
+- Inside the loop body, `{{ loop.item }}` and `{{ loop.index }}` are available
+  (nested loops: the innermost wins, like Activepieces).
+- Sub-step outputs (`steps.<subId>.…`) refer to the *current iteration* while
+  inside the body. After the loop, the builder only offers the loop's own outputs:
+  `steps.<loopId>.results` (array — per iteration, the outputs of its sub-steps,
+  subject to the D4 size cap) and `steps.<loopId>.count`.
+- A failing sub-step fails the iteration and the loop; per-sub-step
+  `continueOnError` applies as everywhere. A Windmill-style `skipFailures` flag
+  (drop failed iterations, keep going) can be added later without format changes.
+
+**`if` semantics:** first matching OR group wins; `then` or `else` runs inline in
+the same context (sub-steps write `steps.<id>` normally — the builder's
+`availableVars` marks outputs from a non-taken branch as possibly absent, and
+`render()` already treats unknown paths as empty).
+
+**Engine/builder impact:** the runner's step walk becomes recursive; `run_steps`
+rows carry `parentStepId` + `iteration` (D4) so the timeline renders a tree.
+Validation is recursive Zod (`z.lazy`). The builder renders nested, indented step
+lists with drag-drop into/out of composites; nesting depth is capped (e.g. 3) to
+keep the UI and var scoping comprehensible.
+
+### D9 — Import/export as versioned YAML/JSON
 
 The **normalized JSON shape is canonical**; YAML is the same document serialized.
 Add a format envelope:
@@ -269,9 +332,20 @@ steps:
     type: ai
     prompt: 'Summarize this change: {{ steps.s2.stdout }}'
   - id: s4
-    type: create-pr
-    title: Automated update
-    body: '{{ steps.s3.text }} — preview: {{ steps.s1.previewUrl }}'
+    type: if
+    conditions:
+      - - { left: '{{ steps.s2.exitCode }}', op: eq, right: '0' }
+    then:
+      - id: s5
+        type: create-pr
+        title: Automated update
+        body: '{{ steps.s3.text }} — preview: {{ steps.s1.previewUrl }}'
+    else:
+      - id: s6
+        type: http
+        method: POST
+        url: 'https://hooks.example.com/notify'
+        body: 'Update failed on {{ project.fullName }}'
 ```
 
 - **Export:** `GET /api/workflows/:name/export?format=yaml|json` serializes the
@@ -310,13 +384,20 @@ Each phase is independently shippable and verified before the next.
 5. **New actions: `ai`, then `js`, then `http`.** Settings UI for OpenRouter
    (section already stubbed in `settings.vue`); Node added to the sandbox image for
    `js`. → verify per action with a template workflow exercising its outputs.
-6. **Import/export.** Envelope + endpoints + builder buttons + format migrations.
-   → verify: export→delete→import round-trips byte-equivalent normalized JSON;
-   invalid files produce path-precise errors.
+6. **Control flow: `if` + `loop`.** Recursive runner walk, recursive schemas,
+   nested builder lists, `loop.item`/`loop.index` vars, tree-rendered step
+   timeline (uses the D4 nesting columns). → verify: a workflow with an `if`
+   inside a `loop` over an array output takes the expected branches per
+   iteration and records one `run_steps` row per sub-step per iteration.
+7. **Import/export.** Envelope + endpoints + builder buttons + format migrations.
+   → verify: export→delete→import round-trips byte-equivalent normalized JSON
+   (including nested composite steps); invalid files produce path-precise errors.
 
 ## 5. Non-goals (explicit)
 
-- Free-form DAG canvas / parallel branches — structured composite steps later if needed.
+- Free-form DAG canvas, parallel branches, parallel loop iterations — `if`/`loop`
+  run strictly serially; a multi-case router (beyond then/else) can follow the same
+  composite pattern later.
 - Redis/BullMQ or any external queue — contradicts the single-instance SQLite design.
 - Mid-run resume/checkpointing (Trigger.dev CRIU, Temporal replay) — per-step records
   keep the door open for "retry from step"; full durability is not worth the
