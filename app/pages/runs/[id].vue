@@ -5,9 +5,23 @@ const id = Number(route.params.id)
 const NuxtLink = resolveComponent('NuxtLink')
 
 const { data: run, refresh } = await useFetch(`/api/runs/${id}`)
+const { data: stepRows, refresh: refreshSteps } = await useFetch(`/api/runs/${id}/steps`)
 
 const isLive = computed(() => isLiveStatus(run.value?.status))
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
+
+// The step timeline: one row per executed step (run_steps), styled via the
+// step registry. Unknown step types (e.g. removed ones) render generically.
+const timeline = computed(() => (stepRows.value ?? []).map((s) => {
+  const def = STEP_DEFS.find(d => d.type === s.type)
+  return {
+    ...s,
+    icon: def?.icon ?? 'i-lucide-square',
+    label: def?.label ?? s.type,
+    color: STEP_KIND_COLOR[def?.kind ?? 'det'],
+    statusMeta: RUN_STATUS_META[s.status],
+  }
+}))
 
 // The run's meta facts (how it was triggered, the branch it works on, timing,
 // the PR it opened) — chips are skipped when a run predates the recorded field.
@@ -74,7 +88,7 @@ async function reboot() {
   }
 }
 
-usePollWhile(() => isLive.value, refresh)
+usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
 </script>
 
 <template>
@@ -190,6 +204,51 @@ usePollWhile(() => isLive.value, refresh)
           @click="runAgain"
         />
       </div>
+
+      <KPanel
+        v-if="timeline.length"
+        title="Steps"
+        icon="i-lucide-list-checks"
+        :pad="0"
+      >
+        <ul class="divide-y divide-(--border-muted)">
+          <li
+            v-for="s in timeline"
+            :key="s.id"
+            class="flex items-center gap-3 px-[18px] py-3"
+          >
+            <KStepIcon
+              :icon="s.icon"
+              :size="30"
+              :radius="7"
+              :color="s.color"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="flex items-baseline gap-2">
+                <span class="truncate text-[13px] text-(--text-highlighted)">{{ s.label }}</span>
+                <span class="k-mono text-[10px] text-(--text-dimmed)">{{ s.stepId }}</span>
+                <span
+                  v-if="s.attempt > 1"
+                  class="k-mono text-[10px] text-(--accent-orange)"
+                >{{ s.attempt }} attempts</span>
+              </div>
+              <p
+                v-if="s.error"
+                class="truncate text-xs"
+                style="color: var(--status-error)"
+              >
+                {{ s.error }}
+              </p>
+            </div>
+            <span class="k-mono text-[11px] text-(--text-dimmed)">{{ runDuration(s.startedAt, s.finishedAt) }}</span>
+            <KStatusDot
+              :color="s.statusMeta.dot"
+              :pulse="s.statusMeta.pulse"
+              :size="6"
+            />
+          </li>
+        </ul>
+      </KPanel>
 
       <KPanel
         title="Log"

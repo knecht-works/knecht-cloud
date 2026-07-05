@@ -6,11 +6,11 @@ export const bashAction = defineAction({
   type: 'bash',
   params: {
     command: z.string().min(1),
-    continueOnError: z.boolean().default(false),
   },
   yaml: z.object({
     bash: z.object({
       'command': z.string().min(1),
+      // Maps to the step-level error policy (StepMeta.continueOnError).
       'continue-on-error': z.boolean().optional(),
     }),
   }).transform(({ bash }): Step => ({
@@ -24,8 +24,8 @@ export const bashAction = defineAction({
     // sandbox, in the mounted checkout — never on the Knecht host.
     await rt.sandbox.ensureUp()
     const code = await rt.sandbox.stream(['bash', '-lc', step.command])
-    if (code !== 0 && !step.continueOnError) {
-      throw new Error(`Command exited with code ${code}`)
-    }
+    // A non-zero exit throws; the runner's step policy decides whether the
+    // run continues (continueOnError) or retries (retry).
+    if (code !== 0) throw new Error(`Command exited with code ${code}`)
   },
 })

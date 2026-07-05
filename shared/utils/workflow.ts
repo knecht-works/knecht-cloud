@@ -3,21 +3,34 @@
 // runner switches on; adding a block is: extend the union here, handle it in
 // the runner, and describe it in app/utils/workflow-steps.ts.
 
+// A step's retry policy, applied by the runner around ANY action: up to
+// `attempts` total tries, waiting backoffSeconds, then double per retry.
+export interface StepRetry {
+  /** Total tries (1 = no retry). */
+  attempts: number
+  /** Wait before the first retry; doubles each further retry (b, 2b, 4b, …). */
+  backoffSeconds: number
+}
+
 // Per-step metadata. `id` is the step's stable identity: unique within its
 // workflow, immutable once assigned (reorders and label edits keep it), and the
 // key later steps reference outputs under ({{ steps.<id>.<output> }}). It's
 // optional in the type because pre-id definitions exist in the DB — every
 // load/save path backfills via ensureStepIds. `label`/`description` are
-// builder-only presentation.
+// builder-only presentation. `continueOnError`/`retry` are the step's error
+// policy, enforced generically by the runner for every step type.
 export interface StepMeta {
   id?: string
   label?: string
   description?: string
+  /** A failing step logs and lets the run continue instead of failing it. */
+  continueOnError?: boolean
+  retry?: StepRetry
 }
 
 export type Step = StepMeta & (
   | { type: 'ddev-start' }
-  | { type: 'bash', command: string, continueOnError?: boolean }
+  | { type: 'bash', command: string }
   | { type: 'create-branch', name: string }
   | { type: 'create-commit', message: string }
   | { type: 'create-pr', title: string, body: string }

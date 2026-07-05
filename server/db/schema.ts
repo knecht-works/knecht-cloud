@@ -93,6 +93,11 @@ export const runs = sqliteTable('runs', {
   commitSha: text('commit_sha'),
   // The pull request a `create-pr` step opened, if the run opened one.
   prUrl: text('pr_url'),
+  // The step sequence pinned at execution start: the runner executes THIS
+  // snapshot, never the live workflow row — editing a workflow mid-run can't
+  // change a running (or queued) run, and history shows what actually ran.
+  // Null on runs from before pinning existed.
+  steps: text('steps', { mode: 'json' }).$type<Step[]>(),
   log: text('log').notNull().default(''),
   // The run's isolated ddev environment: 'down' (not booted / expired), 'up'
   // (running, previewable), 'stopped' (idle-stopped — volumes kept, rebootable),
@@ -123,6 +128,40 @@ export const runs = sqliteTable('runs', {
 
 export type Run = typeof runs.$inferSelect
 export type NewRun = typeof runs.$inferInsert
+
+// One row per executed step of a run (workflow-engine-plan.md D4): the runner
+// inserts it when the step starts and finalizes status/outputs/error when it
+// ends — the step's result is durable BEFORE the next step runs. Retries update
+// the same row (`attempt` counts the tries). `parentStepId`/`iteration` locate
+// a row inside composite steps (if/loop), null at the top level.
+export const runSteps = sqliteTable('run_steps', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  runId: integer('run_id')
+    .notNull()
+    .references(() => runs.id, { onDelete: 'cascade' }),
+  stepIndex: integer('step_index').notNull(),
+  stepId: text('step_id').notNull(),
+  type: text('type').notNull(),
+  status: text('status', { enum: ['running', 'success', 'failed'] })
+    .notNull()
+    .default('running'),
+  // The step's params as rendered for execution (meta stripped).
+  params: text('params', { mode: 'json' }).$type<Record<string, unknown>>(),
+  // What the action returned — the values steps.<id>.<output> resolves to.
+  outputs: text('outputs', { mode: 'json' }).$type<Record<string, unknown>>(),
+  error: text('error'),
+  attempt: integer('attempt').notNull().default(1),
+  // This step's slice of the run log (the run's `log` stays the full stream).
+  log: text('log').notNull().default(''),
+  parentStepId: text('parent_step_id'),
+  iteration: integer('iteration'),
+  startedAt: integer('started_at', { mode: 'timestamp' }),
+  finishedAt: integer('finished_at', { mode: 'timestamp' }),
+}, table => [
+  index('run_steps_run_id_idx').on(table.runId),
+])
+
+export type RunStep = typeof runSteps.$inferSelect
 
 // Workflows. Every workflow is a row here, including the bundled starter
 // templates (server/workflows/index.ts), which are seeded once on first boot

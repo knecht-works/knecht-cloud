@@ -39,7 +39,18 @@ export function parseWorkflow(yaml: string): Workflow {
 // `stepSchema` (which parses the YAML authoring form), the builder sends steps
 // already in their NORMALIZED, `type`-tagged shape — so this validates that
 // shape directly. Required params are enforced (a half-filled step can't save).
-const stepMeta = { id: z.string().optional(), label: z.string().optional(), description: z.string().optional() }
+const stepMeta = {
+  id: z.string().optional(),
+  label: z.string().optional(),
+  description: z.string().optional(),
+  // The step's error policy (shared/utils/workflow.ts StepMeta), enforced by
+  // the runner for every step type.
+  continueOnError: z.boolean().optional(),
+  retry: z.object({
+    attempts: z.number().int().min(1).max(10),
+    backoffSeconds: z.number().min(0).max(3600),
+  }).optional(),
+}
 type StepOption = z.ZodObject<z.ZodRawShape>
 const stepOptions = ACTIONS.map(a =>
   z.object({ type: z.literal(a.type), ...a.params, ...stepMeta }),
