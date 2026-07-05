@@ -4,7 +4,7 @@ import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import type { Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
-import { actionFor, type ActionRuntime } from '../workflows/actions'
+import { actionFor, type ActionError, type ActionRuntime } from '../workflows/actions'
 import { createContext, renderStepParams, type RunContext } from '../workflows/context'
 import { runSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
@@ -145,7 +145,7 @@ async function execStep(
   onRow: (rowId: number) => void,
 ): Promise<Record<string, unknown> | undefined> {
   const action = actionFor(step.type)
-  const rendered = renderStepParams(step, ctx)
+  const rendered = renderStepParams(step, ctx, action.rawParams)
   const row = db.insert(schema.runSteps).values({
     runId,
     stepIndex: index,
@@ -178,13 +178,17 @@ async function execStep(
         await sleep(delay * 1000)
         continue
       }
+      // An ActionError carries the failure's outputs (bash exit code + output
+      // tail, an HTTP error response) — recorded, and still referencable by
+      // later steps when the run continues.
+      const failOutputs = capOutputs((e as ActionError).outputs)
       db.update(schema.runSteps)
-        .set({ status: 'failed', error, attempt, finishedAt: new Date() })
+        .set({ status: 'failed', error, attempt, outputs: failOutputs, finishedAt: new Date() })
         .where(eq(schema.runSteps.id, row.id))
         .run()
       if (step.continueOnError) {
         rt.log(`\nStep failed: ${error} — continuing (continue on error)\n`)
-        return undefined
+        return failOutputs
       }
       throw e
     }
@@ -206,15 +210,26 @@ function capOutputs(outputs: Record<string, unknown> | undefined): Record<string
   return outputs
 }
 
+// How much command output the runner keeps in memory for the action to
+// inspect (bash `stdout` output, the js step's result marker). The run log
+// gets the full stream regardless.
+const STREAM_TAIL_CHARS = 128 * 1024
+
 // Run a command in the sandbox, streaming its stdout/stderr into the run log
 // (routed through the run's logger, so it also lands in the current step's
-// row). Resolves with the exit code (never rejects on a non-zero exit — the
-// caller decides).
-function streamInSandbox(runId: number, command: string[], log: (text: string) => void): Promise<number> {
+// row) while capturing a tail for the caller. Resolves with the exit code —
+// never rejects on a non-zero exit, the caller decides.
+function streamInSandbox(runId: number, command: string[], log: (text: string) => void): Promise<{ code: number, tail: string }> {
   const sub = execInSandbox(runId, command, { reject: false, buffer: false })
-  sub.stdout?.on('data', (d: Buffer) => log(d.toString()))
-  sub.stderr?.on('data', (d: Buffer) => log(d.toString()))
-  return sub.then(r => r.exitCode ?? 1)
+  let tail = ''
+  const capture = (d: Buffer) => {
+    const text = d.toString()
+    log(text)
+    tail = (tail + text).slice(-STREAM_TAIL_CHARS)
+  }
+  sub.stdout?.on('data', capture)
+  sub.stderr?.on('data', capture)
+  return sub.then(r => ({ code: r.exitCode ?? 1, tail }))
 }
 
 function appendLog(runId: number, text: string): void {

@@ -23,10 +23,26 @@ export interface ActionRuntime {
   sandbox: {
     /** Boot the run's sandbox if it isn't up. */
     ensureUp: () => Promise<void>
-    /** Run a command in the sandbox, streaming output into the run log; resolves with the exit code. */
-    stream: (command: string[]) => Promise<number>
+    /**
+     * Run a command in the sandbox, streaming output into the run log.
+     * Resolves with the exit code and the captured output tail (stdout+stderr
+     * merged, size-capped) — never rejects on a non-zero exit.
+     */
+    stream: (command: string[]) => Promise<{ code: number, tail: string }>
     /** Copy a host file into the sandbox. */
     copyIn: (hostPath: string, sandboxPath: string) => Promise<void>
+  }
+}
+
+// An action can attach outputs to a thrown error (bash: exit code + output
+// tail; http: the error response). The runner records them on the failed
+// run_steps row and — with continueOnError — still exposes them to later steps,
+// so conditions like `{{ steps.<id>.exitCode }}` work on failure.
+export class ActionError extends Error {
+  outputs?: Record<string, unknown>
+  constructor(message: string, outputs?: Record<string, unknown>) {
+    super(message)
+    this.outputs = outputs
   }
 }
 
@@ -44,6 +60,12 @@ export interface ActionDef<T extends Step['type']> {
    */
   legacyKey?: string
   /**
+   * Param keys that resolve RAW when their template is exactly one
+   * `{{ ref }}`: the referenced value (object/array/number) is passed as-is
+   * instead of stringified — how a js step receives a whole output bag.
+   */
+  rawParams?: readonly string[]
+  /**
    * Execute the step. String params arrive already `render()`ed. The returned
    * outputs land in the run context under steps.<id> (and legacyKey, if set) —
    * they're what STEP_OUTPUTS (shared/utils/workflow.ts) describes.
@@ -59,6 +81,7 @@ export interface RegisteredAction {
   params: z.ZodRawShape
   yaml: z.ZodType<Step>
   legacyKey?: string
+  rawParams?: readonly string[]
   run(step: Step, rt: ActionRuntime): Promise<Record<string, unknown> | undefined>
 }
 

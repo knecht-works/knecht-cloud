@@ -123,6 +123,15 @@ function deriveStepMeta(step: WorkflowStep): StepMeta {
   if (step.type === 'ddev-start') {
     return { icon: 'i-lucide-play', kind: 'det', label: 'Boot project', detail: 'DDEV starts web + database' }
   }
+  if (step.type === 'ai') {
+    return { icon: 'i-lucide-sparkles', kind: 'ai', label: 'AI', detail: step.prompt }
+  }
+  if (step.type === 'js') {
+    return { icon: 'i-lucide-braces', kind: 'det', label: 'JavaScript', detail: step.code.split('\n')[0] ?? '' }
+  }
+  if (step.type === 'http') {
+    return { icon: 'i-lucide-globe', kind: 'det', label: 'HTTP request', detail: `${step.method.toUpperCase()} ${step.url}` }
+  }
   if (step.type === 'create-branch') {
     return { icon: 'i-lucide-git-branch', kind: 'out', label: 'Create branch', detail: step.name }
   }

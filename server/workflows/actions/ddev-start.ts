@@ -14,7 +14,7 @@ export const ddevStartAction = defineAction({
   async run(_step, rt) {
     rt.log(`\n▶ ddev-start\n`)
     await rt.sandbox.ensureUp()
-    const code = await rt.sandbox.stream(['ddev', 'start'])
+    const { code } = await rt.sandbox.stream(['ddev', 'start'])
     if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
     await importDb(rt)
     // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
@@ -41,6 +41,6 @@ async function importDb(rt: ActionRuntime): Promise<void> {
   rt.log(`\n▶ import-db (${basename(file)})\n`)
   const inSandbox = `/tmp/${basename(file)}`
   await rt.sandbox.copyIn(file, inSandbox)
-  const code = await rt.sandbox.stream(['ddev', 'import-db', `--file=${inSandbox}`])
+  const { code } = await rt.sandbox.stream(['ddev', 'import-db', `--file=${inSandbox}`])
   if (code !== 0) throw new Error(`ddev import-db exited with code ${code}`)
 }

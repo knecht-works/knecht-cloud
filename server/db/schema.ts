@@ -192,8 +192,8 @@ export type NewWorkflowRow = typeof workflows.$inferInsert
 
 // Instance-wide settings — a single row (id = 1). Holds the operator-tunable
 // lifecycle limits that keep isolated run environments from piling up (each env
-// consumes a docker network from a finite pool and disk for its volumes). The
-// OpenRouter key/model for the `knecht` block will join this row later.
+// consumes a docker network from a finite pool and disk for its volumes), the
+// run concurrency limit, and the `ai` step's OpenRouter configuration.
 export const settings = sqliteTable('settings', {
   id: integer('id').primaryKey(), // singleton — always 1
 
@@ -218,6 +218,11 @@ export const settings = sqliteTable('settings', {
   // CPU/RAM guard). Queued runs wait; the dispatcher (server/plugins/
   // dispatcher.ts) starts them as slots free up.
   maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
+
+  // The `ai` step (OpenRouter): API key — encrypted at rest (crypto.ts), never
+  // returned by the API — and the default model (a step can override it).
+  openrouterKeyEnc: text('openrouter_key_enc'),
+  aiModel: text('ai_model').notNull().default('openrouter/auto'),
 
   // Whether the bundled starter workflows have been seeded into the table. Seeded
   // once on first boot; afterwards workflows are fully user-owned (deletions and

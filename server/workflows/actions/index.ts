@@ -2,11 +2,15 @@ import type { Step } from '../../../shared/utils/workflow'
 import type { RegisteredAction } from './types'
 import { ddevStartAction } from './ddev-start'
 import { bashAction } from './bash'
+import { aiAction } from './ai'
+import { jsAction } from './js'
+import { httpAction } from './http'
 import { createBranchAction } from './create-branch'
 import { createCommitAction } from './create-commit'
 import { createPrAction } from './create-pr'
 
 export type { ActionDef, ActionRuntime, RegisteredAction } from './types'
+export { ActionError } from './types'
 
 // The action registry. Adding a step type is: extend the Step union
 // (shared/utils/workflow.ts, incl. STEP_OUTPUTS), write an action module here,
@@ -15,6 +19,9 @@ export type { ActionDef, ActionRuntime, RegisteredAction } from './types'
 export const ACTIONS: RegisteredAction[] = [
   ddevStartAction,
   bashAction,
+  aiAction,
+  jsAction,
+  httpAction,
   createBranchAction,
   createCommitAction,
   createPrAction,

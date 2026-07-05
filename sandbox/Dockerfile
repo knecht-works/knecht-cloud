@@ -21,10 +21,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # systemd as init + the base tools ddev expects. mkcert: ddev generates its
 # local CA at first start (previews still cross the ingress hop over HTTP —
-# run-isolation.md §11 — but ddev wants mkcert present).
+# run-isolation.md §11 — but ddev wants mkcert present). nodejs runs the `js`
+# workflow step's scripts (server/workflows/actions/js.ts).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       systemd systemd-sysv ca-certificates curl gnupg sudo iproute2 git \
-      mkcert libnss3-tools \
+      mkcert libnss3-tools nodejs \
  && rm -rf /var/lib/apt/lists/*
 
 # The INNER Docker daemon (dockerd runs inside the sandbox — this is the whole
