@@ -4,7 +4,7 @@ Plan for evolving Knecht's existing linear workflow system into a robust, scalab
 engine with first-class variable/data passing, a growing catalog of actions
 (AI, JS, HTTP, …), and JSON/YAML import/export.
 
-Status: **proposal** · Date: 2026-07-05
+Status: **implemented** (phases 1–7, see §4) · Date: 2026-07-05
 
 ---
 

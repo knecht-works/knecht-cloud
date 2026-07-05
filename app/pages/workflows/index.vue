@@ -70,6 +70,27 @@ const metrics = computed(() => {
   }
 })
 
+// ── import (YAML/JSON export files, or hand-written definitions) ────────────
+const importInput = ref<HTMLInputElement>()
+const importing = ref(false)
+async function importFile(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (importInput.value) importInput.value.value = ''
+  if (!file) return
+  importing.value = true
+  try {
+    const source = await file.text()
+    const created = await $fetch('/api/workflows/import', { method: 'POST', body: { source } })
+    await navigateTo(`/workflows/${encodeURIComponent(created.name)}`)
+  }
+  catch (err) {
+    toastError('Import failed', err)
+  }
+  finally {
+    importing.value = false
+  }
+}
+
 const tab = ref<'all' | 'used' | 'unused'>('all')
 const TABS = [
   { id: 'all', label: 'All' },
@@ -89,6 +110,21 @@ const filtered = computed(() =>
     <KTopBar title="Workflows">
       <template #actions>
         <AppSearch />
+        <input
+          ref="importInput"
+          type="file"
+          accept=".yaml,.yml,.json,application/yaml,application/json"
+          class="hidden"
+          @change="importFile"
+        >
+        <UButton
+          icon="i-lucide-upload"
+          label="Import"
+          color="neutral"
+          variant="ghost"
+          :loading="importing"
+          @click="importInput?.click()"
+        />
         <UButton
           icon="i-lucide-plus"
           label="New workflow"
