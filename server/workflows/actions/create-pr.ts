@@ -37,7 +37,7 @@ export const createPrAction = defineAction({
     // Nothing was committed (e.g. an empty agent run) — there's no diff to
     // open a PR for. Treat as a skip, not a failure.
     if (!pr) {
-      rt.log(`No changes to open a PR for — skipping\n`)
+      rt.log(`No changes to open a PR for, skipping\n`)
       return
     }
     db.update(schema.runs).set({ prUrl: pr.url }).where(eq(schema.runs.id, rt.runId)).run()

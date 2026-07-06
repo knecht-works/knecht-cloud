@@ -40,16 +40,16 @@ export const aiAction = defineAction({
   async run(step, rt) {
     const settings = getSettings()
     if (!settings.aiKeyEnc) {
-      throw new Error('AI provider API key not configured — add it under Settings → Agent')
+      throw new Error('AI provider API key not configured, add it under Settings → Agent')
     }
     const model = step.model?.trim() || settings.aiModel
     if (!MODEL_RE.test(model)) {
-      throw new Error(`Invalid model '${model}' — expected opencode's provider/model form, e.g. anthropic/claude-sonnet-4-5`)
+      throw new Error(`Invalid model '${model}': expected opencode's provider/model form, e.g. anthropic/claude-sonnet-4-5`)
     }
     const provider = model.split('/')[0]!
     const envNames = PROVIDER_KEY_ENV[provider]
     if (!envNames) {
-      throw new Error(`Unsupported provider '${provider}' — supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
+      throw new Error(`Unsupported provider '${provider}'. Supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
     }
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
