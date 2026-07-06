@@ -73,11 +73,14 @@ export async function removeSandbox(runId: number): Promise<void> {
 // matches this process — baked into the image, see sandbox/Dockerfile), in
 // the project checkout. HOME and USER must be set explicitly: `docker exec -u`
 // derives neither, ddev needs both. execa options pass through (the runner
-// streams with `buffer: false`; plain callers just await).
-export function execInSandbox(runId: number, command: string[], options?: Options) {
+// streams with `buffer: false`; plain callers just await). `env` becomes
+// `docker exec -e` vars — how a secret reaches a sandbox process without
+// appearing in the command line (the ai step's provider key).
+export function execInSandbox(runId: number, command: string[], options?: Options, env?: Record<string, string>) {
   return execa('docker', [
     'exec', '-u', 'ddev', '-w', SANDBOX_PROJECT_DIR,
     '-e', 'HOME=/home/ddev', '-e', 'USER=ddev',
+    ...Object.entries(env ?? {}).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
     runSandboxName(runId), ...command,
   ], options)
 }

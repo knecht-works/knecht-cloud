@@ -109,7 +109,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
       log,
       sandbox: {
         ensureUp: () => ensureEnvUp(runId),
-        stream: command => streamInSandbox(runId, command, log),
+        stream: (command, opts) => streamInSandbox(runId, command, log, opts?.env),
         copyIn: (hostPath, sandboxPath) => copyIntoSandbox(runId, hostPath, sandboxPath),
       },
     }
@@ -315,8 +315,8 @@ const STREAM_TAIL_CHARS = 128 * 1024
 // (routed through the run's logger, so it also lands in the current step's
 // row) while capturing a tail for the caller. Resolves with the exit code —
 // never rejects on a non-zero exit, the caller decides.
-function streamInSandbox(runId: number, command: string[], log: (text: string) => void): Promise<{ code: number, tail: string }> {
-  const sub = execInSandbox(runId, command, { reject: false, buffer: false })
+function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>): Promise<{ code: number, tail: string }> {
+  const sub = execInSandbox(runId, command, { reject: false, buffer: false }, env)
   // Chunk list instead of string concat: re-slicing a full 128 KB string per
   // stdout event would make chatty commands quadratic.
   const chunks: string[] = []

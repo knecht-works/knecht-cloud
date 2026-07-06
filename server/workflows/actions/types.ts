@@ -26,9 +26,10 @@ export interface ActionRuntime {
     /**
      * Run a command in the sandbox, streaming output into the run log.
      * Resolves with the exit code and the captured output tail (stdout+stderr
-     * merged, size-capped) — never rejects on a non-zero exit.
+     * merged, size-capped) — never rejects on a non-zero exit. `env` vars reach
+     * the sandbox process without appearing in the command line (secrets).
      */
-    stream: (command: string[]) => Promise<{ code: number, tail: string }>
+    stream: (command: string[], opts?: { env?: Record<string, string> }) => Promise<{ code: number, tail: string }>
     /** Copy a host file into the sandbox. */
     copyIn: (hostPath: string, sandboxPath: string) => Promise<void>
   }

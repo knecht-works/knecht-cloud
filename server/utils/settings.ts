@@ -26,6 +26,6 @@ export function updateSettings(patch: SettingsPatch): Settings {
 // EVERY settings response goes through this — a new secret column gets its
 // redaction here, once.
 export function publicSettings(settings: Settings) {
-  const { openrouterKeyEnc, ...rest } = settings
-  return { ...rest, aiKeyConfigured: !!openrouterKeyEnc }
+  const { aiKeyEnc, ...rest } = settings
+  return { ...rest, aiKeyConfigured: !!aiKeyEnc }
 }

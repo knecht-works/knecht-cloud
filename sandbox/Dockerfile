@@ -80,7 +80,11 @@ RUN su - ddev -c 'mkdir -p ~/.ddev && printf "router_bind_all_interfaces: true\n
 RUN su - ddev -c 'mkcert -install'
 
 # opencode (the AI agent) — runs INSIDE the sandbox, in the project checkout.
-RUN su - ddev -c 'curl -fsSL https://opencode.ai/install | bash'
+# The installer drops the binary in ~/.opencode/bin and only patches shell rc
+# files, which non-interactive `bash -lc` (docker exec) never reads — the
+# symlink puts it on the default PATH for every exec mode.
+RUN su - ddev -c 'curl -fsSL https://opencode.ai/install | bash' \
+ && ln -s /home/ddev/.opencode/bin/opencode /usr/local/bin/opencode
 
 RUN systemctl enable docker
 
