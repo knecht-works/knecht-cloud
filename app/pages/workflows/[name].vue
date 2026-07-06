@@ -696,9 +696,11 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
               style="box-shadow: var(--shadow-panel)"
             >
               <!-- Header + master switch: pauses every trigger at once (manual
-                   runs / tests are unaffected). -->
+                   runs / tests are unaffected). Only shown once a trigger is
+                   configured — with just the implicit manual start there is
+                   nothing the switch could pause. -->
               <div
-                v-if="saved"
+                v-if="saved && workflowTriggers.length"
                 class="flex items-center justify-between gap-3 border-b border-(--border-muted) px-4 py-2.5 transition-colors"
                 :style="saved.enabled ? {} : { background: 'color-mix(in oklab, var(--accent-orange) 9%, transparent)' }"
               >
