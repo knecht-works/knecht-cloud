@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
+import { decrypt } from './crypto'
 import type { Settings } from '../db/schema'
 
 // Instance settings live in a single row (id = 1). Read through this helper so
@@ -22,10 +23,29 @@ export function updateSettings(patch: SettingsPatch): Settings {
   return getSettings()
 }
 
-// The client-facing shape: secrets stripped, replaced by configured-flags.
-// EVERY settings response goes through this — a new secret column gets its
-// redaction here, once.
+// The client-facing shape: secrets stripped, replaced by configured-flags and
+// a recognition preview. EVERY settings response goes through this — a new
+// secret column gets its redaction here, once.
 export function publicSettings(settings: Settings) {
   const { aiKeyEnc, ...rest } = settings
-  return { ...rest, aiKeyConfigured: !!aiKeyEnc }
+  return {
+    ...rest,
+    aiKeyConfigured: !!aiKeyEnc,
+    aiKeyPreview: aiKeyEnc ? keyPreview(aiKeyEnc) : undefined,
+  }
+}
+
+// First 8 + last 4 characters stay visible so the operator can tell WHICH key
+// is stored; the middle is masked (star count capped — the field shouldn't
+// grow with the key, and the hidden length carries no information anyway).
+function keyPreview(enc: string): string | undefined {
+  try {
+    const key = decrypt(enc)
+    if (key.length <= 12) return '*'.repeat(key.length)
+    return `${key.slice(0, 8)}${'*'.repeat(Math.min(key.length - 12, 16))}${key.slice(-4)}`
+  }
+  catch {
+    // Undecryptable (rotated NUXT_SESSION_PASSWORD) — no preview, key needs re-entry.
+    return undefined
+  }
 }

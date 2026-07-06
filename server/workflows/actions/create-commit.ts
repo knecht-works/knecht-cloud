@@ -15,7 +15,7 @@ export const createCommitAction = defineAction({
       rt.log(`Committed ${sha.slice(0, 8)}\n`)
       return { sha, created: true }
     }
-    rt.log(`Nothing to commit — skipping\n`)
+    rt.log(`Nothing to commit, skipping\n`)
     return { created: false }
   },
 })

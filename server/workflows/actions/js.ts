@@ -44,7 +44,7 @@ export const jsAction = defineAction({
       const { code, tail } = await rt.sandbox.stream(['bash', '-lc', `node ${inSandbox}`])
       if (code !== 0) throw new ActionError(`js step exited with code ${code}`, { exitCode: code })
       const line = tail.split('\n').reverse().find(l => l.startsWith(RESULT_MARKER))
-      if (!line) throw new Error('js step produced no result — main(input) must return a JSON-serializable value')
+      if (!line) throw new Error('js step produced no result: main(input) must return a JSON-serializable value')
       return { result: JSON.parse(line.slice(RESULT_MARKER.length)) as unknown }
     }
     finally {

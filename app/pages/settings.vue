@@ -68,27 +68,35 @@ interface Settings {
   aiModel: string
   /** Whether a provider API key is stored (the key itself never leaves the server). */
   aiKeyConfigured?: boolean
+  /** Masked recognition preview of the stored key (first 8 + last 4 visible). */
+  aiKeyPreview?: string
 }
 const { data: settings } = useFetch<Settings>('/api/settings', { lazy: true })
 
-// Local editable copy; changes autosave shortly after the last edit.
-const form = reactive<Settings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30, maxConcurrentRuns: 2, aiModel: 'anthropic/claude-sonnet-4-5' })
+// Local editable copy of the ENV fields only — the Agent panel saves on its
+// own (separate indicator), so a model change never flashes "Saving" over in
+// Environments. Changes autosave shortly after the last edit.
+type EnvSettings = Pick<Settings, 'idleStopMinutes' | 'previewRetentionDays' | 'archiveRetentionDays' | 'maxConcurrentRuns'>
+const form = reactive<EnvSettings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30, maxConcurrentRuns: 2 })
+const aiModel = ref('anthropic/claude-sonnet-4-5')
 const original = ref('')
 function load() {
   if (!settings.value) return
-  Object.assign(form, settings.value)
-  original.value = JSON.stringify(settings.value)
+  const { idleStopMinutes, previewRetentionDays, archiveRetentionDays, maxConcurrentRuns } = settings.value
+  Object.assign(form, { idleStopMinutes, previewRetentionDays, archiveRetentionDays, maxConcurrentRuns })
+  aiModel.value = settings.value.aiModel
+  original.value = JSON.stringify({ ...form })
 }
 watch(settings, load, { immediate: true })
 
 // Each field is one step down the preview lifecycle ladder (live → stopped →
 // archived → deleted): "after how long of nobody touching it does a preview
 // take the next step". The labels name the transition, not an internal state.
-const ENV_FIELDS: { key: keyof Settings, label: string, unit: string, min: number, hint: string }[] = [
+const ENV_FIELDS: { key: keyof EnvSettings, label: string, unit: string, min: number, hint: string }[] = [
   { key: 'idleStopMinutes', label: 'Live → stopped', unit: 'min', min: 1, hint: 'Every live preview keeps a full environment running, eating server memory even when nobody looks at it. After this long without a visit it\'s stopped to free that memory. Opening it again brings it back in seconds, nothing is lost.' },
   { key: 'previewRetentionDays', label: 'Stopped → archived', unit: 'days', min: 0, hint: 'A stopped preview untouched for this long is archived: the heavy environment is deleted, a small snapshot (database + code changes) is kept. Restoring takes a few minutes. 0 never archives.' },
   { key: 'archiveRetentionDays', label: 'Archived → deleted', unit: 'days', min: 0, hint: 'An archive untouched for this long is deleted for good. After that, only running the workflow again boots the run. 0 never deletes.' },
-  { key: 'maxConcurrentRuns', label: 'Parallel runs', unit: 'runs', min: 1, hint: 'How many workflow runs may execute at the same time — each boots a full isolated environment, so this caps the server load. Further runs queue and start as slots free up.' },
+  { key: 'maxConcurrentRuns', label: 'Parallel runs', unit: 'runs', min: 1, hint: 'How many workflow runs may execute at the same time. Each boots a full isolated environment, so this caps the server load. Further runs queue and start as slots free up.' },
 ]
 
 // Autosave, debounced so a keystroke doesn't fire a request. An emptied number
@@ -109,6 +117,26 @@ const { data: aiModels, status: aiModelsStatus, error: aiModelsError } = useAiMo
 const modelItems = computed(() =>
   aiModels.value.map(m => ({ label: m.id, description: `${m.name} · ${m.provider}`, id: m.id })))
 
+// The default model autosaves like the env fields but reports into the Agent
+// panel's own indicator. load() writing the server value back is a no-op here.
+const agentSaveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+let agentSaveTimer: ReturnType<typeof setTimeout> | undefined
+watch(aiModel, () => {
+  if (aiModel.value === settings.value?.aiModel) return
+  agentSaveState.value = 'saving'
+  clearTimeout(agentSaveTimer)
+  agentSaveTimer = setTimeout(saveAiModel, 800)
+})
+async function saveAiModel() {
+  try {
+    settings.value = await $fetch<Settings>('/api/settings', { method: 'PATCH', body: { aiModel: aiModel.value } })
+    agentSaveState.value = 'saved'
+  }
+  catch {
+    agentSaveState.value = 'error'
+  }
+}
+
 const aiKey = ref('')
 const savingAiKey = ref(false)
 async function saveAiKey() {
@@ -127,7 +155,7 @@ async function saveAiKey() {
 }
 
 async function save() {
-  if (!ENV_FIELDS.every(f => Number.isInteger(form[f.key] as number))) return
+  if (!ENV_FIELDS.every(f => Number.isInteger(form[f.key]))) return
   try {
     settings.value = await $fetch<Settings>('/api/settings', { method: 'PATCH', body: { ...form } })
     load()
@@ -285,6 +313,14 @@ async function save() {
       >
         <template #action>
           <span
+            v-if="agentSaveState !== 'idle'"
+            class="k-mono text-[11px]"
+            :class="agentSaveState === 'error' ? 'text-(--status-error)' : 'text-(--text-dimmed)'"
+          >
+            {{ agentSaveState === 'saving' ? 'Saving…' : agentSaveState === 'saved' ? 'Saved' : 'Not saved, check the value' }}
+          </span>
+          <span
+            v-else
             class="k-mono text-[11px]"
             :class="settings?.aiKeyConfigured ? 'text-(--text-muted)' : 'text-(--text-dimmed)'"
           >
@@ -293,9 +329,9 @@ async function save() {
         </template>
         <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
           The <span class="k-mono text-[12px] text-(--text-toned)">ai</span> workflow step
-          runs opencode inside the run's sandbox with this key — the provider is picked by
-          the model's prefix. The key is stored encrypted and never shown again; each step
-          can override the default model.
+          runs opencode inside the run's sandbox with this key; the provider is picked by
+          the model's prefix. The key is stored encrypted, and each step can override the
+          default model.
         </p>
         <div class="flex flex-col gap-5">
           <div>
@@ -307,7 +343,7 @@ async function save() {
               <UInput
                 v-model="aiKey"
                 type="password"
-                :placeholder="settings?.aiKeyConfigured ? 'Configured — enter a key to replace it' : 'sk-…'"
+                :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
                 class="flex-1"
               />
               <UButton
@@ -325,13 +361,13 @@ async function save() {
             <div class="mt-2">
               <UInput
                 v-if="aiModelsError"
-                v-model="form.aiModel"
+                v-model="aiModel"
                 placeholder="anthropic/claude-sonnet-4-5"
                 class="w-full sm:w-72"
               />
               <USelectMenu
                 v-else
-                v-model="form.aiModel"
+                v-model="aiModel"
                 :items="modelItems"
                 value-key="id"
                 :filter-fields="['label', 'description']"
@@ -342,7 +378,7 @@ async function save() {
             </div>
             <p class="mt-2 text-[12px] leading-[1.5] text-(--text-muted)">
               opencode's <span class="k-mono text-[11px]">provider/model</span> form. The
-              provider must match the key above — a Zen key pairs with
+              provider must match the key above: a Zen key pairs with
               <span class="k-mono text-[11px]">opencode/…</span> models, an Anthropic key
               with <span class="k-mono text-[11px]">anthropic/…</span>.
             </p>

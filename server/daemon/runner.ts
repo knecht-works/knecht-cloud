@@ -259,7 +259,7 @@ async function execStep(
         const error = (e as Error).message
         if (attempt < maxAttempts) {
           const delay = (step.retry?.backoffSeconds ?? 0) * 2 ** (attempt - 1)
-          rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error} — retrying in ${delay}s\n`)
+          rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error}. Retrying in ${delay}s\n`)
           updateStepRow(row.id, { error, attempt })
           await sleep(delay * 1000)
           continue
@@ -270,7 +270,7 @@ async function execStep(
         const failOutputs = capOutputs((e as ActionError).outputs)
         finalize({ status: 'failed', error, attempt, outputs: failOutputs })
         if (step.continueOnError) {
-          rt.log(`\nStep failed: ${error} — continuing (continue on error)\n`)
+          rt.log(`\nStep failed: ${error}. Continuing (continue on error)\n`)
           return failOutputs
         }
         throw e
@@ -301,7 +301,7 @@ function capOutputs(outputs: Record<string, unknown> | undefined): Record<string
   if (!outputs) return undefined
   const size = Buffer.byteLength(JSON.stringify(outputs))
   if (size > MAX_OUTPUT_BYTES) {
-    throw new Error(`Step outputs too large (${size} bytes > ${MAX_OUTPUT_BYTES}) — keep large data in the sandbox filesystem and pass a path instead`)
+    throw new Error(`Step outputs too large (${size} bytes > ${MAX_OUTPUT_BYTES}): keep large data in the sandbox filesystem and pass a path instead`)
   }
   return outputs
 }
