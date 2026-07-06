@@ -76,7 +76,17 @@ const CONTEXT_VARS: StepVar[] = [
 
 export interface VarGroup {
   label: string
+  /** Accent for the group's chips — the source step's kind colour. */
+  color: string
   vars: StepVar[]
+}
+
+// A variable path split for two-tone rendering: the routing prefix
+// (`steps.s2.`) drawn dimmed, the final segment (`stdout`) readable — the
+// segment is what authors scan for. Used by the chips and the autocomplete.
+export function varPathParts(path: string): [string, string] {
+  const at = path.lastIndexOf('.')
+  return [path.slice(0, at + 1), path.slice(at + 1)]
 }
 
 // The {{ steps.<id>.… }} group one prior step contributes, or null when it has
@@ -84,8 +94,10 @@ export interface VarGroup {
 export function stepOutputGroup(step: WorkflowStep, position: number): VarGroup | null {
   const outputs = stepDef(step.type).outputs
   if (!outputs.length || !step.id) return null
+  const meta = workflowStepMeta(step)
   return {
-    label: `${position} · ${workflowStepMeta(step).label}`,
+    label: `${position} · ${meta.label}`,
+    color: STEP_KIND_COLOR[meta.kind],
     vars: outputs.map(v => ({ ...v, path: `steps.${step.id}.${v.path}` })),
   }
 }
@@ -93,6 +105,7 @@ export function stepOutputGroup(step: WorkflowStep, position: number): VarGroup 
 // What a loop's body can additionally reference.
 export const LOOP_VARS: VarGroup = {
   label: 'Loop',
+  color: STEP_KIND_COLOR.flow,
   vars: [
     { path: 'loop.item', hint: 'The current item' },
     { path: 'loop.index', hint: 'The current index (0-based)' },
@@ -117,7 +130,8 @@ export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup
 // (Sub-steps of composites extend this — see WorkflowSubSteps — with the loop
 // vars and their prior siblings.)
 export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
-  return [{ label: 'Context', vars: CONTEXT_VARS }, ...stepOutputGroups(steps, index)]
+  // Context vars are seeded by the trigger/run — they wear the trigger colour.
+  return [{ label: 'Context', color: STEP_KIND_COLOR.trigger, vars: CONTEXT_VARS }, ...stepOutputGroups(steps, index)]
 }
 
 // A step is saveable when its required fields are filled, its sub-steps (if
