@@ -9,7 +9,7 @@ export const aiStep = defineStep({
   group: 'AI',
   fields: [
     { key: 'prompt', label: 'Prompt', input: 'textarea', rows: 4, required: true, vars: true, placeholder: 'Fix the failing test: {{ steps.s2.stdout }}' },
-    { key: 'model', label: 'Model', input: 'text', placeholder: 'Default from Settings → Agent' },
+    { key: 'model', label: 'Model', input: 'model', placeholder: 'Default from Settings → Agent' },
   ],
   outputs: [
     { path: 'text', hint: 'The agent\'s output' },

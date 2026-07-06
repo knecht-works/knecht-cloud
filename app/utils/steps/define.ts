@@ -12,7 +12,7 @@ export interface StepField {
   /** Property on the step object this field edits. */
   key: string
   label: string
-  input: 'text' | 'textarea' | 'switch'
+  input: 'text' | 'textarea' | 'switch' | 'model'
   placeholder?: string
   required?: boolean
   rows?: number

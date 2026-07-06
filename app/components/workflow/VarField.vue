@@ -107,6 +107,12 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
     :disabled="disabled"
     :label="field.label"
   />
+  <WorkflowModelSelect
+    v-else-if="field.input === 'model'"
+    v-model="model as string"
+    :field="field"
+    :disabled="disabled"
+  />
   <div
     v-else
     ref="wrap"

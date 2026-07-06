@@ -104,7 +104,11 @@ watch(form, () => {
   saveTimer = setTimeout(save, 800)
 })
 
-// ── Agent: opencode provider key (write-only) ────────────────────────────────
+// ── Agent: opencode provider key (write-only) + model catalog ────────────────
+const { data: aiModels, status: aiModelsStatus, error: aiModelsError } = useAiModels()
+const modelItems = computed(() =>
+  aiModels.value.map(m => ({ label: m.id, description: `${m.name} · ${m.provider}`, id: m.id })))
+
 const aiKey = ref('')
 const savingAiKey = ref(false)
 async function saveAiKey() {
@@ -320,7 +324,18 @@ async function save() {
             <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Default model</span>
             <div class="mt-2">
               <UInput
+                v-if="aiModelsError"
                 v-model="form.aiModel"
+                placeholder="anthropic/claude-sonnet-4-5"
+                class="w-full sm:w-72"
+              />
+              <USelectMenu
+                v-else
+                v-model="form.aiModel"
+                :items="modelItems"
+                value-key="id"
+                :filter-fields="['label', 'description']"
+                :loading="aiModelsStatus === 'pending'"
                 placeholder="anthropic/claude-sonnet-4-5"
                 class="w-full sm:w-72"
               />
