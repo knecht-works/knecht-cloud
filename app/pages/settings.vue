@@ -184,7 +184,7 @@ async function save() {
   <div>
     <KTopBar
       title="Settings"
-      sub="Access, host environment and agent configuration."
+      sub="Access, agent and environment configuration."
     >
       <template #actions>
         <AppSearch />
@@ -317,12 +317,11 @@ async function save() {
         </div>
       </KPanel>
 
-      <SystemPanel />
-
       <KPanel
         title="Agent"
         icon="i-lucide-sparkles"
         accent="var(--accent-orange)"
+        class="lg:col-span-2"
       >
         <template #action>
           <span
@@ -340,71 +339,78 @@ async function save() {
             {{ settings?.aiKeyConfigured ? 'Configured' : 'Not configured' }}
           </span>
         </template>
-        <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
-          The <span class="k-mono text-[12px] text-(--text-toned)">ai</span> workflow step
-          runs opencode inside the run's sandbox, authenticated against the selected
-          provider with this key. The key is stored encrypted, and each step can override
-          the default model.
-        </p>
-        <div class="flex flex-col gap-5">
-          <div class="grid grid-cols-1 gap-5 sm:grid-cols-[11rem_1fr]">
-            <div>
-              <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Provider</span>
-              <USelect
-                v-model="aiProvider"
-                :items="PROVIDER_ITEMS"
-                value-key="id"
-                class="mt-2 w-full"
-              />
-            </div>
-            <div>
-              <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">API key</span>
-              <form
-                class="mt-2 flex items-center gap-2"
-                @submit.prevent="saveAiKey"
-              >
-                <UInput
-                  v-model="aiKey"
-                  type="password"
-                  :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
-                  class="flex-1"
-                />
-                <UButton
-                  type="submit"
-                  color="primary"
-                  size="xs"
-                  label="Save"
-                  :loading="savingAiKey"
-                  :disabled="!aiKey.trim()"
-                />
-              </form>
-            </div>
-          </div>
-          <div>
-            <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Default model</span>
-            <div class="mt-2">
-              <UInput
-                v-if="aiModelsError"
-                v-model="aiModel"
-                placeholder="anthropic/claude-sonnet-4-5"
-                class="w-full sm:w-72"
-              />
-              <USelectMenu
-                v-else
-                v-model="aiModel"
-                :items="modelItems"
-                value-key="id"
-                :filter-fields="['label', 'description']"
-                :loading="aiModelsStatus === 'pending'"
-                placeholder="anthropic/claude-sonnet-4-5"
-                class="w-full sm:w-72"
-              />
-            </div>
-            <p class="mt-2 text-[12px] leading-[1.5] text-(--text-muted)">
-              Only the selected provider's models are offered. For OpenCode the list comes
-              from your workspace, so models disabled there don't show up.
+        <div class="relative">
+          <div class="min-w-0 max-w-4xl">
+            <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
+              The <span class="k-mono text-[12px] text-(--text-toned)">ai</span> workflow step
+              runs opencode inside the run's sandbox, authenticated against the selected
+              provider with this key. The key is stored encrypted, and each step can override
+              the default model.
             </p>
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-[13rem_1fr]">
+              <div>
+                <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Provider</span>
+                <USelect
+                  v-model="aiProvider"
+                  :items="PROVIDER_ITEMS"
+                  value-key="id"
+                  class="mt-2 w-full"
+                />
+              </div>
+              <div>
+                <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">API key</span>
+                <form
+                  class="mt-2 flex items-center gap-2"
+                  @submit.prevent="saveAiKey"
+                >
+                  <UInput
+                    v-model="aiKey"
+                    type="password"
+                    :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
+                    class="flex-1"
+                  />
+                  <UButton
+                    type="submit"
+                    color="primary"
+                    size="xs"
+                    label="Save"
+                    :loading="savingAiKey"
+                    :disabled="!aiKey.trim()"
+                  />
+                </form>
+              </div>
+              <div class="sm:col-span-2">
+                <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Default model</span>
+                <div class="mt-2">
+                  <UInput
+                    v-if="aiModelsError"
+                    v-model="aiModel"
+                    placeholder="anthropic/claude-sonnet-4-5"
+                    class="w-full sm:max-w-md"
+                  />
+                  <USelectMenu
+                    v-else
+                    v-model="aiModel"
+                    :items="modelItems"
+                    value-key="id"
+                    :filter-fields="['label', 'description']"
+                    :loading="aiModelsStatus === 'pending'"
+                    placeholder="anthropic/claude-sonnet-4-5"
+                    class="w-full sm:max-w-md"
+                  />
+                </div>
+                <p class="mt-2 text-[12px] leading-[1.5] text-(--text-muted)">
+                  Only the selected provider's models are offered. For OpenCode the list comes
+                  from your workspace, so models disabled there don't show up.
+                </p>
+              </div>
+            </div>
           </div>
+          <img
+            src="/mascot/looking-right-knecht.svg"
+            alt=""
+            class="pointer-events-none absolute inset-y-0 right-16 hidden h-full w-auto -scale-x-100 xl:block"
+          >
         </div>
       </KPanel>
 
