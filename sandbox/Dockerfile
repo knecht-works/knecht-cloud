@@ -86,6 +86,13 @@ RUN su - ddev -c 'mkcert -install'
 RUN su - ddev -c 'curl -fsSL https://opencode.ai/install | bash' \
  && ln -s /home/ddev/.opencode/bin/opencode /usr/local/bin/opencode
 
+# Baked-in opencode instructions: AGENTS.md is the always-on internal system
+# prompt (opencode merges it automatically); opencode.json points at
+# workflow.md, which the ai step overwrites each run with that step's own
+# `system` prompt (empty when unset). See server/workflows/actions/ai.ts.
+COPY opencode /home/ddev/.config/opencode
+RUN chown -R ddev:ddev /home/ddev/.config
+
 RUN systemctl enable docker
 
 # systemd shuts down cleanly on SIGRTMIN+3 (SIGTERM is ignored by PID 1). This

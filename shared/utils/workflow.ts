@@ -50,7 +50,10 @@ export interface Condition {
 export type Step = StepMeta & (
   | { type: 'ddev-start' }
   | { type: 'bash', command: string }
-  | { type: 'ai', prompt: string, model?: string }
+  // `system` is a per-step system prompt, merged with the sandbox's baked-in
+  // instructions. `output` is a field spec (`name: type` per line) that turns
+  // the agent's answer into a validated steps.<id>.json (see actions/ai.ts).
+  | { type: 'ai', prompt: string, model?: string, system?: string, output?: string }
   // `input` is a template; when it is exactly one {{ ref }} the runner passes
   // the referenced value RAW (object/array), not stringified (see rawParams).
   | { type: 'js', code: string, input?: string }
@@ -166,4 +169,53 @@ export function ensureStepIds(steps: Step[]): Step[] {
 // workflow's ROOT list (ids are unique across the whole tree).
 export function nextStepId(steps: Step[]): string {
   return freeStepId(declaredIds(flattenSteps(steps)))
+}
+
+// ── ai step: structured output spec ──────────────────────────────────────────
+// An ai step's `output` param declares the JSON it must return, one
+// `name: type` per line. Shared so the engine (validate the spec, build the
+// schema), the builder (offer steps.<id>.json.<field> as variables) and
+// import/export all read the exact same grammar.
+export const AI_OUTPUT_TYPES = ['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'] as const
+export type AiOutputType = typeof AI_OUTPUT_TYPES[number]
+export interface AiOutputField { name: string, type: AiOutputType }
+
+// One line → a field, an Error explaining why it's malformed, or null (blank).
+function parseAiOutputLine(raw: string): AiOutputField | Error | null {
+  const line = raw.trim()
+  if (!line) return null
+  const colon = line.indexOf(':')
+  if (colon === -1) return new Error(`Invalid output field '${line}': expected 'name: type'`)
+  const name = line.slice(0, colon).trim()
+  const type = line.slice(colon + 1).trim()
+  if (!/^\w+$/.test(name)) return new Error(`Invalid output field name '${name}': use letters, digits, underscore`)
+  if (!(AI_OUTPUT_TYPES as readonly string[]).includes(type)) {
+    return new Error(`Invalid type '${type}' for '${name}': use one of ${AI_OUTPUT_TYPES.join(', ')}`)
+  }
+  return { name, type: type as AiOutputType }
+}
+
+// Strict: every non-blank line must be a valid field and there must be at least
+// one; throws the first offending line's error. The engine's validation path.
+export function parseAiOutputSpec(spec: string): AiOutputField[] {
+  const fields: AiOutputField[] = []
+  for (const raw of spec.split('\n')) {
+    const parsed = parseAiOutputLine(raw)
+    if (parsed instanceof Error) throw parsed
+    if (parsed) fields.push(parsed)
+  }
+  if (!fields.length) throw new Error('output defines no fields')
+  return fields
+}
+
+// Tolerant: the well-formed fields only, ignoring blanks and half-typed lines,
+// never throws. Lets the builder offer field variables while the spec is still
+// being typed.
+export function aiOutputFields(spec: string): AiOutputField[] {
+  const fields: AiOutputField[] = []
+  for (const raw of spec.split('\n')) {
+    const parsed = parseAiOutputLine(raw)
+    if (parsed && !(parsed instanceof Error)) fields.push(parsed)
+  }
+  return fields
 }

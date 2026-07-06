@@ -45,6 +45,12 @@ export interface StepDef<T extends Step['type']> {
   fields: StepField[]
   /** Variables this step writes into the run context for LATER steps. */
   outputs: StepVar[]
+  /**
+   * Instance-derived outputs, appended to `outputs` (e.g. the ai step exposing
+   * each declared output field as steps.<id>.json.<field>). Kept separate from
+   * the static list so most steps ignore it.
+   */
+  dynamicOutputs?(step: Extract<Step, { type: T }>): StepVar[]
   make(): Extract<Step, { type: T }>
   /**
    * Instance-specific presentation, merged over the def's icon/kind/label

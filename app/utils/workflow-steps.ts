@@ -92,7 +92,8 @@ export function varPathParts(path: string): [string, string] {
 // The {{ steps.<id>.… }} group one prior step contributes, or null when it has
 // no outputs (or no id yet).
 export function stepOutputGroup(step: WorkflowStep, position: number): VarGroup | null {
-  const outputs = stepDef(step.type).outputs
+  const def = stepDef(step.type)
+  const outputs = [...def.outputs, ...(def.dynamicOutputs?.(step) ?? [])]
   if (!outputs.length || !step.id) return null
   const meta = workflowStepMeta(step)
   return {
