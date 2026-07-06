@@ -35,6 +35,18 @@ const userMenu: DropdownMenuItem[][] = [
     { label: 'Logout', icon: 'i-lucide-log-out', onSelect: logout },
   ],
 ]
+
+// The system card: the instance's real host plus a live host/sandbox pulse,
+// linking to the System page. One shared probe per app load (useSystemInfo).
+const instanceHost = useRequestURL().host
+const { data: system, status: systemStatus } = useSystemInfo()
+const systemLine = computed(() => {
+  if (systemStatus.value === 'pending') return { color: 'neutral' as const, text: 'Checking host…' }
+  if (systemStatus.value === 'error') return { color: 'error' as const, text: 'Host unreachable' }
+  if (!system.value?.sysboxAvailable) return { color: 'error' as const, text: 'Sysbox missing' }
+  const n = system.value.hostContainers.length
+  return { color: 'primary' as const, text: `${n} container${n === 1 ? '' : 's'} up` }
+})
 </script>
 
 <template>
@@ -106,26 +118,46 @@ const userMenu: DropdownMenuItem[][] = [
       </nav>
 
       <div class="mt-auto flex flex-col gap-3 p-4">
-        <div
+        <NuxtLink
           v-if="!collapsed"
-          class="flex items-center gap-2.5 rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted) px-3.5 py-3"
+          to="/system"
+          class="flex items-center gap-2.5 rounded-(--radius-lg) border bg-(--surface-muted) px-3.5 py-3 transition-colors"
+          :class="route.path.startsWith('/system')
+            ? 'border-(--border-default) bg-(--surface-glass)'
+            : 'border-(--border-default) hover:bg-(--surface-glass)'"
         >
           <UIcon
             name="i-lucide-server"
             class="size-4 flex-none text-(--text-primary)"
           />
           <div class="min-w-0">
-            <div class="k-mono whitespace-nowrap text-[11.5px] leading-[1.3] text-(--text-toned)">
-              knecht.local
+            <div class="k-mono truncate whitespace-nowrap text-[11.5px] leading-[1.3] text-(--text-toned)">
+              {{ instanceHost }}
             </div>
             <div class="k-mono mt-[3px] flex items-center gap-1.5 whitespace-nowrap text-[10.5px] uppercase tracking-[0.06em] text-(--text-dimmed)">
               <KStatusDot
-                color="primary"
+                :color="systemLine.color"
                 :size="5"
-              /> EU · Self-hosted
+              /> {{ systemLine.text }}
             </div>
           </div>
-        </div>
+        </NuxtLink>
+        <UTooltip
+          v-else
+          text="System"
+          :content="{ side: 'right' }"
+        >
+          <NuxtLink
+            to="/system"
+            aria-label="System"
+            class="flex items-center justify-center rounded-(--radius-md) border border-transparent py-2.5 transition-colors hover:bg-(--surface-glass)"
+          >
+            <UIcon
+              name="i-lucide-server"
+              class="size-[18px] text-(--text-primary)"
+            />
+          </NuxtLink>
+        </UTooltip>
 
         <UDropdownMenu
           :items="userMenu"

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Only mounts when logged in (gated by the parent), so this fetch — and the
 // requireUserSession on /api/system — never runs for anonymous visitors.
-// Lazy: /api/system spawns docker probes; the panel streams in after paint.
-const { data, status, error, refresh } = useFetch('/api/system', { lazy: true })
+// Shared with the sidebar's system card: one probe per app load.
+const { data, status, error, refresh } = useSystemInfo()
 </script>
 
 <template>
@@ -36,20 +36,25 @@ const { data, status, error, refresh } = useFetch('/api/system', { lazy: true })
     </div>
     <div
       v-else-if="data"
-      class="flex flex-col gap-3"
+      class="grid grid-cols-1 gap-8 lg:grid-cols-2"
     >
-      <div class="flex items-center justify-between">
-        <span class="k-mono text-[12px] text-(--text-dimmed)">docker</span>
-        <span class="k-mono text-[12px] text-(--text-toned)">{{ data.dockerVersion }}</span>
+      <div>
+        <span class="k-label">System</span>
+        <div class="mt-2.5 flex flex-col gap-3">
+          <div class="flex items-center justify-between">
+            <span class="k-mono text-[12px] text-(--text-dimmed)">docker</span>
+            <span class="k-mono text-[12px] text-(--text-toned)">{{ data.dockerVersion }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="k-mono text-[12px] text-(--text-dimmed)">sysbox</span>
+            <span
+              class="k-mono text-[12px]"
+              :class="data.sysboxAvailable ? 'text-(--text-toned)' : 'text-(--status-error)'"
+            >{{ data.sysboxAvailable ? 'available' : 'missing' }}</span>
+          </div>
+        </div>
       </div>
-      <div class="flex items-center justify-between">
-        <span class="k-mono text-[12px] text-(--text-dimmed)">sysbox</span>
-        <span
-          class="k-mono text-[12px]"
-          :class="data.sysboxAvailable ? 'text-(--text-toned)' : 'text-(--status-error)'"
-        >{{ data.sysboxAvailable ? 'available' : 'missing' }}</span>
-      </div>
-      <div class="border-t border-(--border-muted) pt-3">
+      <div class="lg:border-l lg:border-(--border-muted) lg:pl-8">
         <span class="k-label">Host containers · {{ data.hostContainers.length }}</span>
         <div class="mt-2.5 flex flex-col gap-2">
           <div
