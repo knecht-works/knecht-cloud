@@ -84,6 +84,29 @@ export function useWorkflowTestRun<P extends TestProject>(
     },
   )
 
+  // Re-attach to a live run of this workflow, so navigating away and back
+  // doesn't lose an in-flight run's progress. Only live runs are restored —
+  // the newest one; runs that finished while away stay on the runs page.
+  async function reattach() {
+    const workflow = workflowName()
+    if (!workflow) return
+    try {
+      const runs = await $fetch('/api/runs')
+      const live = runs.find(r => r.workflow === workflow && isLiveStatus(r.status))
+      if (!live || activeRun.value) return
+      ;[activeRun.value, activeRunSteps.value] = await Promise.all([
+        $fetch<TestRunRow>(`/api/runs/${live.id}`),
+        $fetch<TestRunStepRow[]>(`/api/runs/${live.id}/steps`),
+      ])
+    }
+    catch { /* nothing to restore */ }
+  }
+
+  watch(workflowName, () => {
+    detach()
+    reattach()
+  }, { immediate: true })
+
   function detach() {
     activeRun.value = null
     activeRunSteps.value = []
