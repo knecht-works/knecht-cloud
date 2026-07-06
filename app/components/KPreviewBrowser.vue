@@ -19,6 +19,29 @@ const props = withDefaults(defineProps<{
 const reqUrl = useRequestURL()
 const primaryHost = computed(() => props.hosts[0] ?? null)
 
+// The env flips to 'up' (props.online) the instant `ddev start` returns, but the
+// boot workflow keeps running (composer install, asset build) — so the frame
+// would load a half-built site. Poll the health probe while up-but-unready and
+// only treat the preview as `live` (render the iframe) once the app answers.
+// Re-arms whenever `online` toggles, so a reboot re-probes from scratch.
+const ready = ref(false)
+async function checkHealth() {
+  if (!props.online || props.runId <= 0) return
+  try {
+    ready.value = (await $fetch(`/api/runs/${props.runId}/preview-health`)).ready
+  }
+  catch {
+    ready.value = false
+  }
+}
+watch(() => props.online, (on) => {
+  ready.value = false
+  if (on) checkHealth()
+}, { immediate: true })
+usePollWhile(() => props.online && !ready.value && props.runId > 0, checkHealth, 1500)
+
+const live = computed(() => props.online && ready.value)
+
 // The per-run preview origin for one of the project's ddev hostnames.
 function originFor(host: string | null): string {
   const label = host && host !== primaryHost.value ? previewLabel(host) : undefined
@@ -191,7 +214,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           variant="ghost"
           size="xs"
           aria-label="Back"
-          :disabled="!online || !canBack"
+          :disabled="!live || !canBack"
           @click="post('back')"
         />
         <UButton
@@ -200,7 +223,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           variant="ghost"
           size="xs"
           aria-label="Forward"
-          :disabled="!online || !canForward"
+          :disabled="!live || !canForward"
           @click="post('forward')"
         />
         <UButton
@@ -209,7 +232,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           variant="ghost"
           size="xs"
           aria-label="Reload"
-          :disabled="!online"
+          :disabled="!live"
           @click="reload"
         />
       </div>
@@ -221,7 +244,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
             class="size-[11px] flex-none text-(--text-muted)"
           />
           <input
-            v-if="online"
+            v-if="live"
             v-model="address"
             type="text"
             spellcheck="false"
@@ -236,9 +259,9 @@ const hostItems = computed(() => props.hosts.map(host => ({
           <span
             v-else
             class="k-mono flex-1 truncate text-xs text-(--text-dimmed)"
-          >no live preview</span>
+          >{{ online ? 'starting the preview…' : 'no live preview' }}</span>
           <UDropdownMenu
-            v-if="online && hostItems.length > 1"
+            v-if="live && hostItems.length > 1"
             :items="hostItems"
             :content="{ side: 'bottom', align: 'end' }"
           >
@@ -258,11 +281,12 @@ const hostItems = computed(() => props.hosts.map(host => ({
 
       <span class="k-mono flex flex-none items-center gap-1.5 text-xs text-(--text-dimmed)">
         <KStatusDot
-          :color="online ? 'primary' : 'neutral'"
+          :color="live ? 'primary' : online ? 'orange' : 'neutral'"
+          :pulse="online && !live"
           :glow="false"
           :size="6"
         />
-        {{ online ? 'live' : 'offline' }}
+        {{ live ? 'live' : online ? 'starting' : 'offline' }}
       </span>
       <UButton
         icon="i-lucide-external-link"
@@ -270,20 +294,32 @@ const hostItems = computed(() => props.hosts.map(host => ({
         variant="ghost"
         size="xs"
         aria-label="Open preview in a new tab"
-        :disabled="!online"
-        :to="online ? currentUrl : undefined"
+        :disabled="!live"
+        :to="live ? currentUrl : undefined"
         target="_blank"
       />
     </div>
 
     <div class="relative aspect-video w-full bg-(--surface-base)">
       <iframe
-        v-if="online"
+        v-if="live"
         :key="frameKey"
         ref="frame"
         :src="frameSrc"
         class="absolute inset-0 size-full"
       />
+      <div
+        v-else-if="online"
+        class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="size-7 animate-spin text-(--text-dimmed)"
+        />
+        <p class="max-w-[280px] text-[13px] text-(--text-muted)">
+          Booting the project, the preview opens once it responds.
+        </p>
+      </div>
       <div
         v-else
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center"
