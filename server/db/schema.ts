@@ -193,7 +193,7 @@ export type NewWorkflowRow = typeof workflows.$inferInsert
 // Instance-wide settings — a single row (id = 1). Holds the operator-tunable
 // lifecycle limits that keep isolated run environments from piling up (each env
 // consumes a docker network from a finite pool and disk for its volumes), the
-// run concurrency limit, and the `ai` step's OpenRouter configuration.
+// run concurrency limit, and the `ai` step's opencode configuration.
 export const settings = sqliteTable('settings', {
   id: integer('id').primaryKey(), // singleton — always 1
 
@@ -219,10 +219,12 @@ export const settings = sqliteTable('settings', {
   // dispatcher.ts) starts them as slots free up.
   maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
 
-  // The `ai` step (OpenRouter): API key — encrypted at rest (crypto.ts), never
-  // returned by the API — and the default model (a step can override it).
-  openrouterKeyEnc: text('openrouter_key_enc'),
-  aiModel: text('ai_model').notNull().default('openrouter/auto'),
+  // The `ai` step (opencode in the run's sandbox): provider API key — encrypted
+  // at rest (crypto.ts), never returned by the API — and the default model as
+  // opencode's `provider/model` (a step can override it). The provider prefix
+  // picks which env var the key is handed to opencode as (actions/ai.ts).
+  aiKeyEnc: text('ai_key_enc'),
+  aiModel: text('ai_model').notNull().default('anthropic/claude-sonnet-4-5'),
 
   // Whether the bundled starter workflows have been seeded into the table. Seeded
   // once on first boot; afterwards workflows are fully user-owned (deletions and

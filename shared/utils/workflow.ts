@@ -50,7 +50,7 @@ export interface Condition {
 export type Step = StepMeta & (
   | { type: 'ddev-start' }
   | { type: 'bash', command: string }
-  | { type: 'ai', prompt: string, system?: string, model?: string }
+  | { type: 'ai', prompt: string, model?: string }
   // `input` is a template; when it is exactly one {{ ref }} the runner passes
   // the referenced value RAW (object/array), not stringified — see rawParams.
   | { type: 'js', code: string, input?: string }
