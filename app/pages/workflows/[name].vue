@@ -666,8 +666,9 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
       <!-- Two columns: step rail (settings expand inline in the cards) +
            library. Sidebar sizing matches projects/[id].vue exactly
            (viewport-based clamp, can't drift between screens). -->
-      <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
+      <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]">
         <div
+          class="min-w-0"
           @dragover="onRailOver"
           @drop.prevent="onRailDrop"
         >
