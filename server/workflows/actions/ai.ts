@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import type { Step } from '../../../shared/utils/workflow'
 import { getSettings } from '../../utils/settings'
 import { decrypt } from '../../utils/crypto'
+import { tryParseJson } from '../../utils/json'
 import { defineAction, ActionError } from './types'
 
 // The `ai` step (the "knecht block"): one LLM call via OpenRouter. Key and
@@ -14,13 +14,6 @@ export const aiAction = defineAction({
     system: z.string().optional(),
     model: z.string().optional(),
   },
-  yaml: z.object({
-    ai: z.object({
-      prompt: z.string().min(1),
-      system: z.string().optional(),
-      model: z.string().optional(),
-    }),
-  }).transform(({ ai }): Step => ({ type: 'ai', ...ai })),
   async run(step, rt) {
     const settings = getSettings()
     if (!settings.openrouterKeyEnc) {
@@ -55,7 +48,7 @@ export const aiAction = defineAction({
 
     // Expose a parsed form when the model answered with JSON (a common pattern
     // for feeding a js/http step) — code fences stripped first.
-    const json = tryParseJson(text)
+    const json = tryParseJson(stripFences(text))
     return json === undefined ? { text } : { text, json }
   },
 })
@@ -65,12 +58,6 @@ function oneLine(text: string, max: number): string {
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
 
-function tryParseJson(text: string): unknown {
-  const stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
-  try {
-    return JSON.parse(stripped)
-  }
-  catch {
-    return undefined
-  }
+function stripFences(text: string): string {
+  return text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
 }

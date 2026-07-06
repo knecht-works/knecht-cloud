@@ -1,7 +1,5 @@
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { z } from 'zod'
-import type { Step } from '../../../shared/utils/workflow'
 import { projectDumpDir } from '../../utils/storage'
 import { previewOrigin } from '../../utils/origin'
 import { defineAction, type ActionRuntime } from './types'
@@ -9,7 +7,6 @@ import { defineAction, type ActionRuntime } from './types'
 export const ddevStartAction = defineAction({
   type: 'ddev-start',
   params: {},
-  yaml: z.literal('ddev-start').transform((): Step => ({ type: 'ddev-start' })),
   legacyKey: 'preview',
   async run(_step, rt) {
     rt.log(`\n▶ ddev-start\n`)

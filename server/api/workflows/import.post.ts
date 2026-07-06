@@ -26,9 +26,7 @@ export default defineEventHandler(async (event) => {
 
   const result = workflowDocumentSchema.safeParse(doc)
   if (!result.success) {
-    const issue = result.error.issues[0]
-    const at = issue?.path.length ? `${issue.path.join('.')}: ` : ''
-    throw createError({ statusCode: 400, statusMessage: `Invalid workflow: ${at}${issue?.message ?? 'unknown error'}` })
+    zodBadRequest(result.error, 'Invalid workflow')
   }
 
   // Imports never overwrite: an existing name gets `-2`, `-3`, … appended.

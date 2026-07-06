@@ -54,20 +54,10 @@ export interface StepDef<T extends Step['type']> {
 }
 
 // The type-erased form the registry holds — callers only ever have a plain
-// `Step` in hand. `defineStep` is the single point where the narrowing cast
-// happens; def modules stay fully typed against their own step shape.
-export interface RegisteredStepDef {
-  type: Step['type']
-  label: string
-  hint: string
-  kind: StepKind
-  icon: string
-  group: string
-  fields: StepField[]
-  outputs: StepVar[]
-  make(): Step
-  meta?(step: Step): Partial<StepMeta>
-}
+// `Step` in hand (Extract<Step, { type: union }> collapses back to Step).
+// `defineStep` is the single point where the narrowing cast happens; def
+// modules stay fully typed against their own step shape.
+export type RegisteredStepDef = StepDef<Step['type']>
 
 export function defineStep<T extends Step['type']>(def: StepDef<T>): RegisteredStepDef {
   return def as unknown as RegisteredStepDef

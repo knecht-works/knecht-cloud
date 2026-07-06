@@ -2,7 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { eq, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
-import type { Step } from '../../shared/utils/workflow'
+import { COMPOSITE_CHILD_KEYS, isComposite, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
 import { actionFor, type ActionError, type ActionRuntime } from '../workflows/actions'
 import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
@@ -69,17 +69,17 @@ async function execRun(runId: number, project: Project): Promise<void> {
     .run()
 
   // Log routing: everything lands in runs.log (the UI's live stream); while a
-  // step is executing, its slice is ALSO appended to that step's run_steps row.
-  // Nested steps (if/loop) re-point this to their own row and restore the
+  // step is executing, its slice is ALSO buffered for that step's run_steps
+  // row and written once when the row is finalized — per-chunk SQL appends on
+  // this hot path would rewrite the growing blob for every stdout event.
+  // Nested steps (if/loop) re-point `current` to their own row and restore the
   // parent's when done.
-  const rowLog: RowLog = { current: null }
+  const rowLog: RowLog = { current: null, buffers: new Map() }
   const log = (text: string) => {
     appendLog(runId, text)
     if (rowLog.current !== null) {
-      db.update(schema.runSteps)
-        .set({ log: sql`${schema.runSteps.log} || ${text}` })
-        .where(eq(schema.runSteps.id, rowLog.current))
-        .run()
+      const buffered = (rowLog.buffers.get(rowLog.current) ?? '') + text
+      rowLog.buffers.set(rowLog.current, buffered.length > STEP_LOG_CAP ? buffered.slice(-STEP_LOG_CAP) : buffered)
     }
   }
 
@@ -124,9 +124,17 @@ async function execRun(runId: number, project: Project): Promise<void> {
   }
 }
 
-// Where step-scoped log slices go (see execRun). A one-field holder so nested
-// execution can push/restore like a stack.
-interface RowLog { current: number | null }
+// Where step-scoped log slices go (see execRun): `current` is pushed/restored
+// like a stack around nested execution; `buffers` holds each open row's slice
+// until the row is finalized.
+interface RowLog {
+  current: number | null
+  buffers: Map<number, string>
+}
+
+// A step row keeps at most this much of its log slice (the run log has the
+// full stream).
+const STEP_LOG_CAP = 256 * 1024
 
 // Position of a nested step list: which composite step owns it and — inside a
 // loop — which iteration; `collect` gathers the iteration's outputs.
@@ -159,16 +167,12 @@ async function execSteps(
   }
 }
 
-function isComposite(step: Step): step is Extract<Step, { type: 'if' | 'loop' }> {
-  return step.type === 'if' || step.type === 'loop'
-}
-
 // Run a composite step's body. The composite's own run_steps row is already
 // open (execStep); each sub-step gets its own row tagged with
 // parentStepId/iteration so the timeline renders the tree.
 async function runComposite(
   runId: number,
-  step: Extract<Step, { type: 'if' | 'loop' }>,
+  step: CompositeStep,
   ctx: RunContext,
   rt: ActionRuntime,
   rowLog: RowLog,
@@ -233,6 +237,13 @@ async function execStep(
   }).returning({ id: schema.runSteps.id }).get()
   const prevRow = rowLog.current
   rowLog.current = row.id
+  rowLog.buffers.set(row.id, '')
+
+  const finalize = (patch: StepRowPatch) => {
+    const log = rowLog.buffers.get(row.id) ?? ''
+    rowLog.buffers.delete(row.id)
+    updateStepRow(row.id, { ...patch, log, finishedAt: new Date() })
+  }
 
   try {
     const maxAttempts = Math.max(1, step.retry?.attempts ?? 1)
@@ -240,11 +251,8 @@ async function execStep(
       try {
         const outputs = capOutputs(action
           ? await action.run(rendered, rt)
-          : await runComposite(runId, step as Extract<Step, { type: 'if' | 'loop' }>, ctx, rt, rowLog, scope))
-        db.update(schema.runSteps)
-          .set({ status: 'success', outputs, attempt, finishedAt: new Date() })
-          .where(eq(schema.runSteps.id, row.id))
-          .run()
+          : await runComposite(runId, step as CompositeStep, ctx, rt, rowLog, scope))
+        finalize({ status: 'success', outputs, attempt })
         return outputs
       }
       catch (e) {
@@ -252,10 +260,7 @@ async function execStep(
         if (attempt < maxAttempts) {
           const delay = (step.retry?.backoffSeconds ?? 0) * 2 ** (attempt - 1)
           rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error} — retrying in ${delay}s\n`)
-          db.update(schema.runSteps)
-            .set({ error, attempt })
-            .where(eq(schema.runSteps.id, row.id))
-            .run()
+          updateStepRow(row.id, { error, attempt })
           await sleep(delay * 1000)
           continue
         }
@@ -263,10 +268,7 @@ async function execStep(
         // tail, an HTTP error response) — recorded, and still referencable by
         // later steps when the run continues.
         const failOutputs = capOutputs((e as ActionError).outputs)
-        db.update(schema.runSteps)
-          .set({ status: 'failed', error, attempt, outputs: failOutputs, finishedAt: new Date() })
-          .where(eq(schema.runSteps.id, row.id))
-          .run()
+        finalize({ status: 'failed', error, attempt, outputs: failOutputs })
         if (step.continueOnError) {
           rt.log(`\nStep failed: ${error} — continuing (continue on error)\n`)
           return failOutputs
@@ -280,18 +282,19 @@ async function execStep(
   }
 }
 
+type StepRowPatch = Partial<typeof schema.runSteps.$inferInsert>
+
+function updateStepRow(rowId: number, patch: StepRowPatch): void {
+  db.update(schema.runSteps).set(patch).where(eq(schema.runSteps.id, rowId)).run()
+}
+
 // The step's own params for the run_steps snapshot — meta stripped, and
 // composite sub-step definitions dropped (they live in the pinned run
 // snapshot; duplicating whole subtrees into every row helps nobody).
 function stepParams(step: Step): Record<string, unknown> {
-  const { type: _t, id: _i, label: _l, description: _d, continueOnError: _c, retry: _r, ...rest } = step
-  const params = rest as Record<string, unknown>
-  if (step.type === 'if' || step.type === 'loop') {
-    delete params.then
-    delete params.else
-    delete params.steps
-  }
-  return params
+  const skip = new Set<string>(STEP_META_KEYS)
+  if (isComposite(step)) for (const key of COMPOSITE_CHILD_KEYS[step.type]) skip.add(key)
+  return Object.fromEntries(Object.entries(step).filter(([key]) => !skip.has(key)))
 }
 
 function capOutputs(outputs: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
@@ -314,15 +317,22 @@ const STREAM_TAIL_CHARS = 128 * 1024
 // never rejects on a non-zero exit, the caller decides.
 function streamInSandbox(runId: number, command: string[], log: (text: string) => void): Promise<{ code: number, tail: string }> {
   const sub = execInSandbox(runId, command, { reject: false, buffer: false })
-  let tail = ''
+  // Chunk list instead of string concat: re-slicing a full 128 KB string per
+  // stdout event would make chatty commands quadratic.
+  const chunks: string[] = []
+  let size = 0
   const capture = (d: Buffer) => {
     const text = d.toString()
     log(text)
-    tail = (tail + text).slice(-STREAM_TAIL_CHARS)
+    chunks.push(text)
+    size += text.length
+    while (size > STREAM_TAIL_CHARS && chunks.length > 1) {
+      size -= chunks.shift()!.length
+    }
   }
   sub.stdout?.on('data', capture)
   sub.stderr?.on('data', capture)
-  return sub.then(r => ({ code: r.exitCode ?? 1, tail }))
+  return sub.then(r => ({ code: r.exitCode ?? 1, tail: chunks.join('').slice(-STREAM_TAIL_CHARS) }))
 }
 
 function appendLog(runId: number, text: string): void {

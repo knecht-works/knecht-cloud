@@ -1,9 +1,5 @@
-import { getSettings } from '../utils/settings'
+import { getSettings, publicSettings } from '../utils/settings'
 
 // GET /api/settings → the instance settings (self-seeds defaults on first
-// read). The OpenRouter key never leaves the server — the UI only learns
-// WHETHER one is configured.
-export default defineEventHandler(() => {
-  const { openrouterKeyEnc, ...settings } = getSettings()
-  return { ...settings, aiKeyConfigured: !!openrouterKeyEnc }
-})
+// read), in their redacted client shape.
+export default defineEventHandler(() => publicSettings(getSettings()))

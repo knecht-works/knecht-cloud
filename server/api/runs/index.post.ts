@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { db, schema } from '../../db'
 import { getWorkflow } from '../../workflows'
+import { dispatchRuns } from '../../daemon/dispatcher'
 
 // POST /api/runs → queue a workflow against one project. The dispatcher
 // (server/plugins/dispatcher.ts) starts it as soon as a concurrency slot is
@@ -15,7 +16,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {
-    throw createError({ statusCode: 400, statusMessage: 'Invalid run request' })
+    zodBadRequest(result.error, 'Invalid run request')
   }
 
   if (!getWorkflow(result.data.workflow)) {
@@ -34,6 +35,8 @@ export default defineEventHandler(async (event) => {
     })
     .returning()
     .get()
+
+  dispatchRuns()
 
   return run
 })

@@ -1,4 +1,4 @@
-import type { z } from 'zod'
+import { z } from 'zod'
 import type { Project } from '../../db/schema'
 import type { Step } from '../../../shared/utils/workflow'
 import type { RunContext } from '../context'
@@ -50,8 +50,14 @@ export interface ActionDef<T extends Step['type']> {
   type: T
   /** Zod shape of the step's own params — `type` and step meta are added by the schema assembler. */
   params: z.ZodRawShape
-  /** The step's YAML authoring form (bare string or single-key object) → normalized Step. */
-  yaml: z.ZodType<Step>
+  /**
+   * The step's YAML authoring form → normalized Step. Omit it to get the
+   * derived default — `- <type>: { …params }` (or the bare `- <type>` literal
+   * when there are no params); provide it only when the sugar genuinely
+   * differs from the params shape (bash's kebab key, create-pr's
+   * `description` → `body`).
+   */
+  yaml?: z.ZodType<Step>
   /**
    * Pre-step-id templates referenced this action's outputs under a fixed
    * top-level context key ({{ branch.name }}, {{ pr.url }}). The runner keeps
@@ -75,17 +81,22 @@ export interface ActionDef<T extends Step['type']> {
 }
 
 // The type-erased form the registry holds — the runner only ever has a plain
-// `Step` in hand. `defineAction` is the single point where the narrowing cast
-// happens; action modules stay fully typed against their own step shape.
-export interface RegisteredAction {
-  type: Step['type']
-  params: z.ZodRawShape
-  yaml: z.ZodType<Step>
-  legacyKey?: string
-  rawParams?: readonly string[]
-  run(step: Step, rt: ActionRuntime): Promise<Record<string, unknown> | undefined>
-}
+// `Step` in hand (Extract<Step, { type: union }> collapses back to Step), with
+// the derived-or-explicit yaml schema always present. `defineAction` is the
+// single point where the narrowing cast happens; action modules stay fully
+// typed against their own step shape.
+export type RegisteredAction = Omit<ActionDef<Step['type']>, 'yaml'> & { yaml: z.ZodType<Step> }
 
 export function defineAction<T extends Step['type']>(def: ActionDef<T>): RegisteredAction {
-  return def as unknown as RegisteredAction
+  return { yaml: defaultYaml(def.type, def.params), ...def } as unknown as RegisteredAction
+}
+
+// The default YAML authoring form, derived from the params shape: a bare
+// `- <type>` literal for param-less steps, `- <type>: { …params }` otherwise.
+function defaultYaml(type: Step['type'], params: z.ZodRawShape): z.ZodType<Step> {
+  if (!Object.keys(params).length) {
+    return z.literal(type).transform(() => ({ type }) as Step)
+  }
+  return z.object({ [type]: z.object(params) })
+    .transform(o => ({ type, ...(o as Record<string, object>)[type] }) as Step)
 }

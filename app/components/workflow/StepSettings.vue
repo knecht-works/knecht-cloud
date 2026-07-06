@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { isComposite } from '#shared/utils/workflow'
+
 // The expanded step's settings, rendered inline inside its card: display
 // name/note, the registry-driven fields, and the n8n-style variable list —
 // everything available at THIS point of the sequence, click-to-insert into the
@@ -8,9 +10,9 @@ const props = defineProps<{
   groups: VarGroup[]
   editable: boolean
   /** The workflow's ROOT step list — composite steps create sub-steps with tree-unique ids. */
-  root?: WorkflowStep[]
+  root: WorkflowStep[]
   /** The step's nesting depth (top-level = 1); composites cap at MAX_STEP_DEPTH. */
-  depth?: number
+  depth: number
 }>()
 
 const def = computed(() => stepDef(props.step.type))
@@ -76,7 +78,7 @@ const hasVarFields = computed(() => def.value.fields.some(f => f.vars))
       />
     </template>
     <p
-      v-else-if="step.type !== 'if' && step.type !== 'loop'"
+      v-else-if="!isComposite(step)"
       class="text-[12.5px] text-(--text-muted)"
     >
       {{ meta.detail }} — this step has no settings.
@@ -91,17 +93,17 @@ const hasVarFields = computed(() => def.value.fields.some(f => f.vars))
       <WorkflowSubSteps
         :steps="step.then"
         title="Then"
-        :root="root ?? []"
+        :root="root"
         :vars-base="groups"
-        :depth="(depth ?? 1) + 1"
+        :depth="depth + 1"
         :editable="editable"
       />
       <WorkflowSubSteps
         :steps="step.else"
         title="Else"
-        :root="root ?? []"
+        :root="root"
         :vars-base="groups"
-        :depth="(depth ?? 1) + 1"
+        :depth="depth + 1"
         :editable="editable"
       />
     </template>
@@ -110,9 +112,9 @@ const hasVarFields = computed(() => def.value.fields.some(f => f.vars))
       :steps="step.steps"
       title="Loop steps"
       loop
-      :root="root ?? []"
+      :root="root"
       :vars-base="groups"
-      :depth="(depth ?? 1) + 1"
+      :depth="depth + 1"
       :editable="editable"
     />
 

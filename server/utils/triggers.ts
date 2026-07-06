@@ -2,6 +2,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Trigger } from '../db/schema'
 import { isWorkflowEnabled } from '../workflows'
+import { dispatchRuns } from '../daemon/dispatcher'
 import { isGithubAppConfigured } from './github-credentials'
 
 // Display + firing logic for triggers, shared by the API and the scheduler.
@@ -139,6 +140,8 @@ export function fireTrigger(t: Trigger): number[] {
     .set({ lastFiredAt: new Date(), firedCount: t.firedCount + 1, updatedAt: new Date() })
     .where(eq(schema.triggers.id, t.id))
     .run()
+
+  dispatchRuns()
 
   return runIds
 }

@@ -21,3 +21,11 @@ export function updateSettings(patch: SettingsPatch): Settings {
   }
   return getSettings()
 }
+
+// The client-facing shape: secrets stripped, replaced by configured-flags.
+// EVERY settings response goes through this — a new secret column gets its
+// redaction here, once.
+export function publicSettings(settings: Settings) {
+  const { openrouterKeyEnc, ...rest } = settings
+  return { ...rest, aiKeyConfigured: !!openrouterKeyEnc }
+}
