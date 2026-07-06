@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MAX_STEP_DEPTH } from '#shared/utils/workflow'
+import { isCompositeType, MAX_STEP_DEPTH } from '#shared/utils/workflow'
 
 // A composite step's nested step list (if branches, loop body), edited inline
 // inside the parent's settings card. Deliberately simpler than the top-level
@@ -25,6 +25,14 @@ const open = ref(new Set<WorkflowStep>())
 // contract as StepSettings' `record`.
 const list = computed(() => props.steps)
 
+// One presentation object per row, computed once per invalidation instead of
+// per template read (the deep-reactive draft re-renders on every keystroke).
+const rows = computed(() => list.value.map(step => ({
+  step,
+  meta: workflowStepMeta(step),
+  valid: stepValid(step),
+})))
+
 function toggle(step: WorkflowStep) {
   if (open.value.has(step)) open.value.delete(step)
   else open.value.add(step)
@@ -33,7 +41,7 @@ function toggle(step: WorkflowStep) {
 // Composites are offered only while their children would stay within the
 // depth cap; the schema enforces the same limit server-side.
 const addItems = computed(() => STEP_DEFS
-  .filter(d => props.depth < MAX_STEP_DEPTH || !['if', 'loop'].includes(d.type))
+  .filter(d => props.depth < MAX_STEP_DEPTH || !isCompositeType(d.type))
   .map(d => ({
     label: d.label,
     icon: d.icon,
@@ -59,13 +67,7 @@ function remove(i: number) {
 // What sub-step `i` can reference: everything the composite sees, the loop
 // vars when applicable, and the outputs of its prior siblings.
 function groupsFor(i: number): VarGroup[] {
-  const groups = [...props.varsBase]
-  if (props.loop) groups.push(LOOP_VARS)
-  props.steps.slice(0, i).forEach((step, k) => {
-    const group = stepOutputGroup(step, k + 1)
-    if (group) groups.push(group)
-  })
-  return groups
+  return [...props.varsBase, ...(props.loop ? [LOOP_VARS] : []), ...stepOutputGroups(props.steps, i)]
 }
 </script>
 
@@ -95,15 +97,15 @@ function groupsFor(i: number): VarGroup[] {
       class="mt-1.5 flex flex-col gap-1.5"
     >
       <div
-        v-for="(s, i) in steps"
+        v-for="({ step: s, meta, valid }, i) in rows"
         :key="s.id ?? i"
         class="rounded-(--radius-md) border bg-(--surface-muted)"
-        :style="{ borderColor: stepValid(s) ? 'var(--border-default)' : 'var(--accent-orange)' }"
+        :style="{ borderColor: valid ? 'var(--border-default)' : 'var(--accent-orange)' }"
       >
         <div class="flex items-center gap-2.5 px-2.5 py-2">
           <KStepIcon
-            :icon="workflowStepMeta(s).icon"
-            :color="STEP_KIND_COLOR[workflowStepMeta(s).kind]"
+            :icon="meta.icon"
+            :color="STEP_KIND_COLOR[meta.kind]"
             :size="26"
             :radius="6"
           />
@@ -112,11 +114,11 @@ function groupsFor(i: number): VarGroup[] {
             class="min-w-0 flex-1 text-left"
             @click="toggle(s)"
           >
-            <span class="block truncate text-[12.5px] font-medium text-(--text-highlighted)">{{ workflowStepMeta(s).label }}</span>
+            <span class="block truncate text-[12.5px] font-medium text-(--text-highlighted)">{{ meta.label }}</span>
             <span
-              v-if="workflowStepMeta(s).detail"
+              v-if="meta.detail"
               class="k-mono block truncate text-[10.5px] text-(--text-dimmed)"
-            >{{ workflowStepMeta(s).detail }}</span>
+            >{{ meta.detail }}</span>
           </button>
           <span class="k-mono text-[10px] text-(--text-dimmed)">{{ s.id }}</span>
           <div class="flex flex-none items-center">
@@ -135,7 +137,7 @@ function groupsFor(i: number): VarGroup[] {
               size="xs"
               icon="i-lucide-chevron-down"
               aria-label="Move down"
-              :disabled="!editable || i === steps.length - 1"
+              :disabled="!editable || i === rows.length - 1"
               @click="move(i, 1)"
             />
             <UButton

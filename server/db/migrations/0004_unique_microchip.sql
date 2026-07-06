@@ -1,0 +1,1 @@
+CREATE INDEX `runs_status_idx` ON `runs` (`status`);

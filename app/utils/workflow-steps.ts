@@ -5,7 +5,7 @@
 // (server/workflows/actions/<type>.ts); the shared Step union
 // (shared/utils/workflow.ts) is the type-level single source both build on.
 
-import { nextStepId } from '#shared/utils/workflow'
+import { nextStepId, stepChildren } from '#shared/utils/workflow'
 import type { RegisteredStepDef, StepMeta, StepVar } from '~/utils/steps/define'
 import { ddevStartStep } from '~/utils/steps/ddev-start'
 import { bashStep } from '~/utils/steps/bash'
@@ -18,7 +18,7 @@ import { createBranchStep } from '~/utils/steps/create-branch'
 import { createCommitStep } from '~/utils/steps/create-commit'
 import { createPrStep } from '~/utils/steps/create-pr'
 
-export type { RegisteredStepDef, StepDef, StepField, StepMeta, StepVar } from '~/utils/steps/define'
+export type { RegisteredStepDef, StepField, StepMeta, StepVar } from '~/utils/steps/define'
 
 // Registry order = library order (grouped by `group` in the UI).
 export const STEP_DEFS: RegisteredStepDef[] = [
@@ -34,8 +34,16 @@ export const STEP_DEFS: RegisteredStepDef[] = [
   createPrStep,
 ]
 
+const BY_TYPE = new Map(STEP_DEFS.map(d => [d.type, d]))
+
+// Lookup that tolerates unknown types (a removed step type in an old run's
+// records) — callers that render history use this.
+export function stepDefFor(type: string): RegisteredStepDef | undefined {
+  return BY_TYPE.get(type as WorkflowStep['type'])
+}
+
 export function stepDef(type: WorkflowStep['type']): RegisteredStepDef {
-  return STEP_DEFS.find(d => d.type === type)!
+  return BY_TYPE.get(type)!
 }
 
 // A fresh step for the given type, with its stable id assigned against the
@@ -91,13 +99,11 @@ export const LOOP_VARS: VarGroup = {
   ],
 }
 
-// Everything a step at `index` can reference: the run context plus the outputs
-// of every step BEFORE it — values flow front to back. Outputs are offered
-// under the step's stable id ({{ steps.<id>.<output> }}), so a step type used
-// twice stays unambiguous. (Sub-steps of composites extend this — see
-// WorkflowSubSteps — with the loop vars and their prior siblings.)
-export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
-  const groups: VarGroup[] = [{ label: 'Context', vars: CONTEXT_VARS }]
+// The output groups of the steps BEFORE `index` — the one home for the
+// "values flow front to back" scoping rule, shared by the top-level editor
+// (availableVars) and composite sub-lists (WorkflowSubSteps).
+export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup[] {
+  const groups: VarGroup[] = []
   steps.slice(0, index).forEach((step, i) => {
     const group = stepOutputGroup(step, i + 1)
     if (group) groups.push(group)
@@ -105,15 +111,24 @@ export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] 
   return groups
 }
 
-// A step is saveable when its required fields are filled; composites also need
-// at least one usable condition (if) and valid sub-steps throughout.
+// Everything a step at `index` can reference: the run context plus the outputs
+// of every step BEFORE it. Outputs are offered under the step's stable id
+// ({{ steps.<id>.<output> }}), so a step type used twice stays unambiguous.
+// (Sub-steps of composites extend this — see WorkflowSubSteps — with the loop
+// vars and their prior siblings.)
+export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
+  return [{ label: 'Context', vars: CONTEXT_VARS }, ...stepOutputGroups(steps, index)]
+}
+
+// A step is saveable when its required fields are filled, its sub-steps (if
+// any) are valid, and — for an if — every condition row is usable.
 export function stepValid(step: WorkflowStep): boolean {
+  if (!stepChildren(step).flat().every(stepValid)) return false
   if (step.type === 'if') {
     const conditionsOk = step.conditions.length > 0
       && step.conditions.every(g => g.length > 0 && g.every(c => !!c.left.trim()))
-    return conditionsOk && [...step.then, ...step.else].every(stepValid)
+    if (!conditionsOk) return false
   }
-  if (step.type === 'loop' && !step.steps.every(stepValid)) return false
   const s = step as unknown as Record<string, unknown>
   return stepDef(step.type).fields.every(f =>
     !f.required || !!String(s[f.key] ?? '').trim())

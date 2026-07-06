@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Step } from '../../../shared/utils/workflow'
+import { tryParseJson } from '../../utils/json'
 import { defineAction, ActionError } from './types'
 
 // A generic HTTP request from the host (notify a Slack webhook, hit an API).
@@ -17,14 +17,6 @@ export const httpAction = defineAction({
     headers: z.string().optional(),
     body: z.string().optional(),
   },
-  yaml: z.object({
-    http: z.object({
-      method: z.string().regex(/^(GET|POST|PUT|PATCH|DELETE|HEAD)$/i).default('GET'),
-      url: z.string().min(1),
-      headers: z.string().optional(),
-      body: z.string().optional(),
-    }),
-  }).transform(({ http }): Step => ({ type: 'http', ...http })),
   async run(step, rt) {
     const method = step.method.toUpperCase()
     rt.log(`\n▶ http: ${method} ${step.url}\n`)
@@ -54,12 +46,3 @@ export const httpAction = defineAction({
     return outputs
   },
 })
-
-function tryParseJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  }
-  catch {
-    return undefined
-  }
-}

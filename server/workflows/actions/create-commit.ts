@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import type { Step } from '../../../shared/utils/workflow'
 import { commitAll } from '../../daemon/git'
 import { defineAction } from './types'
 
@@ -8,8 +7,6 @@ export const createCommitAction = defineAction({
   params: {
     message: z.string().min(1),
   },
-  yaml: z.object({ 'create-commit': z.object({ message: z.string().min(1) }) })
-    .transform(({ 'create-commit': p }): Step => ({ type: 'create-commit', message: p.message })),
   legacyKey: 'commit',
   async run(step, rt) {
     rt.log(`\n▶ create-commit: ${step.message}\n`)

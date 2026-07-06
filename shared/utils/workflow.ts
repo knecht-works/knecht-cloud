@@ -29,6 +29,10 @@ export interface StepMeta {
   retry?: StepRetry
 }
 
+// The keys every step shares (StepMeta + the discriminator) — engine code that
+// walks a step's OWN params (rendering, run_steps snapshots) skips these.
+export const STEP_META_KEYS = ['type', 'id', 'label', 'description', 'continueOnError', 'retry'] as const
+
 // A structured condition row (workflow-engine-plan.md D8): both sides are
 // templates rendered against the run context; the operator compares the
 // rendered strings (gt/lt coerce to numbers). Deliberately NOT evaluated JS —
@@ -60,11 +64,39 @@ export type Step = StepMeta & (
   | { type: 'create-pr', title: string, body: string }
 )
 
-// Composite steps embed sub-step lists the engine recurses into.
+// Composite steps embed sub-step lists under these keys — the ONE home for
+// that knowledge. stepChildren/mapStepChildren, id backfill, validation, the
+// runner and the builder all derive from it; a new composite type only extends
+// this map (plus its schema in server/workflows/schema.ts).
+export const COMPOSITE_CHILD_KEYS = {
+  if: ['then', 'else'],
+  loop: ['steps'],
+} as const satisfies Partial<Record<Step['type'], readonly string[]>>
+
+export type CompositeStep = Extract<Step, { type: keyof typeof COMPOSITE_CHILD_KEYS }>
+
+export function isComposite(step: Step): step is CompositeStep {
+  return isCompositeType(step.type)
+}
+
+export function isCompositeType(type: Step['type']): type is CompositeStep['type'] {
+  return type in COMPOSITE_CHILD_KEYS
+}
+
+// A composite step's sub-step lists ([] for plain steps).
 export function stepChildren(step: Step): Step[][] {
-  if (step.type === 'if') return [step.then, step.else]
-  if (step.type === 'loop') return [step.steps]
-  return []
+  if (!isComposite(step)) return []
+  const record = step as unknown as Record<string, Step[]>
+  return COMPOSITE_CHILD_KEYS[step.type].map(key => record[key]!)
+}
+
+// A copy of the step with every child list passed through `fn` (the step
+// itself when it has none).
+export function mapStepChildren(step: Step, fn: (children: Step[]) => Step[]): Step {
+  if (!isComposite(step)) return step
+  const record = step as unknown as Record<string, Step[]>
+  const patch = Object.fromEntries(COMPOSITE_CHILD_KEYS[step.type].map(key => [key, fn(record[key]!)]))
+  return { ...step, ...patch }
 }
 
 // Every step in the tree, depth-first — the step-id namespace is FLAT, so id
@@ -99,23 +131,33 @@ function freeStepId(taken: Set<string>): string {
   }
 }
 
+// Every id declared anywhere in the tree.
+function declaredIds(flat: Step[]): Set<string> {
+  return new Set(flat.map(s => s.id).filter((id): id is string => !!id))
+}
+
 // Backfill missing (or duplicated) step ids without touching valid ones,
 // recursing into composite steps — the id namespace is flat across the whole
 // tree. Applied on every load/save boundary: the API schemas, the engine's row
 // loader, and the workflows GET — so pre-id rows behave as if they had ids.
 export function ensureStepIds(steps: Step[]): Step[] {
-  const declared = new Set(flattenSteps(steps).map(s => s.id).filter((id): id is string => !!id))
+  const flat = flattenSteps(steps)
+  const declared = declaredIds(flat)
+  // Fully-idd, duplicate-free trees (the common case on read paths) pass
+  // through untouched.
+  if (declared.size === flat.length) return steps
+
   const assigned = new Set<string>()
+  let cursor = 1
   const assign = (list: Step[]): Step[] => list.map((step) => {
     let id = step.id
     if (!id || assigned.has(id)) {
-      id = freeStepId(new Set([...declared, ...assigned]))
+      while (declared.has(`s${cursor}`) || assigned.has(`s${cursor}`)) cursor++
+      id = `s${cursor}`
     }
     assigned.add(id)
-    let next: Step = step.id === id ? step : { ...step, id }
-    if (next.type === 'if') next = { ...next, then: assign(next.then), else: assign(next.else) }
-    if (next.type === 'loop') next = { ...next, steps: assign(next.steps) }
-    return next
+    const next: Step = step.id === id ? step : { ...step, id }
+    return mapStepChildren(next, assign)
   })
   return assign(steps)
 }
@@ -123,5 +165,5 @@ export function ensureStepIds(steps: Step[]): Step[] {
 // The id for a step the builder is about to append/insert; `steps` is the
 // workflow's ROOT list (ids are unique across the whole tree).
 export function nextStepId(steps: Step[]): string {
-  return freeStepId(new Set(flattenSteps(steps).map(s => s.id).filter((id): id is string => !!id)))
+  return freeStepId(declaredIds(flattenSteps(steps)))
 }

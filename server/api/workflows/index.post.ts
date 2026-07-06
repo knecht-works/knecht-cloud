@@ -6,7 +6,7 @@ import { workflowInputSchema } from '../../workflows/schema'
 export default defineEventHandler(async (event) => {
   const result = workflowInputSchema.safeParse(await readBody(event))
   if (!result.success) {
-    throw createError({ statusCode: 400, statusMessage: result.error.issues[0]?.message ?? 'Invalid workflow' })
+    zodBadRequest(result.error, 'Invalid workflow')
   }
   const { name } = result.data
 

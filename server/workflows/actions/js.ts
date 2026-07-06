@@ -2,7 +2,6 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
-import type { Step } from '../../../shared/utils/workflow'
 import { defineAction, ActionError } from './types'
 
 // User JavaScript — NEVER in the control-plane process (workflow-engine-plan.md
@@ -19,12 +18,6 @@ export const jsAction = defineAction({
     code: z.string().min(1),
     input: z.string().optional(),
   },
-  yaml: z.object({
-    js: z.object({
-      code: z.string().min(1),
-      input: z.string().optional(),
-    }),
-  }).transform(({ js }): Step => ({ type: 'js', ...js })),
   rawParams: ['input'],
   async run(step, rt) {
     rt.log(`\n▶ js\n`)

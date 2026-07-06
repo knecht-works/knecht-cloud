@@ -11,17 +11,28 @@ const isLive = computed(() => isLiveStatus(run.value?.status))
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
 
 // The step timeline: one row per executed step (run_steps), styled via the
-// step registry. Unknown step types (e.g. removed ones) render generically.
-const timeline = computed(() => (stepRows.value ?? []).map((s) => {
-  const def = STEP_DEFS.find(d => d.type === s.type)
-  return {
-    ...s,
-    icon: def?.icon ?? 'i-lucide-square',
-    label: def?.label ?? s.type,
-    color: STEP_KIND_COLOR[def?.kind ?? 'det'],
-    statusMeta: RUN_STATUS_META[s.status],
+// step registry. Unknown step types (e.g. removed ones) render generically;
+// nested rows indent by their ancestor count (parentStepId chains).
+const timeline = computed(() => {
+  const rows = stepRows.value ?? []
+  const byStepId = new Map(rows.map(r => [r.stepId, r]))
+  const depthOf = (row: (typeof rows)[number]) => {
+    let depth = 0
+    for (let p = row.parentStepId; p; p = byStepId.get(p)?.parentStepId ?? null) depth++
+    return depth
   }
-}))
+  return rows.map((s) => {
+    const def = stepDefFor(s.type)
+    return {
+      ...s,
+      depth: depthOf(s),
+      icon: def?.icon ?? 'i-lucide-square',
+      label: def?.label ?? s.type,
+      color: STEP_KIND_COLOR[def?.kind ?? 'det'],
+      statusMeta: RUN_STATUS_META[s.status],
+    }
+  })
+})
 
 // The run's meta facts (how it was triggered, the branch it works on, timing,
 // the PR it opened) — chips are skipped when a run predates the recorded field.
@@ -216,7 +227,7 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
             v-for="s in timeline"
             :key="s.id"
             class="flex items-center gap-3 px-[18px] py-3"
-            :class="s.parentStepId ? 'pl-12' : ''"
+            :style="s.depth ? { paddingLeft: `${18 + s.depth * 26}px` } : undefined"
           >
             <KStepIcon
               :icon="s.icon"

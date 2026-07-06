@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { updateSettings } from '../utils/settings'
+import { publicSettings, updateSettings } from '../utils/settings'
 import { encrypt } from '../utils/crypto'
 
 // PATCH /api/settings → update the tunable settings. Each field is optional so
@@ -21,9 +21,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid settings' })
   }
   const { openrouterKey, ...patch } = result.data
-  const { openrouterKeyEnc, ...settings } = updateSettings({
+  return publicSettings(updateSettings({
     ...patch,
     ...(openrouterKey ? { openrouterKeyEnc: encrypt(openrouterKey) } : {}),
-  })
-  return { ...settings, aiKeyConfigured: !!openrouterKeyEnc }
+  }))
 })

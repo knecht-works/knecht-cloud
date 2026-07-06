@@ -124,6 +124,8 @@ export const runs = sqliteTable('runs', {
 }, table => [
   // The runs list and the per-project poll both filter by project.
   index('runs_project_id_idx').on(table.projectId),
+  // The dispatcher claims queued runs by status.
+  index('runs_status_idx').on(table.status),
 ])
 
 export type Run = typeof runs.$inferSelect
@@ -160,8 +162,6 @@ export const runSteps = sqliteTable('run_steps', {
 }, table => [
   index('run_steps_run_id_idx').on(table.runId),
 ])
-
-export type RunStep = typeof runSteps.$inferSelect
 
 // Workflows. Every workflow is a row here, including the bundled starter
 // templates (server/workflows/index.ts), which are seeded once on first boot

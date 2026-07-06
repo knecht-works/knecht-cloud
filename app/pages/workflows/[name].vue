@@ -309,14 +309,18 @@ const mode = computed<Mode>(() => {
 // ── per-step status ───────────────────────────────────────────────────────
 type StepStatus = 'idle' | 'selected' | 'done' | 'running' | 'error' | 'pending' | 'skipped'
 
+// The run's top-level step records (nested rows belong to composites), keyed
+// by sequence position — shared by the per-card statuses and the banner.
+const topRows = computed(() => new Map(
+  activeRunSteps.value.filter(r => !r.parentStepId).map(r => [r.stepIndex, r])))
+
 // Per-card status from the run's step records (run_steps, polled alongside the
 // run): a top-level step's row is matched by its position in the sequence.
 const statuses = computed<StepStatus[]>(() => {
   const run = activeRun.value
   if (!run) return steps.value.map(s => (openSteps.value.has(s) ? 'selected' : 'idle'))
-  const topRows = activeRunSteps.value.filter(r => !r.parentStepId)
   return steps.value.map((_, i) => {
-    const row = topRows.find(r => r.stepIndex === i)
+    const row = topRows.value.get(i)
     if (!row) return run.status === 'failed' ? 'skipped' : 'pending'
     if (row.status === 'running') return 'running'
     if (row.status === 'failed') return 'error'
@@ -325,8 +329,7 @@ const statuses = computed<StepStatus[]>(() => {
 })
 
 // 1-based "step N of M" for the live banner.
-const startedSteps = computed(() =>
-  Math.max(1, activeRunSteps.value.filter(r => !r.parentStepId).length))
+const startedSteps = computed(() => Math.max(1, topRows.value.size))
 
 const railSteps = computed(() =>
   steps.value.map((step, i) => ({ step, meta: workflowStepMeta(step), status: statuses.value[i]!, n: i + 1 })),

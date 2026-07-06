@@ -1,5 +1,6 @@
 import type { Project } from '../db/schema'
-import type { Condition, Step } from '../../shared/utils/workflow'
+import { STEP_META_KEYS, type Condition, type Step } from '../../shared/utils/workflow'
+import { tryParseJson } from '../utils/json'
 
 // The run-scoped variable namespace (workflows.md §6): a single object seeded
 // at run start, into which each block's outputs land as it runs — so values
@@ -60,7 +61,7 @@ function lookup(path: string, ctx: RunContext): unknown {
 }
 
 // Step meta never reaches execution — don't render it.
-const META_KEYS = new Set(['type', 'label', 'description'])
+const META_KEYS = new Set<string>(STEP_META_KEYS)
 
 // A template that is exactly one reference — eligible for raw-value resolution.
 const SINGLE_REF_RE = /^\{\{\s*([\w.]+)\s*\}\}$/
@@ -111,7 +112,7 @@ function evalCondition(c: Condition, ctx: RunContext): boolean {
 }
 
 // A loop iterates at most this many times — the runaway guard.
-export const MAX_LOOP_ITERATIONS = 1000
+const MAX_LOOP_ITERATIONS = 1000
 
 // Resolve a loop's `items` template to the values to iterate: an array (a
 // single {{ ref }} passes it raw; a JSON-array string parses) or a number N
@@ -121,17 +122,7 @@ export function resolveLoopItems(items: string, ctx: RunContext): unknown[] {
   let value: unknown = single ? lookup(single[1]!, ctx) : render(items, ctx)
   if (typeof value === 'string') {
     const text = value.trim()
-    if (/^\d+$/.test(text)) {
-      value = Number(text)
-    }
-    else {
-      try {
-        value = JSON.parse(text)
-      }
-      catch {
-        // Falls through to the type check below.
-      }
-    }
+    value = /^\d+$/.test(text) ? Number(text) : tryParseJson(text) ?? value
   }
   const list = Array.isArray(value)
     ? value
