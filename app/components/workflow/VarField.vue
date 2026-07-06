@@ -19,7 +19,9 @@ function el(): HTMLInputElement | HTMLTextAreaElement | null {
 }
 
 // ── {{ autocomplete ─────────────────────────────────────────────────────────
-const flatVars = computed(() => props.groups.flatMap(g => g.vars))
+// Vars flattened with their group's kind colour, so the dropdown paints a
+// path's final segment the same way the chip list does.
+const flatVars = computed(() => props.groups.flatMap(g => g.vars.map(v => ({ ...v, color: g.color }))))
 const open = ref(false)
 const active = ref(0)
 // The `{{ partial` before the caret (match start + typed path so far).
@@ -167,7 +169,7 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
         @mousedown.prevent="pick(v.path)"
         @mousemove="active = i"
       >
-        <span class="k-mono text-[12px] text-(--text-primary)">{{ v.path }}</span>
+        <span class="k-mono text-[12px]"><span class="text-(--text-dimmed)">{{ varPathParts(v.path)[0] }}</span><span :style="{ color: v.color }">{{ varPathParts(v.path)[1] }}</span></span>
         <span class="truncate text-[11px] text-(--text-dimmed)">{{ v.hint }}</span>
       </button>
     </div>

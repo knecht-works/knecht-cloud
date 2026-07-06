@@ -38,6 +38,13 @@ function insert(path: string) {
 }
 
 const hasVarFields = computed(() => def.value.fields.some(f => f.vars))
+
+// The variable reference list is collapsed by default — on big workflows it
+// grows a row per prior step and would dwarf the actual settings. The header
+// stays visible (with a count and the `{{` hint), so insertion is one click
+// away and typing `{{` needs no expansion at all.
+const varsOpen = ref(false)
+const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length, 0))
 </script>
 
 <template>
@@ -123,37 +130,68 @@ const hasVarFields = computed(() => def.value.fields.some(f => f.vars))
       v-if="hasVarFields"
       class="border-t border-(--border-muted) pt-3.5"
     >
-      <div class="mb-2.5 flex items-baseline gap-2">
-        <span class="flex items-center gap-1.5">
-          <UIcon
-            name="i-lucide-braces"
-            class="size-3.5 text-(--text-dimmed)"
-          />
-          <span class="k-label">Variables</span>
-        </span>
-        <span class="text-[11px] text-(--text-dimmed)">click to insert, or type <span class="k-mono text-(--text-muted)">{{ '\{\{' }}</span> in a field</span>
-      </div>
-      <div class="flex flex-col gap-2.5">
-        <div
-          v-for="g in groups"
-          :key="g.label"
-          class="flex flex-wrap items-center gap-1.5"
-        >
-          <span class="k-mono min-w-[72px] text-[10px] uppercase tracking-[0.08em] text-(--text-dimmed)">{{ g.label }}</span>
-          <UTooltip
-            v-for="v in g.vars"
-            :key="v.path"
-            :text="v.hint"
-          >
-            <button
-              type="button"
-              :disabled="!editable"
-              class="k-mono rounded-(--radius-sm) border border-(--border-default) bg-(--surface-base) px-2 py-1 text-[11px] text-(--text-muted) transition-colors hover:border-(--border-accented) hover:text-(--text-toned) disabled:cursor-not-allowed disabled:opacity-50"
-              @click="insert(v.path)"
+      <button
+        type="button"
+        :aria-expanded="varsOpen"
+        class="group flex w-full cursor-pointer items-center gap-2"
+        @click="varsOpen = !varsOpen"
+      >
+        <UIcon
+          name="i-lucide-braces"
+          class="size-3.5 flex-none text-(--text-dimmed)"
+        />
+        <span class="k-label transition-colors group-hover:text-(--text-muted)">Variables</span>
+        <span class="k-mono flex-none rounded-full border border-(--border-muted) px-1.5 text-[10px] leading-[16px] text-(--text-dimmed)">{{ varCount }}</span>
+        <span class="min-w-0 flex-1" />
+        <span class="truncate text-[11px] text-(--text-dimmed)">click to insert, or type <span class="k-mono text-(--text-muted)">{{ '\{\{' }}</span> in a field</span>
+        <UIcon
+          name="i-lucide-chevron-down"
+          class="size-3.5 flex-none text-(--text-dimmed) transition-transform duration-300"
+          :class="{ 'rotate-180': varsOpen }"
+        />
+      </button>
+      <!-- Aligned two-column list: a fixed label column (truncated — the
+           leading step number stays visible, the full name is the title) and
+           the chip column, so rows scan cleanly however long a step name is. -->
+      <div
+        class="grid transition-[grid-template-rows] duration-300 ease-out"
+        :style="{ gridTemplateRows: varsOpen ? '1fr' : '0fr' }"
+      >
+        <div class="overflow-hidden">
+          <div class="grid grid-cols-[minmax(90px,130px)_1fr] items-baseline gap-x-3 gap-y-2 pt-3">
+            <template
+              v-for="g in groups"
+              :key="g.label"
             >
-              {{ v.path }}
-            </button>
-          </UTooltip>
+              <span
+                class="flex min-w-0 items-center gap-1.5 pt-1"
+                :title="g.label"
+              >
+                <span
+                  class="size-1.5 flex-none rounded-full"
+                  :style="{ background: g.color }"
+                />
+                <span class="truncate text-[11px] text-(--text-dimmed)">{{ g.label }}</span>
+              </span>
+              <div class="flex flex-wrap gap-1.5">
+                <UTooltip
+                  v-for="v in g.vars"
+                  :key="v.path"
+                  :text="v.hint"
+                >
+                  <button
+                    type="button"
+                    :disabled="!editable"
+                    :style="{ '--chip-accent': g.color }"
+                    class="k-mono rounded-(--radius-sm) border border-[color-mix(in_oklab,var(--chip-accent)_22%,var(--border-default))] bg-(--surface-base) px-2 py-1 text-[11px] transition-colors hover:border-[color-mix(in_oklab,var(--chip-accent)_60%,var(--border-default))] disabled:cursor-not-allowed disabled:opacity-50"
+                    @click="insert(v.path)"
+                  >
+                    <span class="text-(--text-dimmed)">{{ varPathParts(v.path)[0] }}</span><span class="text-(--chip-accent)">{{ varPathParts(v.path)[1] }}</span>
+                  </button>
+                </UTooltip>
+              </div>
+            </template>
+          </div>
         </div>
       </div>
     </div>
