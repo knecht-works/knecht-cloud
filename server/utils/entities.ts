@@ -33,7 +33,7 @@ export function requireTrigger(id: number): Trigger {
 }
 
 // Named `*Row` to stay clear of server/workflows' getWorkflow (the parsed
-// workflow definition) — this is the raw DB row the CRUD routes edit.
+// workflow definition): this is the raw DB row the CRUD routes edit.
 export function getWorkflowRow(name: string): WorkflowRow | undefined {
   return db.select().from(schema.workflows).where(eq(schema.workflows.name, name)).get()
 }

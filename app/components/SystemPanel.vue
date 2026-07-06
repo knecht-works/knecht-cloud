@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Only mounts when logged in (gated by the parent), so this fetch — and the
-// requireUserSession on /api/system — never runs for anonymous visitors.
+// Only mounts when logged in (gated by the parent), so this fetch (and the
+// requireUserSession on /api/system) never runs for anonymous visitors.
 // Shared with the sidebar's system card: one probe per app load.
 const { data, status, error, refresh } = useSystemInfo()
 </script>

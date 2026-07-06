@@ -24,7 +24,7 @@ export const ddevStartAction = defineAction({
 // Import the project's DB dump into this run's fresh environment (projects.md
 // §6). Each run env is isolated, so the import happens per run (idle reboots
 // keep the sandbox and don't re-import). The dump lives in Knecht's data dir,
-// which the sandbox can't see — copy it in, then import inside.
+// which the sandbox can't see, so copy it in, then import inside.
 async function importDb(rt: ActionRuntime): Promise<void> {
   if (!rt.project.dbDumpPath) return
 

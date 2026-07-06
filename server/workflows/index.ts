@@ -5,7 +5,7 @@ import { getSettings, updateSettings } from '../utils/settings'
 import { parseWorkflow, type Workflow } from './schema'
 
 // Default workflows ship inside the Knecht repo (workflows.md §11). They are
-// embedded as YAML source — not read from disk — so they load identically in
+// embedded as YAML source (not read from disk), so they load identically in
 // dev and in the bundled Nitro output, while still exercising the real
 // yaml-parse → Zod-validate pipeline. User-created/edited workflows are stored
 // in the DB (`workflows` table); a DB row with the same name OVERRIDES its
@@ -24,12 +24,12 @@ steps:
 `
 
 // A self-contained demo of the git blocks + variable passing: it makes a small
-// change, branches, commits, and opens a real PR — no ddev boot needed, so it
+// change, branches, commits, and opens a real PR, no ddev boot needed, so it
 // runs fast and shows the front-to-back {{ run.id }} flow producing a PR.
 const DEMO_PR = `
 version: 1
 name: demo-pr
-description: Make a small change and open a PR — demonstrates the git blocks and variable passing.
+description: Make a small change and open a PR to demonstrate the git blocks and variable passing.
 steps:
   - create-branch:
       name: knecht/demo-{{ run.id }}
@@ -40,12 +40,12 @@ steps:
   - create-pr:
       title: "Knecht demo (run {{ run.id }})"
       description: |
-        Automated demo change by Knecht — run {{ run.id }} on {{ project.name }}.
+        Automated demo change by Knecht, run {{ run.id }} on {{ project.name }}.
 `
 
 // The bundled starter templates, parsed + validated once at module load (a bad
 // definition fails fast on boot). They're seeded into the table on first boot
-// (seedWorkflows) and thereafter owned by the user — there's no runtime fallback.
+// (seedWorkflows) and thereafter owned by the user. There's no runtime fallback.
 const STARTERS: Workflow[] = [BOOT_AND_PREVIEW, DEMO_PR].map(parseWorkflow)
 
 function rowToWorkflow(row: typeof schema.workflows.$inferSelect): Workflow {
@@ -64,7 +64,7 @@ export function getWorkflow(name: string): Workflow | undefined {
 }
 
 // Whether the workflow's automation is on. A missing row (already deleted)
-// counts as off — nothing to fire.
+// counts as off, nothing to fire.
 export function isWorkflowEnabled(name: string): boolean {
   const row = db.select({ enabled: schema.workflows.enabled }).from(schema.workflows).where(eq(schema.workflows.name, name)).get()
   return row ? row.enabled : false
@@ -72,7 +72,7 @@ export function isWorkflowEnabled(name: string): boolean {
 
 // Insert the starter templates on first boot only (tracked by the settings
 // flag), skipping any name that already exists. After that, workflows are fully
-// user-owned — deletions and renames stick, so we never re-seed.
+// user-owned: deletions and renames stick, so we never re-seed.
 export function seedWorkflows(): void {
   if (getSettings().workflowsSeeded) return
   const existing = new Set(db.select({ name: schema.workflows.name }).from(schema.workflows).all().map(r => r.name))

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Create OR edit a trigger — the edit form mirrors create: source, projects and
+// Create OR edit a trigger. The edit form mirrors create: source, projects and
 // the source-specific settings (cron / GitHub event) are all editable. The
 // workflow is never shown (the modal only opens from within a workflow, so it's
 // implicit). A GitHub trigger shows its webhook URL + secret once, right after
@@ -40,7 +40,7 @@ const CRON_PRESETS = [
   { label: 'Weekly · Mon 09:00', cron: '0 9 * * 1' },
 ]
 
-// Lazy: the modal is mounted (closed) on every workflow page — the project
+// Lazy: the modal is mounted (closed) on every workflow page, so the project
 // list only matters once it opens, so it must not block the page.
 const { data: projects } = useFetch('/api/projects', {
   default: () => [],
@@ -58,7 +58,7 @@ const creating = ref(false)
 // A created GitHub trigger we still need to show the secret for, before closing.
 const done = ref<{ endpoint: string | null, webhookSecret: string | null } | null>(null)
 
-// Client-side gate only — the server validates the cron authoritatively.
+// Client-side gate only. The server validates the cron authoritatively.
 const cronLooksValid = computed(() => cron.value.trim().split(/\s+/).length === 5)
 const canCreate = computed(() =>
   !!workflow.value
@@ -186,7 +186,7 @@ watch(open, (isOpen) => {
         <div>
           <span class="k-label">Payload URL</span>
           <div class="mt-1.5 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
-            <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ done.endpoint || '— set KNECHT_BASE_DOMAIN —' }}</span>
+            <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ done.endpoint || '(set KNECHT_BASE_DOMAIN)' }}</span>
             <UButton
               icon="i-lucide-copy"
               color="neutral"
@@ -211,7 +211,7 @@ watch(open, (isOpen) => {
             />
           </div>
           <p class="k-mono mt-2 text-[11px] text-(--text-dimmed)">
-            Shown once — copy it now.
+            Shown once, copy it now.
           </p>
         </div>
 
@@ -322,7 +322,7 @@ watch(open, (isOpen) => {
           >
             <span class="k-label">Payload URL</span>
             <div class="mt-1.5 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
-              <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ trigger.endpoint || '— set KNECHT_BASE_DOMAIN —' }}</span>
+              <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ trigger.endpoint || '(set KNECHT_BASE_DOMAIN)' }}</span>
               <UButton
                 icon="i-lucide-copy"
                 color="neutral"

@@ -34,7 +34,7 @@ export const createPrAction = defineAction({
     catch (e) {
       throw new Error(`create-pr failed: ${(e as Error).message}`, { cause: e })
     }
-    // Nothing was committed (e.g. an empty agent run) — there's no diff to
+    // Nothing was committed (e.g. an empty agent run), so there's no diff to
     // open a PR for. Treat as a skip, not a failure.
     if (!pr) {
       rt.log(`No changes to open a PR for, skipping\n`)

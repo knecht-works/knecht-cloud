@@ -70,7 +70,7 @@ export async function backfillFrameworks(projects: Project[]): Promise<void> {
       if (meta.framework != null) attemptedAt.delete(p.id)
     }
     catch {
-      // App not configured/installed or repo unreadable — keep nulls; the next
+      // App not configured/installed or repo unreadable: keep nulls; the next
       // attempt happens after the retry window.
     }
   }))

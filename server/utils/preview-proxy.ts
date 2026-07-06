@@ -12,19 +12,19 @@ import { runWorktreeDir } from './storage'
 // `[<label>--]<runId>.preview.<host>`.
 //
 // The contract is: the operator pastes the project's local .env VERBATIM and
-// everything runs as it does with plain ddev — hard-coded `*.ddev.site` URLs,
+// everything runs as it does with plain ddev: hard-coded `*.ddev.site` URLs,
 // multisite setups with one domain per site, all of it, nothing overridden.
 // So the proxy maps between the two worlds instead of touching the project:
 //
 //   - EVERY hostname the project's ddev config serves (primary +
-//     additional_hostnames/additional_fqdns — readDdevHosts) gets its own
+//     additional_hostnames/additional_fqdns, via readDdevHosts) gets its own
 //     per-run preview origin: the primary as `<runId>.preview.<base>`, each
 //     additional one as `<label>--<runId>.preview.<base>`.
 //   - Inward, the request carries the project's REAL host (so e.g. Craft
 //     matches the right site), targeting the sandbox's inner ddev-router at
 //     :80 over plain HTTP (run-isolation.md §3/§11).
 //   - Outward, every project host found in Location headers and rewritable
-//     bodies is replaced with ITS preview origin — cross-site links included —
+//     bodies is replaced with ITS preview origin (cross-site links included),
 //     so what the browser loads always points back here (not at the
 //     unreachable *.ddev.site).
 //
@@ -130,7 +130,7 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
   const res = event.node.res
 
   // Send the app's own host so it serves/builds URLs as configured, and map
-  // Origin/Referer back to the app's world — otherwise same-origin checks
+  // Origin/Referer back to the app's world. Otherwise same-origin checks
   // (Craft's CP login) reject the POST because the browser's Origin (the
   // preview subdomain) wouldn't match the Host. Ask for an uncompressed body
   // so we can rewrite it.
@@ -164,7 +164,7 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
           // The Knecht UI embeds previews in an iframe.
           if (lower === 'x-frame-options') continue
           // Same for a CSP frame-ancestors directive (Craft's CP sends
-          // `frame-ancestors 'self'`) — drop just that directive, keep the
+          // `frame-ancestors 'self'`): drop just that directive, keep the
           // rest of the policy.
           if (lower === 'content-security-policy' || lower === 'content-security-policy-report-only') {
             const values = (Array.isArray(value) ? value : [String(value)])
@@ -203,14 +203,14 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
       },
     )
     upstream.on('error', (e) => {
-      // A rebooted sandbox gets a fresh IP — drop the cached one so the next
+      // A rebooted sandbox gets a fresh IP: drop the cached one so the next
       // request re-resolves instead of failing against a stale address.
       forgetPreview(runId)
       reject(e)
     })
     req.pipe(upstream)
   }).catch((e: NodeJS.ErrnoException) => {
-    // The sandbox is up but nothing answers on :80 yet — the inner router
+    // The sandbox is up but nothing answers on :80 yet: the inner router
     // appears a few moments into `ddev start` (or the boot failed). Surface a
     // clean "not ready" instead of a raw socket error.
     if (e?.code === 'ECONNREFUSED' || e?.code === 'EHOSTUNREACH' || e?.code === 'ETIMEDOUT') {
@@ -222,8 +222,8 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
 
 // Replace every project host with ITS preview origin, whatever the textual
 // form: absolute URLs (both schemes), protocol-relative, the JSON
-// escaped-slash form (`https:\/\/host`) PHP's json_encode emits — Craft ships
-// its CP config that way — at ANY escaping depth (`https:\\\/\\\/host` when
+// escaped-slash form (`https:\/\/host`) PHP's json_encode emits (Craft ships
+// its CP config that way) at ANY escaping depth (`https:\\\/\\\/host` when
 // JSON is nested in a JSON string, e.g. Craft's element editor settings with
 // the live-preview targets), and the percent-encoded form URLs take inside
 // query strings. Scheme-full forms adopt the preview protocol; protocol-
@@ -251,7 +251,7 @@ function rewriteUrls(
   return text
 }
 
-// The project's ddev host set, read from the run's worktree once and cached —
+// The project's ddev host set, read from the run's worktree once and cached:
 // it is fixed for the run's lifetime.
 const hostsCache = new Map<number, DdevHosts>()
 

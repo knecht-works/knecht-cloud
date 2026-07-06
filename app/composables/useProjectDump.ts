@@ -1,7 +1,7 @@
 import type { Ref } from 'vue'
 
 // Upload/remove a project's DB dump (setup wizard + project detail page).
-// `project` is the writable ref holding the project row — the dump endpoints
+// `project` is the writable ref holding the project row: the dump endpoints
 // return the updated row, which is written straight back into it.
 export function useProjectDump<T extends { id: number, dbDumpPath: string | null }>(
   project: Ref<T | null | undefined>,

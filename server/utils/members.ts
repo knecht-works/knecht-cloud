@@ -6,7 +6,7 @@ import { members, type Member } from '../db/schema'
 // GitHub App owner as the sole initial member (server/routes/setup/callback);
 // afterwards any member can invite more logins (server/api/members/*). The gate
 // itself lives in server/routes/auth/github.get.ts. GitHub logins are
-// case-insensitive, so every login is normalised to lowercase here — the one
+// case-insensitive, so every login is normalised to lowercase here: the one
 // place that touches the table.
 
 const norm = (login: string) => login.trim().toLowerCase()
@@ -30,7 +30,7 @@ export function isMember(login: string): boolean {
   return getMember(login) !== undefined
 }
 
-// Zero members means the instance hasn't been claimed yet — the login gate uses
+// Zero members means the instance hasn't been claimed yet: the login gate uses
 // this to let the first successful login claim ownership (covers instances set
 // up before member gating existed).
 export function memberCount(): number {

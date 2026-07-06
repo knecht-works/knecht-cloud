@@ -3,11 +3,11 @@
 # ─── Knecht run-sandbox image ─────────────────────────────────────────────────
 # One container of this image is booted PER RUN under Sysbox
 # (`--runtime=sysbox-runc`): an unprivileged Docker-in-Docker sandbox that runs
-# the project's full ddev stack — router included — plus the agent. The host
+# the project's full ddev stack (router included) plus the agent. The host
 # side that launches these lives in server/daemon/sandbox.ts; the decision and
 # verified findings are in internals/docs/run-isolation.md (§7, §11).
 #
-# Build (multi-arch — prod is amd64, the local dev VM is arm64):
+# Build (multi-arch: prod is amd64, the local dev VM is arm64):
 #   docker build -t knecht-sandbox sandbox/
 #
 # Layout: systemd is PID 1 (Sysbox's supported mode), the inner dockerd is a
@@ -20,21 +20,21 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # systemd as init + the base tools ddev expects. mkcert: ddev generates its
-# local CA at first start (previews still cross the ingress hop over HTTP —
-# run-isolation.md §11 — but ddev wants mkcert present). nodejs runs the `js`
+# local CA at first start (previews still cross the ingress hop over HTTP,
+# per run-isolation.md §11, but ddev wants mkcert present). nodejs runs the `js`
 # workflow step's scripts (server/workflows/actions/js.ts).
 RUN apt-get update && apt-get install -y --no-install-recommends \
       systemd systemd-sysv ca-certificates curl gnupg sudo iproute2 git \
       mkcert libnss3-tools nodejs \
  && rm -rf /var/lib/apt/lists/*
 
-# The INNER Docker daemon (dockerd runs inside the sandbox — this is the whole
+# The INNER Docker daemon (dockerd runs inside the sandbox: this is the whole
 # point). Note: the version pin from run-isolation.md §11 applies to the HOST
 # daemon that launches sysbox containers, not to this inner one.
 RUN curl -fsSL https://get.docker.com | sh
 
 # Pull through the host's local registry cache (scripts/provision-host.sh runs
-# it on the host's docker bridge IP, which provisioning pins to 172.20.0.1) —
+# it on the host's docker bridge IP, which provisioning pins to 172.20.0.1),
 # so the ~1GB of ddev images is downloaded once per HOST, not once per run.
 # Docker falls back to the upstream registry when the mirror is unreachable,
 # so this is safe even where no cache runs.
@@ -54,8 +54,8 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 
 # The non-root user everything project-facing runs as (ddev refuses root). Its
 # uid/gid MUST match the Knecht process that owns the bind-mounted /project
-# (sysbox identity-maps bind-mount ownership), so they are baked at build time —
-# the provisioning script passes the invoking user's ids. A runtime `usermod`
+# (sysbox identity-maps bind-mount ownership), so they are baked at build time.
+# The provisioning script passes the invoking user's ids. A runtime `usermod`
 # does NOT work: `docker exec -u ddev` under sysbox keeps resolving the name
 # against the container's original passwd. Ubuntu's stock `ubuntu` user is
 # removed to free the default 1000/1000.
@@ -69,26 +69,26 @@ RUN userdel -r ubuntu \
 
 ENV DDEV_NONINTERACTIVE=true
 
-# The inner ddev-router must listen on 0.0.0.0, not 127.0.0.1 — otherwise the
+# The inner ddev-router must listen on 0.0.0.0, not 127.0.0.1, otherwise the
 # ingress can't reach it container-to-container (run-isolation.md §11). Written
 # directly (`ddev config global` needs a running daemon, which a build has not);
 # ddev merges this file with its defaults on first run.
 RUN su - ddev -c 'mkdir -p ~/.ddev && printf "router_bind_all_interfaces: true\ninstrumentation_opt_in: false\n" > ~/.ddev/global_config.yaml'
 
-# mkcert's CA, generated at build time — otherwise every fresh sandbox spends
+# mkcert's CA, generated at build time, otherwise every fresh sandbox spends
 # its first `ddev start` creating one (and warns that mkcert isn't installed).
 RUN su - ddev -c 'mkcert -install'
 
-# opencode (the AI agent) — runs INSIDE the sandbox, in the project checkout.
+# opencode (the AI agent) runs INSIDE the sandbox, in the project checkout.
 # The installer drops the binary in ~/.opencode/bin and only patches shell rc
-# files, which non-interactive `bash -lc` (docker exec) never reads — the
+# files, which non-interactive `bash -lc` (docker exec) never reads, so the
 # symlink puts it on the default PATH for every exec mode.
 RUN su - ddev -c 'curl -fsSL https://opencode.ai/install | bash' \
  && ln -s /home/ddev/.opencode/bin/opencode /usr/local/bin/opencode
 
 RUN systemctl enable docker
 
-# systemd shuts down cleanly on SIGRTMIN+3 (SIGTERM is ignored by PID 1) — this
+# systemd shuts down cleanly on SIGRTMIN+3 (SIGTERM is ignored by PID 1). This
 # is what makes `docker stop` on a sandbox orderly instead of a timeout+kill.
 STOPSIGNAL SIGRTMIN+3
 

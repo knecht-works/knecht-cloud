@@ -1,7 +1,7 @@
 // The dashboard's public origin, for URLs built SERVER-side (PR bodies,
-// webhook endpoints — anywhere no request URL is at hand). Prod sets
-// KNECHT_BASE_DOMAIN and https is implied; dev — where scheme and port differ
-// (http://lvh.me:3333) — overrides with the full KNECHT_BASE_URL.
+// webhook endpoints, anywhere no request URL is at hand). Prod sets
+// KNECHT_BASE_DOMAIN and https is implied; dev, where scheme and port differ
+// (http://lvh.me:3333), overrides with the full KNECHT_BASE_URL.
 export function dashboardOrigin(): string {
   const url = process.env.KNECHT_BASE_URL
   if (url) return url.replace(/\/+$/, '')

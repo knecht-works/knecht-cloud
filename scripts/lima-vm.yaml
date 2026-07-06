@@ -1,5 +1,5 @@
 # The Knecht dev VM (run-isolation.md §9): Sysbox is Linux-only, so on macOS
-# development happens inside this Ubuntu VM — the same substrate as the
+# development happens inside this Ubuntu VM, the same substrate as the
 # production VPS. Create + provision:
 #
 #   limactl create --name=knecht-dev scripts/lima-vm.yaml
@@ -15,12 +15,12 @@ cpus: 4
 memory: "8GiB"
 disk: "60GiB"
 
-# Forward macOS file events into the guest — without this, edits made on the
+# Forward macOS file events into the guest. Without this, edits made on the
 # Mac never wake the Nuxt dev server's watcher (virtiofs carries no inotify).
 mountInotify: true
 
 mounts:
-# The repo, shared WRITABLE at the identical path — edit on the Mac, run in the
+# The repo, shared WRITABLE at the identical path: edit on the Mac, run in the
 # VM. Adjust to where you keep the checkout. (Platform-specific artifacts are
 # kept apart by scripts/vm-dev.sh, which bind-mounts VM-local dirs over
 # node_modules/.nuxt/.data.)

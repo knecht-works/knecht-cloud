@@ -1,8 +1,8 @@
 // The workflow step model, shared by the visual builder (app) and the engine
 // (server/workflows) so the two sides can't drift. A step is a tagged union;
 // adding a block is: extend the union here, write its action module
-// (server/workflows/actions/<type>.ts — schema + execution) and its client def
-// (app/utils/steps/<type>.ts — editor fields, outputs, presentation).
+// (server/workflows/actions/<type>.ts: schema + execution) and its client def
+// (app/utils/steps/<type>.ts: editor fields, outputs, presentation).
 
 // A step's retry policy, applied by the runner around ANY action: up to
 // `attempts` total tries, waiting backoffSeconds, then double per retry.
@@ -16,7 +16,7 @@ export interface StepRetry {
 // Per-step metadata. `id` is the step's stable identity: unique within its
 // workflow, immutable once assigned (reorders and label edits keep it), and the
 // key later steps reference outputs under ({{ steps.<id>.<output> }}). It's
-// optional in the type because pre-id definitions exist in the DB — every
+// optional in the type because pre-id definitions exist in the DB. Every
 // load/save path backfills via ensureStepIds. `label`/`description` are
 // builder-only presentation. `continueOnError`/`retry` are the step's error
 // policy, enforced generically by the runner for every step type.
@@ -29,13 +29,13 @@ export interface StepMeta {
   retry?: StepRetry
 }
 
-// The keys every step shares (StepMeta + the discriminator) — engine code that
+// The keys every step shares (StepMeta + the discriminator). Engine code that
 // walks a step's OWN params (rendering, run_steps snapshots) skips these.
 export const STEP_META_KEYS = ['type', 'id', 'label', 'description', 'continueOnError', 'retry'] as const
 
 // A structured condition row (workflow-engine-plan.md D8): both sides are
 // templates rendered against the run context; the operator compares the
-// rendered strings (gt/lt coerce to numbers). Deliberately NOT evaluated JS —
+// rendered strings (gt/lt coerce to numbers). Deliberately NOT evaluated JS:
 // user code belongs in the sandboxed js step, not the control plane.
 export const CONDITION_OPS = ['eq', 'neq', 'contains', 'not-contains', 'empty', 'not-empty', 'gt', 'lt', 'regex'] as const
 export type ConditionOp = typeof CONDITION_OPS[number]
@@ -52,7 +52,7 @@ export type Step = StepMeta & (
   | { type: 'bash', command: string }
   | { type: 'ai', prompt: string, model?: string }
   // `input` is a template; when it is exactly one {{ ref }} the runner passes
-  // the referenced value RAW (object/array), not stringified — see rawParams.
+  // the referenced value RAW (object/array), not stringified (see rawParams).
   | { type: 'js', code: string, input?: string }
   | { type: 'http', method: string, url: string, headers?: string, body?: string }
   // Composite control flow: outer conditions array = OR groups, inner = AND.
@@ -64,7 +64,7 @@ export type Step = StepMeta & (
   | { type: 'create-pr', title: string, body: string }
 )
 
-// Composite steps embed sub-step lists under these keys — the ONE home for
+// Composite steps embed sub-step lists under these keys: the ONE home for
 // that knowledge. stepChildren/mapStepChildren, id backfill, validation, the
 // runner and the builder all derive from it; a new composite type only extends
 // this map (plus its schema in server/workflows/schema.ts).
@@ -99,7 +99,7 @@ export function mapStepChildren(step: Step, fn: (children: Step[]) => Step[]): S
   return { ...step, ...patch }
 }
 
-// Every step in the tree, depth-first — the step-id namespace is FLAT, so id
+// Every step in the tree, depth-first. The step-id namespace is FLAT, so id
 // uniqueness and lookups always work on this.
 export function flattenSteps(steps: Step[]): Step[] {
   return steps.flatMap(step => [step, ...flattenSteps(stepChildren(step).flat())])
@@ -120,10 +120,10 @@ export function stepTreeDepth(steps: Step[]): number {
 
 // A workflow name doubles as its URL segment and the `runs.workflow` reference.
 // It's a free-form friendly name (spaces allowed), constrained only to what's
-// URL-safe once encoded — no slash/percent/etc.
+// URL-safe once encoded: no slash/percent/etc.
 export const WORKFLOW_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u
 
-// The lowest free `s<n>` id — deterministic, so backfilling the same stored
+// The lowest free `s<n>` id: deterministic, so backfilling the same stored
 // list always produces the same ids even before they're persisted.
 function freeStepId(taken: Set<string>): string {
   for (let n = 1; ; n++) {
@@ -137,9 +137,9 @@ function declaredIds(flat: Step[]): Set<string> {
 }
 
 // Backfill missing (or duplicated) step ids without touching valid ones,
-// recursing into composite steps — the id namespace is flat across the whole
+// recursing into composite steps: the id namespace is flat across the whole
 // tree. Applied on every load/save boundary: the API schemas, the engine's row
-// loader, and the workflows GET — so pre-id rows behave as if they had ids.
+// loader, and the workflows GET, so pre-id rows behave as if they had ids.
 export function ensureStepIds(steps: Step[]): Step[] {
   const flat = flattenSteps(steps)
   const declared = declaredIds(flat)

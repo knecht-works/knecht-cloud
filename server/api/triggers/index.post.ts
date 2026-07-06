@@ -51,7 +51,7 @@ export default defineEventHandler(async (event) => {
 
   const row = db.insert(schema.triggers).values(values).returning().get()
 
-  // Return the summary plus the secret on github triggers — it's the only time
+  // Return the summary plus the secret on github triggers: it's the only time
   // we hand it back, so the UI can show it for the GitHub webhook setup.
   return { ...toSummaries([row])[0], webhookSecret: row.webhookSecret }
 })

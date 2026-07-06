@@ -5,7 +5,7 @@ import type { TestRunRow } from '~/composables/useWorkflowTestRun'
 // add from the library, reorder, remove, edit each step's params) and a context
 // panel on the right. Edits live in a local `draft` and persist via the
 // workflows CRUD API. An inline test run overlays per-step progress derived from
-// the run log's `▶ <step>` markers — no extra backend tracking.
+// the run log's `▶ <step>` markers: no extra backend tracking.
 
 const route = useRoute()
 const toast = useToast()
@@ -15,7 +15,7 @@ const isNew = computed(() => String(route.params.name) === 'new')
 const routeName = computed(() => decodeURIComponent(String(route.params.name)))
 
 const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
-// The run picker's projects and the trigger panel load lazily — neither blocks
+// The run picker's projects and the trigger panel load lazily: neither blocks
 // rendering the editor itself.
 const { data: projects } = useFetch('/api/projects', {
   default: () => [],
@@ -32,7 +32,7 @@ const notFound = computed(() => !isNew.value && !saved.value)
 interface Draft { name: string, description: string, steps: WorkflowStep[] }
 const draft = ref<Draft>({ name: '', description: '', steps: [] })
 const original = ref('')
-// Which steps have their settings expanded — several can be open at once.
+// Which steps have their settings expanded: several can be open at once.
 // Tracked by step OBJECT (not index), so the open state survives reordering.
 const openSteps = ref(new Set<WorkflowStep>())
 
@@ -50,7 +50,7 @@ function resetDraft() {
   openSteps.value.clear()
 }
 resetDraft()
-// Re-init only when navigating to a different workflow — NOT when the list
+// Re-init only when navigating to a different workflow, NOT when the list
 // refreshes after an auto-save (that would clobber the in-progress edit). The
 // guard skips the reset right after we navigate following a create/rename.
 let skipReset = false
@@ -155,14 +155,14 @@ const { dragIndex, dragArmed, libDrag, dropIndex, onDragStart, onDragOver, onRai
   = useStepDnd(steps, openSteps)
 
 // ── auto-save ────────────────────────────────────────────────────────────────
-// There's no save button — edits persist automatically (debounced) once the
+// There's no save button: edits persist automatically (debounced) once the
 // workflow is valid. New workflows are created as soon as they have a valid name
 // and at least one filled step; before that they stay an in-memory draft.
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'invalid' | 'error'
 const saveStatus = ref<SaveStatus>('idle')
 const saveError = ref<string>()
 
-// The shared name rule (shared/utils/workflow.ts) — the same regex the
+// The shared name rule (shared/utils/workflow.ts): the same regex the
 // server's workflowInputSchema validates with.
 const nameValid = computed(() => WORKFLOW_NAME_RE.test(draft.value.name.trim()))
 const valid = computed(() => nameValid.value && draft.value.steps.every(stepValid))
@@ -194,7 +194,7 @@ async function persist() {
   }
   try {
     if (!saved.value) {
-      // Don't create an empty shell — wait until there's a step worth saving.
+      // Don't create an empty shell: wait until there's a step worth saving.
       if (!draft.value.steps.length) {
         saveStatus.value = 'idle'
         return
@@ -285,7 +285,7 @@ async function removeWorkflow() {
   }
 }
 
-// Flush a pending edit (PATCH only — no navigation) when leaving the page.
+// Flush a pending edit (PATCH only, no navigation) when leaving the page.
 onUnmounted(() => {
   clearTimeout(saveTimer)
   if (saved.value && valid.value && JSON.stringify(draft.value) !== original.value) {
@@ -310,7 +310,7 @@ const mode = computed<Mode>(() => {
 type StepStatus = 'idle' | 'selected' | 'done' | 'running' | 'error' | 'pending' | 'skipped'
 
 // The run's top-level step records (nested rows belong to composites), keyed
-// by sequence position — shared by the per-card statuses and the banner.
+// by sequence position, shared by the per-card statuses and the banner.
 const topRows = computed(() => new Map(
   activeRunSteps.value.filter(r => !r.parentStepId).map(r => [r.stepIndex, r])))
 
@@ -359,9 +359,9 @@ const pr = computed(() => {
 })
 
 function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): string {
-  if (!a || !b) return '—'
+  if (!a || !b) return '-'
   const ms = new Date(b).getTime() - new Date(a).getTime()
-  if (!Number.isFinite(ms) || ms < 0) return '—'
+  if (!Number.isFinite(ms) || ms < 0) return '-'
   const s = Math.round(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
@@ -432,7 +432,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
               @keyup.esc="cancelRename"
               @blur="commitRename"
             >
-            <!-- Saved: the title itself is the rename affordance — click it. -->
+            <!-- Saved: the title itself is the rename affordance, click it. -->
             <UTooltip
               v-else-if="saved && editable"
               text="Click to rename"
@@ -665,13 +665,13 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
 
       <!-- Two columns: step rail (settings expand inline in the cards) +
            library. Sidebar sizing matches projects/[id].vue exactly
-           (viewport-based clamp — can't drift between screens). -->
+           (viewport-based clamp, can't drift between screens). -->
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
         <div
           @dragover="onRailOver"
           @drop.prevent="onRailDrop"
         >
-          <!-- Triggers: the head of the flow — ONE grouped panel (master switch,
+          <!-- Triggers: the head of the flow, ONE grouped panel (master switch,
                configured triggers, the always-available manual start), joined to
                the steps below by the rail spine so it reads as a single flow. -->
           <div class="mb-3 flex gap-3.5">
@@ -697,7 +697,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
             >
               <!-- Header + master switch: pauses every trigger at once (manual
                    runs / tests are unaffected). Only shown once a trigger is
-                   configured — with just the implicit manual start there is
+                   configured: with just the implicit manual start there is
                    nothing the switch could pause. -->
               <div
                 v-if="saved && workflowTriggers.length"
@@ -718,7 +718,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                       class="k-mono truncate text-[11px] transition-colors"
                       :class="saved.enabled ? 'text-(--text-dimmed)' : 'text-(--accent-orange)'"
                     >
-                      {{ saved.enabled ? 'Triggers fire automatically' : 'Paused — triggers won’t fire' }}
+                      {{ saved.enabled ? 'Triggers fire automatically' : 'Paused: triggers won’t fire' }}
                     </div>
                   </div>
                 </div>
@@ -741,7 +741,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
 
               <!-- Configured triggers (divided rows within the group). Dimmed
                    when the row is paused individually OR the master switch is
-                   off — so a paused automation is visibly inert. -->
+                   off, so a paused automation is visibly inert. -->
               <div
                 v-for="t in workflowTriggers"
                 :key="t.id"
@@ -794,7 +794,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                 />
               </div>
 
-              <!-- Manual: always available — run it now against a chosen
+              <!-- Manual: always available, run it now against a chosen
                    project + branch (right here, not from a separate button). -->
               <div class="flex items-center gap-3 px-3 py-2.5">
                 <KStepIcon
@@ -1174,7 +1174,7 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                   <span class="k-mono text-[11.5px] text-(--text-dimmed)">Failed at step</span>
                   <span class="k-mono text-[11.5px] text-(--status-error)">{{ startedSteps }} of {{ steps.length }}</span>
                 </div>
-                <pre class="k-mono max-h-[340px] overflow-auto whitespace-pre-wrap rounded-(--radius-md) border border-(--border-muted) bg-(--surface-base) p-3 text-[11.5px] leading-[1.7] text-(--text-muted)">{{ logTail || '—' }}</pre>
+                <pre class="k-mono max-h-[340px] overflow-auto whitespace-pre-wrap rounded-(--radius-md) border border-(--border-muted) bg-(--surface-base) p-3 text-[11.5px] leading-[1.7] text-(--text-muted)">{{ logTail || '-' }}</pre>
               </div>
             </KPanel>
           </div>

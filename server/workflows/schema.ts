@@ -14,7 +14,7 @@ export type { Step }
 
 // The workflow definition format (workflows.md §10, mvp.md §3.2): a linear
 // sequence of blocks. Both schemas below are assembled from the action registry
-// (./actions) — adding a plain step type never touches this file. The composite
+// (./actions). Adding a plain step type never touches this file. The composite
 // control-flow steps (if/loop) are defined here because they are engine-level
 // constructs whose schemas recurse into the step schema itself.
 //
@@ -69,7 +69,7 @@ export interface Workflow {
 
 // Validation for workflows coming from the visual builder (the API). Unlike
 // `stepSchema` (which parses the YAML authoring form), the builder sends steps
-// already in their NORMALIZED, `type`-tagged shape — so this validates that
+// already in their NORMALIZED, `type`-tagged shape, so this validates that
 // shape directly. Required params are enforced (a half-filled step can't save).
 const stepMeta = {
   id: z.string().optional(),
@@ -119,7 +119,7 @@ export type WorkflowInput = z.infer<typeof workflowInputSchema>
 
 // ── import / export (workflow-engine-plan.md D9) ─────────────────────────────
 // The normalized JSON shape is canonical; YAML is the same document serialized.
-// The envelope carries an integer format version — older exports migrate here
+// The envelope carries an integer format version: older exports migrate here
 // as the format evolves (none yet: v1 is the first), newer ones are rejected
 // with a clear message instead of being half-read.
 export const WORKFLOW_FORMAT_VERSION = 1
@@ -137,7 +137,7 @@ export const workflowDocumentSchema = z.object({
   steps: z.array(importedStepSchema).min(1).superRefine(maxDepth).transform(ensureStepIds),
 })
 
-// Parse + validate a workflow from its YAML (or JSON — YAML is a superset)
+// Parse + validate a workflow from its YAML (or JSON, since YAML is a superset)
 // source. Throws on invalid input; used for the bundled starter templates.
 // The import API uses `workflowDocumentSchema` directly for path-precise errors.
 export function parseWorkflow(source: string): Workflow {

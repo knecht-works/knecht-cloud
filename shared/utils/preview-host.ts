@@ -1,4 +1,4 @@
-// The preview-host naming scheme — the ONE place that knows it (used by the
+// The preview-host naming scheme, the ONE place that knows it (used by the
 // app's preview links, the host middlewares and the preview proxy):
 //
 //   [<label>--]<runId>.preview.<base>
@@ -6,7 +6,7 @@
 // Every hostname a run's ddev environment serves gets a per-run preview
 // origin: the primary host as the plain `<runId>.` form, each additional one
 // under a label derived from it (run-isolation.md §10/3). The runId picks the
-// sandbox; the label picks the host INSIDE it — so parallel runs of the same
+// sandbox; the label picks the host INSIDE it, so parallel runs of the same
 // project coexist without the project's own hostnames ever colliding.
 
 const PREVIEW_HOST_RE = /^(?:([a-z0-9-]+)--)?(\d+)\.preview\./

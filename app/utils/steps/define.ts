@@ -3,7 +3,7 @@ import type { StepKind } from '~/utils/dashboard'
 
 // The client-side step definition: ONE file per step type under
 // app/utils/steps/ carries everything the editor and the overviews know about
-// it — identity (label/kind/icon/group), the settings fields the inspector
+// it: identity (label/kind/icon/group), the settings fields the inspector
 // renders, defaults, the variables it contributes to later steps, and how a
 // step instance presents in lists. The server pairs each def with an action
 // module (server/workflows/actions/<type>.ts) holding schema + execution.
@@ -53,7 +53,7 @@ export interface StepDef<T extends Step['type']> {
   meta?(step: Extract<Step, { type: T }>): Partial<StepMeta>
 }
 
-// The type-erased form the registry holds — callers only ever have a plain
+// The type-erased form the registry holds: callers only ever have a plain
 // `Step` in hand (Extract<Step, { type: union }> collapses back to Step).
 // `defineStep` is the single point where the narrowing cast happens; def
 // modules stay fully typed against their own step shape.

@@ -7,7 +7,7 @@ import { runWorktreeDir } from '../../../utils/storage'
 // a usable page yet. envState flips to 'up' the moment `ddev start` returns, but
 // the boot workflow keeps going (composer install, asset build), so the preview
 // iframe would otherwise load a half-built site. The dashboard polls this and
-// holds the frame back until the app answers on :80 with a non-5xx status —
+// holds the frame back until the app answers on :80 with a non-5xx status,
 // which covers the "still starting / installing" window (a missing vendor/ or a
 // booting router 5xx / refuses). A 200-but-unstyled page mid asset-build looks
 // the same to an HTTP probe as a finished one, so that case isn't caught here.

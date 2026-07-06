@@ -41,7 +41,7 @@ export function useStepDnd(
     const pastMidpoint = e.clientY > rect.top + rect.height / 2
     if (dragIndex.value !== null) {
       if (dragIndex.value === i) return
-      // Swap only once the cursor crosses the hovered card's midpoint —
+      // Swap only once the cursor crosses the hovered card's midpoint,
       // otherwise unequal card heights make the rows oscillate.
       if (dragIndex.value < i ? pastMidpoint : !pastMidpoint) {
         reorder(dragIndex.value, i)

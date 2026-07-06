@@ -15,7 +15,7 @@ interface Member {
 const { data: members } = await useFetch<Member[]>('/api/members')
 
 // Member logins are stored lowercased; the session login keeps GitHub's original
-// casing — normalise before comparing. `me` is the signed-in member's own row
+// casing: normalise before comparing. `me` is the signed-in member's own row
 // (always present: the /api gate only lets members through); `others` is the
 // rest of the team.
 const myLogin = computed(() => user.value?.login.toLowerCase())
@@ -76,7 +76,7 @@ interface Settings {
 }
 const { data: settings } = useFetch<Settings>('/api/settings', { lazy: true })
 
-// Local editable copy of the ENV fields only — the Agent panel saves on its
+// Local editable copy of the ENV fields only: the Agent panel saves on its
 // own (separate indicator), so a model change never flashes "Saving" over in
 // Environments. Changes autosave shortly after the last edit.
 type EnvSettings = Pick<Settings, 'idleStopMinutes' | 'previewRetentionDays' | 'archiveRetentionDays' | 'maxConcurrentRuns'>
@@ -105,7 +105,7 @@ const ENV_FIELDS: { key: keyof EnvSettings, label: string, unit: string, min: nu
 ]
 
 // Autosave, debounced so a keystroke doesn't fire a request. An emptied number
-// input is '' until retyped — hold off (keep "Saving…") rather than send an
+// input is '' until retyped: hold off (keep "Saving…") rather than send an
 // invalid body; out-of-range values are the server's call and surface as the
 // error state. `load()` refreshing `original` is what stops the save loop.
 const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -206,7 +206,7 @@ async function save() {
         <!-- One compact card per person in a grid, so the panel's full width is
              used instead of one person per full-width row. You come first (with
              sign-out where your account is); the invite form is the grid's
-             still-empty card — dashed, with an inline input — so adding someone
+             still-empty card (dashed, with an inline input), so adding someone
              reads as "filling the next slot". -->
         <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
           <div class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted) px-3.5 py-3">

@@ -2,7 +2,7 @@ import { asc, eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 
 // GET /api/runs/:id/steps → the run's per-step execution records, in execution
-// order — drives the step timeline on the run detail page (polled while live).
+// order. Drives the step timeline on the run detail page (polled while live).
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
 

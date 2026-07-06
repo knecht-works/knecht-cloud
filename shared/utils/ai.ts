@@ -2,7 +2,7 @@
 // ai.ts maps each id to its env var). Ids follow models.dev, the registry
 // opencode resolves providers from; 'opencode' is Zen.
 export const AI_PROVIDERS = [
-  // Covers both OpenCode plans (Zen pay-per-use and the Go subscription) —
+  // Covers both OpenCode plans (Zen pay-per-use and the Go subscription):
   // either key comes from the OpenCode console and authenticates the same way.
   { id: 'opencode', label: 'OpenCode' },
   { id: 'anthropic', label: 'Anthropic' },

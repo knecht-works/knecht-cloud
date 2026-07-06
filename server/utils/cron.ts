@@ -1,6 +1,6 @@
 // A minimal standard 5-field cron evaluator: "minute hour day-of-month month
 // day-of-week". Each field supports '*', '*/n' steps, 'a-b' ranges, 'a,b' lists
-// and plain numbers — enough for the schedules the Triggers UI generates and for
+// and plain numbers: enough for the schedules the Triggers UI generates and for
 // hand-written ones. No seconds, no '@' aliases, no 'L/W/#'. Day-of-month and
 // day-of-week combine with OR when both are restricted (the POSIX rule).
 

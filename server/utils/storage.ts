@@ -23,13 +23,13 @@ export function projectCheckoutDir(project: { id: number, name: string }): strin
 }
 
 // A run's isolated working directory (a detached git worktree off the project's
-// base clone) — its own ddev environment boots here.
+// base clone): its own ddev environment boots here.
 export function runWorktreeDir(runId: number): string {
   return join(projectsDir(), `run-${runId}`)
 }
 
 // The name of a run's sandbox container (the per-run Sysbox DinD box that the
-// project's whole ddev stack boots inside — run-isolation.md §3). Everything
+// project's whole ddev stack boots inside; run-isolation.md §3). Everything
 // about a run's environment is addressed through this one name.
 export function runSandboxName(runId: number): string {
   return `knecht-run-${runId}`
@@ -37,7 +37,7 @@ export function runSandboxName(runId: number): string {
 
 // A run's archive folder: the small artifacts (DB export, worktree patch) that
 // survive the env teardown so an archived run can be restored exactly. NOT
-// created here — writers mkdir, readers probe.
+// created here: writers mkdir, readers probe.
 export function runArchiveDir(runId: number): string {
   return join(dataDir(), 'archives', `run-${runId}`)
 }

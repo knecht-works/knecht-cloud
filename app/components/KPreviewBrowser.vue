@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Browser chrome around the live preview iframe: back/forward/reload, an
 // editable address bar, a host switcher (multisite projects serve several
-// hostnames — each has its own per-run preview origin) and open-in-new-tab.
+// hostnames, each with its own per-run preview origin) and open-in-new-tab.
 // The frame is cross-origin, so navigation state comes from the bridge script
 // the preview proxy injects into every HTML response (preview-proxy.ts): the
 // frame posts `nav` messages up, the chrome posts `cmd` messages down. The
@@ -20,7 +20,7 @@ const reqUrl = useRequestURL()
 const primaryHost = computed(() => props.hosts[0] ?? null)
 
 // The env flips to 'up' (props.online) the instant `ddev start` returns, but the
-// boot workflow keeps running (composer install, asset build) — so the frame
+// boot workflow keeps running (composer install, asset build), so the frame
 // would load a half-built site. Poll the health probe while up-but-unready and
 // only treat the preview as `live` (render the iframe) once the app answers.
 // Re-arms whenever `online` toggles, so a reboot re-probes from scratch.
@@ -91,7 +91,7 @@ onUnmounted(() => window.removeEventListener('message', onMessage))
 
 function post(action: string) {
   // Commands carry nothing sensitive and the bridge verifies the PARENT's
-  // origin before acting, so '*' is safe — pinning the target would only
+  // origin before acting, so '*' is safe. Pinning the target would only
   // spam console errors whenever the frame sits on an error page (origin
   // 'null'), where no bridge is listening anyway.
   frame.value?.contentWindow?.postMessage({ knecht: 'cmd', action }, '*')
@@ -99,12 +99,12 @@ function post(action: string) {
 
 function go(url: string) {
   // Hard-navigate the frame itself rather than asking the bridge: it works
-  // from ANY state — error pages, external pages, a CSP that blocked the
-  // bridge — where a posted command would vanish into the void.
+  // from ANY state (error pages, external pages, a CSP that blocked the
+  // bridge) where a posted command would vanish into the void.
   if (frameSrc.value === url) frameKey.value++
   else frameSrc.value = url
   // Show the target right away; a bridged document confirms (or corrects)
-  // it with its `nav` message once loaded — which also re-arms `bridged`,
+  // it with its `nav` message once loaded, which also re-arms `bridged`,
   // so a reload after landing on a bridge-less page stays a hard reload.
   bridged.value = false
   currentUrl.value = url
@@ -122,7 +122,7 @@ function reload() {
 // ── Address bar ────────────────────────────────────────────────────────────
 // The bar talks the PROJECT's world: the frame lives on per-run preview
 // origins, but what the operator knows (and the dropdown lists, and the
-// pasted .env points at) are the project's own hostnames — so preview
+// pasted .env points at) are the project's own hostnames, so preview
 // origins are translated back to those for display, and typed project URLs
 // are translated forward in resolveAddress. Editing detaches the bar until
 // Enter navigates or blur snaps it back.
@@ -140,7 +140,7 @@ function displayUrl(url: string): string {
       if (host) return host + u.pathname + u.search + u.hash
     }
   }
-  catch { /* not a URL — show as-is */ }
+  catch { /* not a URL, show as-is */ }
   return url.replace(/^https?:\/\//, '')
 }
 

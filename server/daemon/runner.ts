@@ -16,11 +16,11 @@ import { ensureEnvUp } from './envs'
 // The in-process serial runner (tech-stack.md §4). Each run gets its OWN
 // sandbox (run-isolation.md): an isolated git worktree bind-mounted into a
 // per-run Sysbox container, whose inner daemon boots the project's full ddev
-// stack — router included — and a freshly-imported DB. Project-facing steps
+// stack (router included) and a freshly-imported DB. Project-facing steps
 // (ddev, bash/agent) exec INSIDE the sandbox; git steps run host-side against
 // the worktree. The run row tracks both the run status and the environment
 // state (envState = the sandbox's state), which the preview proxy and the
-// idle-stopper read. SSE is deferred — the UI polls the row.
+// idle-stopper read. SSE is deferred: the UI polls the row.
 //
 // Execution is engine-generic (workflow-engine-plan.md D3–D5): the step
 // sequence is PINNED onto the run row at start; each step gets a run_steps row
@@ -29,14 +29,14 @@ import { ensureEnvUp } from './envs'
 // same way.
 
 // Cap a step's stored outputs (workflow-engine-plan.md D4): results transit the
-// context and the DB — large data belongs in the sandbox filesystem, passed by
+// context and the DB: large data belongs in the sandbox filesystem, passed by
 // path/reference.
 const MAX_OUTPUT_BYTES = 64 * 1024
 
 // Execute a run. Called only by the dispatcher (server/plugins/dispatcher.ts),
 // which awaits the returned promise to track the concurrency slot; the promise
 // never rejects. Repo credentials are minted on demand from the GitHub App
-// (github-app.ts) — installation tokens expire after 1h, so each git network
+// (github-app.ts): installation tokens expire after 1h, so each git network
 // operation fetches a fresh one instead of holding a single token across a
 // possibly-long run.
 export function startRun(runId: number, project: Project): Promise<void> {
@@ -70,7 +70,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
 
   // Log routing: everything lands in runs.log (the UI's live stream); while a
   // step is executing, its slice is ALSO buffered for that step's run_steps
-  // row and written once when the row is finalized — per-chunk SQL appends on
+  // row and written once when the row is finalized: per-chunk SQL appends on
   // this hot path would rewrite the growing blob for every stdout event.
   // Nested steps (if/loop) re-point `current` to their own row and restore the
   // parent's when done.
@@ -89,7 +89,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     const dir = await prepareRunCheckout(project, runId, token, log, run.branch ?? project.defaultBranch)
 
     // Read the repo's own ddev host set and store it (the proxy serves the
-    // whole set — readDdevHosts — under per-run preview origins; the UI builds
+    // whole set (readDdevHosts) under per-run preview origins; the UI builds
     // its host switcher from the stored list).
     const hosts = readDdevHosts(dir)
     db.update(schema.runs)
@@ -136,8 +136,8 @@ interface RowLog {
 // full stream).
 const STEP_LOG_CAP = 256 * 1024
 
-// Position of a nested step list: which composite step owns it and — inside a
-// loop — which iteration; `collect` gathers the iteration's outputs.
+// Position of a nested step list: which composite step owns it and, inside a
+// loop, which iteration; `collect` gathers the iteration's outputs.
 interface StepScope {
   parentStepId?: string
   iteration?: number
@@ -265,7 +265,7 @@ async function execStep(
           continue
         }
         // An ActionError carries the failure's outputs (bash exit code + output
-        // tail, an HTTP error response) — recorded, and still referencable by
+        // tail, an HTTP error response), recorded, and still referencable by
         // later steps when the run continues.
         const failOutputs = capOutputs((e as ActionError).outputs)
         finalize({ status: 'failed', error, attempt, outputs: failOutputs })
@@ -288,7 +288,7 @@ function updateStepRow(rowId: number, patch: StepRowPatch): void {
   db.update(schema.runSteps).set(patch).where(eq(schema.runSteps.id, rowId)).run()
 }
 
-// The step's own params for the run_steps snapshot — meta stripped, and
+// The step's own params for the run_steps snapshot: meta stripped, and
 // composite sub-step definitions dropped (they live in the pinned run
 // snapshot; duplicating whole subtrees into every row helps nobody).
 function stepParams(step: Step): Record<string, unknown> {
@@ -313,7 +313,7 @@ const STREAM_TAIL_CHARS = 128 * 1024
 
 // Run a command in the sandbox, streaming its stdout/stderr into the run log
 // (routed through the run's logger, so it also lands in the current step's
-// row) while capturing a tail for the caller. Resolves with the exit code —
+// row) while capturing a tail for the caller. Resolves with the exit code:
 // never rejects on a non-zero exit, the caller decides.
 function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>): Promise<{ code: number, tail: string }> {
   const sub = execInSandbox(runId, command, { reject: false, buffer: false }, env)

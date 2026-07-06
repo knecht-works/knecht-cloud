@@ -3,14 +3,14 @@ import { execa, type Options } from 'execa'
 import { runSandboxName, runWorktreeDir } from '../utils/storage'
 
 // The sandbox seam (run-isolation.md §8): every run gets its own Sysbox
-// container — an unprivileged Docker-in-Docker box that boots the project's
+// container: an unprivileged Docker-in-Docker box that boots the project's
 // full ddev stack, router included. This module is the ONLY place that knows a
 // sandbox is a Sysbox container; if the substrate ever changes (Kata), it's a
 // swap of these functions, not a rewrite.
 //
 // Topology (run-isolation.md §3): the sandbox joins the `knecht-ingress`
 // network; the preview proxy reaches the INNER ddev-router at <sandbox>:80
-// over plain HTTP (the router binds 0.0.0.0 — baked into sandbox/Dockerfile).
+// over plain HTTP (the router binds 0.0.0.0, baked into sandbox/Dockerfile).
 
 // Where the run's git worktree is bind-mounted inside the sandbox. The inner
 // daemon resolves ddev's bind mounts against the SANDBOX filesystem, so the
@@ -24,7 +24,7 @@ function sandboxImage(): string {
 }
 
 // Boot (or resume) the sandbox for a run and wait until its inner dockerd
-// answers — after this, `ddev` commands can be exec'd inside. Idempotent:
+// answers; after this, `ddev` commands can be exec'd inside. Idempotent:
 // a stopped sandbox is started, a running one is left alone.
 export async function bootSandbox(runId: number): Promise<void> {
   await ensureIngressNetwork()
@@ -49,8 +49,8 @@ export async function bootSandbox(runId: number): Promise<void> {
 }
 
 // Stop a run's sandbox (systemd shuts the whole inner world down cleanly via
-// STOPSIGNAL). The container — and with it the inner volumes, images and the
-// imported DB — persists, so a reboot is quick.
+// STOPSIGNAL). The container (and with it the inner volumes, images and the
+// imported DB) persists, so a reboot is quick.
 export async function stopSandbox(runId: number): Promise<void> {
   ipCache.delete(runId)
   await execa('docker', ['stop', runSandboxName(runId)])
@@ -58,7 +58,7 @@ export async function stopSandbox(runId: number): Promise<void> {
 
 // Fully remove a run's sandbox. The nested daemon, its containers and volumes
 // all live in the sandbox's filesystem, so this reclaims everything at once
-// (verified: no orphans — run-isolation.md header note).
+// (verified: no orphans; run-isolation.md header note).
 export async function removeSandbox(runId: number): Promise<void> {
   ipCache.delete(runId)
   try {
@@ -70,11 +70,11 @@ export async function removeSandbox(runId: number): Promise<void> {
 }
 
 // Run a command inside a run's sandbox as the non-root ddev user (whose uid
-// matches this process — baked into the image, see sandbox/Dockerfile), in
+// matches this process, baked into the image, see sandbox/Dockerfile), in
 // the project checkout. HOME and USER must be set explicitly: `docker exec -u`
 // derives neither, ddev needs both. execa options pass through (the runner
 // streams with `buffer: false`; plain callers just await). `env` becomes
-// `docker exec -e` vars — how a secret reaches a sandbox process without
+// `docker exec -e` vars: how a secret reaches a sandbox process without
 // appearing in the command line (the ai step's provider key).
 export function execInSandbox(runId: number, command: string[], options?: Options, env?: Record<string, string>) {
   return execa('docker', [
@@ -86,7 +86,7 @@ export function execInSandbox(runId: number, command: string[], options?: Option
 }
 
 // Copy a host-side file into the sandbox (the sandbox can't see Knecht's data
-// dir — e.g. uploaded DB dumps travel this way).
+// dir, e.g. uploaded DB dumps travel this way).
 export async function copyIntoSandbox(runId: number, file: string, dest: string): Promise<void> {
   await execa('docker', ['cp', file, `${runSandboxName(runId)}:${dest}`])
 }
@@ -153,8 +153,8 @@ async function waitForInnerDocker(name: string, timeoutMs = 90_000): Promise<voi
   throw new Error('Sandbox booted but its inner Docker daemon never came up')
 }
 
-// Make sure the ingress network exists and — when Knecht itself runs as a
-// container — that it is attached, so the proxy can reach sandbox IPs.
+// Make sure the ingress network exists and, when Knecht itself runs as a
+// container, that it is attached, so the proxy can reach sandbox IPs.
 // Idempotent, best-effort (on the dev VM Knecht is a plain host process and
 // reaches bridge IPs directly).
 async function ensureIngressNetwork(): Promise<void> {
@@ -168,6 +168,6 @@ async function ensureIngressNetwork(): Promise<void> {
     await execa('docker', ['network', 'connect', INGRESS_NETWORK, hostname()])
   }
   catch {
-    // Already connected, or not running as a container — fine either way.
+    // Already connected, or not running as a container: fine either way.
   }
 }

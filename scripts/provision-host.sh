@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Provision a Linux host as a Knecht substrate — the production VPS and the
+# Provision a Linux host as a Knecht substrate: the production VPS and the
 # local dev VM run the SAME script (run-isolation.md §9: one substrate).
 #
-#   1. Docker Engine, pinned (Docker 29 breaks under sysbox-runc — §11)
+#   1. Docker Engine, pinned (Docker 29 breaks under sysbox-runc, §11)
 #   2. Sysbox CE (the per-run sandbox runtime, §7)
 #   3. daemon.json: register sysbox-runc + widen the network pool (each run's
 #      sandbox takes a bridge network on the host side)
 #   4. the fixed projects dir + docker group for the invoking user
 #   5. the knecht-sandbox image (sandbox/Dockerfile)
 #
-# Idempotent — safe to re-run. Usage (from the repo, with sudo rights):
+# Idempotent, safe to re-run. Usage (from the repo, with sudo rights):
 #   ./scripts/provision-host.sh
 set -euo pipefail
 
@@ -51,7 +51,7 @@ fi
 
 # ── 3. Register the runtime + network pool ────────────────────────────────────
 # bip/pools: the INNER dockerd (in every sandbox) uses Docker's stock 172.17/16
-# defaults — keep the HOST's bridges out of that range so routing inside the
+# defaults. Keep the HOST's bridges out of that range so routing inside the
 # sandboxes never collides with the host side.
 if [ -f /etc/docker/daemon.json ] && grep -q sysbox-runc /etc/docker/daemon.json; then
   echo "✓ sysbox-runc already registered with Docker"
@@ -93,13 +93,13 @@ sudo docker build -t knecht-sandbox \
   "$REPO_DIR/sandbox"
 
 # ── 6. Local registry cache + warm-up ─────────────────────────────────────────
-# A fresh sandbox pulls ~1GB of ddev images on its first `ddev start` — minutes
+# A fresh sandbox pulls ~1GB of ddev images on its first `ddev start`, minutes
 # per run from the internet. A pull-through cache on the host's bridge IP (the
 # `bip` pinned in step 3) serves them LAN-local instead; every sandbox's inner
 # daemon is configured to use it (sandbox/Dockerfile). The warm-up seed fills
 # the cache for the ddev version pinned into the image, once per provisioning.
 # (Baking the images INTO the sandbox image via docker commit corrupts inner
-# layer ownership without shiftfs — kernels ≥6.8 don't ship it. Don't retry.)
+# layer ownership without shiftfs, and kernels ≥6.8 don't ship it. Don't retry.)
 if ! sudo docker ps --format '{{.Names}}' | grep -qx knecht-registry; then
   echo "▶ Starting the local registry cache"
   sudo docker rm -f knecht-registry >/dev/null 2>&1 || true

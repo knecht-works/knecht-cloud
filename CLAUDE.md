@@ -58,3 +58,13 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Writing Conventions
+
+**No em-dashes. Ever.**
+
+Never use an em-dash (the `—` character) anywhere: not in code, comments, strings, UI copy, docs, config, or commit messages. Rephrase instead with a colon, comma, parentheses, or two sentences. Do not substitute an en-dash either. This applies to the whole codebase, not just user-facing copy.
+
+**No AI attribution in commits.**
+
+Never add a `Co-Authored-By: Claude` trailer (or any Claude/Anthropic attribution) to commit messages. The author is always samuelreichor.
+

@@ -1,6 +1,6 @@
 import type { Step } from '#shared/utils/workflow'
 
-// Shared display helpers for the dashboard screens — keeps status mapping and
+// Shared display helpers for the dashboard screens: keeps status mapping and
 // formatting in one place so the screens stay free of ad-hoc logic.
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed'
@@ -99,13 +99,13 @@ export const STEP_KIND_COLOR: Record<StepKind, string> = {
   trigger: 'var(--accent-violet)',
 }
 
-// A workflow step as returned by /api/workflows — the shared step model
+// A workflow step as returned by /api/workflows: the shared step model
 // (shared/utils/workflow.ts) under the name the app code grew up with.
 // Presentation of a step instance lives with its def: workflowStepMeta
 // (~/utils/workflow-steps.ts) reads the per-step registry.
 export type WorkflowStep = Step
 
-// Human-readable message from a failed `$fetch` call — H3 packs it into
+// Human-readable message from a failed `$fetch` call. H3 packs it into
 // `error.data.statusMessage`; returns `fallback` when the response has none.
 export function errMsg(e: unknown, fallback: string): string {
   return (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? fallback

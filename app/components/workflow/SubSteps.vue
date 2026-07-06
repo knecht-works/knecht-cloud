@@ -3,11 +3,11 @@ import { isCompositeType, MAX_STEP_DEPTH } from '#shared/utils/workflow'
 
 // A composite step's nested step list (if branches, loop body), edited inline
 // inside the parent's settings card. Deliberately simpler than the top-level
-// rail: reorder via up/down, add via a type menu — no drag & drop.
+// rail: reorder via up/down, add via a type menu, no drag & drop.
 const props = defineProps<{
-  /** The branch array — mutated in place (the draft owns the state). */
+  /** The branch array, mutated in place (the draft owns the state). */
   steps: WorkflowStep[]
-  /** The workflow's ROOT step list — ids are unique across the whole tree. */
+  /** The workflow's ROOT step list; ids are unique across the whole tree. */
   root: WorkflowStep[]
   /** Variable groups visible at the composite step itself. */
   varsBase: VarGroup[]
@@ -21,7 +21,7 @@ const props = defineProps<{
 
 const open = ref(new Set<WorkflowStep>())
 
-// The branch is edited in place — the draft object owns the state, the same
+// The branch is edited in place: the draft object owns the state, the same
 // contract as StepSettings' `record`.
 const list = computed(() => props.steps)
 

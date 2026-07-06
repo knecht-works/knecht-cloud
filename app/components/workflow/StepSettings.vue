@@ -2,14 +2,14 @@
 import { isComposite } from '#shared/utils/workflow'
 
 // The expanded step's settings, rendered inline inside its card: display
-// name/note, the registry-driven fields, and the n8n-style variable list —
+// name/note, the registry-driven fields, and the n8n-style variable list,
 // everything available at THIS point of the sequence, click-to-insert into the
 // last-focused field (or type `{{` for autocomplete).
 const props = defineProps<{
   step: WorkflowStep
   groups: VarGroup[]
   editable: boolean
-  /** The workflow's ROOT step list — composite steps create sub-steps with tree-unique ids. */
+  /** The workflow's ROOT step list; composite steps create sub-steps with tree-unique ids. */
   root: WorkflowStep[]
   /** The step's nesting depth (top-level = 1); composites cap at MAX_STEP_DEPTH. */
   depth: number
@@ -39,7 +39,7 @@ function insert(path: string) {
 
 const hasVarFields = computed(() => def.value.fields.some(f => f.vars))
 
-// The variable reference list is collapsed by default — on big workflows it
+// The variable reference list is collapsed by default. On big workflows it
 // grows a row per prior step and would dwarf the actual settings. The header
 // stays visible (with a count and the `{{` hint), so insertion is one click
 // away and typing `{{` needs no expansion at all.
@@ -88,7 +88,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       v-else-if="!isComposite(step)"
       class="text-[12.5px] text-(--text-muted)"
     >
-      {{ meta.detail }} — this step has no settings.
+      {{ meta.detail }}. This step has no settings.
     </p>
 
     <!-- composite steps: conditions + nested step lists -->
@@ -150,7 +150,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
           :class="{ 'rotate-180': varsOpen }"
         />
       </button>
-      <!-- Aligned two-column list: a fixed label column (truncated — the
+      <!-- Aligned two-column list: a fixed label column (truncated, but the
            leading step number stays visible, the full name is the title) and
            the chip column, so rows scan cleanly however long a step name is. -->
       <div

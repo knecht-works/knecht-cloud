@@ -9,7 +9,7 @@ export const createPrStep = defineStep({
   group: 'Output',
   fields: [
     { key: 'title', label: 'Title', input: 'text', required: true, vars: true, placeholder: 'Knecht change' },
-    { key: 'body', label: 'Description', input: 'textarea', rows: 3, vars: true, placeholder: 'What this PR changes — {{ preview.url }} links the live preview.' },
+    { key: 'body', label: 'Description', input: 'textarea', rows: 3, vars: true, placeholder: 'What this PR changes. {{ preview.url }} links the live preview.' },
   ],
   outputs: [
     { path: 'url', hint: 'The opened pull request' },

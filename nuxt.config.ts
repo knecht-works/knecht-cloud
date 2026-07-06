@@ -7,7 +7,7 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
-  // The product ships in a single dark theme — no toggle.
+  // The product ships in a single dark theme, no toggle.
   colorMode: {
     preference: 'dark',
     fallback: 'dark',
@@ -31,9 +31,9 @@ export default defineNuxtConfig({
   },
 
   // Inside the dev VM the repo is a macOS virtiofs share whose inotify
-  // forwarding is unreliable — silently missed events leave the dev server on
+  // forwarding is unreliable: silently missed events leave the dev server on
   // stale code. scripts/vm-dev.sh sets KNECHT_DEV_POLLING; then ALL watchers
-  // (Nuxt's chokidar, Vite's, and Nitro's — the one rebuilding server/) poll
+  // (Nuxt's chokidar, Vite's, and Nitro's, the one rebuilding server/) poll
   // instead of trusting inotify.
   watchers: {
     chokidar: {

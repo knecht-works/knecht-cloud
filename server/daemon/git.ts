@@ -6,15 +6,15 @@ import { projectCheckoutDir, runWorktreeDir } from '../utils/storage'
 
 // Prepare an isolated working directory for a run (projects.md §9). We keep one
 // base clone per project and add a detached git worktree per run, so every run
-// gets its own checkout while sharing the object store — lighter than a full
+// gets its own checkout while sharing the object store, lighter than a full
 // clone each time. Detached (not a branch) avoids git's "a branch can only be
 // checked out in one worktree" rule when several runs share the default branch.
 //
 // Auth: a short-lived (1h) GitHub App installation token, passed per network
-// operation as an HTTP header — NEVER stored in the remote URL (it would go
-// stale) and NEVER streamed to the run log — git output is captured quietly
+// operation as an HTTP header: NEVER stored in the remote URL (it would go
+// stale) and NEVER streamed to the run log; git output is captured quietly
 // here and any error is redacted before it surfaces.
-// `sha` pins the worktree to an exact commit instead of the branch tip —
+// `sha` pins the worktree to an exact commit instead of the branch tip:
 // restoring an archived run (daemon/envs.ts) passes the HEAD recorded at
 // archive time.
 export async function prepareRunCheckout(
@@ -35,7 +35,7 @@ export async function prepareRunCheckout(
     await ensureBaseClone(base, project, token, project.defaultBranch, onLog)
     shieldGeneratedFiles(base)
 
-    // With a pinned sha the branch tip is irrelevant — and the run's branch may
+    // With a pinned sha the branch tip is irrelevant, and the run's branch may
     // only ever have existed locally (a create-branch that never pushed), so
     // fetching it would fail.
     if (!sha && branch !== project.defaultBranch) {
@@ -53,7 +53,7 @@ export async function prepareRunCheckout(
       }
       catch (e) {
         if (!sha) throw e
-        // The pinned commit isn't in the shallow store (anymore) — GitHub
+        // The pinned commit isn't in the shallow store (anymore): GitHub
         // serves arbitrary-SHA fetches, so pull exactly it and retry.
         await git(['-C', base, ...authFlags(token), 'fetch', '--depth', '1', 'origin', sha])
         await git(['-C', base, 'worktree', 'add', '--detach', '--force', runDir, sha])
@@ -105,7 +105,7 @@ export async function createBranch(dir: string, name: string): Promise<void> {
 
 // Stage and commit the whole working tree (the `create-commit` block). Returns
 // the new commit SHA, or null when there was nothing to commit (e.g. the agent
-// changed nothing) — the caller treats that as a no-op, not a failure. A commit
+// changed nothing): the caller treats that as a no-op, not a failure. A commit
 // identity is set inline since the run container has none configured.
 export async function commitAll(dir: string, message: string): Promise<string | null> {
   await git(['-C', dir, 'add', '-A'])
@@ -134,7 +134,7 @@ export async function pushBranch(dir: string, branch: string, token: string): Pr
 }
 
 // Knecht writes `.ddev/config.knecht.yaml` into the worktree to isolate the run
-// (unique ddev name) and inject the project's env vars — which include SECRETS.
+// (unique ddev name) and inject the project's env vars, which include SECRETS.
 // The git blocks run `git add -A`, so without this that file (secrets and all)
 // would be committed and pushed in the opened PR. The ignore goes in the base
 // clone's shared `info/exclude` (honored by every worktree hanging off it), so

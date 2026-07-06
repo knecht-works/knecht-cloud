@@ -122,7 +122,7 @@ const rateColor = computed(() => {
       </div>
     </div>
 
-    <UTooltip :text="enabled ? 'Automation on — click to pause' : 'Automation paused — click to enable'">
+    <UTooltip :text="enabled ? 'Automation on, click to pause' : 'Automation paused, click to enable'">
       <button
         type="button"
         :aria-label="enabled ? 'Pause automation' : 'Enable automation'"

@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'A workflow with this name already exists' })
   }
 
-  // `enabled` is optional in the body (editor auto-saves omit it) — spreading
+  // `enabled` is optional in the body (editor auto-saves omit it): spreading
   // `data` leaves it untouched when absent and updates it when present.
   return db.transaction((tx) => {
     const updated = tx
@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
       .get()
 
     // Workflows are referenced by NAME (triggers.workflow, runs.workflow), not
-    // by id — a rename must carry those references along or they'd orphan.
+    // by id: a rename must carry those references along or they'd orphan.
     if (renaming) {
       tx.update(schema.triggers).set({ workflow: data.name }).where(eq(schema.triggers.workflow, target)).run()
       tx.update(schema.runs).set({ workflow: data.name }).where(eq(schema.runs.workflow, target)).run()

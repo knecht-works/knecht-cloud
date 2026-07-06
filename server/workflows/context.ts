@@ -3,12 +3,12 @@ import { STEP_META_KEYS, type Condition, type Step } from '../../shared/utils/wo
 import { tryParseJson } from '../utils/json'
 
 // The run-scoped variable namespace (workflows.md §6): a single object seeded
-// at run start, into which each block's outputs land as it runs — so values
+// at run start, into which each block's outputs land as it runs, so values
 // flow front to back through the linear sequence and any block can read
 // everything produced before it. Block params are `render()`ed against this
 // just before the block runs.
 //
-// Outputs live under `steps.<id>` (collision-free — two create-branch steps
+// Outputs live under `steps.<id>` (collision-free: two create-branch steps
 // don't overwrite each other). The runner ALSO writes each action's legacy
 // top-level key (`branch`, `pr`, `preview`, `commit`) so templates written
 // before step ids existed keep rendering; the legacy key holds the LAST such
@@ -41,7 +41,7 @@ export function createContext(
 }
 
 // Substitute `{{ path.to.value }}` references against the context. Dotted paths
-// walk nested objects; an unknown path resolves to '' — templating is
+// walk nested objects; an unknown path resolves to '': templating is
 // best-effort, so an optional value a block hasn't produced yet (e.g.
 // `{{ preview.url }}` before ddev-start) just renders empty rather than failing.
 // Objects/arrays render as JSON (a step's whole output bag is referenceable).
@@ -60,17 +60,17 @@ function lookup(path: string, ctx: RunContext): unknown {
   )
 }
 
-// Step meta never reaches execution — don't render it.
+// Step meta never reaches execution. Don't render it.
 const META_KEYS = new Set<string>(STEP_META_KEYS)
 
-// A template that is exactly one reference — eligible for raw-value resolution.
+// A template that is exactly one reference, eligible for raw-value resolution.
 const SINGLE_REF_RE = /^\{\{\s*([\w.]+)\s*\}\}$/
 
 // Render every templated string param of a step against the context, just
 // before the step runs. Non-string params (booleans, nested shapes) pass
 // through untouched. Params listed in `rawParams` (ActionDef) whose template is
 // exactly one `{{ ref }}` resolve to the referenced RAW value instead of a
-// string — structured data flows between steps without a stringify round-trip.
+// string. Structured data flows between steps without a stringify round-trip.
 export function renderStepParams<S extends Step>(step: S, ctx: RunContext, rawParams: readonly string[] = []): S {
   const rendered = { ...step } as Record<string, unknown>
   for (const [key, value] of Object.entries(rendered)) {
@@ -111,7 +111,7 @@ function evalCondition(c: Condition, ctx: RunContext): boolean {
   }
 }
 
-// A loop iterates at most this many times — the runaway guard.
+// A loop iterates at most this many times: the runaway guard.
 const MAX_LOOP_ITERATIONS = 1000
 
 // Resolve a loop's `items` template to the values to iterate: an array (a

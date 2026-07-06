@@ -7,17 +7,17 @@ import { addMember, isMember, memberCount, touchProfile } from '../../utils/memb
 
 // GitHub OAuth login. One endpoint, two hits: the first (no `code`) redirects to
 // GitHub; the callback lands back here with `code` and is exchanged for an
-// identity. Login is identity-only — repo access (clone, PR, file reads) comes
+// identity. Login is identity-only: repo access (clone, PR, file reads) comes
 // from the GitHub App (server/utils/github-app.ts), so no user token is kept
 // beyond this request. Single-session gate, no user model.
 //
 // The client id/secret come from the DB-stored GitHub App (created via the setup
-// flow), not env — so this is a hand-rolled OAuth dance rather than
+// flow), not env, so this is a hand-rolled OAuth dance rather than
 // nuxt-auth-utils' defineOAuthGitHubEventHandler, which only reads static config.
 export default defineEventHandler(async (event) => {
   const creds = githubAppCredentials()
   if (!creds?.clientId || !creds.clientSecret) {
-    // Not set up yet — send them through first-run setup.
+    // Not set up yet: send them through first-run setup.
     return sendRedirect(event, '/setup')
   }
 
@@ -79,7 +79,7 @@ export default defineEventHandler(async (event) => {
       addMember({ ...profile, isOwner: true })
     }
     else if (!isMember(user.login)) {
-      console.warn(`Login denied for @${user.login} — not a member of this instance.`)
+      console.warn(`Login denied for @${user.login}: not a member of this instance.`)
       return sendRedirect(event, '/login?error=forbidden')
     }
     else {
@@ -108,7 +108,7 @@ function popRedirect(event: H3Event): string {
     if (base && (hostname === base || hostname.endsWith(`.${base}`))) return raw
   }
   catch {
-    // Malformed stored URL — fall through to the dashboard.
+    // Malformed stored URL: fall through to the dashboard.
   }
   return '/'
 }

@@ -36,7 +36,7 @@ export const httpAction = defineAction({
     const text = await res.text()
     rt.log(`← ${res.status} (${text.length} chars)\n`)
 
-    // Big responses are truncated instead of failing the 64 KB output cap —
+    // Big responses are truncated instead of failing the 64 KB output cap;
     // an API you call is not obliged to answer small.
     const body = text.length > MAX_BODY_CHARS
       ? text.slice(0, MAX_BODY_CHARS)

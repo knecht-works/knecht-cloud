@@ -4,11 +4,11 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import { defineAction, ActionError } from './types'
 
-// User JavaScript — NEVER in the control-plane process (workflow-engine-plan.md
+// User JavaScript: NEVER in the control-plane process (workflow-engine-plan.md
 // D7): the script runs inside the run's Sysbox sandbox, the same kernel-level
 // trust boundary as the bash step. Contract: the code defines `main(input)`
 // (sync or async) and returns a JSON-serializable value, exposed to later steps
-// as steps.<id>.result. `input` comes from the templated param — a single
+// as steps.<id>.result. `input` comes from the templated param: a single
 // {{ ref }} passes the referenced value raw (rawParams).
 const RESULT_MARKER = '__KNECHT_JS_RESULT__'
 

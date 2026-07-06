@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run the Knecht dev server INSIDE the Linux dev VM — the only place it can
+# Run the Knecht dev server INSIDE the Linux dev VM, the only place it can
 # run, since the per-run sandboxes need Sysbox (run-isolation.md §9). From the
 # Mac, `npm run dev:vm` shells in here via Lima; edit on the Mac as usual, the
 # repo is shared into the VM at the identical path.
@@ -20,7 +20,7 @@ if ! command -v node >/dev/null; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null
   sudo apt-get install -y -qq nodejs
 fi
-# npm 11 — the lockfile's generator; npm 10 resolves it differently (same pin
+# npm 11: the lockfile's generator; npm 10 resolves it differently (same pin
 # as NPM_VERSION in the Dockerfile).
 case "$(npm --version)" in 11.*) ;; *) sudo npm i -g npm@11 >/dev/null ;; esac
 
@@ -36,7 +36,7 @@ cd "$REPO"
 # (dotenv never overrides an existing process env var).
 export KNECHT_PROJECTS="${KNECHT_PROJECTS:-/data/knecht/projects}"
 
-# The virtiofs share's inotify forwarding drops events — poll instead, or the
+# The virtiofs share's inotify forwarding drops events, so poll instead, or the
 # dev server silently keeps running stale code (see nuxt.config.ts watchers).
 export KNECHT_DEV_POLLING=1
 

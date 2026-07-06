@@ -1,5 +1,5 @@
 // Branch list for a picker. Reloads (client-side) whenever `url` changes
-// (null = nothing to load yet) and always offers the default branch first —
+// (null = nothing to load yet) and always offers the default branch first,
 // so the picker works even before/without the remote list.
 export function useBranchPicker(
   url: () => string | null,
@@ -16,7 +16,7 @@ export function useBranchPicker(
       branches.value = await $fetch<string[]>(u)
     }
     catch {
-      // List unavailable — the default branch stays the only option.
+      // List unavailable: the default branch stays the only option.
     }
     finally {
       loading.value = false

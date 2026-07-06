@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Guided project setup: connect a repo, then immediately add the env variables
-// and database dump it needs to boot — so a freshly connected project is ready
+// and database dump it needs to boot, so a freshly connected project is ready
 // to preview. The project is created at the first step (its id is needed for the
 // env/dump calls); the later steps are optional and editable later on the
 // detail page.
@@ -95,7 +95,7 @@ async function saveEnvAndContinue() {
   }
 }
 
-// ── Step 3 · database dump (shared with the project page — useProjectDump) ──
+// ── Step 3 · database dump (shared with the project page via useProjectDump) ──
 const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump } = useProjectDump(project)
 
@@ -246,7 +246,7 @@ watch(open, (isOpen) => {
             :ui="{ base: 'k-mono text-[12.5px] leading-[1.8] resize-none' }"
           />
           <p class="k-mono mt-2 text-[11px] text-(--text-dimmed)">
-            One KEY=value per line — paste the project's .env. You can edit these later.
+            One KEY=value per line. Paste the project's .env. You can edit these later.
           </p>
         </div>
         <div class="flex justify-end gap-2">
@@ -341,7 +341,7 @@ watch(open, (isOpen) => {
             {{ project?.fullName.split('/').pop() }} is ready
           </p>
           <p class="mx-auto mt-1 max-w-[320px] text-[12.5px] text-(--text-dimmed)">
-            Boot it to import the database, build, and open a live preview — or open the
+            Boot it to import the database, build, and open a live preview, or open the
             project to review the setup first.
           </p>
         </div>

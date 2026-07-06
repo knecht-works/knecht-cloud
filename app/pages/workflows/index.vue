@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
-// Stats + automation columns stream in lazily — they don't gate the list.
+// Stats + automation columns stream in lazily: they don't gate the list.
 const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
 const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 const toastError = useToastError()
@@ -28,7 +28,7 @@ function fmt(seconds: number) {
 
 // Each workflow enriched with run stats (rate, avg, status) plus its configured
 // automation: the triggers it owns give both the projects it fires against and
-// the trigger summary — no run needs to have happened yet.
+// the trigger summary: no run needs to have happened yet.
 const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const wRuns = (runs.value ?? []).filter(r => r.workflow === w.name)
   const completed = wRuns.filter(r => r.status === 'success' || r.status === 'failed')

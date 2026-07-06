@@ -9,7 +9,7 @@ export interface TestRunRow {
   finishedAt: string | number | null
 }
 
-// The run's per-step execution records (run_steps) — drives per-card status.
+// The run's per-step execution records (run_steps): drives per-card status.
 export interface TestRunStepRow {
   id: number
   stepIndex: number
@@ -85,8 +85,8 @@ export function useWorkflowTestRun<P extends TestProject>(
   )
 
   // Re-attach to a live run of this workflow, so navigating away and back
-  // doesn't lose an in-flight run's progress. Only live runs are restored —
-  // the newest one; runs that finished while away stay on the runs page.
+  // doesn't lose an in-flight run's progress. Only live runs are restored
+  // (the newest one); runs that finished while away stay on the runs page.
   async function reattach() {
     const workflow = workflowName()
     if (!workflow) return

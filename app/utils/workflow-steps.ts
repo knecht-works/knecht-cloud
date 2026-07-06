@@ -1,5 +1,5 @@
 // The client-side step registry, assembled from one def file per step type
-// (app/utils/steps/<type>.ts) — each carries the step's complete client-side
+// (app/utils/steps/<type>.ts): each carries the step's complete client-side
 // description: identity, editor fields, defaults, outputs and list
 // presentation. The server pairs each def with an action module
 // (server/workflows/actions/<type>.ts); the shared Step union
@@ -37,7 +37,7 @@ export const STEP_DEFS: RegisteredStepDef[] = [
 const BY_TYPE = new Map(STEP_DEFS.map(d => [d.type, d]))
 
 // Lookup that tolerates unknown types (a removed step type in an old run's
-// records) — callers that render history use this.
+// records). Callers that render history use this.
 export function stepDefFor(type: string): RegisteredStepDef | undefined {
   return BY_TYPE.get(type as WorkflowStep['type'])
 }
@@ -47,7 +47,7 @@ export function stepDef(type: WorkflowStep['type']): RegisteredStepDef {
 }
 
 // A fresh step for the given type, with its stable id assigned against the
-// steps it's joining — the single creation path (library click AND drag-drop).
+// steps it's joining: the single creation path (library click AND drag-drop).
 export function makeStep(type: WorkflowStep['type'], steps: WorkflowStep[]): WorkflowStep {
   return { ...stepDef(type).make(), id: nextStepId(steps) }
 }
@@ -76,13 +76,13 @@ const CONTEXT_VARS: StepVar[] = [
 
 export interface VarGroup {
   label: string
-  /** Accent for the group's chips — the source step's kind colour. */
+  /** Accent for the group's chips: the source step's kind colour. */
   color: string
   vars: StepVar[]
 }
 
 // A variable path split for two-tone rendering: the routing prefix
-// (`steps.s2.`) drawn dimmed, the final segment (`stdout`) readable — the
+// (`steps.s2.`) drawn dimmed, the final segment (`stdout`) readable. The
 // segment is what authors scan for. Used by the chips and the autocomplete.
 export function varPathParts(path: string): [string, string] {
   const at = path.lastIndexOf('.')
@@ -112,7 +112,7 @@ export const LOOP_VARS: VarGroup = {
   ],
 }
 
-// The output groups of the steps BEFORE `index` — the one home for the
+// The output groups of the steps BEFORE `index`: the one home for the
 // "values flow front to back" scoping rule, shared by the top-level editor
 // (availableVars) and composite sub-lists (WorkflowSubSteps).
 export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup[] {
@@ -127,15 +127,15 @@ export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup
 // Everything a step at `index` can reference: the run context plus the outputs
 // of every step BEFORE it. Outputs are offered under the step's stable id
 // ({{ steps.<id>.<output> }}), so a step type used twice stays unambiguous.
-// (Sub-steps of composites extend this — see WorkflowSubSteps — with the loop
+// (Sub-steps of composites extend this, see WorkflowSubSteps, with the loop
 // vars and their prior siblings.)
 export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
-  // Context vars are seeded by the trigger/run — they wear the trigger colour.
+  // Context vars are seeded by the trigger/run: they wear the trigger colour.
   return [{ label: 'Context', color: STEP_KIND_COLOR.trigger, vars: CONTEXT_VARS }, ...stepOutputGroups(steps, index)]
 }
 
 // A step is saveable when its required fields are filled, its sub-steps (if
-// any) are valid, and — for an if — every condition row is usable.
+// any) are valid, and, for an if, every condition row is usable.
 export function stepValid(step: WorkflowStep): boolean {
   if (!stepChildren(step).flat().every(stepValid)) return false
   if (step.type === 'if') {

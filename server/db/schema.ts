@@ -40,7 +40,7 @@ export const projects = sqliteTable('projects', {
   // resolved from the repo; resolved alongside `framework`.
   ddevEnv: text('ddev_env', { mode: 'json' }).$type<DdevEnv>(),
 
-  // Per-project config (maintained on the project detail page — increment 2)
+  // Per-project config (maintained on the project detail page, increment 2)
   envVars: text('env_vars', { mode: 'json' })
     .$type<EnvVar[]>()
     .notNull()
@@ -75,14 +75,14 @@ export const runs = sqliteTable('runs', {
   status: text('status', { enum: ['queued', 'running', 'success', 'failed'] })
     .notNull()
     .default('queued'),
-  // What started the run: the UI's "Start workflow" button ('manual' — also a
+  // What started the run: the UI's "Start workflow" button ('manual', also a
   // manually fired trigger, same gesture) or a trigger's source. Free-form so
   // new sources don't need a schema change; the UI falls back to a generic
   // rendering for values it doesn't know. Null on runs from before this was
   // recorded.
   trigger: text('trigger'),
   // The configured trigger that fired this run (null for UI-started runs and
-  // runs from before this was recorded) — links a run back to its automation.
+  // runs from before this was recorded). Links a run back to its automation.
   triggerId: integer('trigger_id')
     .references(() => triggers.id, { onDelete: 'set null' }),
   // The branch the run works on: the project's default branch at checkout,
@@ -94,20 +94,20 @@ export const runs = sqliteTable('runs', {
   // The pull request a `create-pr` step opened, if the run opened one.
   prUrl: text('pr_url'),
   // The step sequence pinned at execution start: the runner executes THIS
-  // snapshot, never the live workflow row — editing a workflow mid-run can't
+  // snapshot, never the live workflow row. Editing a workflow mid-run can't
   // change a running (or queued) run, and history shows what actually ran.
   // Null on runs from before pinning existed.
   steps: text('steps', { mode: 'json' }).$type<Step[]>(),
   log: text('log').notNull().default(''),
   // The run's isolated ddev environment: 'down' (not booted / expired), 'up'
-  // (running, previewable), 'stopped' (idle-stopped — volumes kept, rebootable),
+  // (running, previewable), 'stopped' (idle-stopped, volumes kept, rebootable),
   // 'archived' (sandbox + worktree deleted, but the run's DB export + worktree
-  // patch are kept so it can be restored exactly — daemon/envs.ts).
+  // patch are kept so it can be restored exactly; see daemon/envs.ts).
   envState: text('env_state', { enum: ENV_STATES })
     .notNull()
     .default('down'),
   // ALL hostnames the run's ddev environment serves (primary first), read from
-  // .ddev/config.yaml at boot — the same set the preview proxy maps to per-run
+  // .ddev/config.yaml at boot: the same set the preview proxy maps to per-run
   // origins. The UI builds its preview host switcher from this list.
   previewHosts: text('preview_hosts', { mode: 'json' })
     .$type<string[]>()
@@ -133,7 +133,7 @@ export type NewRun = typeof runs.$inferInsert
 
 // One row per executed step of a run (workflow-engine-plan.md D4): the runner
 // inserts it when the step starts and finalizes status/outputs/error when it
-// ends — the step's result is durable BEFORE the next step runs. Retries update
+// ends. The step's result is durable BEFORE the next step runs. Retries update
 // the same row (`attempt` counts the tries). `parentStepId`/`iteration` locate
 // a row inside composite steps (if/loop), null at the top level.
 export const runSteps = sqliteTable('run_steps', {
@@ -149,7 +149,7 @@ export const runSteps = sqliteTable('run_steps', {
     .default('running'),
   // The step's params as rendered for execution (meta stripped).
   params: text('params', { mode: 'json' }).$type<Record<string, unknown>>(),
-  // What the action returned — the values steps.<id>.<output> resolves to.
+  // What the action returned: the values steps.<id>.<output> resolves to.
   outputs: text('outputs', { mode: 'json' }).$type<Record<string, unknown>>(),
   error: text('error'),
   attempt: integer('attempt').notNull().default(1),
@@ -165,8 +165,8 @@ export const runSteps = sqliteTable('run_steps', {
 
 // Workflows. Every workflow is a row here, including the bundled starter
 // templates (server/workflows/index.ts), which are seeded once on first boot
-// and thereafter owned by the user — freely renamed, edited or deleted. Steps
-// are stored in their normalized form — the same shape the runner consumes.
+// and thereafter owned by the user: freely renamed, edited or deleted. Steps
+// are stored in their normalized form: the same shape the runner consumes.
 export const workflows = sqliteTable('workflows', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
@@ -190,16 +190,16 @@ export const workflows = sqliteTable('workflows', {
 export type WorkflowRow = typeof workflows.$inferSelect
 export type NewWorkflowRow = typeof workflows.$inferInsert
 
-// Instance-wide settings — a single row (id = 1). Holds the operator-tunable
+// Instance-wide settings: a single row (id = 1). Holds the operator-tunable
 // lifecycle limits that keep isolated run environments from piling up (each env
 // consumes a docker network from a finite pool and disk for its volumes), the
 // run concurrency limit, and the `ai` step's opencode configuration.
 export const settings = sqliteTable('settings', {
-  id: integer('id').primaryKey(), // singleton — always 1
+  id: integer('id').primaryKey(), // singleton, always 1
 
   // Stop a run's env (its DB is exported for the archive, the sandbox keeps its
-  // filesystem so a reboot is quick) after it has been idle — no preview
-  // access — this many minutes. This is the RAM guard: each 'up' env is a full
+  // filesystem so a reboot is quick) after it has been idle (no preview
+  // access) this many minutes. This is the RAM guard: each 'up' env is a full
   // nested Docker host. Defaults to a day: during active work nothing ever
   // stops, and overnight the memory comes back.
   idleStopMinutes: integer('idle_stop_minutes').notNull().default(1440),
@@ -209,20 +209,20 @@ export const settings = sqliteTable('settings', {
   // (MBs) so it can still be restored exactly. 0 keeps stopped envs forever.
   previewRetentionDays: integer('preview_retention_days').notNull().default(7),
 
-  // Delete a run's archive (DB export + patch) once untouched this many days —
-  // after that only re-running the workflow gets a fresh environment. 0 keeps
+  // Delete a run's archive (DB export + patch) once untouched this many days.
+  // After that only re-running the workflow gets a fresh environment. 0 keeps
   // archives until the run is deleted.
   archiveRetentionDays: integer('archive_retention_days').notNull().default(30),
 
-  // How many runs may execute at once (each boots a full sandbox — this is the
+  // How many runs may execute at once (each boots a full sandbox, this is the
   // CPU/RAM guard). Queued runs wait; the dispatcher (server/plugins/
   // dispatcher.ts) starts them as slots free up.
   maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
 
   // The `ai` step (opencode in the run's sandbox): the provider the key belongs
-  // to (AI_PROVIDERS id — picks which env var the key is handed to opencode as,
-  // and filters the model pickers), the API key — encrypted at rest
-  // (crypto.ts), never returned by the API — and the default model as
+  // to (AI_PROVIDERS id: picks which env var the key is handed to opencode as,
+  // and filters the model pickers), the API key (encrypted at rest via
+  // crypto.ts, never returned by the API) and the default model as
   // opencode's `provider/model` (a step can override it).
   aiProvider: text('ai_provider').notNull().default('anthropic'),
   aiKeyEnc: text('ai_key_enc'),
@@ -237,12 +237,12 @@ export const settings = sqliteTable('settings', {
 export type Settings = typeof settings.$inferSelect
 
 // A configured trigger that starts a workflow automatically. Three sources:
-// 'schedule' — a standard 5-field cron expression, fired by the in-process
-// scheduler (server/plugins/scheduler.ts); 'github' — a repo webhook POSTing to
+// 'schedule', a standard 5-field cron expression, fired by the in-process
+// scheduler (server/plugins/scheduler.ts); 'github', a repo webhook POSTing to
 // /api/triggers/:id/webhook (needs a public URL + the generated secret set on
-// GitHub, hence "needs setup"); and 'manual' — a saved "run this workflow on
+// GitHub, hence "needs setup"); and 'manual', a saved "run this workflow on
 // these projects" shortcut, fired from the Triggers screen. Every fire starts the
-// workflow against each project in `projectIds` — one run per project.
+// workflow against each project in `projectIds`: one run per project.
 export const triggers = sqliteTable('triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   source: text('source', { enum: ['schedule', 'github', 'manual'] }).notNull(),
@@ -280,17 +280,17 @@ export type NewTrigger = typeof triggers.$inferInsert
 // The GitHub App that powers login (its OAuth client id/secret) and repo access
 // (its app id/private key). A single row (id = 1). Created from the UI on first
 // run via the GitHub App manifest flow (server/routes/setup/*), so a fresh
-// instance needs no GitHub env vars — GitHub mints the app and returns all its
+// instance needs no GitHub env vars: GitHub mints the app and returns all its
 // credentials at once. Secrets are encrypted at rest (server/utils/crypto.ts).
 export const githubApp = sqliteTable('github_app', {
-  id: integer('id').primaryKey(), // singleton — always 1
+  id: integer('id').primaryKey(), // singleton, always 1
 
   appId: text('app_id').notNull(),
   slug: text('slug'),
   htmlUrl: text('html_url'),
   clientId: text('client_id').notNull(),
 
-  // Encrypted (AES-256-GCM). Never read these directly — go through the
+  // Encrypted (AES-256-GCM). Never read these directly: go through the
   // credentials store (server/utils/github-credentials.ts), which decrypts.
   clientSecretEnc: text('client_secret_enc').notNull(),
   privateKeyEnc: text('private_key_enc').notNull(),
@@ -304,7 +304,7 @@ export const githubApp = sqliteTable('github_app', {
 export type GithubAppRow = typeof githubApp.$inferSelect
 export type NewGithubAppRow = typeof githubApp.$inferInsert
 
-// The login allowlist — who may obtain a session. First-run setup claims the
+// The login allowlist: who may obtain a session. First-run setup claims the
 // GitHub App's owner as the initial member (server/routes/setup/callback), and
 // the login gate (server/routes/auth/github.get.ts) rejects any GitHub identity
 // not listed here. Members can invite more logins (server/api/members/*); every

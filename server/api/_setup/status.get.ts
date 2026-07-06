@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { dashboardOrigin } from '../../utils/origin'
 import { isGithubAppConfigured } from '../../utils/github-credentials'
 
-// GET /api/_setup/status — public (see server/middleware/auth.ts). Tells the
+// GET /api/_setup/status: public (see server/middleware/auth.ts). Tells the
 // first-run setup page whether the instance already has a GitHub App, and hands
 // it the manifest + CSRF state to POST to GitHub. Once configured, the flow is
 // locked: `configured: true` and no manifest is returned.
@@ -31,9 +31,9 @@ export default defineEventHandler((event) => {
 
   // The GitHub App manifest. GitHub creates the app from this and returns all its
   // credentials to /setup/callback. Login uses its OAuth client (callback_urls);
-  // repo access uses its app id/key. `hook_attributes` is omitted deliberately —
+  // repo access uses its app id/key. `hook_attributes` is omitted deliberately:
   // including it makes its `url` sub-field required, and we use no webhook. The
-  // logo can't be set here — GitHub's manifest has no field for it; upload it
+  // logo can't be set here: GitHub's manifest has no field for it; upload it
   // once in the app's settings after creation.
   const manifest = {
     name: 'Knecht Works',
@@ -41,12 +41,12 @@ export default defineEventHandler((event) => {
     description: 'Boot, fix and test your repos automatically with Knecht.',
     redirect_url: `${origin}/setup/callback`,
     callback_urls: [`${origin}/auth/github`],
-    // Public so ANY GitHub user can complete the OAuth identity flow — a PRIVATE
+    // Public so ANY GitHub user can complete the OAuth identity flow: a PRIVATE
     // app 404s the authorize page for anyone but the owner (or owning-org
     // members), which would make invited users unable to log in at all. Who may
     // actually get a session is gated by Knecht's own allowlist (the `members`
     // table, server/utils/members.ts), not by GitHub App visibility. Public only
-    // means others could *install* the app on their own repos — harmless, since
+    // means others could *install* the app on their own repos, which is harmless, since
     // Knecht only ever uses installations it's told about, and login stays gated.
     public: true,
     default_permissions: {

@@ -2,10 +2,10 @@
 
 # ─── Knecht image (the control plane) ─────────────────────────────────────────
 # Stages:
-#   build    — compile the Nuxt app → .output (devDeps stay here, never shipped)
-#   tooling  — shared runtime base: git, docker CLI, the node user
-#   prod     — tooling + built app; runs Nitro. The default/shipped image.
-# (Local dev doesn't use this image — it runs `npm run dev:vm` in the dev VM.)
+#   build    compiles the Nuxt app → .output (devDeps stay here, never shipped)
+#   tooling  shared runtime base: git, docker CLI, the node user
+#   prod     tooling + built app; runs Nitro. The default/shipped image.
+# (Local dev doesn't use this image: it runs `npm run dev:vm` in the dev VM.)
 #
 # This image never runs ddev or the agent itself: it drives the HOST daemon
 # (mounted socket) to launch one Sysbox sandbox per run, and everything
@@ -20,7 +20,7 @@ ARG NPM_VERSION=11.9.0
 FROM node:22-bookworm-slim AS build
 ARG NPM_VERSION
 WORKDIR /app
-# Pin npm to the lockfile's generator so `npm ci` is deterministic — the base
+# Pin npm to the lockfile's generator so `npm ci` is deterministic: the base
 # image ships an older npm that resolves the lock differently. Keep NPM_VERSION
 # in step with the dev machine's npm.
 COPY . .
@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && install -m 0755 -d /etc/apt/keyrings \
  && rm -rf /var/lib/apt/lists/*
 
-# 2) Docker CLI (client only — there is no daemon in here; it talks to the
+# 2) Docker CLI (client only: there is no daemon in here; it talks to the
 #    mounted host socket to launch the per-run sandboxes). Verify the repo URL
 #    against current Docker docs.
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
@@ -53,10 +53,10 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings
 #    the lockfile the same way the dev machine does. See the build stage note.
 RUN npm i -g npm@${NPM_VERSION}
 
-# 4) Run as non-root: node's built-in `node` user (uid 1000 — the sandbox
+# 4) Run as non-root: node's built-in `node` user (uid 1000: the sandbox
 #    image bakes its inner user to the same uid so the mounted worktrees stay
 #    writable on both sides). Socket access is granted at RUNTIME via
-#    `group_add` in compose — keeps the image GID-agnostic (one image per host).
+#    `group_add` in compose, which keeps the image GID-agnostic (one image per host).
 RUN mkdir -p /app && chown node:node /app
 USER node
 

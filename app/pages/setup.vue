@@ -1,24 +1,24 @@
 <script setup lang="ts">
 // First-run setup. Public page (see app/middleware/auth.global.ts): before a
 // GitHub App exists nobody can log in, so this must be reachable logged-out. It
-// creates the app via GitHub's manifest flow — one click, no env vars — and
+// creates the app via GitHub's manifest flow (one click, no env vars), and
 // GitHub hands the credentials back to /setup/callback.
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
 // Client-only: the endpoint sets an httpOnly CSRF-state cookie, which only
 // reaches the browser on a real HTTP response. During SSR useFetch calls the
-// route through an internal event whose Set-Cookie is dropped — the browser
+// route through an internal event whose Set-Cookie is dropped: the browser
 // would then have the state in the form URL but no cookie, failing the callback.
 const { data: status } = await useFetch('/api/_setup/status', { server: false })
 
-// The create-app payload, or null once configured — narrows the union so the
+// The create-app payload, or null once configured: narrows the union so the
 // template can reach state/manifest.
 const setup = computed(() => (status.value && !status.value.configured ? status.value : null))
 
 // Created under the operator's personal account. The app is public (see
 // server/api/_setup/status.get.ts), so it can still be installed on any org's
-// repos afterwards — no need to own it there. Creating it personally also makes
+// repos afterwards: no need to own it there. Creating it personally also makes
 // the manifest's `owner.login` the operator, who /setup/callback claims as the
 // instance owner.
 const actionUrl = computed(() =>
@@ -49,7 +49,7 @@ const errorMessage = computed(() => {
         class="mt-5"
       />
       <p class="mt-2 text-[13.5px] text-(--text-muted)">
-        One-time setup — connect Knecht to GitHub.
+        One-time setup: connect Knecht to GitHub.
       </p>
     </div>
 
@@ -89,7 +89,7 @@ const errorMessage = computed(() => {
       </p>
 
       <!-- Rendered from the first paint (not gated behind the client-only fetch)
-           so the button never pops in — it just sits in a loading state until the
+           so the button never pops in: it just sits in a loading state until the
            manifest + CSRF state have loaded, then enables. -->
       <form
         :action="actionUrl"

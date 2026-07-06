@@ -4,7 +4,7 @@ import { githubApp } from '../db/schema'
 import { decrypt, encrypt } from './crypto'
 
 // The single source of GitHub App credentials. They live encrypted in the DB,
-// created from the UI via the manifest flow (server/routes/setup/*) — so an
+// created from the UI via the manifest flow (server/routes/setup/*), so an
 // instance needs no GitHub env vars at all. No DB row → not configured.
 
 export interface GithubAppCredentials {

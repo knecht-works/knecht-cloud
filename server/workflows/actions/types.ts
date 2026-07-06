@@ -16,7 +16,7 @@ export interface ActionRuntime {
   project: Project
   /** Host-side path of the run's isolated git checkout. */
   checkoutDir: string
-  /** The full run context — for reads beyond the step's own rendered params. */
+  /** The full run context, for reads beyond the step's own rendered params. */
   ctx: RunContext
   /** Append to the run log. */
   log: (text: string) => void
@@ -26,7 +26,7 @@ export interface ActionRuntime {
     /**
      * Run a command in the sandbox, streaming output into the run log.
      * Resolves with the exit code and the captured output tail (stdout+stderr
-     * merged, size-capped) — never rejects on a non-zero exit. `env` vars reach
+     * merged, size-capped). Never rejects on a non-zero exit. `env` vars reach
      * the sandbox process without appearing in the command line (secrets).
      */
     stream: (command: string[], opts?: { env?: Record<string, string> }) => Promise<{ code: number, tail: string }>
@@ -37,7 +37,7 @@ export interface ActionRuntime {
 
 // An action can attach outputs to a thrown error (bash: exit code + output
 // tail; http: the error response). The runner records them on the failed
-// run_steps row and — with continueOnError — still exposes them to later steps,
+// run_steps row and, with continueOnError, still exposes them to later steps,
 // so conditions like `{{ steps.<id>.exitCode }}` work on failure.
 export class ActionError extends Error {
   outputs?: Record<string, unknown>
@@ -49,11 +49,11 @@ export class ActionError extends Error {
 
 export interface ActionDef<T extends Step['type']> {
   type: T
-  /** Zod shape of the step's own params — `type` and step meta are added by the schema assembler. */
+  /** Zod shape of the step's own params; `type` and step meta are added by the schema assembler. */
   params: z.ZodRawShape
   /**
    * The step's YAML authoring form → normalized Step. Omit it to get the
-   * derived default — `- <type>: { …params }` (or the bare `- <type>` literal
+   * derived default: `- <type>: { …params }` (or the bare `- <type>` literal
    * when there are no params); provide it only when the sugar genuinely
    * differs from the params shape (bash's kebab key, create-pr's
    * `description` → `body`).
@@ -62,26 +62,26 @@ export interface ActionDef<T extends Step['type']> {
   /**
    * Pre-step-id templates referenced this action's outputs under a fixed
    * top-level context key ({{ branch.name }}, {{ pr.url }}). The runner keeps
-   * writing outputs there (last step of this type wins — the old behavior)
+   * writing outputs there (last step of this type wins, the old behavior)
    * alongside the collision-free steps.<id> namespace.
    */
   legacyKey?: string
   /**
    * Param keys that resolve RAW when their template is exactly one
    * `{{ ref }}`: the referenced value (object/array/number) is passed as-is
-   * instead of stringified — how a js step receives a whole output bag.
+   * instead of stringified: how a js step receives a whole output bag.
    */
   rawParams?: readonly string[]
   /**
    * Execute the step. String params arrive already `render()`ed. The returned
-   * outputs land in the run context under steps.<id> (and legacyKey, if set) —
-   * they're what the client def's `outputs` (app/utils/steps/<type>.ts)
+   * outputs land in the run context under steps.<id> (and legacyKey, if set).
+   * They're what the client def's `outputs` (app/utils/steps/<type>.ts)
    * describes for autocomplete.
    */
   run(step: Extract<Step, { type: T }>, rt: ActionRuntime): Promise<Record<string, unknown> | undefined>
 }
 
-// The type-erased form the registry holds — the runner only ever has a plain
+// The type-erased form the registry holds: the runner only ever has a plain
 // `Step` in hand (Extract<Step, { type: union }> collapses back to Step), with
 // the derived-or-explicit yaml schema always present. `defineAction` is the
 // single point where the narrowing cast happens; action modules stay fully

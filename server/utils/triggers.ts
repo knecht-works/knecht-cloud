@@ -129,7 +129,7 @@ export function fireTrigger(t: Trigger): number[] {
         .set({
           status: 'failed',
           finishedAt: new Date(),
-          log: 'GitHub App not configured — complete the GitHub App setup (/setup) to enable runs.\n',
+          log: 'GitHub App not configured. Complete the GitHub App setup (/setup) to enable runs.\n',
         })
         .where(eq(schema.runs.id, run.id))
         .run()

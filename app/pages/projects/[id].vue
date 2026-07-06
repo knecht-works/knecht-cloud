@@ -127,7 +127,7 @@ onUnmounted(() => {
   }
 })
 
-// Database dump upload (shared with the setup wizard — useProjectDump).
+// Database dump upload (shared with the setup wizard via useProjectDump).
 const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump, remove: removeDump } = useProjectDump(project)
 
@@ -149,14 +149,14 @@ async function removeProject() {
 }
 
 // ── Automation on this project (read-only) ─────────────────────────────────
-// Which workflow fires on this project and how — configured on the workflow
+// Which workflow fires on this project and how: configured on the workflow
 // itself, so each row links there. The play button starts a workflow here now.
 const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 const projectTriggers = computed(() =>
   (triggers.value ?? []).filter(t => t.projectIds.includes(id)))
 
 // One row per workflow: its automation on THIS project (first trigger +
-// count of further ones), or none — "welcher Workflow startet wann".
+// count of further ones), or none: "welcher Workflow startet wann".
 const workflowRows = computed(() => (workflowList.value ?? []).map((w) => {
   const wired = projectTriggers.value.filter(t => t.workflow === w.name)
   return { name: w.name, trigger: wired[0] ?? null, more: wired.length - 1 }
@@ -300,7 +300,7 @@ usePollWhile(() => isLive.value, refreshRuns)
       </div>
     </div>
 
-    <!-- Sidebar column: identical on every detail page — viewport-based
+    <!-- Sidebar column: identical on every detail page, viewport-based
          (clamp), so it can't drift between screens. Keep in sync with
          workflows/[name].vue. -->
     <div class="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
@@ -590,7 +590,7 @@ usePollWhile(() => isLive.value, refreshRuns)
     <UModal
       v-model:open="envModalOpen"
       title="Environment variables"
-      description="One KEY=value per line — paste a .env. Changes are saved automatically."
+      description="One KEY=value per line. Paste a .env. Changes are saved automatically."
     >
       <template #body>
         <UTextarea

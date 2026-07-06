@@ -10,7 +10,7 @@ defineProps<{
 const model = defineModel<string>()
 const { data: models, status, error } = useAiModels()
 
-// Sentinel, not '' — Reka's Combobox reserves the empty string for "cleared".
+// Sentinel, not '': Reka's Combobox reserves the empty string for "cleared".
 const DEFAULT_ID = '__default__'
 const items = computed(() => [
   { label: 'Default from Settings → Agent', id: DEFAULT_ID },

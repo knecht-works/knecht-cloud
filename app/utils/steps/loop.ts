@@ -8,7 +8,7 @@ export const loopStep = defineStep({
   icon: 'i-lucide-repeat',
   group: 'Control flow',
   fields: [
-    { key: 'items', label: 'Items — an array reference or a number', input: 'text', required: true, vars: true, placeholder: '{{ steps.s1.result }} or 3' },
+    { key: 'items', label: 'Items: an array reference or a number', input: 'text', required: true, vars: true, placeholder: '{{ steps.s1.result }} or 3' },
   ],
   outputs: [
     { path: 'results', hint: 'Per-iteration outputs of the loop\'s steps' },

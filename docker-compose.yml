@@ -1,4 +1,4 @@
-# Knecht — the control plane.
+# Knecht: the control plane.
 # Requires a Linux host with Sysbox installed and the `knecht-sandbox` image
 # built (see sandbox/Dockerfile + scripts/provision-host.sh): each run boots
 # its own unprivileged Docker-in-Docker sandbox via `--runtime=sysbox-runc`.
@@ -10,12 +10,12 @@ services:
       context: .
     # App env (OAuth creds, session password, …) passed INTO the container so the
     # app process sees them. (compose also reads .env for ${...} interpolation, but
-    # that does NOT inject vars into the container — env_file does.) Host dev via
+    # that does NOT inject vars into the container; env_file does.) Host dev via
     # `npm run dev` reads .env natively.
     env_file:
       - .env
     # Grant the host docker socket's group to the (non-root) container process at
-    # RUNTIME — so the SAME prebuilt image works on any host, no rebuild when the
+    # RUNTIME, so the SAME prebuilt image works on any host, no rebuild when the
     # gid differs. Find it with:  stat -c '%g' /var/run/docker.sock
     #   A Linux host's `docker` group is usually 999.
     # Set DOCKER_GID in .env (local) or by the installer (e.g. into /data/knecht/.env).
@@ -26,10 +26,10 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # Drive the HOST daemon through its socket — that's how the per-run
+      # Drive the HOST daemon through its socket: that's how the per-run
       # sandboxes are launched (and the only reason this socket is here).
       - /var/run/docker.sock:/var/run/docker.sock
-      # Fixed project path — MUST be byte-identical on both sides: the HOST
+      # Fixed project path that MUST be byte-identical on both sides: the HOST
       # daemon resolves the `-v worktree:/project` bind mount when a sandbox is
       # launched, so the worktree path Knecht passes has to exist on the host.
       # A single variable is used on both sides so they can never drift.
@@ -37,6 +37,6 @@ services:
       - ${KNECHT_PROJECTS:-/data/knecht/projects}:${KNECHT_PROJECTS:-/data/knecht/projects}
     # The preview proxy reaches each run's sandbox (its inner ddev-router) over
     # the `knecht-ingress` docker network, which Knecht creates and joins at
-    # boot (server/daemon/sandbox.ts) — no host ingress ports are needed or
+    # boot (server/daemon/sandbox.ts). No host ingress ports are needed or
     # published here beyond the UI port above.
     restart: unless-stopped

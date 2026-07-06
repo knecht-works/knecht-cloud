@@ -2,13 +2,13 @@ import type { Octokit } from 'octokit'
 import { App } from 'octokit'
 import { githubAppCredentials } from './github-credentials'
 
-// GitHub App auth — the app's own identity replaces user OAuth tokens for all
+// GitHub App auth: the app's own identity replaces user OAuth tokens for all
 // repo access (clone, push, PR, file reads). The app authenticates with its
 // private key and mints short-lived (1h) installation tokens per repo, so no
 // user credential is ever stored. Login (OAuth) is identity-only now.
 //
 // The app is created from the UI on first run (server/routes/setup/*) and its
-// credentials live encrypted in the DB — see server/utils/github-credentials.ts.
+// credentials live encrypted in the DB (see server/utils/github-credentials.ts).
 
 let cachedApp: App | null = null
 let cachedForAppId: string | null = null
@@ -17,7 +17,7 @@ function getApp(): App {
   const creds = githubAppCredentials()
   if (!creds) {
     throw new Error(
-      'GitHub App not configured — open the dashboard and complete the GitHub App setup.',
+      'GitHub App not configured. Open the dashboard and complete the GitHub App setup.',
     )
   }
   // Rebuild if the configured app changed (e.g. first-run setup happened after a
@@ -44,7 +44,7 @@ async function getInstallationId(owner: string, repo: string): Promise<number> {
   }
   catch (e) {
     if ((e as { status?: number }).status === 404) {
-      throw new Error(`GitHub App is not installed on ${key} — install it on the repo and try again.`, { cause: e })
+      throw new Error(`GitHub App is not installed on ${key}. Install it on the repo and try again.`, { cause: e })
     }
     throw e
   }
@@ -75,7 +75,7 @@ export async function getInstallationToken(owner: string, repo: string): Promise
   return data.token
 }
 
-// Every repo the app is installed on, across all installations — the source for
+// Every repo the app is installed on, across all installations: the source for
 // the "connect a repo" picker.
 export async function listAppRepositories() {
   const repos = []
@@ -97,7 +97,7 @@ export async function listRepoBranches(owner: string, repo: string): Promise<str
 }
 
 // Open a pull request as the app. Returns null when there is no diff to open a
-// PR for (e.g. an empty agent run committed nothing) — a skip, not a failure.
+// PR for (e.g. an empty agent run committed nothing): a skip, not a failure.
 export async function createPullRequest(
   owner: string,
   repo: string,

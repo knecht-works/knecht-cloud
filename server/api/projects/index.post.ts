@@ -40,7 +40,7 @@ export default defineEventHandler(async (event) => {
     meta = await resolveProjectMeta(octokit, result.data.owner, result.data.name, result.data.defaultBranch)
   }
   catch {
-    // App not installed / unreadable — leave null; the GET handlers will retry.
+    // App not installed / unreadable: leave null; the GET handlers will retry.
   }
 
   return db.insert(schema.projects).values({ ...result.data, ...meta }).returning().get()

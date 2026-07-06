@@ -12,7 +12,7 @@ export default defineEventHandler((event) => {
       rmSync(project.dbDumpPath)
     }
     catch {
-      // Already gone — clear the reference anyway.
+      // Already gone: clear the reference anyway.
     }
   }
 

@@ -7,12 +7,12 @@ import { getSettings } from '../utils/settings'
 // Creating a run (POST /api/runs, trigger fires) inserts a 'queued' row and
 // pokes `dispatchRuns()`; a slow safety interval (server/plugins/dispatcher.ts)
 // catches anything a poke missed. Queued runs claim oldest-first under the
-// instance-wide concurrency limit (settings.maxConcurrentRuns — each run boots
+// instance-wide concurrency limit (settings.maxConcurrentRuns: each run boots
 // a full sandbox, so the limit is the CPU/RAM guard). Queuing is crash-safe:
 // 'queued' rows survive a restart (runs-recover only fails 'running' rows) and
 // start when the dispatcher comes back up.
 
-// Runs this process has started that may not have flipped to 'running' yet —
+// Runs this process has started that may not have flipped to 'running' yet:
 // the guard against double-starting a run across ticks.
 const active = new Set<number>()
 
@@ -37,7 +37,7 @@ export function dispatchRuns(): void {
     active.add(run.id)
     startRun(run.id, project).finally(() => {
       active.delete(run.id)
-      // A slot just freed — pull the next queued run in immediately.
+      // A slot just freed, pull the next queued run in immediately.
       dispatchRuns()
     })
   }

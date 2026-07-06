@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Global run history — every execution across all projects, newest first.
+// Global run history: every execution across all projects, newest first.
 // A run drills into /runs/:id; the list itself polls while anything is live.
 const { data: runs, refresh } = await useFetch('/api/runs', { default: () => [] })
 
@@ -54,7 +54,7 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
       />
     </div>
 
-    <!-- Empty state — no runs yet -->
+    <!-- Empty state: no runs yet -->
     <div
       v-if="!runs.length"
       class="k-card flex flex-col items-center gap-4 px-6 py-16 text-center"
@@ -70,8 +70,8 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
           No runs yet
         </div>
         <p class="mx-auto mt-1.5 max-w-[420px] text-[13px] leading-[1.5] text-(--text-muted)">
-          A run is one execution of a workflow against a project. Start a workflow — from a
-          project, a workflow, or a trigger — and it shows up here.
+          A run is one execution of a workflow against a project. Start a workflow from a
+          project, a workflow, or a trigger, and it shows up here.
         </p>
       </div>
     </div>

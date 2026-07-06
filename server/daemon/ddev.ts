@@ -7,13 +7,13 @@ import type { EnvVar } from '../../shared/utils/env'
 // `.ddev/config.*.yaml` files, so this injects two things without touching the
 // repo's tracked config.yaml:
 //   - `web_environment`: the project's configured env vars (projects.md §4),
-//     used VERBATIM — no rewriting. YAML sidesteps the comma-escaping of
+//     used VERBATIM: no rewriting. YAML sidesteps the comma-escaping of
 //     `ddev config --web-environment`.
 //   - `router_http(s)_port`: pinned back to 80/443. Projects override these as
 //     HOST-port-collision workarounds (e.g. 8080), but inside a per-run
-//     sandbox there is nothing to collide with — and the ingress proxies to
+//     sandbox there is nothing to collide with, and the ingress proxies to
 //     the router at :80.
-// Everything else — name, hostnames, the URLs in the env vars — stays exactly
+// Everything else (name, hostnames, the URLs in the env vars) stays exactly
 // as the repo ships it: each run has its own daemon now, so nothing collides,
 // and the preview proxy maps the project's own hostnames to per-run preview
 // origins instead of touching the project. Returns how many env vars were
@@ -25,7 +25,7 @@ export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[]): number 
     router_https_port?: string
   } = { router_http_port: '80', router_https_port: '443' }
   if (envVars.length) {
-    // Strip a layer of surrounding quotes — a value like `"https://x"` (quotes
+    // Strip a layer of surrounding quotes: a value like `"https://x"` (quotes
     // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
     // covers projects whose env vars were saved before the parser stripped them.
     doc.web_environment = envVars.map(e => `${e.key}=${unquote(e.value)}`)
@@ -46,7 +46,7 @@ function unquote(v: string): string {
 // ALL hostnames the project's ddev environment serves, read from the tracked
 // `.ddev/config.yaml` (NOT our override): the primary `<name>.<tld>` plus
 // every additional_hostnames/additional_fqdns entry. These are the hosts the
-// pasted .env points at (Craft multisite: one per site) — the preview proxy
+// pasted .env points at (Craft multisite: one per site); the preview proxy
 // gives each one its own per-run preview origin and maps between the two.
 export interface DdevHosts {
   primary: string | null

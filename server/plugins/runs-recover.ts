@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 
 // No mid-run resume in the MVP (tech-stack.md §4): any run still 'running'
-// when the daemon boots was interrupted by a restart — mark it failed. 'queued'
+// when the daemon boots was interrupted by a restart; mark it failed. 'queued'
 // runs are left alone: the queue is crash-safe, the dispatcher
 // (server/plugins/dispatcher.ts) picks them up once it starts ticking.
 export default defineNitroPlugin(() => {
@@ -15,7 +15,7 @@ export default defineNitroPlugin(() => {
     .where(sql`${schema.runs.status} = 'running'`)
     .run()
 
-  // The interrupted run's in-flight step stays 'running' in run_steps — close
+  // The interrupted run's in-flight step stays 'running' in run_steps, so close
   // it out so the step timeline shows exactly where the run was cut off.
   db.update(schema.runSteps)
     .set({

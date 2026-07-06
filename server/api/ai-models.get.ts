@@ -32,7 +32,7 @@ export default defineEventHandler(async (): Promise<AiModel[]> => {
   }
 })
 
-// Zen knows the workspace's own model set — models disabled in the Zen
+// Zen knows the workspace's own model set: models disabled in the Zen
 // console are simply absent from its OpenAI-style /models response.
 async function zenModels(key: string): Promise<AiModel[]> {
   const res = await fetch('https://opencode.ai/zen/v1/models', {

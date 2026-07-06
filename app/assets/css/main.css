@@ -2,7 +2,7 @@
 @import "@nuxt/ui";
 
 /* ============================================================
-   Knecht — webfonts (Geist + Geist Mono, Fontsource CDN woff2)
+   Knecht webfonts (Geist + Geist Mono, Fontsource CDN woff2)
    ============================================================ */
 @font-face {
   font-family: 'Geist';
@@ -20,7 +20,7 @@
 }
 
 /* ============================================================
-   Tailwind / Nuxt UI theme — Geist fonts + the lime "knecht"
+   Tailwind / Nuxt UI theme: Geist fonts + the lime "knecht"
    palette that drives the primary colour. Neutral stays zinc.
    ============================================================ */
 @theme static {
@@ -41,7 +41,7 @@
 }
 
 /* ============================================================
-   Knecht design tokens — the semantic variables our dashboard
+   Knecht design tokens: the semantic variables our dashboard
    components reach for (surfaces, borders, text, status, shadows).
    Mirrors the design system's tokens 1:1.
    ============================================================ */
@@ -69,7 +69,7 @@
   --surface-inset: #09090b;
   --surface-glass: rgba(255, 255, 255, 0.04);
 
-  /* borders — hairlines as white alpha */
+  /* borders: hairlines as white alpha */
   --border-muted: oklch(1 0 0 / 0.06);
   --border-default: oklch(1 0 0 / 0.09);
   --border-accented: oklch(1 0 0 / 0.16);
@@ -95,7 +95,7 @@
   --tracking-tight: -0.025em;
   --tracking-label: 0.1em;
 
-  /* elevation shadows — neutral, tuned for near-black */
+  /* elevation shadows: neutral, tuned for near-black */
   --shadow-panel:
     0 1px 2px -1px oklch(0 0 0 / 0.5),
     0 10px 24px -14px oklch(0 0 0 / 0.65);
@@ -127,7 +127,7 @@ body {
 }
 
 /* ============================================================
-   Surface primitives — the brand's "card" language reused
+   Surface primitives: the brand's "card" language reused
    everywhere so component markup stays free of ad-hoc CSS.
    ============================================================ */
 @utility k-card {
@@ -138,7 +138,7 @@ body {
   box-shadow: var(--shadow-panel);
 }
 
-/* Hover-highlight variant — pair with `.k-card` on interactive cards. */
+/* Hover-highlight variant: pair with `.k-card` on interactive cards. */
 @utility k-lift {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -147,7 +147,7 @@ body {
   box-shadow: var(--shadow-panel-lg);
 }
 
-/* Mono caption text — the load-bearing brand element. */
+/* Mono caption text: the load-bearing brand element. */
 @utility k-mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -163,7 +163,7 @@ body {
 }
 
 /* ============================================================
-   Background field — faint grid + two soft glows, fixed behind
+   Background field: faint grid + two soft glows, fixed behind
    every dashboard screen. Drop <KBgField /> as the first child.
    ============================================================ */
 .k-bg-grid {

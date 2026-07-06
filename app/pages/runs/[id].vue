@@ -35,7 +35,7 @@ const timeline = computed(() => {
 })
 
 // The run's meta facts (how it was triggered, the branch it works on, timing,
-// the PR it opened) — chips are skipped when a run predates the recorded field.
+// the PR it opened). Chips are skipped when a run predates the recorded field.
 // A run fired by a configured trigger links back to its workflow (where its
 // triggers are managed).
 const meta = computed(() => {
@@ -65,7 +65,7 @@ async function remove() {
 }
 
 // Start the same workflow on the same project as a NEW run. A torn-down env
-// ('down') can't be rebooted — its sandbox and worktree are gone — so re-running
+// ('down') can't be rebooted (its sandbox and worktree are gone), so re-running
 // is the way to get a fresh preview. Deliberately does not reuse run.branch:
 // a create-branch step overwrote it with the run's own work branch.
 const restarting = ref(false)

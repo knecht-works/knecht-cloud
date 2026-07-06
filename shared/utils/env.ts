@@ -10,7 +10,7 @@ export function envVarsToText(vars: EnvVar[]): string {
 
 // Parse raw `.env` text into env vars. Blank lines, comments (`#…`) and lines
 // without `=` are ignored; the value keeps everything after the first `=`, minus
-// one layer of surrounding quotes (`KEY="v"` → `v`) — otherwise the quotes end
+// one layer of surrounding quotes (`KEY="v"` → `v`), otherwise the quotes end
 // up in the value and break ddev's generated docker-compose YAML.
 export function parseEnvText(text: string): EnvVar[] {
   return text.split('\n')

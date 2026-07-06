@@ -9,13 +9,13 @@ import { tryParseJson } from '../../utils/json'
 import { defineAction, ActionError } from './types'
 
 // The `ai` step (the "knecht block"): an opencode run INSIDE the run's sandbox,
-// working on the project checkout — a real agent that can read/edit files and
+// working on the project checkout: a real agent that can read/edit files and
 // execute commands, not a bare chat call. opencode is baked into the sandbox
 // image (sandbox/Dockerfile); the provider API key and default model live in
 // settings (Settings → Agent), a step can override the model.
 
 // Which env var hands the configured key to opencode, per AI_PROVIDERS id
-// (shared/utils/ai.ts). Env names follow models.dev — the registry opencode
+// (shared/utils/ai.ts). Env names follow models.dev, the registry opencode
 // resolves providers from; google accepts several names, set all.
 const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
   opencode: ['OPENCODE_API_KEY'],
@@ -25,7 +25,7 @@ const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
 }
 
 // provider/model (the model part may itself contain slashes), every segment
-// shell-safe — doubles as the guard that lets the model string be embedded in
+// shell-safe: doubles as the guard that lets the model string be embedded in
 // the bash command line below.
 const MODEL_RE = /^[\w.-]+(\/[\w.:-]+)+$/
 
@@ -44,7 +44,7 @@ export const aiAction = defineAction({
     if (!MODEL_RE.test(model)) {
       throw new Error(`Invalid model '${model}': expected opencode's provider/model form, e.g. anthropic/claude-sonnet-4-5`)
     }
-    // The key belongs to the CONFIGURED provider — a model from another one
+    // The key belongs to the CONFIGURED provider; a model from another one
     // would run against credentials that can't serve it.
     const provider = settings.aiProvider as AiProviderId
     const envNames = PROVIDER_KEY_ENV[provider]
@@ -57,7 +57,7 @@ export const aiAction = defineAction({
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
 
-    // The prompt travels as a file (js-step pattern) — no shell quoting of user
+    // The prompt travels as a file (js-step pattern), no shell quoting of user
     // text; $(cat …) inside double quotes is safe.
     const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
     try {
@@ -75,7 +75,7 @@ export const aiAction = defineAction({
       if (!text) throw new Error('opencode produced no output')
 
       // Expose a parsed form when the agent answered with pure JSON (a common
-      // pattern for feeding a js/http step) — code fences stripped first.
+      // pattern for feeding a js/http step); code fences stripped first.
       const json = tryParseJson(stripFences(text))
       return json === undefined ? { text } : { text, json }
     }

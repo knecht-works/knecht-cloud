@@ -22,7 +22,7 @@ const OP_LABELS: Record<ConditionOp, string> = {
 }
 const OP_ITEMS = CONDITION_OPS.map(op => ({ label: OP_LABELS[op], value: op }))
 
-// Conditions are edited in place — the draft object owns the state, the same
+// Conditions are edited in place: the draft object owns the state, the same
 // contract as StepSettings' `record`.
 const conditions = computed(() => props.step.conditions)
 

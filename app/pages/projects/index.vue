@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const { data: projects, refresh } = await useFetch('/api/projects')
-// Runs power the per-project live status, counts and the metric row — they
+// Runs power the per-project live status, counts and the metric row: they
 // stream in lazily so they don't gate the project grid.
 const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
 

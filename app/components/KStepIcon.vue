@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A square icon chip on the accented well — the recurring "step" / list glyph
+// A square icon chip on the accented well: the recurring "step" / list glyph
 // frame used across the builder, run log and detail panels.
 const props = withDefaults(defineProps<{
   icon: string

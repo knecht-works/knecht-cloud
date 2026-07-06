@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import { fireTrigger } from '../../../utils/triggers'
 
 // POST /api/triggers/:id/webhook → GitHub webhook receiver. Exempt from the
-// session gate (see server/middleware/auth.ts) — GitHub authenticates instead via
+// session gate (see server/middleware/auth.ts). GitHub authenticates instead via
 // the HMAC signature over the raw body, checked against the trigger's generated
 // secret. Fires the trigger when the delivered event matches. This is the "needs
 // setup" path: it only works once the webhook + secret are configured on GitHub

@@ -11,11 +11,11 @@ export interface SystemInfo {
 
 /**
  * The system probe: ask the host Docker daemon what Knecht's substrate looks
- * like — daemon reachable, Sysbox runtime registered (the per-run sandboxes
- * need it — run-isolation.md §7), and what's running. UI → API → here → execa.
+ * like: daemon reachable, Sysbox runtime registered (the per-run sandboxes
+ * need it, run-isolation.md §7), and what's running. UI → API → here → execa.
  *
  * Lives in server/daemon/ (not in the route) so the HTTP layer stays thin and
- * the orchestration logic is portable — see internals/docs/tech-stack.md §6.
+ * the orchestration logic is portable: see internals/docs/tech-stack.md §6.
  */
 export async function getSystemInfo(): Promise<SystemInfo> {
   const [dockerVersion, sysboxAvailable, hostContainers] = await Promise.all([

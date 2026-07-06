@@ -9,20 +9,20 @@ Every `/api/**` route is session-gated (`server/middleware/auth.ts`) and the rea
 login is interactive GitHub OAuth. To drive the app programmatically, seed a real
 session via the **dev-only** endpoint `server/routes/_test/login.get.ts`. It uses
 the same `setUserSession` machinery as the OAuth callback, so afterwards every
-route runs its real code path — nothing is stubbed.
+route runs its real code path: nothing is stubbed.
 
 ## Prerequisites (one-time, operator sets these)
 
 In `.env` (already documented in `.env.example`):
-- `KNECHT_TEST_AUTH` — a shared secret (`openssl rand -hex 16`).
-- `KNECHT_TEST_GITHUB_TOKEN` — a real GitHub token, so real clone/PR ops work.
+- `KNECHT_TEST_AUTH`: a shared secret (`openssl rand -hex 16`).
+- `KNECHT_TEST_GITHUB_TOKEN`: a real GitHub token, so real clone/PR ops work.
 
-The dev server must be running (`npm run dev:vm` — serves on port 3333 inside
+The dev server must be running (`npm run dev:vm` serves on port 3333 inside
 the Linux dev VM, forwarded to the Mac).
 
 ## Steps
 
-Use the app's cookie domain as the host — `KNECHT_BASE_DOMAIN` (e.g. `lvh.me:3333`),
+Use the app's cookie domain as the host: `KNECHT_BASE_DOMAIN` (e.g. `lvh.me:3333`),
 **not** `localhost`, or the session cookie won't round-trip. Load the secret from
 `.env` without printing it:
 
@@ -49,7 +49,7 @@ unset) or you hit a production build.
 
 ## Rules
 
-- Never echo `KNECHT_TEST_AUTH` or `KNECHT_TEST_GITHUB_TOKEN` — load them from
+- Never echo `KNECHT_TEST_AUTH` or `KNECHT_TEST_GITHUB_TOKEN`: load them from
   `.env` inline as shown; don't `cat`/`grep` the `.env` into visible output.
 - Dev/local only. This path does not exist in production, and must never be
   relied on there.
