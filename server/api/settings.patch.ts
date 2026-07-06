@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { AI_PROVIDERS, type AiProviderId } from '#shared/utils/ai'
 import { publicSettings, updateSettings } from '../utils/settings'
 import { encrypt } from '../utils/crypto'
 
@@ -11,6 +12,7 @@ const bodySchema = z.object({
   previewRetentionDays: z.number().int().min(0).max(365).optional(),
   archiveRetentionDays: z.number().int().min(0).max(3650).optional(),
   maxConcurrentRuns: z.number().int().min(1).max(20).optional(),
+  aiProvider: z.enum(AI_PROVIDERS.map(p => p.id) as [AiProviderId, ...AiProviderId[]]).optional(),
   aiKey: z.string().min(1).max(500).optional(),
   aiModel: z.string().min(1).max(200).optional(),
 })
