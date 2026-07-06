@@ -43,6 +43,13 @@
       "when": 1783322623670,
       "tag": "0005_opencode_agent",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1783325151667,
+      "tag": "0006_ai_provider",
+      "breakpoints": true
     }
   ]
 }

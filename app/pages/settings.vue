@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { AI_PROVIDERS, type AiProviderId } from '#shared/utils/ai'
+
 const { user, clear } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()
@@ -65,6 +67,7 @@ interface Settings {
   previewRetentionDays: number
   archiveRetentionDays: number
   maxConcurrentRuns: number
+  aiProvider: string
   aiModel: string
   /** Whether a provider API key is stored (the key itself never leaves the server). */
   aiKeyConfigured?: boolean
@@ -78,12 +81,14 @@ const { data: settings } = useFetch<Settings>('/api/settings', { lazy: true })
 // Environments. Changes autosave shortly after the last edit.
 type EnvSettings = Pick<Settings, 'idleStopMinutes' | 'previewRetentionDays' | 'archiveRetentionDays' | 'maxConcurrentRuns'>
 const form = reactive<EnvSettings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30, maxConcurrentRuns: 2 })
+const aiProvider = ref<AiProviderId>('anthropic')
 const aiModel = ref('anthropic/claude-sonnet-4-5')
 const original = ref('')
 function load() {
   if (!settings.value) return
   const { idleStopMinutes, previewRetentionDays, archiveRetentionDays, maxConcurrentRuns } = settings.value
   Object.assign(form, { idleStopMinutes, previewRetentionDays, archiveRetentionDays, maxConcurrentRuns })
+  aiProvider.value = settings.value.aiProvider as AiProviderId
   aiModel.value = settings.value.aiModel
   original.value = JSON.stringify({ ...form })
 }
@@ -117,20 +122,27 @@ const { data: aiModels, status: aiModelsStatus, error: aiModelsError } = useAiMo
 const modelItems = computed(() =>
   aiModels.value.map(m => ({ label: m.id, description: `${m.name} · ${m.provider}`, id: m.id })))
 
-// The default model autosaves like the env fields but reports into the Agent
-// panel's own indicator. load() writing the server value back is a no-op here.
+const PROVIDER_ITEMS = AI_PROVIDERS.map(p => ({ label: p.label, id: p.id }))
+
+// Provider and default model autosave like the env fields but report into the
+// Agent panel's own indicator. load() writing server values back is a no-op
+// here. A provider or key change refetches the (provider-scoped) catalog.
 const agentSaveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
 let agentSaveTimer: ReturnType<typeof setTimeout> | undefined
-watch(aiModel, () => {
-  if (aiModel.value === settings.value?.aiModel) return
+watch([aiProvider, aiModel], () => {
+  if (aiProvider.value === settings.value?.aiProvider && aiModel.value === settings.value?.aiModel) return
   agentSaveState.value = 'saving'
   clearTimeout(agentSaveTimer)
-  agentSaveTimer = setTimeout(saveAiModel, 800)
+  agentSaveTimer = setTimeout(saveAgent, 800)
 })
-async function saveAiModel() {
+async function saveAgent() {
   try {
-    settings.value = await $fetch<Settings>('/api/settings', { method: 'PATCH', body: { aiModel: aiModel.value } })
+    settings.value = await $fetch<Settings>('/api/settings', {
+      method: 'PATCH',
+      body: { aiProvider: aiProvider.value, aiModel: aiModel.value },
+    })
     agentSaveState.value = 'saved'
+    await refreshNuxtData('ai-models')
   }
   catch {
     agentSaveState.value = 'error'
@@ -145,6 +157,7 @@ async function saveAiKey() {
   try {
     settings.value = await $fetch<Settings>('/api/settings', { method: 'PATCH', body: { aiKey: aiKey.value.trim() } })
     aiKey.value = ''
+    await refreshNuxtData('ai-models')
   }
   catch (e) {
     toastError('Could not save the key', e)
@@ -329,32 +342,43 @@ async function save() {
         </template>
         <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
           The <span class="k-mono text-[12px] text-(--text-toned)">ai</span> workflow step
-          runs opencode inside the run's sandbox with this key; the provider is picked by
-          the model's prefix. The key is stored encrypted, and each step can override the
-          default model.
+          runs opencode inside the run's sandbox, authenticated against the selected
+          provider with this key. The key is stored encrypted, and each step can override
+          the default model.
         </p>
         <div class="flex flex-col gap-5">
-          <div>
-            <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Provider API key</span>
-            <form
-              class="mt-2 flex items-center gap-2"
-              @submit.prevent="saveAiKey"
-            >
-              <UInput
-                v-model="aiKey"
-                type="password"
-                :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
-                class="flex-1"
+          <div class="grid grid-cols-1 gap-5 sm:grid-cols-[11rem_1fr]">
+            <div>
+              <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Provider</span>
+              <USelect
+                v-model="aiProvider"
+                :items="PROVIDER_ITEMS"
+                value-key="id"
+                class="mt-2 w-full"
               />
-              <UButton
-                type="submit"
-                color="primary"
-                size="xs"
-                label="Save"
-                :loading="savingAiKey"
-                :disabled="!aiKey.trim()"
-              />
-            </form>
+            </div>
+            <div>
+              <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">API key</span>
+              <form
+                class="mt-2 flex items-center gap-2"
+                @submit.prevent="saveAiKey"
+              >
+                <UInput
+                  v-model="aiKey"
+                  type="password"
+                  :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
+                  class="flex-1"
+                />
+                <UButton
+                  type="submit"
+                  color="primary"
+                  size="xs"
+                  label="Save"
+                  :loading="savingAiKey"
+                  :disabled="!aiKey.trim()"
+                />
+              </form>
+            </div>
           </div>
           <div>
             <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Default model</span>
@@ -377,10 +401,8 @@ async function save() {
               />
             </div>
             <p class="mt-2 text-[12px] leading-[1.5] text-(--text-muted)">
-              opencode's <span class="k-mono text-[11px]">provider/model</span> form. The
-              provider must match the key above: a Zen key pairs with
-              <span class="k-mono text-[11px]">opencode/…</span> models, an Anthropic key
-              with <span class="k-mono text-[11px]">anthropic/…</span>.
+              Only the selected provider's models are offered. For OpenCode the list comes
+              from your workspace, so models disabled there don't show up.
             </p>
           </div>
         </div>

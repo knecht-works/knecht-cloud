@@ -219,10 +219,12 @@ export const settings = sqliteTable('settings', {
   // dispatcher.ts) starts them as slots free up.
   maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
 
-  // The `ai` step (opencode in the run's sandbox): provider API key — encrypted
-  // at rest (crypto.ts), never returned by the API — and the default model as
-  // opencode's `provider/model` (a step can override it). The provider prefix
-  // picks which env var the key is handed to opencode as (actions/ai.ts).
+  // The `ai` step (opencode in the run's sandbox): the provider the key belongs
+  // to (AI_PROVIDERS id — picks which env var the key is handed to opencode as,
+  // and filters the model pickers), the API key — encrypted at rest
+  // (crypto.ts), never returned by the API — and the default model as
+  // opencode's `provider/model` (a step can override it).
+  aiProvider: text('ai_provider').notNull().default('anthropic'),
   aiKeyEnc: text('ai_key_enc'),
   aiModel: text('ai_model').notNull().default('anthropic/claude-sonnet-4-5'),
 
