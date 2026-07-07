@@ -100,6 +100,11 @@ const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump } = useProjectDump(project)
 
 // ── Step 4 · finish ──────────────────────────────────────────────────────────
+// The boot action targets the seeded boot-and-preview workflow. The user may
+// have deleted or renamed it; then only "Open project" is offered.
+const { data: workflowRows } = useFetch('/api/workflows', { default: () => [], lazy: true })
+const hasBootWorkflow = computed(() => workflowRows.value.some(w => w.name === 'boot-and-preview'))
+
 const booting = ref(false)
 
 async function openProject() {
@@ -213,7 +218,7 @@ watch(open, (isOpen) => {
         <div class="flex justify-end gap-2">
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="outline"
             label="Cancel"
             @click="() => { open = false }"
           />
@@ -252,7 +257,7 @@ watch(open, (isOpen) => {
         <div class="flex justify-end gap-2">
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="outline"
             label="Skip"
             @click="() => { step = 'database' }"
           />
@@ -311,7 +316,7 @@ watch(open, (isOpen) => {
         <div class="flex justify-end gap-2">
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="outline"
             :label="dumpName ? 'Continue' : 'Skip'"
             @click="() => { step = 'done' }"
           />
@@ -341,8 +346,9 @@ watch(open, (isOpen) => {
             {{ project?.fullName.split('/').pop() }} is ready
           </p>
           <p class="mx-auto mt-1 max-w-[320px] text-[12.5px] text-(--text-dimmed)">
-            Boot it to import the database, build, and open a live preview, or open the
-            project to review the setup first.
+            {{ hasBootWorkflow
+              ? 'Boot it to import the database, build, and open a live preview, or open the project to review the setup first.'
+              : 'Open the project to review the setup and start your first run.' }}
           </p>
         </div>
         <div class="mt-1 flex w-full justify-center gap-2">
@@ -353,6 +359,7 @@ watch(open, (isOpen) => {
             @click="openProject"
           />
           <UButton
+            v-if="hasBootWorkflow"
             color="primary"
             icon="i-lucide-play"
             label="Boot & preview"
