@@ -126,15 +126,14 @@ body {
   color: var(--accent-ink);
 }
 
-:focus-visible:not([tabindex="-1"]) {
+/* One global focus outline for keyboard navigation. Text fields are
+   excluded: browsers let :focus-visible match them even on mouse
+   click, so they signal focus with their inset ring instead.
+   [tabindex="-1"] skips programmatically focused containers (modal
+   panels, menu items) that highlight themselves differently. */
+:focus-visible:not([tabindex="-1"], input, textarea) {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
-}
-
-/* The command palette's search field is autofocused when the modal
-   opens; the caret is the focus signal there, not the outline. */
-.k-search input:focus-visible {
-  outline: none;
 }
 
 /* ============================================================

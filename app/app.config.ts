@@ -1,6 +1,6 @@
-// Focus is signalled globally by the outline rule in main.css. Form
-// controls would otherwise ALSO swap their inset hairline to a 2px
-// primary ring on focus; keep the resting hairline instead.
+// Focus on select triggers (buttons) is signalled by the global
+// outline rule in main.css. They would otherwise ALSO swap their
+// inset hairline to a 2px primary ring; keep the resting one.
 const keepRestingRing = {
   compoundVariants: [
     {
@@ -48,8 +48,6 @@ export default defineAppConfig({
         { color: 'neutral', variant: 'subtle', class: 'focus-visible:ring focus-visible:ring-accented' },
       ],
     },
-    input: keepRestingRing,
-    textarea: keepRestingRing,
     select: keepRestingRing,
     selectMenu: keepRestingRing,
   },
