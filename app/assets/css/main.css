@@ -131,6 +131,12 @@ body {
   outline-offset: 2px;
 }
 
+/* The command palette's search field is autofocused when the modal
+   opens; the caret is the focus signal there, not the outline. */
+.k-search input:focus-visible {
+  outline: none;
+}
+
 /* ============================================================
    Surface primitives: the brand's "card" language reused
    everywhere so component markup stays free of ad-hoc CSS.

@@ -74,7 +74,7 @@ const groups = computed(() => [
       <UCommandPalette
         :groups="groups"
         placeholder="Search projects, workflows, triggers…"
-        class="h-80"
+        class="h-80 k-search"
         @update:open="open = $event"
       />
     </template>
