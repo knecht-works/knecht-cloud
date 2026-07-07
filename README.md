@@ -48,9 +48,57 @@ The result can come back as a pull request, including a preview environment to l
 
 ## Hosting
 
-The Knecht dashboard will be self hostable on your own server. You own your data. 
+Knecht is self hosted on your own server. You own your data.
 
-Hostind Docs coming soon...
+### Requirements
+
+- A dedicated Linux server, Ubuntu 24.04, amd64 (e.g. a Hetzner CPX31: 4 vCPU, 8 GB RAM, 160 GB disk). Dedicated because the installer pins Docker to a Sysbox-compatible version and rewrites `/etc/docker/daemon.json`; don't share the host with other Docker setups.
+- A domain (or subdomain) for the instance. You will point two DNS records at the server.
+
+### Install
+
+As root on the fresh server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | bash
+```
+
+The installer asks for your domain and does the rest: pinned Docker + Sysbox, the sandbox image, a registry cache, the repo checkout at the latest release under `/opt/knecht`, a generated `.env`, and finally the app plus the Caddy TLS entry point via docker compose. Takes about ten minutes, safe to re-run.
+
+Then:
+
+1. Set two DNS records, both pointing at the server's IP:
+   `A knecht.example.com` and `A *.preview.knecht.example.com`
+2. Make sure ports 80 and 443 are reachable (cloud firewall).
+3. Open `https://knecht.example.com` and complete the GitHub App setup. The first login claims the instance as owner.
+
+TLS is automatic: Caddy fetches the dashboard certificate on first start and per-preview certificates on demand (the first visit of a new preview URL takes a few extra seconds while its certificate is issued).
+
+### Updating
+
+Releases are git tags (`vX.Y.Z`) built by CI into `ghcr.io/knecht-works/knecht-cloud`. When a newer release exists, the System panel in the dashboard shows an update button (owner only); it swaps the instance to the new version with data intact. Manual equivalent on the server:
+
+```bash
+cd /opt/knecht
+git fetch --tags && git checkout vX.Y.Z
+sed -i 's/^KNECHT_VERSION=.*/KNECHT_VERSION=vX.Y.Z/' .env
+docker compose pull && docker compose up -d
+```
+
+Host-level changes (Docker pin, Sysbox, the sandbox image) are not covered by the in-app update; release notes call it out when the provisioning script must be re-run:
+
+```bash
+sudo KNECHT_UID=1000 KNECHT_GID=1000 /opt/knecht/scripts/provision-host.sh
+```
+
+### Backup and rollback
+
+All state lives in `/data/knecht/data` (SQLite database, run archives, uploaded dumps). Back that folder up, or snapshot the server. Database migrations run forward only: rolling back to an older release does not roll the schema back, so take a copy of `/data/knecht/data` before updating if you want a safe return path.
+
+### Notes for operators
+
+- Let's Encrypt issues at most 50 new certificates per week per domain. Each newly visited preview hostname uses one; renewals don't. Heavy multi-user instances can switch to a wildcard certificate instead: delegate the preview subzone to a DNS provider with API access (e.g. `preview.knecht.example.com NS -> Hetzner DNS`, the main zone stays put), build Caddy with the matching DNS plugin, and replace `on_demand` with `tls { dns <provider> }` in the Caddyfile.
+- The GHCR package must be public for anonymous pulls (one-time repo setting after the first release).
 
 ## Development Setup
 
