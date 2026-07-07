@@ -6,6 +6,11 @@
 
 services:
   knecht:
+    # Production pulls the CI-built release image, pinned via KNECHT_VERSION in
+    # .env (written by scripts/install.sh, advanced by the in-app updater).
+    # Local dev ignores the registry and builds from source instead:
+    # `npm run preview:docker` passes --build.
+    image: ghcr.io/knecht-works/knecht-cloud:${KNECHT_VERSION:-latest}
     build:
       context: .
     # App env (OAuth creds, session password, …) passed INTO the container so the
@@ -21,10 +26,11 @@ services:
     # Set DOCKER_GID in .env (local) or by the installer (e.g. into /data/knecht/.env).
     group_add:
       - "${DOCKER_GID:-999}"
-    # The Knecht web UI (Nitro). Reachable at http://localhost:3000 locally; on a
-    # server this sits behind a reverse proxy with TLS (later).
+    # The Knecht web UI (Nitro). Bound to localhost only: caddy (below) is the
+    # public entry point in production, and local dev reaches it via
+    # http://localhost:3000 either way (Lima forwards localhost ports).
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       # Drive the HOST daemon through its socket: that's how the per-run
       # sandboxes are launched (and the only reason this socket is here).
@@ -35,8 +41,34 @@ services:
       # A single variable is used on both sides so they can never drift.
       # Production convention: /data/knecht/projects.
       - ${KNECHT_PROJECTS:-/data/knecht/projects}:${KNECHT_PROJECTS:-/data/knecht/projects}
+      # Knecht's own state (SQLite DB, archives, dumps). Same-path convention
+      # as the projects dir. Without this mount the DB lives in the container's
+      # ephemeral filesystem and dies on every recreate.
+      - ${KNECHT_DATA_DIR:-/data/knecht/data}:${KNECHT_DATA_DIR:-/data/knecht/data}
     # The preview proxy reaches each run's sandbox (its inner ddev-router) over
     # the `knecht-ingress` docker network, which Knecht creates and joins at
     # boot (server/daemon/sandbox.ts). No host ingress ports are needed or
     # published here beyond the UI port above.
     restart: unless-stopped
+
+  # TLS entry point (production only; the installer writes COMPOSE_PROFILES=prod
+  # into .env, dev compose runs never start this). Terminates HTTPS for the
+  # dashboard domain and fetches per-hostname certificates on demand for the
+  # preview subdomains, gated by Knecht's /tls-ask endpoint (see Caddyfile).
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["prod"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - KNECHT_BASE_DOMAIN=${KNECHT_BASE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # ACME account + issued certificates. Must persist, or every recreate
+      # re-issues everything against Let's Encrypt rate limits.
+      - caddy-data:/data
+    restart: unless-stopped
+
+volumes:
+  caddy-data:

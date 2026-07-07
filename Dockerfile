@@ -65,8 +65,16 @@ WORKDIR /app
 
 # ═══ prod: built app on Nitro (the shipped image, default target) ═════════════
 FROM tooling AS prod
+# The release tag this image was built from (CI passes it; see
+# .github/workflows/release.yml). The app reads it to show its version and
+# offer updates.
+ARG KNECHT_VERSION=dev
+ENV KNECHT_VERSION=${KNECHT_VERSION}
 # The built app, copied from the build stage. Nothing else from stage 1 ships.
 COPY --from=build --chown=node:node /app/.output ./.output
+# Boot-time migrations (server/plugins/migrate.ts) read this folder from disk,
+# resolved against the cwd /app, so it must ship alongside the bundle.
+COPY --from=build --chown=node:node /app/server/db/migrations ./server/db/migrations
 
 # Nitro listens here; the daemon checks out worktrees at /data/knecht/projects
 # (mounted) and boots one sandbox per run off them.
