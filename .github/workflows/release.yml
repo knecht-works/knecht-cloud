@@ -1,0 +1,50 @@
+# Release pipeline. Push a tag and everything else follows:
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# Builds the prod image, pushes it to GHCR (the version tag + latest), and
+# creates the GitHub Release. The Release matters beyond ceremony: the in-app
+# updater polls releases/latest, which only sees actual Releases, not bare
+# tags. One-time setup: the ghcr.io package must be set to public visibility
+# after the first push, or anonymous pulls on servers fail.
+name: release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write   # gh release create
+  packages: write   # ghcr.io push
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: prod
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            KNECHT_VERSION=${{ github.ref_name }}
+          tags: |
+            ghcr.io/knecht-works/knecht-cloud:${{ github.ref_name }}
+            ghcr.io/knecht-works/knecht-cloud:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - run: gh release create "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
