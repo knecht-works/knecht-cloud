@@ -281,9 +281,10 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
             <span class="k-mono text-[11px] text-(--text-muted)">{{ run.workflow }} · {{ run.project }}</span>
           </span>
         </template>
-        <div class="k-mono max-h-[420px] overflow-auto whitespace-pre-wrap px-[18px] py-4 text-xs leading-[1.85] text-(--text-muted)">
-          {{ run.log || '…' }}
-        </div>
+        <KLogView
+          :log="run.log"
+          class="px-[18px] py-4 text-xs leading-[1.85]"
+        />
       </KPanel>
     </div>
   </div>

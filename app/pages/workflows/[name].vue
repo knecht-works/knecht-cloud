@@ -365,8 +365,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
   const s = Math.round(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
-
-const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n').slice(-14).join('\n'))
 </script>
 
 <template>
@@ -1122,7 +1120,11 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
               <template #action>
                 <span class="k-mono text-[10.5px] text-(--text-dimmed)">run #{{ activeRun.id }}</span>
               </template>
-              <pre class="k-mono max-h-[340px] overflow-auto whitespace-pre-wrap text-[11.5px] leading-[1.9] text-(--text-muted)">{{ logTail || '…' }}</pre>
+              <KLogView
+                :log="activeRun.log"
+                :max-height="340"
+                class="text-[11.5px] leading-[1.9]"
+              />
             </KPanel>
 
             <KPanel
@@ -1160,7 +1162,11 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                   <span class="k-mono text-[11.5px] text-(--text-dimmed)">Steps <span class="text-(--text-primary)">{{ steps.length }} / {{ steps.length }}</span></span>
                   <span class="k-mono text-[11.5px] text-(--text-dimmed)">Runtime <span class="text-(--text-toned)">{{ fmtDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
                 </div>
-                <pre class="k-mono max-h-[260px] overflow-auto whitespace-pre-wrap text-[11.5px] leading-[1.85] text-(--text-muted)">{{ logTail }}</pre>
+                <KLogView
+                  :log="activeRun.log"
+                  :max-height="260"
+                  class="text-[11.5px] leading-[1.85]"
+                />
               </div>
             </KPanel>
 
@@ -1175,7 +1181,11 @@ const logTail = computed(() => (activeRun.value?.log ?? '').trimEnd().split('\n'
                   <span class="k-mono text-[11.5px] text-(--text-dimmed)">Failed at step</span>
                   <span class="k-mono text-[11.5px] text-(--status-error)">{{ startedSteps }} of {{ steps.length }}</span>
                 </div>
-                <pre class="k-mono max-h-[340px] overflow-auto whitespace-pre-wrap rounded-(--radius-md) border border-(--border-muted) bg-(--surface-base) p-3 text-[11.5px] leading-[1.7] text-(--text-muted)">{{ logTail || '-' }}</pre>
+                <KLogView
+                  :log="activeRun.log"
+                  :max-height="340"
+                  class="rounded-(--radius-md) border border-(--border-muted) bg-(--surface-base) p-3 text-[11.5px] leading-[1.7]"
+                />
               </div>
             </KPanel>
           </div>
