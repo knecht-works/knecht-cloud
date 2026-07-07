@@ -18,6 +18,12 @@ SYSBOX_VERSION="0.7.0"
 PROJECTS_DIR="${KNECHT_PROJECTS:-/data/knecht/projects}"
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ARCH="$(dpkg --print-architecture)"
+# Owner of the projects dir and uid/gid baked into the sandbox image. Defaults
+# to the invoking user (the dev VM case). install.sh runs as root and passes
+# 1000/1000 explicitly: the control-plane container's `node` user is uid 1000,
+# and both sides must agree on the worktrees they share.
+KNECHT_UID="${KNECHT_UID:-$(id -u)}"
+KNECHT_GID="${KNECHT_GID:-$(id -g)}"
 
 [ "$(uname -s)" = "Linux" ] || { echo "This provisions a LINUX host (on macOS: run it inside the VM)"; exit 1; }
 
@@ -78,7 +84,7 @@ fi
 
 # ── 4. Projects dir + docker group ────────────────────────────────────────────
 sudo mkdir -p "$PROJECTS_DIR"
-sudo chown "$(id -u):$(id -g)" "$PROJECTS_DIR"
+sudo chown "$KNECHT_UID:$KNECHT_GID" "$PROJECTS_DIR"
 if ! id -nG | grep -qw docker; then
   echo "▶ Adding $(id -un) to the docker group (re-login to take effect)"
   sudo usermod -aG docker "$(id -un)"
@@ -87,9 +93,9 @@ fi
 # ── 5. The sandbox image ──────────────────────────────────────────────────────
 # Built with the invoking user's uid/gid: the sandbox's `ddev` user must own
 # the bind-mounted worktrees the Knecht process creates (see sandbox/Dockerfile).
-echo "▶ Building knecht-sandbox (sandbox/Dockerfile, uid $(id -u):$(id -g))"
+echo "▶ Building knecht-sandbox (sandbox/Dockerfile, uid $KNECHT_UID:$KNECHT_GID)"
 sudo docker build -t knecht-sandbox \
-  --build-arg "KNECHT_UID=$(id -u)" --build-arg "KNECHT_GID=$(id -g)" \
+  --build-arg "KNECHT_UID=$KNECHT_UID" --build-arg "KNECHT_GID=$KNECHT_GID" \
   "$REPO_DIR/sandbox"
 
 # ── 6. Local registry cache + warm-up ─────────────────────────────────────────
