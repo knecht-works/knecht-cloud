@@ -3,6 +3,40 @@
 // requireUserSession on /api/system) never runs for anonymous visitors.
 // Shared with the sidebar's system card: one probe per app load.
 const { data, status, error, refresh } = useSystemInfo()
+
+// Self-update: kick off the updater, then poll until the recreated container
+// answers with the target version (fetches fail while it restarts; that's
+// expected) and reload into the new build.
+const updating = ref(false)
+const updateError = ref('')
+const updateStale = ref(false)
+
+async function runUpdate() {
+  const target = data.value?.version.latest
+  if (!target || updating.value) return
+  updating.value = true
+  updateError.value = ''
+  try {
+    await $fetch('/api/system/update', { method: 'POST' })
+  }
+  catch (err) {
+    updating.value = false
+    updateError.value = (err as { data?: { message?: string } }).data?.message || 'Update failed to start.'
+    return
+  }
+  const startedAt = Date.now()
+  const poll = setInterval(async () => {
+    try {
+      const info = await $fetch('/api/system')
+      if (info.version.current === target) {
+        clearInterval(poll)
+        location.reload()
+      }
+    }
+    catch { /* container is restarting */ }
+    if (Date.now() - startedAt > 2 * 60 * 1000) updateStale.value = true
+  }, 5000)
+}
 </script>
 
 <template>
@@ -42,6 +76,10 @@ const { data, status, error, refresh } = useSystemInfo()
         <span class="k-label">System</span>
         <div class="mt-2.5 flex flex-col gap-3">
           <div class="flex items-center justify-between">
+            <span class="k-mono text-[12px] text-(--text-dimmed)">knecht</span>
+            <span class="k-mono text-[12px] text-(--text-toned)">{{ data.version.current }}</span>
+          </div>
+          <div class="flex items-center justify-between">
             <span class="k-mono text-[12px] text-(--text-dimmed)">docker</span>
             <span class="k-mono text-[12px] text-(--text-toned)">{{ data.dockerVersion }}</span>
           </div>
@@ -51,6 +89,30 @@ const { data, status, error, refresh } = useSystemInfo()
               class="k-mono text-[12px]"
               :class="data.sysboxAvailable ? 'text-(--text-toned)' : 'text-(--status-error)'"
             >{{ data.sysboxAvailable ? 'available' : 'missing' }}</span>
+          </div>
+          <div
+            v-if="data.version.updateAvailable"
+            class="flex flex-col gap-2"
+          >
+            <UButton
+              size="xs"
+              color="primary"
+              variant="soft"
+              icon="i-lucide-arrow-up-circle"
+              :loading="updating"
+              class="self-start"
+              @click="runUpdate()"
+            >
+              {{ updating ? `Updating to ${data.version.latest}…` : `Update to ${data.version.latest}` }}
+            </UButton>
+            <span
+              v-if="updateError"
+              class="k-mono text-[11.5px] text-(--status-error)"
+            >{{ updateError }}</span>
+            <span
+              v-if="updateStale"
+              class="k-mono text-[11.5px] text-(--text-dimmed)"
+            >Still updating. Check `docker logs knecht-updater` on the server.</span>
           </div>
         </div>
       </div>

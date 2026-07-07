@@ -1,0 +1,47 @@
+// Version awareness. The release image bakes KNECHT_VERSION at CI build time
+// (.github/workflows/release.yml); anything else (dev, local builds) reports
+// 'dev' and never offers updates.
+
+export const RELEASE_TAG_RE = /^v\d+\.\d+\.\d+$/
+
+const REPO = 'knecht-works/knecht-cloud'
+const CACHE_MS = 60 * 60 * 1000
+
+export function currentVersion(): string {
+  return process.env.KNECHT_VERSION || 'dev'
+}
+
+let cache: { value: string | null, fetchedAt: number } | null = null
+
+// The latest published release tag, from GitHub's releases/latest (which only
+// sees actual Releases, exactly what the release workflow creates). Fetched
+// lazily on demand, unauthenticated (60 req/h is plenty behind the 1h cache).
+// On fetch failure the stale value (or null) is returned and the failure is
+// cached too, so a GitHub outage can't stall every /api/system call.
+export async function latestVersion(): Promise<string | null> {
+  if (cache && Date.now() - cache.fetchedAt < CACHE_MS) return cache.value
+  try {
+    const res = await $fetch<{ tag_name?: string }>(
+      `https://api.github.com/repos/${REPO}/releases/latest`,
+      { timeout: 5000 },
+    )
+    const tag = res.tag_name && RELEASE_TAG_RE.test(res.tag_name) ? res.tag_name : null
+    cache = { value: tag, fetchedAt: Date.now() }
+  }
+  catch {
+    cache = { value: cache?.value ?? null, fetchedAt: Date.now() }
+  }
+  return cache.value
+}
+
+// Strict numeric compare of two release tags. False whenever either side is
+// not a release tag (dev builds never see an update offer).
+export function isNewerVersion(candidate: string, current: string): boolean {
+  if (!RELEASE_TAG_RE.test(candidate) || !RELEASE_TAG_RE.test(current)) return false
+  const a = candidate.slice(1).split('.').map(Number)
+  const b = current.slice(1).split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if (a[i]! !== b[i]!) return a[i]! > b[i]!
+  }
+  return false
+}

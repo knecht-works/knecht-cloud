@@ -1,4 +1,5 @@
 import { execa } from 'execa'
+import { currentVersion, isNewerVersion, latestVersion } from '../utils/version'
 
 export interface SystemInfo {
   /** The host Docker server version, or 'not available' if unreachable. */
@@ -7,6 +8,8 @@ export interface SystemInfo {
   sysboxAvailable: boolean
   /** Names of all containers on the host daemon (sandboxes show up here). */
   hostContainers: string[]
+  /** Knecht's own release version and whether a newer release exists. */
+  version: { current: string, latest: string | null, updateAvailable: boolean }
 }
 
 /**
@@ -18,7 +21,7 @@ export interface SystemInfo {
  * the orchestration logic is portable: see internals/docs/tech-stack.md §6.
  */
 export async function getSystemInfo(): Promise<SystemInfo> {
-  const [dockerVersion, sysboxAvailable, hostContainers] = await Promise.all([
+  const [dockerVersion, sysboxAvailable, hostContainers, latest] = await Promise.all([
     execa('docker', ['version', '--format', '{{.Server.Version}}'])
       .then(r => r.stdout.trim() || 'unknown')
       .catch(() => 'not available'),
@@ -28,7 +31,15 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     execa('docker', ['ps', '--format', '{{.Names}}'])
       .then(r => String(r.stdout).split('\n').map(s => s.trim()).filter(Boolean))
       .catch(() => []),
+    latestVersion(),
   ])
 
-  return { dockerVersion, sysboxAvailable, hostContainers }
+  const current = currentVersion()
+  const version = {
+    current,
+    latest,
+    updateAvailable: latest !== null && isNewerVersion(latest, current),
+  }
+
+  return { dockerVersion, sysboxAvailable, hostContainers, version }
 }
