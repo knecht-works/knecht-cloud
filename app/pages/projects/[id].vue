@@ -132,6 +132,14 @@ const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump, remove: removeDump } = useProjectDump(project)
 
 // ── Disconnect (delete project + its runs, envs and checkouts) ─────────────
+// Destructive, so it lives in the header's overflow menu behind a confirm.
+const confirmDisconnect = ref(false)
+const menuItems = [{
+  label: 'Disconnect project',
+  icon: 'i-lucide-trash-2',
+  color: 'error' as const,
+  onSelect: () => { confirmDisconnect.value = true },
+}]
 const removing = ref(false)
 async function removeProject() {
   removing.value = true
@@ -217,16 +225,6 @@ usePollWhile(() => isLive.value, refreshRuns)
         </div>
       </div>
       <div class="flex flex-none items-center gap-2.5">
-        <UTooltip text="Disconnect the repo and remove its runs and environments">
-          <UButton
-            color="error"
-            variant="ghost"
-            icon="i-lucide-trash-2"
-            label="Disconnect"
-            :loading="removing"
-            @click="removeProject"
-          />
-        </UTooltip>
         <UButton
           v-if="previewOnline"
           :to="previewUrl"
@@ -297,6 +295,17 @@ usePollWhile(() => isLive.value, refreshRuns)
             </div>
           </template>
         </UPopover>
+        <UDropdownMenu
+          :items="menuItems"
+          :content="{ align: 'end' }"
+        >
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-ellipsis-vertical"
+            aria-label="More actions"
+          />
+        </UDropdownMenu>
       </div>
     </div>
 
@@ -496,7 +505,7 @@ usePollWhile(() => isLive.value, refreshRuns)
               <span class="k-label">Database dump</span>
               <div
                 v-if="dumpName"
-                class="mt-2.5 flex w-full items-center gap-2"
+                class="group mt-2.5 flex w-full items-center gap-2"
               >
                 <UIcon
                   name="i-lucide-database"
@@ -505,9 +514,11 @@ usePollWhile(() => isLive.value, refreshRuns)
                 <span class="k-mono flex-1 truncate text-[11.5px] text-(--text-muted)">{{ dumpName }}</span>
                 <UButton
                   size="xs"
-                  color="error"
+                  color="neutral"
                   variant="ghost"
                   icon="i-lucide-trash-2"
+                  aria-label="Remove dump"
+                  class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
                   @click="removeDump"
                 />
               </div>
@@ -524,7 +535,7 @@ usePollWhile(() => isLive.value, refreshRuns)
                 icon="i-lucide-upload"
                 variant="subtle"
                 color="neutral"
-                size="xs"
+                size="sm"
                 :loading="uploadingDump"
                 @click="dumpInput?.click()"
               />
@@ -618,5 +629,14 @@ usePollWhile(() => isLive.value, refreshRuns)
         </span>
       </template>
     </UModal>
+
+    <KConfirmModal
+      v-model:open="confirmDisconnect"
+      title="Disconnect project"
+      :description="`Removes ${project.fullName} from Knecht along with all its runs, environments and checkouts. The GitHub repo itself is not touched.`"
+      confirm-label="Disconnect"
+      :loading="removing"
+      @confirm="removeProject"
+    />
   </div>
 </template>

@@ -51,6 +51,14 @@ const meta = computed(() => {
   ].filter(Boolean) as { icon: string, text: string, href?: string }[]
 })
 
+// Destructive, so it lives in the header's overflow menu behind a confirm.
+const confirmDelete = ref(false)
+const menuItems = [{
+  label: 'Delete run',
+  icon: 'i-lucide-trash-2',
+  color: 'error' as const,
+  onSelect: () => { confirmDelete.value = true },
+}]
 const deleting = ref(false)
 async function remove() {
   deleting.value = true
@@ -130,14 +138,17 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
 
     <KTopBar :title="`Run #${run.id}`">
       <template #actions>
-        <UButton
-          color="error"
-          variant="ghost"
-          icon="i-lucide-trash-2"
-          label="Delete"
-          :loading="deleting"
-          @click="remove"
-        />
+        <UDropdownMenu
+          :items="menuItems"
+          :content="{ align: 'end' }"
+        >
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-ellipsis-vertical"
+            aria-label="More actions"
+          />
+        </UDropdownMenu>
       </template>
     </KTopBar>
 
@@ -287,5 +298,14 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
         />
       </KPanel>
     </div>
+
+    <KConfirmModal
+      v-model:open="confirmDelete"
+      title="Delete run"
+      :description="`Deletes run #${run.id} including its log and preview environment. This cannot be undone.`"
+      confirm-label="Delete"
+      :loading="deleting"
+      @confirm="remove"
+    />
   </div>
 </template>

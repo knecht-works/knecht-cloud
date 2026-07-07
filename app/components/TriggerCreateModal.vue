@@ -347,7 +347,7 @@ watch(open, (isOpen) => {
         <div class="flex justify-end gap-2 pt-1">
           <UButton
             color="neutral"
-            variant="ghost"
+            variant="outline"
             label="Cancel"
             @click="() => { open = false }"
           />

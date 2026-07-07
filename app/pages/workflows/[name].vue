@@ -130,14 +130,24 @@ async function toggleEnabled() {
   }
 }
 
-// ── export (a browser download; the endpoint sets content-disposition) ──────
-const exportItems = computed(() => (['yaml', 'json'] as const).map(format => ({
-  label: format.toUpperCase(),
-  icon: 'i-lucide-file-down',
-  onSelect: () => {
-    if (saved.value) window.location.assign(`/api/workflows/${encodeURIComponent(saved.value.name)}/export?format=${format}`)
-  },
-})))
+// ── header overflow menu: export (a browser download; the endpoint sets
+// content-disposition) plus the destructive delete behind a confirm. ────────
+const confirmDelete = ref(false)
+const menuItems = computed(() => [
+  (['yaml', 'json'] as const).map(format => ({
+    label: `Export ${format.toUpperCase()}`,
+    icon: 'i-lucide-file-down',
+    onSelect: () => {
+      if (saved.value) window.location.assign(`/api/workflows/${encodeURIComponent(saved.value.name)}/export?format=${format}`)
+    },
+  })),
+  [{
+    label: 'Delete workflow',
+    icon: 'i-lucide-trash-2',
+    color: 'error' as const,
+    onSelect: () => { confirmDelete.value = true },
+  }],
+])
 
 // ── step mutations (step identity/fields come from the registry) ────────────
 function addStep(type: WorkflowStep['type']) {
@@ -580,24 +590,16 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
 
             <UDropdownMenu
               v-if="saved"
-              :items="exportItems"
+              :items="menuItems"
+              :content="{ align: 'end' }"
             >
               <UButton
                 color="neutral"
                 variant="ghost"
-                icon="i-lucide-download"
-                label="Export"
+                icon="i-lucide-ellipsis-vertical"
+                aria-label="More actions"
               />
             </UDropdownMenu>
-            <UButton
-              v-if="saved"
-              color="error"
-              variant="ghost"
-              icon="i-lucide-trash-2"
-              label="Delete"
-              :loading="removing"
-              @click="removeWorkflow"
-            />
           </template>
         </div>
       </div>
@@ -722,19 +724,12 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   </div>
                 </div>
                 <UTooltip :text="saved.enabled ? 'Pause automation' : 'Enable automation'">
-                  <button
-                    type="button"
-                    :aria-label="saved.enabled ? 'Pause automation' : 'Enable automation'"
+                  <KToggle
+                    :active="saved.enabled"
                     :disabled="togglingEnabled"
-                    class="relative h-[19px] w-[34px] flex-none cursor-pointer rounded-full border border-(--border-default) transition-colors"
-                    :style="{ background: saved.enabled ? 'var(--primary)' : 'var(--surface-accented)' }"
-                    @click="toggleEnabled"
-                  >
-                    <span
-                      class="absolute top-0.5 size-[13px] rounded-full transition-all"
-                      :style="{ left: saved.enabled ? '17px' : '2px', background: saved.enabled ? 'var(--accent-ink)' : 'var(--text-dimmed)' }"
-                    />
-                  </button>
+                    :aria-label="saved.enabled ? 'Pause automation' : 'Enable automation'"
+                    @toggle="toggleEnabled"
+                  />
                 </UTooltip>
               </div>
 
@@ -744,7 +739,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               <div
                 v-for="t in workflowTriggers"
                 :key="t.id"
-                class="flex items-center gap-3 border-b border-(--border-muted) px-3 py-2.5 transition-opacity"
+                class="group/row flex items-center gap-3 border-b border-(--border-muted) px-3 py-2.5 transition-opacity"
                 :style="{ opacity: (t.active && saved?.enabled) ? 1 : 0.45 }"
               >
                 <button
@@ -769,26 +764,20 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                     </span>
                   </span>
                 </button>
-                <button
-                  type="button"
-                  :aria-label="t.active ? 'Pause trigger' : 'Activate trigger'"
+                <KToggle
+                  :active="t.active"
                   :disabled="!editable"
-                  class="relative h-[19px] w-[34px] flex-none cursor-pointer rounded-full border border-(--border-default) transition-colors"
-                  :style="{ background: t.active ? 'var(--primary)' : 'var(--surface-accented)' }"
-                  @click="toggleTrigger(t)"
-                >
-                  <span
-                    class="absolute top-0.5 size-[13px] rounded-full transition-all"
-                    :style="{ left: t.active ? '17px' : '2px', background: t.active ? 'var(--accent-ink)' : 'var(--text-dimmed)' }"
-                  />
-                </button>
+                  :aria-label="t.active ? 'Pause trigger' : 'Activate trigger'"
+                  @toggle="toggleTrigger(t)"
+                />
                 <UButton
-                  color="error"
+                  color="neutral"
                   variant="ghost"
                   size="xs"
                   icon="i-lucide-trash-2"
                   aria-label="Delete trigger"
                   :disabled="!editable"
+                  class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
                   @click="removeTrigger(t)"
                 />
               </div>
@@ -1004,7 +993,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   class="absolute inset-y-0 left-0 z-10 w-[3px]"
                   :style="{ background: TREAT[r.status].accent! }"
                 />
-                <div class="flex items-center gap-2.5 py-[11px] pl-2.5 pr-3">
+                <div class="group/row flex items-center gap-2.5 py-[11px] pl-2.5 pr-3">
                   <!-- drag grip: arms the row for HTML5 dragging -->
                   <span
                     v-if="editable"
@@ -1047,11 +1036,12 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   >{{ STATUS_LABEL[r.status]!.text }}</span>
                   <UButton
                     v-if="editable"
-                    color="error"
+                    color="neutral"
                     variant="ghost"
                     size="xs"
                     icon="i-lucide-trash-2"
                     aria-label="Remove step"
+                    class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
                     @click="removeStep(i)"
                   />
                   <UIcon
@@ -1208,6 +1198,15 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
       :preset-workflow="saved?.name"
       :trigger="editingTrigger"
       @created="refreshTriggers"
+    />
+
+    <KConfirmModal
+      v-model:open="confirmDelete"
+      title="Delete workflow"
+      :description="`Deletes ${saved?.name ?? draft.name} along with its configured triggers.`"
+      confirm-label="Delete"
+      :loading="removing"
+      @confirm="removeWorkflow"
     />
   </div>
 </template>

@@ -123,18 +123,12 @@ const rateColor = computed(() => {
     </div>
 
     <UTooltip :text="enabled ? 'Automation on, click to pause' : 'Automation paused, click to enable'">
-      <button
-        type="button"
+      <KToggle
+        :active="enabled"
         :aria-label="enabled ? 'Pause automation' : 'Enable automation'"
-        class="relative h-[19px] w-[34px] flex-none cursor-pointer rounded-full border border-(--border-default) transition-colors"
-        :style="{ background: enabled ? 'var(--primary)' : 'var(--surface-accented)', opacity: 1 }"
-        @click.stop.prevent="emit('toggle')"
-      >
-        <span
-          class="absolute top-0.5 size-[13px] rounded-full transition-all"
-          :style="{ left: enabled ? '17px' : '2px', background: enabled ? 'var(--accent-ink)' : 'var(--text-dimmed)' }"
-        />
-      </button>
+        style="opacity: 1"
+        @toggle="emit('toggle')"
+      />
     </UTooltip>
 
     <UIcon

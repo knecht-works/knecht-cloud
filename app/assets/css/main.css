@@ -126,6 +126,11 @@ body {
   color: var(--accent-ink);
 }
 
+:focus-visible:not([tabindex="-1"]) {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    Surface primitives: the brand's "card" language reused
    everywhere so component markup stays free of ad-hoc CSS.

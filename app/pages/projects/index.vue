@@ -54,7 +54,7 @@ const open = ref(false)
         <UButton
           icon="i-lucide-plus"
           label="New project"
-          color="neutral"
+          color="primary"
           @click="() => { open = true }"
         />
       </template>
@@ -83,33 +83,11 @@ const open = ref(false)
 
     <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
       <span class="k-label">Active projects</span>
-      <div
+      <KFilterPills
         v-if="frameworks.length"
-        class="flex flex-wrap gap-2"
-      >
-        <button
-          type="button"
-          class="k-mono rounded-full px-2.5 py-1 text-[11.5px] transition-colors"
-          :class="activeFw === null
-            ? 'border border-(--border-default) bg-(--surface-glass) text-(--text-muted)'
-            : 'border border-transparent text-(--text-dimmed) hover:text-(--text-muted)'"
-          @click="activeFw = null"
-        >
-          All
-        </button>
-        <button
-          v-for="f in frameworks"
-          :key="f"
-          type="button"
-          class="k-mono rounded-full px-2.5 py-1 text-[11.5px] transition-colors"
-          :class="activeFw === f
-            ? 'border border-(--border-default) bg-(--surface-glass) text-(--text-muted)'
-            : 'border border-transparent text-(--text-dimmed) hover:text-(--text-muted)'"
-          @click="activeFw = f"
-        >
-          {{ f }}
-        </button>
-      </div>
+        v-model="activeFw"
+        :items="[{ value: null, label: 'All' }, ...frameworks.map(f => ({ value: f, label: f }))]"
+      />
       <span
         v-else
         class="k-mono text-[11.5px] text-(--text-dimmed)"
@@ -132,7 +110,7 @@ const open = ref(false)
 
       <button
         type="button"
-        class="flex h-full min-h-[180px] flex-col items-center justify-center gap-3.5 rounded-(--radius-lg) border border-dashed border-(--border-accented) p-6 text-center transition-colors hover:bg-(--surface-glass)"
+        class="flex h-full min-h-[180px] flex-col items-center justify-center gap-3.5 rounded-(--radius-lg) border border-dashed border-(--border-accented) p-6 text-center transition-colors hover:bg-(--surface-glass) cursor-pointer"
         @click="open = true"
       >
         <span class="grid size-12 place-items-center rounded-xl border border-(--border-accented) bg-(--surface-muted) text-(--text-primary)">

@@ -40,7 +40,7 @@ const statusText = computed(() =>
     class="k-card k-lift flex h-full flex-col overflow-hidden"
   >
     <div class="px-5 pb-4 pt-[18px]">
-      <div class="flex items-start justify-between gap-2.5">
+      <div class="flex items-start gap-2.5">
         <div class="flex min-w-0 items-center gap-3">
           <KStepIcon
             icon="i-lucide-box"
@@ -65,10 +65,6 @@ const statusText = computed(() =>
             </div>
           </div>
         </div>
-        <UIcon
-          name="i-lucide-ellipsis"
-          class="mt-0.5 size-4 flex-none text-(--text-dimmed)"
-        />
       </div>
     </div>
 

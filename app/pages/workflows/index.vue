@@ -128,7 +128,7 @@ const filtered = computed(() =>
         <UButton
           icon="i-lucide-plus"
           label="New workflow"
-          color="neutral"
+          color="primary"
           @click="() => { navigateTo('/workflows/new') }"
         />
       </template>
@@ -158,20 +158,10 @@ const filtered = computed(() =>
 
     <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
       <span class="k-label">All workflows</span>
-      <div class="flex gap-2">
-        <button
-          v-for="t in TABS"
-          :key="t.id"
-          type="button"
-          class="k-mono rounded-full px-2.5 py-1 text-[11.5px] transition-colors"
-          :class="tab === t.id
-            ? 'border border-(--border-default) bg-(--surface-glass) text-(--text-muted)'
-            : 'border border-transparent text-(--text-dimmed) hover:text-(--text-muted)'"
-          @click="tab = t.id"
-        >
-          {{ t.label }}
-        </button>
-      </div>
+      <KFilterPills
+        v-model="tab"
+        :items="TABS.map(t => ({ value: t.id, label: t.label }))"
+      />
     </div>
 
     <div

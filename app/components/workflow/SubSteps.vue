@@ -102,7 +102,7 @@ function groupsFor(i: number): VarGroup[] {
         class="rounded-(--radius-md) border bg-(--surface-muted)"
         :style="{ borderColor: valid ? 'var(--border-default)' : 'var(--accent-orange)' }"
       >
-        <div class="flex items-center gap-2.5 px-2.5 py-2">
+        <div class="group/row flex items-center gap-2.5 px-2.5 py-2">
           <KStepIcon
             :icon="meta.icon"
             :color="STEP_KIND_COLOR[meta.kind]"
@@ -147,6 +147,7 @@ function groupsFor(i: number): VarGroup[] {
               icon="i-lucide-trash-2"
               aria-label="Remove step"
               :disabled="!editable"
+              class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
               @click="remove(i)"
             />
             <UButton
