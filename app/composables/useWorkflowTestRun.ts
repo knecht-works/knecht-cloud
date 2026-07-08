@@ -51,6 +51,15 @@ export function useWorkflowTestRun<P extends TestProject>(
     () => project.value?.defaultBranch,
   )
 
+  // Mock trigger-event data: a manual test fills {{ inputs.* }} with these, so
+  // workflows built for triggers are testable without one. Empty fields are
+  // omitted; kept across runs so retest exercises the same event.
+  const mockInputs = reactive<Record<string, string>>({})
+  const filledInputs = () => {
+    const filled = Object.fromEntries(Object.entries(mockInputs).filter(([, v]) => v.trim()))
+    return Object.keys(filled).length ? filled : undefined
+  }
+
   async function start() {
     const workflow = workflowName()
     if (!project.value || !workflow) return
@@ -58,7 +67,7 @@ export function useWorkflowTestRun<P extends TestProject>(
     try {
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
-        body: { projectId: project.value.id, workflow, branch: testBranch.value },
+        body: { projectId: project.value.id, workflow, branch: testBranch.value, inputs: filledInputs() },
       })
       activeRunSteps.value = []
       open.value = false
@@ -120,11 +129,11 @@ export function useWorkflowTestRun<P extends TestProject>(
     try {
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
-        body: { projectId, workflow },
+        body: { projectId, workflow, inputs: filledInputs() },
       })
     }
     catch { /* surfaced via the run page if it fails to start */ }
   }
 
-  return { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, start, detach, retest }
+  return { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest }
 }

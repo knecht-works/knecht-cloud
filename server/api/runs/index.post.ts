@@ -11,6 +11,9 @@ const bodySchema = z.object({
   workflow: z.string().min(1),
   // The branch to check out and run against; defaults to the repo's default.
   branch: z.string().min(1).optional(),
+  // Mock trigger-event data ({{ inputs.* }}): lets a manual/test run exercise
+  // a workflow that normally gets these from a trigger.
+  inputs: z.record(z.string(), z.string()).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -32,6 +35,7 @@ export default defineEventHandler(async (event) => {
       workflow: result.data.workflow,
       trigger: 'manual',
       branch: result.data.branch ?? project.defaultBranch,
+      inputs: result.data.inputs ?? null,
     })
     .returning()
     .get()

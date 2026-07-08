@@ -65,8 +65,11 @@ watch(routeName, () => {
 const steps = computed(() => draft.value.steps)
 
 // ── inline test run (composable owns picker, run state and polling) ────────
-const { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, start, detach, retest }
+const { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest }
   = useWorkflowTestRun<(typeof projects.value)[number]>(() => saved.value?.name, () => openSteps.value.clear())
+
+// The "Trigger event (mock)" section of the run popover, collapsed by default.
+const mockOpen = ref(false)
 
 const editable = computed(() => !activeRun.value)
 
@@ -839,6 +842,51 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                           :search-input="{ placeholder: 'Filter branches…' }"
                           class="w-full"
                         />
+
+                        <!-- Mock trigger event: fills {{ inputs.* }} so workflows
+                             built for triggers are testable without one. -->
+                        <button
+                          type="button"
+                          :aria-expanded="mockOpen"
+                          class="group mt-3.5 flex w-full cursor-pointer items-center gap-1.5"
+                          @click="mockOpen = !mockOpen"
+                        >
+                          <UIcon
+                            name="i-lucide-chevron-right"
+                            class="size-3.5 text-(--text-dimmed) transition-transform"
+                            :class="mockOpen && 'rotate-90'"
+                          />
+                          <span class="k-label">Trigger event (mock)</span>
+                        </button>
+                        <div
+                          v-if="mockOpen"
+                          class="mt-2 space-y-2"
+                        >
+                          <template
+                            v-for="v in TRIGGER_VARS"
+                            :key="v.path"
+                          >
+                            <UTextarea
+                              v-if="v.path === 'inputs.body'"
+                              v-model="mockInputs[varPathParts(v.path)[1]]"
+                              :placeholder="v.path"
+                              :rows="2"
+                              class="w-full"
+                              :ui="{ base: 'k-mono text-[12px]' }"
+                            />
+                            <UInput
+                              v-else
+                              v-model="mockInputs[varPathParts(v.path)[1]]"
+                              :placeholder="v.path"
+                              class="w-full"
+                              :ui="{ base: 'k-mono text-[12px]' }"
+                            />
+                          </template>
+                          <p class="text-[11px] leading-[1.5] text-(--text-dimmed)">
+                            Empty fields render as empty strings, exactly like a
+                            trigger that didn't send them.
+                          </p>
+                        </div>
                       </template>
 
                       <UButton

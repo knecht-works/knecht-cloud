@@ -74,6 +74,19 @@ const CONTEXT_VARS: StepVar[] = [
   { path: 'project.defaultBranch', hint: 'The default branch' },
 ]
 
+// Event data a trigger seeds the run with (server/utils/github-webhook.ts).
+// A FIXED contract across all trigger kinds: the event's subject (issue, PR,
+// head commit) fills identifier/title/body/url, so every variable exists for
+// every trigger and one workflow serves them all. Empty on manual and
+// scheduled runs.
+export const TRIGGER_VARS: StepVar[] = [
+  { path: 'inputs.title', hint: 'Issue/PR title, or the commit message' },
+  { path: 'inputs.body', hint: 'Issue/PR body' },
+  { path: 'inputs.identifier', hint: 'Issue/PR number, commit sha, ticket key' },
+  { path: 'inputs.url', hint: 'Link to the issue, PR or commit' },
+  { path: 'inputs.event', hint: 'e.g. push, pull_request, issues' },
+]
+
 export interface VarGroup {
   label: string
   /** Accent for the group's chips: the source step's kind colour. */
@@ -132,7 +145,11 @@ export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup
 // vars and their prior siblings.)
 export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
   // Context vars are seeded by the trigger/run: they wear the trigger colour.
-  return [{ label: 'Context', color: STEP_KIND_COLOR.trigger, vars: CONTEXT_VARS }, ...stepOutputGroups(steps, index)]
+  return [
+    { label: 'Context', color: STEP_KIND_COLOR.trigger, vars: CONTEXT_VARS },
+    { label: 'Trigger event', color: STEP_KIND_COLOR.trigger, vars: TRIGGER_VARS },
+    ...stepOutputGroups(steps, index),
+  ]
 }
 
 // A step is saveable when its required fields are filled, its sub-steps (if
