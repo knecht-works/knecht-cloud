@@ -33,6 +33,33 @@ const matches = computed(() => {
   return flatVars.value.filter(v => v.path.toLowerCase().includes(q))
 })
 
+// The dropdown teleports to <body> (the step card clips overflow for its
+// rounded corners, which would cut it off), so it's positioned fixed under
+// the input and re-anchored on scroll/resize while open.
+const list = ref<HTMLElement>()
+const pos = ref({ top: 0, left: 0, width: 0 })
+
+function place() {
+  const rect = el()?.getBoundingClientRect()
+  if (rect) pos.value = { top: rect.bottom + 4, left: rect.left, width: rect.width }
+}
+
+watch(open, (on) => {
+  const opts = { capture: true, passive: true } as const
+  if (on) {
+    window.addEventListener('scroll', place, opts)
+    window.addEventListener('resize', place)
+  }
+  else {
+    window.removeEventListener('scroll', place, opts)
+    window.removeEventListener('resize', place)
+  }
+})
+onUnmounted(() => {
+  window.removeEventListener('scroll', place, { capture: true })
+  window.removeEventListener('resize', place)
+})
+
 function refreshToken() {
   const input = el()
   if (!input || typeof model.value !== 'string') return close()
@@ -42,6 +69,7 @@ function refreshToken() {
   token.value = { start: m.index, partial: m[1] ?? '' }
   active.value = 0
   open.value = true
+  nextTick(place)
 }
 
 function close() {
@@ -65,14 +93,20 @@ function pick(path: string) {
   })
 }
 
+function scrollActiveIntoView() {
+  nextTick(() => list.value?.children[active.value]?.scrollIntoView({ block: 'nearest' }))
+}
+
 function onKeydown(e: KeyboardEvent) {
   if (!open.value || !matches.value.length) return
   if (e.key === 'ArrowDown') {
     active.value = (active.value + 1) % matches.value.length
+    scrollActiveIntoView()
     e.preventDefault()
   }
   else if (e.key === 'ArrowUp') {
     active.value = (active.value - 1 + matches.value.length) % matches.value.length
+    scrollActiveIntoView()
     e.preventDefault()
   }
   else if (e.key === 'Enter' || e.key === 'Tab') {
@@ -154,24 +188,27 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       @blur="close"
     />
 
-    <!-- {{ autocomplete dropdown -->
-    <div
-      v-if="open && matches.length"
-      class="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-(--radius-md) border border-(--border-default) bg-(--surface-elevated)"
-      style="box-shadow: var(--shadow-panel)"
-    >
-      <button
-        v-for="(v, i) in matches"
-        :key="v.path"
-        type="button"
-        class="flex w-full items-baseline gap-2.5 px-3 py-2 text-left"
-        :style="i === active ? { background: 'var(--surface-accented)' } : undefined"
-        @mousedown.prevent="pick(v.path)"
-        @mousemove="active = i"
+    <!-- {{ autocomplete dropdown (teleported: the step card clips overflow) -->
+    <Teleport to="body">
+      <div
+        v-if="open && matches.length"
+        ref="list"
+        class="fixed z-50 max-h-60 overflow-y-auto rounded-(--radius-md) border border-(--border-default) bg-(--surface-elevated)"
+        :style="{ boxShadow: 'var(--shadow-panel)', top: `${pos.top}px`, left: `${pos.left}px`, width: `${pos.width}px` }"
       >
-        <span class="k-mono text-[12px]"><span class="text-(--text-dimmed)">{{ varPathParts(v.path)[0] }}</span><span :style="{ color: v.color }">{{ varPathParts(v.path)[1] }}</span></span>
-        <span class="truncate text-[11px] text-(--text-dimmed)">{{ v.hint }}</span>
-      </button>
-    </div>
+        <button
+          v-for="(v, i) in matches"
+          :key="v.path"
+          type="button"
+          class="flex w-full items-baseline gap-2.5 px-3 py-2 text-left"
+          :style="i === active ? { background: 'var(--surface-accented)' } : undefined"
+          @mousedown.prevent="pick(v.path)"
+          @mousemove="active = i"
+        >
+          <span class="k-mono text-[12px]"><span class="text-(--text-dimmed)">{{ varPathParts(v.path)[0] }}</span><span :style="{ color: v.color }">{{ varPathParts(v.path)[1] }}</span></span>
+          <span class="truncate text-[11px] text-(--text-dimmed)">{{ v.hint }}</span>
+        </button>
+      </div>
+    </Teleport>
   </div>
 </template>
