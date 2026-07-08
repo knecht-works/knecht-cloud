@@ -67,6 +67,13 @@ function injectBridge(html: string): string {
 
 export async function proxyRunPreview(event: H3Event, runId: number, label?: string): Promise<void> {
   const session = await getUserSession(event)
+  // Reading the session must never WRITE one: for a request without a session
+  // cookie, getUserSession seeds an empty session and emits a domain-scoped
+  // Set-Cookie. Preview pages routinely make credential-less requests (fonts
+  // and scripts loaded crossorigin=anonymous, CORS preflights), and that
+  // empty cookie would overwrite the operator's live session domain-wide,
+  // logging them out of the dashboard.
+  removeResponseHeader(event, 'set-cookie')
   if (!session?.user) {
     const reqUrl = getRequestURL(event)
     if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
