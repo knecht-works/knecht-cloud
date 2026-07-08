@@ -30,6 +30,9 @@ export default defineNuxtConfig({
   // preview proxy needs. Unset → host-only (plain localhost; previews then can't
   // be gated cross-subdomain). Locally use a domain that accepts subdomain
   // cookies, e.g. KNECHT_BASE_DOMAIN=lvh.me and open the app at lvh.me:3333.
+  // NOTE: this is evaluated at BUILD time. The CI-built release image has no
+  // KNECHT_BASE_DOMAIN, so production overrides it at runtime via
+  // NUXT_SESSION_COOKIE_DOMAIN (docker-compose.yml derives it from .env).
   runtimeConfig: {
     session: {
       cookie: {

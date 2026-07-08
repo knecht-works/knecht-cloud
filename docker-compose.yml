@@ -19,6 +19,12 @@ services:
     # `npm run dev` reads .env natively.
     env_file:
       - .env
+    # The session cookie's Domain attribute must be set at RUNTIME: the value
+    # baked into the image at build (nuxt.config.ts) is empty because CI builds
+    # without KNECHT_BASE_DOMAIN. Without it the cookie is host-only and the
+    # login-gated preview subdomains never receive the session.
+    environment:
+      - NUXT_SESSION_COOKIE_DOMAIN=${KNECHT_BASE_DOMAIN:-}
     # Grant the host docker socket's group to the (non-root) container process at
     # RUNTIME, so the SAME prebuilt image works on any host, no rebuild when the
     # gid differs. Find it with:  stat -c '%g' /var/run/docker.sock

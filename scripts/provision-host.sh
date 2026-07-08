@@ -37,7 +37,9 @@ else
   echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
     | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
   sudo apt-get update -qq
-  PIN="$(apt-cache madison docker-ce | awk -v v="$DOCKER_VERSION" '$3 ~ v {print $3; exit}')"
+  # awk must read the full stream: an early exit SIGPIPEs apt-cache, and with
+  # pipefail + set -e that kills the script silently (exit 141).
+  PIN="$(apt-cache madison docker-ce | awk -v v="$DOCKER_VERSION" '$3 ~ v && !hit {print $3; hit=1}')"
   [ -n "$PIN" ] || { echo "Docker $DOCKER_VERSION not in the apt repo for this distro"; exit 1; }
   sudo apt-get install -y -qq "docker-ce=$PIN" "docker-ce-cli=$PIN" containerd.io
   sudo apt-mark hold docker-ce docker-ce-cli
