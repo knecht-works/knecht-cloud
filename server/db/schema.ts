@@ -65,14 +65,15 @@ export type NewProject = typeof projects.$inferInsert
 // A single execution of a workflow against one project. The in-process serial
 // runner (server/daemon/runner.ts) owns the row: it flips status and appends to
 // `log` as blocks run. The UI polls the row for live status/log.
-// On a daemon restart, any run left 'running' is reset to 'failed' (no resume).
+// On a daemon restart, any run left 'running' is reset to 'failed'; a retry
+// (POST /api/runs/:id/retry) resumes it from the interrupted step.
 export const runs = sqliteTable('runs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   projectId: integer('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
   workflow: text('workflow').notNull(),
-  status: text('status', { enum: ['queued', 'running', 'success', 'failed'] })
+  status: text('status', { enum: ['queued', 'running', 'success', 'failed', 'cancelled'] })
     .notNull()
     .default('queued'),
   // What started the run: the UI's "Start workflow" button ('manual', also a

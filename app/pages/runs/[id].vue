@@ -93,6 +93,40 @@ async function runAgain() {
   }
 }
 
+// Stop the live run server-side; the runner unwinds at its next checkpoint.
+const cancelling = ref(false)
+async function cancel() {
+  cancelling.value = true
+  try {
+    await $fetch(`/api/runs/${id}/cancel`, { method: 'POST' })
+    await refresh()
+  }
+  catch (e) {
+    toastError('Cancel failed', e)
+  }
+  finally {
+    cancelling.value = false
+  }
+}
+
+// Resume from the step that stopped the run: completed steps keep their
+// results, only the failed step onward re-executes. Polling resumes via isLive.
+const retryable = computed(() => run.value?.status === 'failed' || run.value?.status === 'cancelled')
+const retrying = ref(false)
+async function retry() {
+  retrying.value = true
+  try {
+    await $fetch(`/api/runs/${id}/retry`, { method: 'POST' })
+    await Promise.all([refresh(), refreshSteps()])
+  }
+  catch (e) {
+    toastError('Retry failed', e)
+  }
+  finally {
+    retrying.value = false
+  }
+}
+
 const rebooting = ref(false)
 async function reboot() {
   rebooting.value = true
@@ -138,6 +172,22 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
 
     <KTopBar :title="`Run #${run.id}`">
       <template #actions>
+        <UButton
+          v-if="isLive"
+          color="error"
+          variant="outline"
+          label="Cancel run"
+          :loading="cancelling"
+          @click="cancel"
+        />
+        <UButton
+          v-else-if="retryable"
+          color="primary"
+          icon="i-lucide-play"
+          label="Retry"
+          :loading="retrying"
+          @click="retry"
+        />
         <UDropdownMenu
           :items="menuItems"
           :content="{ align: 'end' }"

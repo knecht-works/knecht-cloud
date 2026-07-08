@@ -65,7 +65,7 @@ watch(routeName, () => {
 const steps = computed(() => draft.value.steps)
 
 // ── inline test run (composable owns picker, run state and polling) ────────
-const { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest }
+const { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
   = useWorkflowTestRun<(typeof projects.value)[number]>(() => saved.value?.name, () => openSteps.value.clear())
 
 // The "Trigger event (mock)" section of the run popover, collapsed by default.
@@ -506,16 +506,17 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
         <div class="flex flex-none items-center gap-2.5">
           <template v-if="mode === 'running'">
             <UButton
-              color="neutral"
+              color="error"
               variant="outline"
-              label="Cancel"
-              @click="detach"
+              label="Cancel run"
+              :loading="cancelling"
+              @click="cancel"
             />
             <UButton
               color="neutral"
               variant="ghost"
               label="Run in background"
-              @click="() => { navigateTo(`/runs/${activeRun!.id}`) }"
+              @click="detach"
             />
           </template>
           <template v-else-if="mode === 'success'">
@@ -542,10 +543,18 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               @click="() => { navigateTo(`/runs/${activeRun!.id}`) }"
             />
             <UButton
-              color="primary"
+              color="neutral"
+              variant="outline"
               icon="i-lucide-refresh-cw"
               label="Test again"
               @click="retest"
+            />
+            <UButton
+              color="primary"
+              icon="i-lucide-play"
+              label="Retry"
+              :loading="retrying"
+              @click="retry"
             />
           </template>
           <template v-else>

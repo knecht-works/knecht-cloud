@@ -20,6 +20,12 @@ export interface ActionRuntime {
   ctx: RunContext
   /** Append to the run log. */
   log: (text: string) => void
+  /**
+   * Fires when the run is cancelled (POST /api/runs/:id/cancel). The runner
+   * checks it at step boundaries and kills streamed sandbox commands through
+   * it; long-running action work can abort on it too.
+   */
+  signal: AbortSignal
   sandbox: {
     /** Boot the run's sandbox if it isn't up. */
     ensureUp: () => Promise<void>

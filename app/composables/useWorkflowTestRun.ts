@@ -116,9 +116,48 @@ export function useWorkflowTestRun<P extends TestProject>(
     reattach()
   }, { immediate: true })
 
+  // A run cancelled from elsewhere (the run detail page) leaves test mode too.
+  watch(() => activeRun.value?.status, (status) => {
+    if (status === 'cancelled') detach()
+  })
+
   function detach() {
     activeRun.value = null
     activeRunSteps.value = []
+  }
+
+  // Actually stop the run server-side, then return the editor to edit mode.
+  const cancelling = ref(false)
+  async function cancel() {
+    if (!activeRun.value) return
+    cancelling.value = true
+    try {
+      await $fetch(`/api/runs/${activeRun.value.id}/cancel`, { method: 'POST' })
+      detach()
+    }
+    catch (e) {
+      toastError('Failed to cancel', e)
+    }
+    finally {
+      cancelling.value = false
+    }
+  }
+
+  // Resume the failed run from the step that stopped it (completed steps keep
+  // their results); polling picks the run back up as it goes live again.
+  const retrying = ref(false)
+  async function retry() {
+    if (!activeRun.value) return
+    retrying.value = true
+    try {
+      activeRun.value = await $fetch<TestRunRow>(`/api/runs/${activeRun.value.id}/retry`, { method: 'POST' })
+    }
+    catch (e) {
+      toastError('Failed to retry', e)
+    }
+    finally {
+      retrying.value = false
+    }
   }
 
   async function retest() {
@@ -135,5 +174,5 @@ export function useWorkflowTestRun<P extends TestProject>(
     catch { /* surfaced via the run page if it fails to start */ }
   }
 
-  return { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest }
+  return { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
 }

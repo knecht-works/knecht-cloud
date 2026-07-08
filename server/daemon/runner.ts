@@ -1,8 +1,8 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import { eq, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNull, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
-import { COMPOSITE_CHILD_KEYS, isComposite, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
+import { COMPOSITE_CHILD_KEYS, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
 import { actionFor, type ActionError, type ActionRuntime } from '../workflows/actions'
 import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
@@ -32,6 +32,39 @@ import { ensureEnvUp } from './envs'
 // context and the DB: large data belongs in the sandbox filesystem, passed by
 // path/reference.
 const MAX_OUTPUT_BYTES = 64 * 1024
+
+// The abort controllers of runs THIS process is executing, so a cancel (POST
+// /api/runs/:id/cancel) can stop the runner mid-run: step boundaries check the
+// signal, streamed sandbox commands are killed through it.
+const controllers = new Map<number, AbortController>()
+
+// Abort a run this process is executing. Returns false when the run isn't
+// in-flight here (already finished, or a stale 'running' row after a crash);
+// the caller has already flipped the row, so nothing else is needed.
+export function cancelRun(runId: number): boolean {
+  const controller = controllers.get(runId)
+  if (!controller) return false
+  controller.abort()
+  return true
+}
+
+// Where a retry resumes: completed top-level steps are skipped (their
+// persisted outputs replay into the context), the step that stopped the run
+// re-executes from its start. `tailRowId` is that step's row: it and every
+// later row (its nested sub-rows) are dropped on resume so the step gets
+// fresh rows.
+export function resumePoint(runId: number): { fromIndex: number, tailRowId: number | null } {
+  const top = db
+    .select({ id: schema.runSteps.id, stepIndex: schema.runSteps.stepIndex, status: schema.runSteps.status })
+    .from(schema.runSteps)
+    .where(and(eq(schema.runSteps.runId, runId), isNull(schema.runSteps.parentStepId)))
+    .orderBy(asc(schema.runSteps.id))
+    .all()
+  const last = top.at(-1)
+  if (!last) return { fromIndex: 0, tailRowId: null }
+  if (last.status === 'success') return { fromIndex: last.stepIndex + 1, tailRowId: null }
+  return { fromIndex: last.stepIndex, tailRowId: last.id }
+}
 
 // Execute a run. Called only by the dispatcher (server/plugins/dispatcher.ts),
 // which awaits the returned promise to track the concurrency slot; the promise
@@ -63,10 +96,16 @@ async function execRun(runId: number, project: Project): Promise<void> {
     db.update(schema.runs).set({ steps }).where(eq(schema.runs.id, runId)).run()
   }
 
-  db.update(schema.runs)
-    .set({ status: 'running', startedAt: new Date() })
-    .where(eq(schema.runs.id, runId))
+  // Claim conditionally: a cancel can land while the run sits queued, and the
+  // claim must lose that race instead of reviving a cancelled run.
+  const claimed = db.update(schema.runs)
+    .set({ status: 'running', startedAt: new Date(), finishedAt: null })
+    .where(and(eq(schema.runs.id, runId), eq(schema.runs.status, 'queued')))
     .run()
+  if (!claimed.changes) return
+
+  const controller = new AbortController()
+  controllers.set(runId, controller)
 
   // Log routing: everything lands in runs.log (the UI's live stream); while a
   // step is executing, its slice is ALSO buffered for that step's run_steps
@@ -84,6 +123,21 @@ async function execRun(runId: number, project: Project): Promise<void> {
   }
 
   try {
+    // A retry resumes instead of restarting: the step that stopped the run
+    // loses its rows (it re-runs fresh), the completed steps before it are
+    // skipped and their outputs replay into the context (replayOutputs), so
+    // the sequence continues as if never interrupted. A fresh run has no rows
+    // and resumes from 0, i.e. runs normally.
+    const resume = resumePoint(runId)
+    if (resume.tailRowId !== null) {
+      db.delete(schema.runSteps)
+        .where(and(eq(schema.runSteps.runId, runId), gte(schema.runSteps.id, resume.tailRowId)))
+        .run()
+    }
+    if (resume.fromIndex > 0 || resume.tailRowId !== null) {
+      log(`\n↻ Retrying from step ${resume.fromIndex + 1}\n`)
+    }
+
     log(`▶ Preparing isolated checkout\n`)
     const token = await getInstallationToken(project.owner, project.name)
     const dir = await prepareRunCheckout(project, runId, token, log, run.branch ?? project.defaultBranch)
@@ -101,26 +155,52 @@ async function execRun(runId: number, project: Project): Promise<void> {
     log(`Sandbox: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
 
     const ctx = createContext(runId, project, run.inputs ?? {})
+    replayOutputs(runId, ctx)
     const rt: ActionRuntime = {
       runId,
       project,
       checkoutDir: dir,
       ctx,
       log,
+      signal: controller.signal,
       sandbox: {
         ensureUp: () => ensureEnvUp(runId),
-        stream: (command, opts) => streamInSandbox(runId, command, log, opts?.env),
+        stream: (command, opts) => streamInSandbox(runId, command, log, opts?.env, controller.signal),
         copyIn: (hostPath, sandboxPath) => copyIntoSandbox(runId, hostPath, sandboxPath),
       },
     }
-    await execSteps(runId, steps, ctx, rt, rowLog)
+    await execSteps(runId, steps, ctx, rt, rowLog, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
     finish(runId, 'success')
   }
   catch (e) {
     rowLog.current = null
-    log(`\n✗ ${(e as Error).message}\n`)
-    finish(runId, 'failed')
+    const cancelled = controller.signal.aborted
+    log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
+    finish(runId, cancelled ? 'cancelled' : 'failed')
+  }
+  finally {
+    controllers.delete(runId)
+  }
+}
+
+// Rebuild the context a resumed run's already-executed steps had produced:
+// their persisted outputs land back under steps.<id> (and the action's legacy
+// key) in execution order, exactly as the original pass merged them. Rows
+// without outputs (or a fresh run's empty list) contribute nothing.
+function replayOutputs(runId: number, ctx: RunContext): void {
+  const rows = db
+    .select({ stepId: schema.runSteps.stepId, type: schema.runSteps.type, outputs: schema.runSteps.outputs })
+    .from(schema.runSteps)
+    .where(eq(schema.runSteps.runId, runId))
+    .orderBy(asc(schema.runSteps.id))
+    .all()
+  for (const row of rows) {
+    if (!row.outputs) continue
+    ctx.steps[row.stepId] = row.outputs
+    const type = row.type as Step['type']
+    const legacyKey = isCompositeType(type) ? undefined : actionFor(type).legacyKey
+    if (legacyKey) ctx[legacyKey] = row.outputs
   }
 }
 
@@ -146,6 +226,7 @@ interface StepScope {
 
 // Execute a step list in order, merging each step's outputs into the context.
 // Recurses through composite steps (if/loop) via execStep → runComposite.
+// `startIndex` skips a resumed run's completed prefix (top-level call only).
 async function execSteps(
   runId: number,
   steps: Step[],
@@ -153,8 +234,11 @@ async function execSteps(
   rt: ActionRuntime,
   rowLog: RowLog,
   scope: StepScope = {},
+  startIndex = 0,
 ): Promise<void> {
   for (const [index, step] of steps.entries()) {
+    if (index < startIndex) continue
+    rt.signal.throwIfAborted()
     const outputs = await execStep(runId, index, step, ctx, rt, rowLog, scope)
     if (outputs && step.id) {
       // steps.<id> is the collision-free reference; the legacy top-level key
@@ -257,6 +341,12 @@ async function execStep(
       }
       catch (e) {
         const error = (e as Error).message
+        // A cancel kills the in-flight command; close the row out instead of
+        // burning retries on an aborted run.
+        if (rt.signal.aborted) {
+          finalize({ status: 'failed', error: 'Cancelled', attempt })
+          throw e
+        }
         if (attempt < maxAttempts) {
           const delay = (step.retry?.backoffSeconds ?? 0) * 2 ** (attempt - 1)
           rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error}. Retrying in ${delay}s\n`)
@@ -315,8 +405,8 @@ const STREAM_TAIL_CHARS = 128 * 1024
 // (routed through the run's logger, so it also lands in the current step's
 // row) while capturing a tail for the caller. Resolves with the exit code:
 // never rejects on a non-zero exit, the caller decides.
-function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>): Promise<{ code: number, tail: string }> {
-  const sub = execInSandbox(runId, command, { reject: false, buffer: false }, env)
+function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
+  const sub = execInSandbox(runId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
   // Chunk list instead of string concat: re-slicing a full 128 KB string per
   // stdout event would make chatty commands quadratic.
   const chunks: string[] = []
@@ -342,7 +432,7 @@ function appendLog(runId: number, text: string): void {
     .run()
 }
 
-function finish(runId: number, status: 'success' | 'failed'): void {
+function finish(runId: number, status: 'success' | 'failed' | 'cancelled'): void {
   db.update(schema.runs)
     .set({ status, finishedAt: new Date() })
     .where(eq(schema.runs.id, runId))

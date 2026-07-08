@@ -3,7 +3,7 @@ import type { Step } from '#shared/utils/workflow'
 // Shared display helpers for the dashboard screens: keeps status mapping and
 // formatting in one place so the screens stay free of ad-hoc logic.
 
-export type RunStatus = 'queued' | 'running' | 'success' | 'failed'
+export type RunStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
 
 type DotColor = 'primary' | 'orange' | 'neutral' | 'error'
 
@@ -23,6 +23,7 @@ export const RUN_STATUS_META: Record<RunStatus, RunStatusMeta> = {
   running: { dot: 'orange', pulse: true, text: 'var(--accent-orange)', label: 'Running' },
   queued: { dot: 'neutral', pulse: false, text: 'var(--text-dimmed)', label: 'Queued' },
   failed: { dot: 'error', pulse: false, text: 'var(--status-error)', label: 'Failed' },
+  cancelled: { dot: 'neutral', pulse: false, text: 'var(--text-dimmed)', label: 'Cancelled' },
 }
 
 // True while the run still occupies the runner (drives polling + live UI).
