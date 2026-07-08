@@ -394,8 +394,8 @@ async function runGc() {
             {{ settings?.aiKeyConfigured ? 'Configured' : 'Not configured' }}
           </span>
         </template>
-        <div class="relative">
-          <div class="min-w-0 max-w-4xl">
+        <div class="flex gap-10">
+          <div class="min-w-0 max-w-4xl flex-1">
             <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
               The <span class="k-mono text-[12px] text-(--text-toned)">ai</span> workflow step
               runs opencode inside the run's sandbox, authenticated against the selected
@@ -464,7 +464,7 @@ async function runGc() {
           <img
             src="/mascot/looking-right-knecht.svg"
             alt=""
-            class="pointer-events-none absolute inset-y-0 right-16 hidden h-full w-auto -scale-x-100 xl:block"
+            class="pointer-events-none ml-auto hidden h-52 w-auto shrink-0 self-center -scale-x-100 xl:mr-6 xl:block"
           >
         </div>
       </KPanel>
