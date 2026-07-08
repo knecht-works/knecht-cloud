@@ -1,6 +1,6 @@
 import { eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
-import type { Trigger } from '../db/schema'
+import type { IssueAction, Trigger } from '../db/schema'
 import { isWorkflowEnabled } from '../workflows'
 import { dispatchRuns } from '../daemon/dispatcher'
 import { isGithubAppConfigured } from './github-credentials'
@@ -11,8 +11,8 @@ export type TriggerSource = 'schedule' | 'github' | 'manual'
 export type TriggerKind = 'Cron' | 'Webhook' | 'Manual'
 
 // The shape the Triggers screen renders against (TriggerCard.vue). Project ids
-// are resolved to short repo names; `endpoint` is the cron expression (schedule),
-// the webhook URL (github) or null (manual).
+// are resolved to short repo names; `endpoint` is the cron expression (schedule)
+// or null (github/manual).
 export interface TriggerSummary {
   id: number
   source: TriggerSource
@@ -23,6 +23,9 @@ export interface TriggerSummary {
   projectIds: number[]
   endpoint: string | null
   webhookEvent: string | null
+  webhookBranches: string[]
+  issueActions: IssueAction[]
+  issueLabel: string | null
   active: boolean
   lastFiredAt: number | null
   firedCount: number
@@ -44,23 +47,31 @@ function relFuture(date: Date): string {
   return `in ${Math.round(hours / 24)}d`
 }
 
-function baseUrl(): string {
-  return dashboardOrigin()
-}
-
 function eventLabel(t: Trigger): string {
   if (t.source === 'schedule') {
     if (!t.active || !t.nextFireAt) return 'Paused'
     return `Next run ${relFuture(t.nextFireAt)}`
   }
-  if (t.source === 'github') return `On ${t.webhookEvent ?? 'push'}`
+  if (t.source === 'github') return githubEventLabel(t)
   return 'Run on demand'
 }
 
+// "On push · main, staging" / "On pull_request · base main" / "On issues ·
+// opened, label \"knecht\"". The filter part is omitted when it matches
+// everything.
+function githubEventLabel(t: Trigger): string {
+  const event = t.webhookEvent ?? 'push'
+  if (event === 'issues') {
+    const parts = t.issueActions.map(a => (a === 'labeled' ? `label "${t.issueLabel ?? '?'}"` : a))
+    return `On issues · ${parts.join(', ')}`
+  }
+  if (!t.webhookBranches.length) return `On ${event}`
+  const prefix = event === 'pull_request' ? 'base ' : ''
+  return `On ${event} · ${prefix}${t.webhookBranches.join(', ')}`
+}
+
 function endpoint(t: Trigger): string | null {
-  if (t.source === 'schedule') return t.cron
-  if (t.source === 'github') return `${baseUrl()}/api/triggers/${t.id}/webhook`
-  return null
+  return t.source === 'schedule' ? t.cron : null
 }
 
 // Map DB rows to the UI contract, resolving project ids to short repo names in
@@ -88,10 +99,22 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
     projectIds: t.projectIds,
     endpoint: endpoint(t),
     webhookEvent: t.webhookEvent,
+    webhookBranches: t.webhookBranches,
+    issueActions: t.issueActions,
+    issueLabel: t.issueLabel,
     active: t.active,
     lastFiredAt: t.lastFiredAt ? Math.floor(t.lastFiredAt.getTime() / 1000) : null,
     firedCount: t.firedCount,
   }))
+}
+
+// What a webhook delivery overrides on the runs it starts: the subset of the
+// trigger's projects to fire (the delivery's repo), the branch to check out
+// (push/PR branch instead of the default) and the event data for {{ inputs.* }}.
+export interface FireOverrides {
+  projectIds?: number[]
+  branch?: string | null
+  inputs?: Record<string, string>
 }
 
 // Queue the trigger's workflow against each of its projects (one run each; the
@@ -99,14 +122,15 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
 // counters. Returns the created run ids. Runs authenticate via the GitHub App
 // (no session needed); with the app unconfigured each run is recorded as failed
 // with a clear reason rather than failing silently.
-export function fireTrigger(t: Trigger): number[] {
+export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   // The workflow's master switch is off → automation is paused. Don't create
   // runs or bump counters; the trigger stays configured and resumes when
   // re-enabled. Manual runs bypass this path entirely.
   if (!isWorkflowEnabled(t.workflow)) return []
 
-  const projects = t.projectIds.length
-    ? db.select().from(schema.projects).where(inArray(schema.projects.id, t.projectIds)).all()
+  const projectIds = opts.projectIds ?? t.projectIds
+  const projects = projectIds.length
+    ? db.select().from(schema.projects).where(inArray(schema.projects.id, projectIds)).all()
     : []
 
   const runIds: number[] = []
@@ -118,7 +142,8 @@ export function fireTrigger(t: Trigger): number[] {
         workflow: t.workflow,
         trigger: t.source,
         triggerId: t.id,
-        branch: project.defaultBranch,
+        branch: opts.branch ?? project.defaultBranch,
+        inputs: opts.inputs ?? null,
       })
       .returning()
       .get()

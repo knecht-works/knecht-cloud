@@ -50,6 +50,20 @@
       "when": 1783325151667,
       "tag": "0006_ai_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1783446337714,
+      "tag": "0007_github_triggers",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1783454666031,
+      "tag": "0008_drop_trigger_webhook_secret",
+      "breakpoints": true
     }
   ]
 }

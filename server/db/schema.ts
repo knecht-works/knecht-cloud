@@ -93,6 +93,10 @@ export const runs = sqliteTable('runs', {
   commitSha: text('commit_sha'),
   // The pull request a `create-pr` step opened, if the run opened one.
   prUrl: text('pr_url'),
+  // Event data a GitHub webhook delivery seeded the run with (issue title/body,
+  // PR branches, commit info). Reaches steps as `{{ inputs.* }}` via the run
+  // context (server/workflows/context.ts). Null on non-webhook runs.
+  inputs: text('inputs', { mode: 'json' }).$type<Record<string, string>>(),
   // The step sequence pinned at execution start: the runner executes THIS
   // snapshot, never the live workflow row. Editing a workflow mid-run can't
   // change a running (or queued) run, and history shows what actually ran.
@@ -236,12 +240,15 @@ export const settings = sqliteTable('settings', {
 
 export type Settings = typeof settings.$inferSelect
 
+// Issue actions a GitHub 'issues' trigger can listen for.
+export type IssueAction = 'opened' | 'labeled'
+
 // A configured trigger that starts a workflow automatically. Three sources:
 // 'schedule', a standard 5-field cron expression, fired by the in-process
-// scheduler (server/plugins/scheduler.ts); 'github', a repo webhook POSTing to
-// /api/triggers/:id/webhook (needs a public URL + the generated secret set on
-// GitHub, hence "needs setup"); and 'manual', a saved "run this workflow on
-// these projects" shortcut, fired from the Triggers screen. Every fire starts the
+// scheduler (server/plugins/scheduler.ts); 'github', fired by matching
+// deliveries on the GitHub App webhook (/api/github/webhook, configured
+// automatically at setup); and 'manual', a saved "run this workflow on these
+// projects" shortcut, fired from the Triggers screen. Every fire starts the
 // workflow against each project in `projectIds`: one run per project.
 export const triggers = sqliteTable('triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -257,10 +264,22 @@ export const triggers = sqliteTable('triggers', {
   cron: text('cron'),
   nextFireAt: integer('next_fire_at', { mode: 'timestamp' }),
 
-  // GitHub source: the generated secret used to verify the HMAC signature GitHub
-  // sends, and which event fires the trigger (e.g. 'push').
-  webhookSecret: text('webhook_secret'),
+  // GitHub source: which event fires the trigger ('push', 'pull_request' or
+  // 'issues').
   webhookEvent: text('webhook_event'),
+  // Branch filter for 'push' (the pushed branch) and 'pull_request' (the base
+  // branch the PR targets). Empty = every branch matches.
+  webhookBranches: text('webhook_branches', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  // 'issues' event only: which issue actions fire the trigger. 'labeled'
+  // additionally requires the added label to equal `issueLabel`.
+  issueActions: text('issue_actions', { mode: 'json' })
+    .$type<IssueAction[]>()
+    .notNull()
+    .default(sql`'["opened"]'`),
+  issueLabel: text('issue_label'),
 
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   lastFiredAt: integer('last_fired_at', { mode: 'timestamp' }),

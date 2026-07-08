@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../../db'
@@ -9,16 +8,18 @@ import type { NewTrigger } from '../../db/schema'
 
 // PATCH /api/triggers/:id → update a trigger. Covers the active toggle and full
 // edits (source, projects, schedule, GitHub event). Changing the source rebuilds
-// the source-specific fields: a schedule gets its cron + next-fire, a GitHub
-// trigger a webhook secret (freshly minted when it becomes GitHub, returned once
-// so the UI can show it), a manual trigger clears both.
+// the source-specific fields: a schedule gets its cron + next-fire, the others
+// clear them.
 const bodySchema = z.object({
   active: z.boolean().optional(),
   workflow: z.string().min(1).optional(),
   source: z.enum(['schedule', 'github', 'manual']).optional(),
   projectIds: z.array(z.number().int()).optional(),
   cron: z.string().min(1).optional(),
-  webhookEvent: z.string().min(1).optional(),
+  webhookEvent: z.enum(['push', 'pull_request', 'issues']).optional(),
+  webhookBranches: z.array(z.string().min(1)).optional(),
+  issueActions: z.array(z.enum(['opened', 'labeled'])).min(1).optional(),
+  issueLabel: z.string().min(1).nullish(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -45,16 +46,13 @@ export default defineEventHandler(async (event) => {
   const nextSource = data.source ?? row.source
   if (data.source !== undefined) patch.source = data.source
 
-  // Rebuild the source-specific fields for the (possibly new) source. Returned
-  // to the client only when a fresh secret is minted (becoming a GitHub trigger).
-  let newSecret: string | null = null
+  // Rebuild the source-specific fields for the (possibly new) source.
   if (nextSource === 'schedule') {
     const cron = data.cron ?? row.cron
     if (!cron || !isValidCron(cron)) {
       throw createError({ statusCode: 400, statusMessage: 'Invalid cron expression' })
     }
     patch.cron = cron
-    patch.webhookSecret = null
     patch.webhookEvent = null
     const active = patch.active ?? row.active
     patch.nextFireAt = active ? nextRun(cron) : null
@@ -62,21 +60,26 @@ export default defineEventHandler(async (event) => {
   else if (nextSource === 'github') {
     patch.cron = null
     patch.nextFireAt = null
-    patch.webhookEvent = data.webhookEvent ?? row.webhookEvent ?? 'push'
-    // Mint a secret when the trigger becomes GitHub (or lacks one somehow);
-    // keep the existing secret when it was already a GitHub trigger.
-    if (row.source !== 'github' || !row.webhookSecret) {
-      newSecret = randomBytes(24).toString('hex')
-      patch.webhookSecret = newSecret
+    const webhookEvent = data.webhookEvent ?? row.webhookEvent ?? 'push'
+    const issueActions = data.issueActions ?? row.issueActions
+    const issueLabel = data.issueLabel !== undefined ? data.issueLabel : row.issueLabel
+    if (webhookEvent === 'issues' && issueActions.includes('labeled') && !issueLabel) {
+      throw createError({ statusCode: 400, statusMessage: 'A label is required to trigger on "labeled"' })
     }
+    patch.webhookEvent = webhookEvent
+    patch.webhookBranches = data.webhookBranches ?? row.webhookBranches
+    patch.issueActions = issueActions
+    patch.issueLabel = issueLabel
   }
   else {
     patch.cron = null
     patch.nextFireAt = null
-    patch.webhookSecret = null
     patch.webhookEvent = null
+    patch.webhookBranches = []
+    patch.issueActions = ['opened']
+    patch.issueLabel = null
   }
 
   const updated = db.update(schema.triggers).set(patch).where(eq(schema.triggers.id, id)).returning().get()
-  return { ...toSummaries([updated])[0], webhookSecret: newSecret }
+  return toSummaries([updated])[0]
 })

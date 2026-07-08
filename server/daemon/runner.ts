@@ -100,7 +100,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     const injected = writeDdevConfig(dir, project.envVars)
     log(`Sandbox: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
 
-    const ctx = createContext(runId, project)
+    const ctx = createContext(runId, project, run.inputs ?? {})
     const rt: ActionRuntime = {
       runId,
       project,

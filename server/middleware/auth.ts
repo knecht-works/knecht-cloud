@@ -24,9 +24,9 @@ export default defineEventHandler(async (event) => {
   // once configured (just `{ configured: true }`).
   if (pathname.startsWith('/api/_setup/')) return
 
-  // GitHub trigger webhooks are authenticated by their HMAC signature, not a
+  // The GitHub App webhook is authenticated by its HMAC signature, not a
   // session: GitHub can't carry one. The handler verifies the signature itself.
-  if (/^\/api\/triggers\/\d+\/webhook$/.test(pathname)) return
+  if (pathname === '/api/github/webhook') return
 
   const { user } = await requireUserSession(event)
 
