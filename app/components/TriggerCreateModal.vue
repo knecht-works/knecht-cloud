@@ -2,8 +2,8 @@
 // Create OR edit a trigger. The edit form mirrors create: source, projects and
 // the source-specific settings (cron / GitHub event) are all editable. The
 // workflow is never shown (the modal only opens from within a workflow, so it's
-// implicit). A GitHub trigger shows its webhook URL + secret once, right after
-// it's created or converted to GitHub.
+// implicit). GitHub triggers need no setup here: events arrive via the GitHub
+// App webhook, configured automatically when the app was created at setup.
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
   presetWorkflow?: string
@@ -16,6 +16,9 @@ const props = defineProps<{
     projectIds: number[]
     endpoint: string | null
     webhookEvent: string | null
+    webhookBranches: string[]
+    issueActions: ('opened' | 'labeled')[]
+    issueLabel: string | null
   } | null
 }>()
 const emit = defineEmits<{ created: [] }>()
@@ -28,7 +31,7 @@ const toastError = useToastError()
 type Source = 'schedule' | 'github' | 'manual'
 const SOURCES: { key: Source, label: string, icon: string, hint: string }[] = [
   { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock', hint: 'Run on a cron schedule' },
-  { key: 'github', label: 'GitHub', icon: 'i-simple-icons-github', hint: 'Run on a repo webhook' },
+  { key: 'github', label: 'GitHub', icon: 'i-simple-icons-github', hint: 'Run on GitHub events' },
   { key: 'manual', label: 'Manual', icon: 'i-lucide-play', hint: 'Run on demand only' },
 ]
 
@@ -52,18 +55,37 @@ const source = ref<Source>('schedule')
 const workflow = ref<string>()
 const projectIds = ref<number[]>([])
 const cron = ref('0 9 * * *')
-const githubEvent = ref('push')
+const githubEvent = ref<'push' | 'pull_request' | 'issues'>('push')
+// Comma-separated branch filter (push: the pushed branch, PR: the base branch);
+// empty = every branch.
+const branchFilter = ref('')
+const issueOpened = ref(true)
+const issueLabeled = ref(false)
+const issueLabel = ref('')
 const creating = ref(false)
 
-// A created GitHub trigger we still need to show the secret for, before closing.
-const done = ref<{ endpoint: string | null, webhookSecret: string | null } | null>(null)
+function parsedBranches(): string[] {
+  return branchFilter.value.split(',').map(b => b.trim()).filter(Boolean)
+}
+
+function issueActions(): ('opened' | 'labeled')[] {
+  return [
+    ...(issueOpened.value ? ['opened'] as const : []),
+    ...(issueLabeled.value ? ['labeled'] as const : []),
+  ]
+}
 
 // Client-side gate only. The server validates the cron authoritatively.
 const cronLooksValid = computed(() => cron.value.trim().split(/\s+/).length === 5)
+const issuesLookValid = computed(() =>
+  githubEvent.value !== 'issues'
+  || (issueActions().length > 0 && (!issueLabeled.value || !!issueLabel.value.trim())),
+)
 const canCreate = computed(() =>
   !!workflow.value
   && projectIds.value.length > 0
-  && (source.value !== 'schedule' || cronLooksValid.value),
+  && (source.value !== 'schedule' || cronLooksValid.value)
+  && (source.value !== 'github' || issuesLookValid.value),
 )
 
 async function create() {
@@ -76,17 +98,16 @@ async function create() {
         projectIds: projectIds.value,
       }
       if (source.value === 'schedule') body.cron = cron.value.trim()
-      if (source.value === 'github') body.webhookEvent = githubEvent.value
-      const updated = await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body })
+      if (source.value === 'github') {
+        body.webhookEvent = githubEvent.value
+        body.webhookBranches = parsedBranches()
+        body.issueActions = issueActions()
+        body.issueLabel = issueLabeled.value ? issueLabel.value.trim() : null
+      }
+      await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body })
       emit('created')
-      // If the edit turned it into a GitHub trigger, show its secret once.
-      if (updated.webhookSecret) {
-        done.value = { endpoint: updated.endpoint ?? null, webhookSecret: updated.webhookSecret }
-      }
-      else {
-        toast.add({ title: 'Trigger updated', color: 'success' })
-        open.value = false
-      }
+      toast.add({ title: 'Trigger updated', color: 'success' })
+      open.value = false
       return
     }
 
@@ -96,31 +117,23 @@ async function create() {
       projectIds: projectIds.value,
     }
     if (source.value === 'schedule') body.cron = cron.value.trim()
-    if (source.value === 'github') body.webhookEvent = githubEvent.value
-
-    const created = await $fetch('/api/triggers', { method: 'POST', body })
-    emit('created')
-
     if (source.value === 'github') {
-      done.value = { endpoint: created.endpoint ?? null, webhookSecret: created.webhookSecret ?? null }
+      body.webhookEvent = githubEvent.value
+      body.webhookBranches = parsedBranches()
+      body.issueActions = issueActions()
+      body.issueLabel = issueLabeled.value ? issueLabel.value.trim() : null
     }
-    else {
-      toast.add({ title: 'Trigger created', color: 'success' })
-      open.value = false
-    }
+
+    await $fetch('/api/triggers', { method: 'POST', body })
+    emit('created')
+    toast.add({ title: 'Trigger created', color: 'success' })
+    open.value = false
   }
   catch (e) {
     toastError(editing.value ? 'Failed to update trigger' : 'Failed to create trigger', e)
   }
   finally {
     creating.value = false
-  }
-}
-
-function copy(text: string | null) {
-  if (text) {
-    navigator.clipboard?.writeText(text)
-    toast.add({ title: 'Copied', color: 'success' })
   }
 }
 
@@ -135,7 +148,11 @@ watch(open, (isOpen) => {
       if (props.trigger.source === 'schedule' && props.trigger.endpoint) {
         cron.value = props.trigger.endpoint
       }
-      githubEvent.value = props.trigger.webhookEvent ?? 'push'
+      githubEvent.value = (props.trigger.webhookEvent ?? 'push') as typeof githubEvent.value
+      branchFilter.value = props.trigger.webhookBranches.join(', ')
+      issueOpened.value = props.trigger.issueActions.includes('opened')
+      issueLabeled.value = props.trigger.issueActions.includes('labeled')
+      issueLabel.value = props.trigger.issueLabel ?? ''
       return
     }
     if (props.presetWorkflow) workflow.value = props.presetWorkflow
@@ -147,7 +164,10 @@ watch(open, (isOpen) => {
   projectIds.value = []
   cron.value = '0 9 * * *'
   githubEvent.value = 'push'
-  done.value = null
+  branchFilter.value = ''
+  issueOpened.value = true
+  issueLabeled.value = false
+  issueLabel.value = ''
 })
 </script>
 
@@ -161,74 +181,7 @@ watch(open, (isOpen) => {
     :ui="{ content: 'sm:max-w-lg' }"
   >
     <template #body>
-      <!-- After creating a GitHub trigger: show the webhook URL + secret once. -->
-      <div
-        v-if="done"
-        class="space-y-4"
-      >
-        <div class="flex flex-col items-center gap-3 py-1 text-center">
-          <span class="grid size-11 place-items-center rounded-full border border-(--primary-border) bg-(--lime-950) text-(--primary)">
-            <UIcon
-              name="i-lucide-check"
-              class="size-5"
-            />
-          </span>
-          <p class="text-[14px] font-medium text-(--text-highlighted)">
-            GitHub trigger created
-          </p>
-          <p class="mx-auto max-w-[380px] text-[12.5px] leading-[1.5] text-(--text-dimmed)">
-            Add a webhook to the repo with the URL and secret below
-            (<span class="k-mono">Settings → Webhooks</span>), content type
-            <span class="k-mono">application/json</span>. Knecht must be reachable at a public URL.
-          </p>
-        </div>
-
-        <div>
-          <span class="k-label">Payload URL</span>
-          <div class="mt-1.5 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
-            <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ done.endpoint || '(set KNECHT_BASE_DOMAIN)' }}</span>
-            <UButton
-              icon="i-lucide-copy"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :disabled="!done.endpoint"
-              @click="copy(done.endpoint)"
-            />
-          </div>
-        </div>
-
-        <div>
-          <span class="k-label">Secret</span>
-          <div class="mt-1.5 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
-            <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ done.webhookSecret }}</span>
-            <UButton
-              icon="i-lucide-copy"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              @click="copy(done.webhookSecret)"
-            />
-          </div>
-          <p class="k-mono mt-2 text-[11px] text-(--text-dimmed)">
-            Shown once, copy it now.
-          </p>
-        </div>
-
-        <div class="flex justify-end">
-          <UButton
-            label="Done"
-            color="primary"
-            @click="() => { open = false }"
-          />
-        </div>
-      </div>
-
-      <!-- Trigger form -->
-      <div
-        v-else
-        class="space-y-5"
-      >
+      <div class="space-y-5">
         <!-- Source -->
         <div>
           <span class="k-label">Source</span>
@@ -305,42 +258,73 @@ watch(open, (isOpen) => {
           </p>
         </div>
 
-        <!-- GitHub: event -->
-        <div v-else-if="source === 'github'">
-          <span class="k-label">GitHub event</span>
-          <USelectMenu
-            v-model="githubEvent"
-            value-key="value"
-            :items="[{ label: 'Push', value: 'push' }, { label: 'Pull request', value: 'pull_request' }]"
-            class="mt-2 w-full"
-          />
-          <!-- Already a GitHub trigger → show its webhook URL (copyable); the
-               secret was only shown once, at creation. -->
-          <div
-            v-if="editing && trigger?.source === 'github'"
-            class="mt-3"
-          >
-            <span class="k-label">Payload URL</span>
-            <div class="mt-1.5 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5">
-              <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ trigger.endpoint || '(set KNECHT_BASE_DOMAIN)' }}</span>
-              <UButton
-                icon="i-lucide-copy"
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                :disabled="!trigger.endpoint"
-                @click="copy(trigger.endpoint)"
-              />
-            </div>
-            <p class="k-mono mt-2 text-[11px] text-(--text-dimmed)">
-              The secret was shown once at creation.
+        <!-- GitHub: event + filters -->
+        <div
+          v-else-if="source === 'github'"
+          class="space-y-4"
+        >
+          <div>
+            <span class="k-label">GitHub event</span>
+            <USelectMenu
+              v-model="githubEvent"
+              value-key="value"
+              :items="[
+                { label: 'Push', value: 'push' },
+                { label: 'Pull request', value: 'pull_request' },
+                { label: 'Issues', value: 'issues' },
+              ]"
+              class="mt-2 w-full"
+            />
+          </div>
+
+          <!-- Push / PR: branch filter -->
+          <div v-if="githubEvent !== 'issues'">
+            <span class="k-label">{{ githubEvent === 'pull_request' ? 'Base branches' : 'Branches' }}</span>
+            <UInput
+              v-model="branchFilter"
+              placeholder="main, staging"
+              class="mt-2 w-full"
+              :ui="{ base: 'k-mono' }"
+            />
+            <p class="mt-2 text-[11.5px] text-(--text-dimmed)">
+              {{ githubEvent === 'pull_request'
+                ? 'Fires when a pull request targeting one of these branches is opened or pushed to. Comma-separated, empty = every branch.'
+                : 'Fires on pushes to these branches. Comma-separated, empty = every branch.' }}
             </p>
           </div>
-          <p
-            v-else
-            class="mt-2 text-[11.5px] text-(--text-dimmed)"
-          >
-            The webhook URL + secret to set on GitHub are shown after you save.
+
+          <!-- Issues: which actions, optionally gated on a label -->
+          <div v-else>
+            <span class="k-label">Fires when</span>
+            <div class="mt-2 space-y-2">
+              <UCheckbox
+                v-model="issueOpened"
+                label="An issue is opened"
+              />
+              <UCheckbox
+                v-model="issueLabeled"
+                label="A label is added"
+              />
+              <UInput
+                v-if="issueLabeled"
+                v-model="issueLabel"
+                placeholder="Label name, e.g. knecht"
+                class="w-full"
+                :ui="{ base: 'k-mono' }"
+              />
+            </div>
+            <p
+              v-if="!issuesLookValid"
+              class="mt-2 text-[11.5px] text-(--status-error)"
+            >
+              {{ issueLabeled && !issueLabel.trim()
+                ? 'Name the label that fires the trigger.'
+                : 'Pick at least one issue event.' }}
+            </p>
+          </div>
+
+          <p class="text-[11.5px] text-(--text-dimmed)">
+            Events arrive via the GitHub App webhook (see Settings); no per-repo setup needed.
           </p>
         </div>
 
