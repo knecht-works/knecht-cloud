@@ -31,10 +31,11 @@ export default defineEventHandler((event) => {
 
   // The GitHub App manifest. GitHub creates the app from this and returns all its
   // credentials to /setup/callback. Login uses its OAuth client (callback_urls);
-  // repo access uses its app id/key. `hook_attributes` is omitted deliberately:
-  // including it makes its `url` sub-field required, and we use no webhook. The
-  // logo can't be set here: GitHub's manifest has no field for it; upload it
-  // once in the app's settings after creation.
+  // repo access uses its app id/key; GitHub triggers receive their events via
+  // the app webhook (hook_attributes → /api/github/webhook, secret returned by
+  // the conversion and stored encrypted). The logo can't be set here: GitHub's
+  // manifest has no field for it; upload it once in the app's settings after
+  // creation.
   const manifest = {
     name: 'Knecht Works',
     url: origin,
@@ -49,12 +50,17 @@ export default defineEventHandler((event) => {
     // means others could *install* the app on their own repos, which is harmless, since
     // Knecht only ever uses installations it's told about, and login stays gated.
     public: true,
+    hook_attributes: {
+      url: `${origin}/api/github/webhook`,
+    },
     default_permissions: {
       contents: 'write',
       pull_requests: 'write',
       metadata: 'read',
+      // Read-only: only needed to receive `issues` webhook events.
+      issues: 'read',
     },
-    default_events: [],
+    default_events: ['push', 'pull_request', 'issues'],
   }
 
   // The page builds the POST target from `state` + the chosen owner (personal

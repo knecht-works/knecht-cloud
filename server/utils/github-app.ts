@@ -75,6 +75,28 @@ export async function getInstallationToken(owner: string, repo: string): Promise
   return data.token
 }
 
+// The app's webhook state on GitHub, for the settings checklist: whether the
+// webhook URL points somewhere, which events the app is subscribed to and
+// whether it has the Issues permission. Events/permissions can't be changed via
+// the API, so the card can only report them and point at the app settings.
+export async function getAppWebhookState() {
+  const octokit = getApp().octokit
+  // Apps created without a webhook (the manifest omitted hook_attributes) 404
+  // on the hook config until one is set: that's "not configured", not an error.
+  const [{ data: app }, hook] = await Promise.all([
+    octokit.rest.apps.getAuthenticated(),
+    octokit.rest.apps.getWebhookConfigForApp().catch((e: { status?: number }) => {
+      if (e.status === 404) return null
+      throw e
+    }),
+  ])
+  return {
+    url: hook?.data.url ?? null,
+    events: app?.events ?? [],
+    issuesPermission: (app?.permissions as Record<string, string> | undefined)?.issues != null,
+  }
+}
+
 // Every repo the app is installed on, across all installations: the source for
 // the "connect a repo" picker.
 export async function listAppRepositories() {

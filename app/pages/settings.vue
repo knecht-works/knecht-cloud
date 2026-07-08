@@ -179,6 +179,38 @@ async function save() {
   }
 }
 
+// ── GitHub webhook: the central app webhook GitHub triggers listen on ────────
+interface WebhookStatus {
+  configured: boolean
+  endpoint: string | null
+  secretConfigured: boolean
+  settingsUrl: string | null
+  github: {
+    url: string | null
+    urlConfigured: boolean
+    events: { push: boolean, pull_request: boolean, issues: boolean }
+    issuesPermission: boolean
+  } | null
+  ready: boolean
+}
+const { data: webhook } = useFetch<WebhookStatus>('/api/github/webhook-status', { lazy: true })
+
+// ok: true = verified on GitHub, false = missing, null = unknown (GitHub
+// unreachable). The three event subscriptions and the Issues permission can
+// only be changed in the app's settings on GitHub, never via the API.
+const webhookChecks = computed(() => {
+  const w = webhook.value
+  if (!w) return []
+  return [
+    { label: 'Secret stored', ok: w.secretConfigured, manual: false },
+    { label: 'Webhook URL set on the app', ok: w.github ? w.github.urlConfigured : null, manual: false },
+    { label: 'Event: push', ok: w.github ? w.github.events.push : null, manual: true },
+    { label: 'Event: pull_request', ok: w.github ? w.github.events.pull_request : null, manual: true },
+    { label: 'Event: issues', ok: w.github ? w.github.events.issues : null, manual: true },
+    { label: 'Permission: Issues (read)', ok: w.github ? w.github.issuesPermission : null, manual: true },
+  ]
+})
+
 // ── Cleanup: on-demand reconcile GC ──────────────────────────────────────────
 // Reclaims leftovers whose DB row is gone (orphaned sandboxes, worktrees,
 // archives, base clones, dump folders) plus superseded DB dumps. It also runs
@@ -475,6 +507,65 @@ async function runGc() {
             </p>
           </div>
         </div>
+      </KPanel>
+
+      <KPanel
+        title="GitHub webhook"
+        icon="i-simple-icons-github"
+        class="lg:col-span-2"
+      >
+        <template #action>
+          <span
+            class="k-mono text-[11px]"
+            :class="webhook?.ready ? 'text-(--primary)' : 'text-(--text-dimmed)'"
+          >
+            {{ webhook ? (webhook.ready ? 'Ready' : 'Needs attention') : 'Checking…' }}
+          </span>
+        </template>
+
+        <p class="mb-5 max-w-3xl text-[13px] leading-[1.6] text-(--text-muted)">
+          GitHub triggers receive push, pull request and issue events through the GitHub App's
+          own webhook. It is configured automatically when the app is created during setup, so
+          connected repos need no per-repo webhook setup. If a check fails, fix it in the
+          <a
+            v-if="webhook?.settingsUrl"
+            :href="webhook.settingsUrl"
+            target="_blank"
+            class="text-(--text-toned) underline underline-offset-2"
+          >app's settings</a><span v-else>app's settings</span>
+          (General → Webhook, Permissions &amp; events).
+        </p>
+
+        <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+          <div
+            v-for="c in webhookChecks"
+            :key="c.label"
+            class="flex items-center gap-2.5 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5"
+          >
+            <UIcon
+              :name="c.ok === true ? 'i-lucide-check-circle-2' : c.ok === false ? 'i-lucide-circle' : 'i-lucide-circle-help'"
+              class="size-4 flex-none"
+              :class="c.ok === true ? 'text-(--primary)' : 'text-(--text-dimmed)'"
+            />
+            <span class="min-w-0 flex-1 truncate text-[12.5px] text-(--text-muted)">{{ c.label }}</span>
+            <span
+              v-if="c.manual && c.ok !== true"
+              class="k-mono flex-none text-[10.5px] text-(--text-dimmed)"
+            >on GitHub</span>
+          </div>
+        </div>
+
+        <p
+          v-if="webhook?.github?.url && webhook.github.url !== webhook.endpoint"
+          class="k-mono mt-3 text-[11px] leading-[1.5] text-(--text-dimmed)"
+        >
+          The app's webhook points at {{ webhook.github.url }}. That's fine when a forwarder
+          (e.g. smee) relays to this instance; otherwise fix the URL in the app settings.
+        </p>
+
+        <p class="k-mono mt-5 max-w-2xl text-[11px] leading-[1.5] text-(--text-dimmed)">
+          {{ webhook?.endpoint ?? 'Set KNECHT_BASE_DOMAIN so the webhook URL can be built.' }}
+        </p>
       </KPanel>
 
       <KPanel
