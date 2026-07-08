@@ -3,6 +3,15 @@ definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
 
+// An unconfigured instance has nothing to sign in to (the OAuth flow needs the
+// GitHub App from setup), so land visitors on the setup page directly.
+// Client-only for the same reason as in setup.vue: the endpoint's CSRF-state
+// cookie only survives a real HTTP response.
+const { data: setupStatus } = await useFetch('/api/_setup/status', { server: false })
+watch(setupStatus, (s) => {
+  if (s && !s.configured) navigateTo('/setup', { replace: true })
+}, { immediate: true })
+
 // `forbidden` = a valid GitHub login that isn't on this instance's allowlist;
 // anything else is a generic OAuth failure.
 const error = computed(() => {
@@ -19,14 +28,10 @@ const error = computed(() => {
       <img
         src="/mascot/mascotMain.png"
         alt="Knecht"
-        class="h-28 w-auto"
+        class="h-32 w-auto"
         style="filter: var(--drop-shadow-mascot)"
       >
-      <KLogo
-        :height="30"
-        class="mt-5"
-      />
-      <p class="mt-2 text-[13.5px] text-(--text-muted)">
+      <p class="mt-4 text-[13.5px] text-(--text-muted)">
         Boot. Fix. Test. Fully automatic.
       </p>
     </div>

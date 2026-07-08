@@ -41,16 +41,9 @@ const errorMessage = computed(() => {
       <img
         src="/mascot/mascotMain.png"
         alt="Knecht"
-        class="h-28 w-auto"
+        class="h-32 w-auto"
         style="filter: var(--drop-shadow-mascot)"
       >
-      <KLogo
-        :height="30"
-        class="mt-5"
-      />
-      <p class="mt-2 text-[13.5px] text-(--text-muted)">
-        One-time setup: connect Knecht to GitHub.
-      </p>
     </div>
 
     <template v-if="status?.configured">
@@ -82,10 +75,10 @@ const errorMessage = computed(() => {
         :description="errorMessage"
       />
 
-      <p class="mt-6 text-[13px] leading-relaxed text-(--text-muted)">
-        Knecht creates its own GitHub App, this covers both login and repo access.
+      <p class="mt-6 text-[13px] leading-relaxed text-(--text-muted) text-center">
+        This is the one time setup. Knecht creates its own GitHub App, this covers both login and repo access.
         Click below, confirm on GitHub, then install the app on the repos Knecht
-        should manage. No tokens or env variables to copy.
+        should manage.
       </p>
 
       <!-- Rendered from the first paint (not gated behind the client-only fetch)
