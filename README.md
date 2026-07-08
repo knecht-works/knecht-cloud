@@ -52,7 +52,7 @@ Knecht is self hosted on your own server. You own your data.
 
 ### Requirements
 
-- A Linux server used only for Knecht: Ubuntu 24.04, amd64, 4 GB RAM or more. A cheap KVM-based VPS is fine (e.g. a Hetzner CX32: 4 vCPU, 8 GB RAM, 80 GB disk); container-based virtualization (OpenVZ/LXC) won't work because Sysbox needs a real kernel. Keep the host free of other Docker setups, since the installer pins Docker to a Sysbox-compatible version and rewrites `/etc/docker/daemon.json`.
+- A Linux server used only for Knecht: Ubuntu 24.04, amd64, at least 4 GB RAM and 40 GB disk (8 GB RAM and 80 GB disk are comfortable). A cheap KVM-based VPS is fine (e.g. a Hetzner CX23 or CX33); container-based virtualization (OpenVZ/LXC) won't work because Sysbox needs a real kernel. Keep the host free of other Docker setups, since the installer pins Docker to a Sysbox-compatible version and rewrites `/etc/docker/daemon.json`.
 - A domain (or subdomain) for the instance. You will point two DNS records at the server.
 
 ### Install
