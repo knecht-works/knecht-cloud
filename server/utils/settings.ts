@@ -31,18 +31,21 @@ export function publicSettings(settings: Settings) {
   return {
     ...rest,
     aiKeyConfigured: !!aiKeyEnc,
-    aiKeyPreview: aiKeyEnc ? keyPreview(aiKeyEnc) : undefined,
+    aiKeyPreview: aiKeyEnc ? encKeyPreview(aiKeyEnc) : undefined,
   }
 }
 
 // First 8 + last 4 characters stay visible so the operator can tell WHICH key
 // is stored; the middle is masked (star count capped: the field shouldn't
 // grow with the key, and the hidden length carries no information anyway).
-function keyPreview(enc: string): string | undefined {
+export function keyPreview(key: string): string {
+  if (key.length <= 12) return '*'.repeat(key.length)
+  return `${key.slice(0, 8)}${'*'.repeat(Math.min(key.length - 12, 16))}${key.slice(-4)}`
+}
+
+function encKeyPreview(enc: string): string | undefined {
   try {
-    const key = decrypt(enc)
-    if (key.length <= 12) return '*'.repeat(key.length)
-    return `${key.slice(0, 8)}${'*'.repeat(Math.min(key.length - 12, 16))}${key.slice(-4)}`
+    return keyPreview(decrypt(enc))
   }
   catch {
     // Undecryptable (rotated NUXT_SESSION_PASSWORD): no preview, key needs re-entry.

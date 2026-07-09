@@ -211,6 +211,64 @@ const webhookChecks = computed(() => {
   ]
 })
 
+// ── Jira: the connection powering 'jira' triggers ─────────────────────────────
+interface JiraConnection {
+  configured: boolean
+  siteUrl: string | null
+  email: string | null
+  accountName: string | null
+  /** Masked recognition preview of the stored token (first 8 + last 4 visible). */
+  apiTokenPreview: string | null
+}
+const { data: jira } = useFetch<JiraConnection>('/api/jira/connection', { lazy: true })
+
+// The token is write-only: the form is for connecting/replacing, the connected
+// state shows who the token authenticates as. Saving validates against Jira
+// before anything is stored.
+const jiraSiteUrl = ref('')
+const jiraEmail = ref('')
+const jiraToken = ref('')
+const jiraConnecting = ref(false)
+const jiraDisconnecting = ref(false)
+watch(jira, (j) => {
+  if (!j) return
+  jiraSiteUrl.value = j.siteUrl ?? ''
+  jiraEmail.value = j.email ?? ''
+}, { immediate: true })
+
+async function connectJira() {
+  if (!jiraSiteUrl.value.trim() || !jiraEmail.value.trim() || !jiraToken.value.trim()) return
+  jiraConnecting.value = true
+  try {
+    jira.value = await $fetch<JiraConnection>('/api/jira/connection', {
+      method: 'POST',
+      body: { siteUrl: jiraSiteUrl.value.trim(), email: jiraEmail.value.trim(), apiToken: jiraToken.value.trim() },
+    })
+    jiraToken.value = ''
+    toast.add({ title: `Connected as ${jira.value.accountName}`, color: 'success' })
+  }
+  catch (e) {
+    toastError('Could not connect to Jira', e)
+  }
+  finally {
+    jiraConnecting.value = false
+  }
+}
+
+async function disconnectJira() {
+  jiraDisconnecting.value = true
+  try {
+    jira.value = await $fetch<JiraConnection>('/api/jira/connection', { method: 'DELETE' })
+    toast.add({ title: 'Jira disconnected', color: 'success' })
+  }
+  catch (e) {
+    toastError('Could not disconnect', e)
+  }
+  finally {
+    jiraDisconnecting.value = false
+  }
+}
+
 // ── Cleanup: on-demand reconcile GC ──────────────────────────────────────────
 // Reclaims leftovers whose DB row is gone (orphaned sandboxes, worktrees,
 // archives, base clones, dump folders) plus superseded DB dumps. It also runs
@@ -566,6 +624,89 @@ async function runGc() {
         <p class="k-mono mt-5 max-w-2xl text-2xs leading-normal text-dimmed">
           {{ webhook?.endpoint ?? 'Set KNECHT_BASE_DOMAIN so the webhook URL can be built.' }}
         </p>
+      </KPanel>
+
+      <KPanel
+        title="Jira"
+        icon="i-simple-icons-jira"
+        class="lg:col-span-2"
+      >
+        <template #action>
+          <span
+            class="k-mono text-2xs"
+            :class="jira?.configured ? 'text-primary' : 'text-dimmed'"
+          >
+            {{ jira ? (jira.configured ? `Connected as ${jira.accountName}` : 'Not connected') : 'Checking…' }}
+          </span>
+        </template>
+
+        <p class="mb-5 max-w-3xl text-2sm leading-relaxed text-muted">
+          Jira triggers watch tickets (a label being added, a status being reached) and fire
+          workflows with the ticket as <span class="k-mono text-xs text-toned">{{ '\{\{ inputs.* \}\}' }}</span>;
+          finished runs comment the pull request link back on the ticket. Connect once with an
+          <a
+            href="https://id.atlassian.com/manage-profile/security/api-tokens"
+            target="_blank"
+            class="text-toned underline underline-offset-2"
+          >API token</a>; a dedicated service account (e.g. "Knecht") keeps comments under its
+          own name and scopes what Knecht can see.
+        </p>
+
+        <form
+          class="grid grid-cols-1 items-end gap-5 sm:grid-cols-[1fr_1fr_1fr_auto]"
+          @submit.prevent="connectJira"
+        >
+          <div>
+            <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Site URL</span>
+            <UInput
+              v-model="jiraSiteUrl"
+              placeholder="https://acme.atlassian.net"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              class="mt-2 w-full"
+              :ui="{ base: 'k-mono' }"
+            />
+          </div>
+          <div>
+            <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Email</span>
+            <UInput
+              v-model="jiraEmail"
+              type="email"
+              placeholder="knecht@acme.com"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              class="mt-2 w-full"
+            />
+          </div>
+          <div>
+            <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">API token</span>
+            <UInput
+              v-model="jiraToken"
+              type="password"
+              :placeholder="jira?.apiTokenPreview ?? (jira?.configured ? 'Configured, enter a token to replace it' : 'ATATT…')"
+              class="mt-2 w-full"
+            />
+          </div>
+          <div class="flex gap-2">
+            <UButton
+              type="submit"
+              color="primary"
+              :label="jira?.configured ? 'Reconnect' : 'Connect'"
+              :loading="jiraConnecting"
+              :disabled="!jiraSiteUrl.trim() || !jiraEmail.trim() || !jiraToken.trim()"
+            />
+            <UButton
+              v-if="jira?.configured"
+              color="neutral"
+              variant="outline"
+              label="Disconnect"
+              :loading="jiraDisconnecting"
+              @click="disconnectJira"
+            />
+          </div>
+        </form>
       </KPanel>
 
       <KPanel
