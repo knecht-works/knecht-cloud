@@ -8,6 +8,7 @@ import { actionFor, type ActionError, type ActionRuntime } from '../workflows/ac
 import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
 import { runSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
+import { addJiraComment } from '../utils/jira'
 import { prepareRunCheckout } from './git'
 import { readDdevHosts, writeDdevConfig } from './ddev'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
@@ -172,6 +173,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     await execSteps(runId, steps, ctx, rt, rowLog, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
     finish(runId, 'success')
+    await handBackToJira(runId, run.trigger, run.inputs, log)
   }
   catch (e) {
     rowLog.current = null
@@ -437,4 +439,22 @@ function finish(runId: number, status: 'success' | 'failed' | 'cancelled'): void
     .set({ status, finishedAt: new Date() })
     .where(eq(schema.runs.id, runId))
     .run()
+}
+
+// A successful run fired from a Jira ticket hands its result back: the PR a
+// `create-pr` step opened (prUrl is written onto the row mid-run) is commented
+// on the ticket. Best-effort: the run is already finished, so a failed comment
+// only logs.
+async function handBackToJira(runId: number, trigger: string | null, inputs: Record<string, string> | null, log: (text: string) => void): Promise<void> {
+  const ticket = inputs?.identifier
+  if (trigger !== 'jira' || !ticket) return
+  const prUrl = db.select({ prUrl: schema.runs.prUrl }).from(schema.runs).where(eq(schema.runs.id, runId)).get()?.prUrl
+  if (!prUrl) return
+  try {
+    await addJiraComment(ticket, 'Knecht opened a pull request for this ticket:', prUrl)
+    log(`Commented the PR link on ${ticket}\n`)
+  }
+  catch (e) {
+    log(`Could not comment the PR link on ${ticket}: ${(e as Error).message}\n`)
+  }
 }
