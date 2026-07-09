@@ -4,11 +4,12 @@ import type { IssueAction, Trigger } from '../db/schema'
 import { isWorkflowEnabled } from '../workflows'
 import { dispatchRuns } from '../daemon/dispatcher'
 import { isGithubAppConfigured } from './github-credentials'
+import { getTriggerSource } from './trigger-sources'
 
 // Display + firing logic for triggers, shared by the API and the scheduler.
 
-export type TriggerSource = 'schedule' | 'github' | 'manual'
-export type TriggerKind = 'Cron' | 'Webhook' | 'Manual'
+export type TriggerSource = 'schedule' | 'github' | 'manual' | 'jira'
+export type TriggerKind = 'Cron' | 'Webhook' | 'Manual' | 'Jira'
 
 // The shape the Triggers screen renders against (TriggerCard.vue). Project ids
 // are resolved to short repo names; `endpoint` is the cron expression (schedule)
@@ -26,6 +27,7 @@ export interface TriggerSummary {
   webhookBranches: string[]
   issueActions: IssueAction[]
   issueLabel: string | null
+  config: Record<string, unknown>
   active: boolean
   lastFiredAt: number | null
   firedCount: number
@@ -35,6 +37,7 @@ const KIND: Record<TriggerSource, TriggerKind> = {
   schedule: 'Cron',
   github: 'Webhook',
   manual: 'Manual',
+  jira: 'Jira',
 }
 
 // Compact forward relative time ("in 3h", "in 2d") for the next scheduled run.
@@ -53,6 +56,8 @@ function eventLabel(t: Trigger): string {
     return `Next run ${relFuture(t.nextFireAt)}`
   }
   if (t.source === 'github') return githubEventLabel(t)
+  const def = getTriggerSource(t.source)
+  if (def) return def.eventLabel(t.config)
   return 'Run on demand'
 }
 
@@ -102,6 +107,7 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
     webhookBranches: t.webhookBranches,
     issueActions: t.issueActions,
     issueLabel: t.issueLabel,
+    config: t.config,
     active: t.active,
     lastFiredAt: t.lastFiredAt ? Math.floor(t.lastFiredAt.getTime() / 1000) : null,
     firedCount: t.firedCount,

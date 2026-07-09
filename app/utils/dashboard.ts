@@ -51,6 +51,7 @@ const TRIGGER_SOURCE_META: Record<string, TriggerSourceMeta> = {
   manual: { icon: 'i-lucide-mouse-pointer-click', label: 'Manual', color: 'var(--text-primary)' },
   schedule: { icon: 'i-lucide-clock', label: 'Schedule', color: 'var(--accent-orange)' },
   github: { icon: 'i-simple-icons-github', label: 'GitHub', color: 'var(--text-toned)' },
+  jira: { icon: 'i-simple-icons-jira', label: 'Jira', color: '#579dff' },
 }
 
 // Unknown sources (added later) render generically instead of breaking.
