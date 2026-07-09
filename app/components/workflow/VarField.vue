@@ -157,7 +157,7 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
   >
     <span class="k-label">{{ field.label }}<span
       v-if="field.required"
-      class="text-(--text-dimmed)"
+      class="text-dimmed"
     > *</span></span>
     <UTextarea
       v-if="field.input === 'textarea'"
@@ -168,7 +168,7 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       :disabled="disabled"
       :placeholder="field.placeholder"
       class="mt-1.5 w-full"
-      :ui="{ base: 'k-mono text-[12.5px] resize-none' }"
+      :ui="{ base: 'k-mono text-xs resize-none' }"
       @input="field.vars && refreshToken()"
       @click="field.vars && refreshToken()"
       @keydown="onKeydown"
@@ -193,7 +193,7 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       <div
         v-if="open && matches.length"
         ref="list"
-        class="fixed z-50 max-h-60 overflow-y-auto rounded-(--radius-md) border border-(--border-default) bg-(--surface-elevated)"
+        class="fixed z-50 max-h-60 overflow-y-auto rounded-md border border-default bg-(--surface-elevated)"
         :style="{ boxShadow: 'var(--shadow-panel)', top: `${pos.top}px`, left: `${pos.left}px`, width: `${pos.width}px` }"
       >
         <button
@@ -205,8 +205,8 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
           @mousedown.prevent="pick(v.path)"
           @mousemove="active = i"
         >
-          <span class="k-mono text-[12px]"><span class="text-(--text-dimmed)">{{ varPathParts(v.path)[0] }}</span><span :style="{ color: v.color }">{{ varPathParts(v.path)[1] }}</span></span>
-          <span class="truncate text-[11px] text-(--text-dimmed)">{{ v.hint }}</span>
+          <span class="k-mono text-xs"><span class="text-dimmed">{{ varPathParts(v.path)[0] }}</span><span :style="{ color: v.color }">{{ varPathParts(v.path)[1] }}</span></span>
+          <span class="truncate text-2xs text-dimmed">{{ v.hint }}</span>
         </button>
       </div>
     </Teleport>

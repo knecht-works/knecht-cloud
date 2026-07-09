@@ -146,10 +146,10 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
 
 <template>
   <div v-if="run">
-    <div class="mb-3.5 flex items-center gap-2 text-(--text-dimmed)">
+    <div class="mb-3.5 flex items-center gap-2 text-dimmed">
       <NuxtLink
         to="/projects"
-        class="k-mono text-xs transition-colors hover:text-(--text-muted)"
+        class="k-mono text-xs transition-colors hover:text-muted"
       >
         Projects
       </NuxtLink>
@@ -159,7 +159,7 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
       />
       <NuxtLink
         :to="`/projects/${run.projectId}`"
-        class="k-mono truncate text-xs transition-colors hover:text-(--text-muted)"
+        class="k-mono truncate text-xs transition-colors hover:text-muted"
       >
         {{ run.project }}
       </NuxtLink>
@@ -167,7 +167,7 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
         name="i-lucide-chevron-right"
         class="size-3"
       />
-      <span class="k-mono text-xs text-(--text-muted)">Run #{{ run.id }}</span>
+      <span class="k-mono text-xs text-muted">Run #{{ run.id }}</span>
     </div>
 
     <KTopBar :title="`Run #${run.id}`">
@@ -212,18 +212,18 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
         :key="m.icon"
         :href="m.href"
         :target="m.href?.startsWith('http') ? '_blank' : undefined"
-        class="flex items-center gap-1.5 text-(--text-dimmed)"
-        :class="m.href ? 'transition-colors hover:text-(--text-muted)' : ''"
+        class="flex items-center gap-1.5 text-dimmed"
+        :class="m.href ? 'transition-colors hover:text-muted' : ''"
       >
         <UIcon
           :name="m.icon"
-          class="size-[13px]"
+          class="size-3.5"
         />
-        <span class="k-mono text-xs text-(--text-muted)">{{ m.text }}</span>
+        <span class="k-mono text-xs text-muted">{{ m.text }}</span>
       </component>
     </div>
 
-    <div class="flex flex-col gap-[18px]">
+    <div class="flex flex-col gap-4.5">
       <template v-if="run.envState !== 'down'">
         <KPreviewBrowser
           v-if="run.envState === 'up'"
@@ -238,14 +238,14 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
         >
           <p
             v-if="run.envState === 'archived'"
-            class="max-w-[520px] text-[13px] text-(--text-muted)"
+            class="max-w-130 text-2sm text-muted"
           >
             This environment was archived. Its exact code state and database are kept,
             and restoring rebuilds it in a few minutes.
           </p>
           <p
             v-else
-            class="max-w-[520px] text-[13px] text-(--text-muted)"
+            class="max-w-130 text-2sm text-muted"
           >
             The environment was stopped after being idle. Reboot it to preview again;
             the imported database and built files are kept.
@@ -264,7 +264,7 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
         v-else-if="!isLive"
         class="k-card flex flex-wrap items-center justify-between gap-4 p-5"
       >
-        <p class="max-w-[520px] text-[13px] text-(--text-muted)">
+        <p class="max-w-130 text-2sm text-muted">
           This run's environment and its archive are gone, so there is nothing left to
           restore. Run the workflow again to get a fresh environment.
         </p>
@@ -283,11 +283,11 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
         icon="i-lucide-list-checks"
         :pad="0"
       >
-        <ul class="divide-y divide-(--border-muted)">
+        <ul class="divide-y divide-muted">
           <li
             v-for="s in timeline"
             :key="s.id"
-            class="flex items-center gap-3 px-[18px] py-3"
+            class="flex items-center gap-3 px-4.5 py-3"
             :style="s.depth ? { paddingLeft: `${18 + s.depth * 26}px` } : undefined"
           >
             <KStepIcon
@@ -298,15 +298,15 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
             />
             <div class="min-w-0 flex-1">
               <div class="flex items-baseline gap-2">
-                <span class="truncate text-[13px] text-(--text-highlighted)">{{ s.label }}</span>
-                <span class="k-mono text-[10px] text-(--text-dimmed)">{{ s.stepId }}</span>
+                <span class="truncate text-2sm text-highlighted">{{ s.label }}</span>
+                <span class="k-mono text-3xs text-dimmed">{{ s.stepId }}</span>
                 <span
                   v-if="s.iteration !== null"
-                  class="k-mono text-[10px] text-(--text-dimmed)"
+                  class="k-mono text-3xs text-dimmed"
                 >#{{ s.iteration + 1 }}</span>
                 <span
                   v-if="s.attempt > 1"
-                  class="k-mono text-[10px] text-(--accent-orange)"
+                  class="k-mono text-3xs text-accent-orange"
                 >{{ s.attempt }} attempts</span>
               </div>
               <p
@@ -317,7 +317,7 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
                 {{ s.error }}
               </p>
             </div>
-            <span class="k-mono text-[11px] text-(--text-dimmed)">{{ runDuration(s.startedAt, s.finishedAt) }}</span>
+            <span class="k-mono text-2xs text-dimmed">{{ runDuration(s.startedAt, s.finishedAt) }}</span>
             <KStatusDot
               :color="s.statusMeta.dot"
               :pulse="s.statusMeta.pulse"
@@ -339,12 +339,12 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
               :pulse="statusMeta.pulse"
               :size="6"
             />
-            <span class="k-mono text-[11px] text-(--text-muted)">{{ run.workflow }} · {{ run.project }}</span>
+            <span class="k-mono text-2xs text-muted">{{ run.workflow }} · {{ run.project }}</span>
           </span>
         </template>
         <KLogView
           :log="run.log"
-          class="px-[18px] py-4 text-xs leading-[1.85]"
+          class="px-4.5 py-4 text-xs leading-loose"
         />
       </KPanel>
     </div>

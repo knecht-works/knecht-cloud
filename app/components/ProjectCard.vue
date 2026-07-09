@@ -39,7 +39,7 @@ const statusText = computed(() =>
     :to="`/projects/${id}`"
     class="k-card k-lift flex h-full flex-col overflow-hidden"
   >
-    <div class="px-5 pb-4 pt-[18px]">
+    <div class="px-5 pb-4 pt-4.5">
       <div class="flex items-start gap-2.5">
         <div class="flex min-w-0 items-center gap-3">
           <KStepIcon
@@ -49,16 +49,16 @@ const statusText = computed(() =>
             :radius="8"
           />
           <div class="min-w-0">
-            <div class="k-mono flex items-center gap-1.5 truncate text-[12.5px] leading-[1.25] text-(--text-default)">
+            <div class="k-mono flex items-center gap-1.5 truncate text-xs leading-tight text-default">
               <UIcon
                 v-if="private"
                 name="i-lucide-lock"
-                class="size-3 flex-none text-(--text-dimmed)"
+                class="size-3 flex-none text-dimmed"
               />
-              <span class="truncate"><span class="text-(--text-dimmed)">{{ parts.org }}/</span>{{ parts.name }}</span>
+              <span class="truncate"><span class="text-dimmed">{{ parts.org }}/</span>{{ parts.name }}</span>
             </div>
             <div
-              class="k-mono mt-1 text-[11px] tracking-[0.03em]"
+              class="k-mono mt-1 text-2xs tracking-wide"
               :style="{ color: fw.color }"
             >
               {{ fwLabel }}
@@ -75,42 +75,42 @@ const statusText = computed(() =>
         :size="6"
       />
       <span
-        class="k-mono text-[11.5px] tracking-[0.04em]"
+        class="k-mono text-2xs tracking-wider"
         :style="{ color: status.text }"
       >{{ statusText }}</span>
     </div>
 
-    <div class="mt-auto flex border-t border-(--border-muted)">
-      <div class="flex min-w-0 flex-1 items-center gap-1.5 px-3 py-3 text-(--text-dimmed)">
+    <div class="mt-auto flex border-t border-muted">
+      <div class="flex min-w-0 flex-1 items-center gap-1.5 px-3 py-3 text-dimmed">
         <UIcon
           name="i-lucide-git-branch"
-          class="size-[13px] flex-none"
+          class="size-3.5 flex-none"
         />
-        <span class="k-mono truncate text-[11.5px] text-(--text-muted)">{{ defaultBranch }}</span>
+        <span class="k-mono truncate text-2xs text-muted">{{ defaultBranch }}</span>
       </div>
-      <div class="flex flex-1 items-center gap-1.5 border-l border-(--border-muted) px-3 py-3 text-(--text-dimmed)">
+      <div class="flex flex-1 items-center gap-1.5 border-l border-muted px-3 py-3 text-dimmed">
         <UIcon
           name="i-lucide-play"
-          class="size-[13px] flex-none"
+          class="size-3.5 flex-none"
         />
-        <span class="k-mono truncate text-[11.5px] text-(--text-muted)">{{ runsCount }} runs</span>
+        <span class="k-mono truncate text-2xs text-muted">{{ runsCount }} runs</span>
       </div>
-      <div class="flex flex-1 items-center gap-1.5 border-l border-(--border-muted) px-3 py-3 text-(--text-dimmed)">
+      <div class="flex flex-1 items-center gap-1.5 border-l border-muted px-3 py-3 text-dimmed">
         <UIcon
           name="i-lucide-clock"
-          class="size-[13px] flex-none"
+          class="size-3.5 flex-none"
         />
-        <span class="k-mono truncate text-[11.5px] text-(--text-muted)">{{ latest ? timeAgo(latest.createdAt) : '–' }}</span>
+        <span class="k-mono truncate text-2xs text-muted">{{ latest ? timeAgo(latest.createdAt) : '–' }}</span>
       </div>
       <div
         v-if="latest?.envState === 'up'"
-        class="flex items-center gap-1.5 border-l border-(--border-muted) px-3.5 py-3 text-(--primary)"
+        class="flex items-center gap-1.5 border-l border-muted px-3.5 py-3 text-primary"
       >
         <UIcon
           name="i-lucide-globe"
-          class="size-[13px]"
+          class="size-3.5"
         />
-        <span class="k-mono text-[11.5px]">Live</span>
+        <span class="k-mono text-2xs">Live</span>
       </div>
     </div>
   </NuxtLink>

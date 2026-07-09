@@ -59,13 +59,13 @@ function addTop() {
         placeholder="Search steps…"
         :disabled="!editable"
         class="w-full"
-        :ui="{ base: 'text-[12.5px]' }"
+        :ui="{ base: 'text-xs' }"
         @keydown.enter="addTop"
       />
 
       <p
         v-if="!groups.length"
-        class="k-mono px-1 text-[11.5px] text-(--text-dimmed)"
+        class="k-mono px-1 text-2xs text-dimmed"
       >
         No step matches "{{ query }}".
       </p>
@@ -79,7 +79,7 @@ function addTop() {
             :color="KIND_DOT[g.items[0]!.kind] ?? 'neutral'"
             :size="5"
           />
-          <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">{{ g.label }}</span>
+          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">{{ g.label }}</span>
         </div>
         <div class="flex flex-col gap-1.5">
           <button
@@ -88,7 +88,7 @@ function addTop() {
             type="button"
             :disabled="!editable"
             :draggable="editable"
-            class="flex cursor-grab items-center gap-2.5 rounded-(--radius-md) border border-(--border-default) bg-(--surface-base) px-3 py-2.5 text-left transition-colors hover:bg-(--surface-glass) active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex cursor-grab items-center gap-2.5 rounded-md border border-default bg-(--surface-base) px-3 py-2.5 text-left transition-colors hover:bg-(--surface-glass) active:cursor-grabbing disabled:cursor-not-allowed disabled:opacity-50"
             @click="add(d.type)"
             @dragstart="onDragStart(d.type, $event)"
             @dragend="emit('dragend')"
@@ -100,12 +100,12 @@ function addTop() {
               :radius="6"
             />
             <span class="min-w-0 flex-1">
-              <span class="block text-[12.5px] text-(--text-toned)">{{ d.label }}</span>
-              <span class="block truncate text-[11px] text-(--text-dimmed)">{{ d.hint }}</span>
+              <span class="block text-xs text-toned">{{ d.label }}</span>
+              <span class="block truncate text-2xs text-dimmed">{{ d.hint }}</span>
             </span>
             <UIcon
               name="i-lucide-plus"
-              class="size-[14px] flex-none text-(--text-dimmed)"
+              class="size-3.5 flex-none text-dimmed"
             />
           </button>
         </div>

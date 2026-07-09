@@ -39,7 +39,7 @@ const rateColor = computed(() => {
         :radius="9"
       />
       <div class="min-w-0">
-        <div class="truncate text-[14.5px] font-medium text-(--text-highlighted)">
+        <div class="truncate text-sm font-medium text-highlighted">
           {{ name }}
         </div>
         <div class="mt-1 flex items-center gap-1.5">
@@ -49,7 +49,7 @@ const rateColor = computed(() => {
             :size="5"
           />
           <span
-            class="k-mono truncate text-[11px]"
+            class="k-mono truncate text-2xs"
             :style="{ color: status.text }"
           >{{ statusText }}</span>
         </div>
@@ -57,16 +57,16 @@ const rateColor = computed(() => {
     </div>
 
     <!-- trigger -->
-    <div class="hidden w-[120px] flex-none items-center gap-2 lg:flex">
+    <div class="hidden w-30 flex-none items-center gap-2 lg:flex">
       <UIcon
         name="i-lucide-play"
-        class="size-[15px] flex-none text-(--text-dimmed)"
+        class="size-4 flex-none text-dimmed"
       />
       <div class="min-w-0">
         <div class="k-label">
           Trigger
         </div>
-        <span class="text-[12.5px] text-(--text-toned)">{{ trigger ?? 'Manual' }}</span>
+        <span class="text-xs text-toned">{{ trigger ?? 'Manual' }}</span>
       </div>
     </div>
 
@@ -77,7 +77,7 @@ const rateColor = computed(() => {
         :key="i"
       >
         <span
-          class="grid size-7 flex-none place-items-center rounded-[7px] border border-(--border-default) bg-(--surface-accented)"
+          class="grid size-7 flex-none place-items-center rounded-lg border border-default bg-(--surface-accented)"
           :style="{ color: STEP_KIND_COLOR[s.kind] }"
         >
           <UIcon
@@ -94,30 +94,30 @@ const rateColor = computed(() => {
 
     <!-- metrics -->
     <div class="ml-auto flex flex-none items-center gap-5 lg:ml-6">
-      <div class="w-[58px] flex-none text-right">
+      <div class="w-14.5 flex-none text-right">
         <div
-          class="k-mono text-[17px] font-bold"
+          class="k-mono text-lg font-bold"
           :style="{ color: rateColor }"
         >
           {{ rate === null ? '–' : `${rate}%` }}
         </div>
-        <div class="k-label !text-[10px]">
+        <div class="k-label !text-3xs">
           Success
         </div>
       </div>
-      <div class="hidden w-[58px] flex-none text-right sm:block">
-        <div class="k-mono text-[15px] text-(--text-toned)">
+      <div class="hidden w-14.5 flex-none text-right sm:block">
+        <div class="k-mono text-base text-toned">
           {{ avg ?? '–' }}
         </div>
-        <div class="k-label !text-[10px]">
+        <div class="k-label !text-3xs">
           Avg run
         </div>
       </div>
-      <div class="hidden w-[150px] flex-none flex-wrap justify-end gap-1.5 xl:flex">
+      <div class="hidden w-37.5 flex-none flex-wrap justify-end gap-1.5 xl:flex">
         <span
           v-for="p in projects"
           :key="p"
-          class="k-mono whitespace-nowrap rounded-[5px] border border-(--border-muted) bg-(--surface-base) px-2 py-1 text-[10.5px] text-(--text-muted)"
+          class="k-mono whitespace-nowrap rounded-md border border-muted bg-(--surface-base) px-2 py-1 text-3xs text-muted"
         >{{ p }}</span>
       </div>
     </div>
@@ -133,7 +133,7 @@ const rateColor = computed(() => {
 
     <UIcon
       name="i-lucide-chevron-right"
-      class="size-4 flex-none text-(--text-dimmed)"
+      class="size-4 flex-none text-dimmed"
     />
   </NuxtLink>
 </template>

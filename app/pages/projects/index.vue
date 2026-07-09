@@ -60,7 +60,7 @@ const open = ref(false)
       </template>
     </KTopBar>
 
-    <div class="mb-[22px] grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div class="mb-5.5 grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KMetric
         :value="metrics.projects"
         label="Projects"
@@ -90,7 +90,7 @@ const open = ref(false)
       />
       <span
         v-else
-        class="k-mono text-[11.5px] text-(--text-dimmed)"
+        class="k-mono text-2xs text-dimmed"
       >{{ filtered.length }} of {{ projects?.length ?? 0 }}</span>
     </div>
 
@@ -110,20 +110,20 @@ const open = ref(false)
 
       <button
         type="button"
-        class="flex h-full min-h-[180px] flex-col items-center justify-center gap-3.5 rounded-(--radius-lg) border border-dashed border-(--border-accented) p-6 text-center transition-colors hover:bg-(--surface-glass) cursor-pointer"
+        class="flex h-full min-h-45 flex-col items-center justify-center gap-3.5 rounded-lg border border-dashed border-accented p-6 text-center transition-colors hover:bg-(--surface-glass) cursor-pointer"
         @click="open = true"
       >
-        <span class="grid size-12 place-items-center rounded-xl border border-(--border-accented) bg-(--surface-muted) text-(--text-primary)">
+        <span class="grid size-12 place-items-center rounded-xl border border-accented bg-(--surface-muted) text-primary">
           <UIcon
             name="i-lucide-plus"
             class="size-6"
           />
         </span>
         <div>
-          <div class="text-sm font-medium text-(--text-toned)">
+          <div class="text-sm font-medium text-toned">
             Connect a new project
           </div>
-          <div class="mx-auto mt-1 max-w-[200px] text-[12.5px] text-(--text-dimmed)">
+          <div class="mx-auto mt-1 max-w-50 text-xs text-dimmed">
             A GitHub repo with DDEV
           </div>
         </div>

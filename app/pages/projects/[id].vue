@@ -176,10 +176,10 @@ usePollWhile(() => isLive.value, refreshRuns)
 
 <template>
   <div v-if="project">
-    <div class="mb-3.5 flex items-center gap-2 text-(--text-dimmed)">
+    <div class="mb-3.5 flex items-center gap-2 text-dimmed">
       <NuxtLink
         to="/projects"
-        class="k-mono text-xs transition-colors hover:text-(--text-muted)"
+        class="k-mono text-xs transition-colors hover:text-muted"
       >
         Projects
       </NuxtLink>
@@ -187,10 +187,10 @@ usePollWhile(() => isLive.value, refreshRuns)
         name="i-lucide-chevron-right"
         class="size-3"
       />
-      <span class="k-mono truncate text-xs text-(--text-muted)">{{ project.fullName }}</span>
+      <span class="k-mono truncate text-xs text-muted">{{ project.fullName }}</span>
     </div>
 
-    <div class="mb-[22px] flex flex-wrap items-start justify-between gap-4">
+    <div class="mb-5.5 flex flex-wrap items-start justify-between gap-4">
       <div class="flex gap-3.5">
         <KStepIcon
           icon="i-lucide-box"
@@ -199,20 +199,20 @@ usePollWhile(() => isLive.value, refreshRuns)
           :radius="10"
         />
         <div>
-          <h1 class="k-mono text-2xl font-semibold tracking-[-0.02em] text-(--text-highlighted)">
+          <h1 class="k-mono text-2xl font-semibold tracking-tight text-highlighted">
             {{ repoName }}
           </h1>
           <div class="mt-2 flex flex-wrap items-center gap-3.5">
             <span
-              class="k-mono inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] tracking-[0.04em]"
+              class="k-mono inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs tracking-wider"
               :style="{ color: fw.color, borderColor: 'color-mix(in oklab, currentColor 35%, transparent)' }"
             >{{ fwLabel }}</span>
-            <span class="flex items-center gap-1.5 text-(--text-dimmed)">
+            <span class="flex items-center gap-1.5 text-dimmed">
               <UIcon
                 name="i-simple-icons-github"
-                class="size-[13px]"
+                class="size-3.5"
               />
-              <span class="k-mono text-xs text-(--text-muted)">{{ project.fullName.split('/')[0] }}</span>
+              <span class="k-mono text-xs text-muted">{{ project.fullName.split('/')[0] }}</span>
             </span>
             <UBadge
               :color="project.private ? 'neutral' : 'primary'"
@@ -269,26 +269,26 @@ usePollWhile(() => isLive.value, refreshRuns)
                   v-for="w in workflowList"
                   :key="w.name"
                   type="button"
-                  class="flex items-start gap-2.5 rounded-(--radius-md) px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass)"
+                  class="flex items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass)"
                   :disabled="starting"
                   @click="startWorkflow(w.name)"
                 >
                   <UIcon
                     name="i-lucide-workflow"
-                    class="mt-0.5 size-4 flex-none text-(--text-primary)"
+                    class="mt-0.5 size-4 flex-none text-primary"
                   />
                   <span class="min-w-0">
-                    <span class="k-mono block truncate text-[12.5px] text-(--text-default)">{{ w.name }}</span>
+                    <span class="k-mono block truncate text-xs text-default">{{ w.name }}</span>
                     <span
                       v-if="w.description"
-                      class="block truncate text-[11px] text-(--text-dimmed)"
+                      class="block truncate text-2xs text-dimmed"
                     >{{ w.description }}</span>
                   </span>
                 </button>
               </div>
               <p
                 v-else
-                class="px-2.5 py-2 text-[12px] text-(--text-dimmed)"
+                class="px-2.5 py-2 text-xs text-dimmed"
               >
                 No workflows yet.
               </p>
@@ -312,9 +312,9 @@ usePollWhile(() => isLive.value, refreshRuns)
     <!-- Sidebar column: identical on every detail page, viewport-based
          (clamp), so it can't drift between screens. Keep in sync with
          workflows/[name].vue. -->
-    <div class="grid grid-cols-1 items-start gap-[18px] lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
+    <div class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
       <!-- LEFT -->
-      <div class="flex flex-col gap-[18px]">
+      <div class="flex flex-col gap-4.5">
         <KPreviewBrowser
           :key="latest?.id ?? 0"
           :run-id="latest?.id ?? 0"
@@ -324,10 +324,9 @@ usePollWhile(() => isLive.value, refreshRuns)
           <img
             src="/mascot/mascotRight.png"
             alt="Knecht"
-            class="h-16 w-auto"
-            style="filter: var(--drop-shadow-mascot)"
+            class="h-16 w-auto drop-shadow-mascot"
           >
-          <p class="max-w-[280px] text-[13px] text-(--text-muted)">
+          <p class="max-w-70 text-2sm text-muted">
             No live preview yet. Start a workflow to boot the project, then preview it here.
           </p>
         </KPreviewBrowser>
@@ -338,7 +337,7 @@ usePollWhile(() => isLive.value, refreshRuns)
           :pad="0"
         >
           <template #action>
-            <span class="k-mono text-[11px] text-(--text-dimmed)">{{ projectRuns.length }} {{ projectRuns.length === 1 ? 'run' : 'runs' }}</span>
+            <span class="k-mono text-2xs text-dimmed">{{ projectRuns.length }} {{ projectRuns.length === 1 ? 'run' : 'runs' }}</span>
           </template>
 
           <div
@@ -347,9 +346,9 @@ usePollWhile(() => isLive.value, refreshRuns)
           >
             <UIcon
               name="i-lucide-play"
-              class="size-7 text-(--text-dimmed)"
+              class="size-7 text-dimmed"
             />
-            <p class="text-[13px] text-(--text-muted)">
+            <p class="text-2sm text-muted">
               No runs yet. Start a workflow to boot this project.
             </p>
           </div>
@@ -357,45 +356,44 @@ usePollWhile(() => isLive.value, refreshRuns)
             v-for="(r, i) in projectRuns"
             :key="r.id"
             :to="`/runs/${r.id}`"
-            class="flex items-center gap-3 px-[18px] py-3 transition-colors hover:bg-(--surface-glass)"
-            :class="i ? 'border-t border-(--border-muted)' : ''"
+            class="flex items-center gap-3 px-4.5 py-3 transition-colors hover:bg-(--surface-glass)"
+            :class="i ? 'border-t border-muted' : ''"
           >
             <KStatusDot
               :color="RUN_STATUS_META[r.status].dot"
               :pulse="RUN_STATUS_META[r.status].pulse"
               :size="6"
             />
-            <span class="k-mono text-[12.5px] text-(--text-default)">{{ r.workflow }}</span>
-            <span class="k-mono text-[11px] text-(--text-dimmed)">#{{ r.id }}</span>
+            <span class="k-mono text-xs text-default">{{ r.workflow }}</span>
+            <span class="k-mono text-2xs text-dimmed">#{{ r.id }}</span>
             <span
-              class="k-mono ml-auto text-[11px]"
+              class="k-mono ml-auto text-2xs"
               :style="{ color: RUN_STATUS_META[r.status].text }"
             >{{ RUN_STATUS_META[r.status].label }}</span>
-            <span class="k-mono w-14 text-right text-[11px] text-(--text-dimmed)">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
-            <span class="k-mono hidden text-[11px] text-(--text-dimmed) sm:block">{{ timeAgo(r.createdAt) }}</span>
+            <span class="k-mono w-14 text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
+            <span class="k-mono hidden text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
             <UIcon
               name="i-lucide-chevron-right"
-              class="size-4 text-(--text-dimmed)"
+              class="size-4 text-dimmed"
             />
           </NuxtLink>
         </KPanel>
       </div>
 
       <!-- RIGHT -->
-      <div class="flex flex-col gap-[18px]">
+      <div class="flex flex-col gap-4.5">
         <div
           class="k-card overflow-hidden"
           style="border-color: var(--primary-border)"
         >
           <div
-            class="flex items-center gap-3.5 px-5 py-[18px]"
+            class="flex items-center gap-3.5 px-5 py-4.5"
             style="background: linear-gradient(90deg, color-mix(in oklab, var(--primary) 8%, transparent), transparent)"
           >
             <img
               src="/mascot/mascotRight.png"
               alt="Knecht"
-              class="h-[52px] w-auto flex-none"
-              style="filter: var(--drop-shadow-mascot)"
+              class="h-13 w-auto flex-none drop-shadow-mascot"
             >
             <div class="min-w-0">
               <div class="flex items-center gap-2">
@@ -405,11 +403,11 @@ usePollWhile(() => isLive.value, refreshRuns)
                   :size="6"
                 />
                 <span
-                  class="k-mono text-[11px] uppercase tracking-[0.1em]"
+                  class="k-mono text-2xs uppercase tracking-widest"
                   :style="{ color: statusMeta.text }"
                 >{{ statusMeta.label }}</span>
               </div>
-              <p class="mt-1.5 text-[13.5px] leading-[1.35] text-(--text-toned)">
+              <p class="mt-1.5 text-2sm leading-snug text-toned">
                 {{ mascotLine }}
               </p>
             </div>
@@ -424,19 +422,19 @@ usePollWhile(() => isLive.value, refreshRuns)
           <template #action>
             <span
               v-if="envSaveState !== 'idle'"
-              class="k-mono flex items-center gap-1.5 text-[11px] text-(--text-dimmed)"
+              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
             >
               <UIcon
                 :name="envSaveState === 'saving' ? 'i-lucide-loader-circle' : 'i-lucide-check'"
                 class="size-3.5"
-                :class="envSaveState === 'saving' ? 'animate-spin' : 'text-(--text-primary)'"
+                :class="envSaveState === 'saving' ? 'animate-spin' : 'text-primary'"
               />
               {{ envSaveState === 'saving' ? 'Saving…' : 'Saved' }}
             </span>
           </template>
 
           <div class="flex flex-col gap-4">
-            <div class="border-b border-(--border-muted) pb-3.5">
+            <div class="border-b border-muted pb-3.5">
               <dl
                 v-if="envSpec.length"
                 class="flex flex-col gap-2"
@@ -446,17 +444,17 @@ usePollWhile(() => isLive.value, refreshRuns)
                   :key="row.label"
                   class="flex items-center justify-between gap-3"
                 >
-                  <dt class="k-mono text-[11.5px] text-(--text-dimmed)">
+                  <dt class="k-mono text-2xs text-dimmed">
                     {{ row.label }}
                   </dt>
-                  <dd class="k-mono text-[12px] text-(--text-toned)">
+                  <dd class="k-mono text-xs text-toned">
                     {{ row.value }}
                   </dd>
                 </div>
               </dl>
               <p
                 v-else
-                class="k-mono mt-2.5 text-[11.5px] text-(--text-dimmed)"
+                class="k-mono mt-2.5 text-2xs text-dimmed"
               >
                 Resolving environment…
               </p>
@@ -472,7 +470,7 @@ usePollWhile(() => isLive.value, refreshRuns)
                 <span class="k-label">Env variables</span>
                 <UIcon
                   name="i-lucide-pencil"
-                  class="size-3.5 text-(--text-dimmed) transition-colors group-hover:text-(--text-muted)"
+                  class="size-3.5 text-dimmed transition-colors group-hover:text-muted"
                 />
               </div>
 
@@ -485,13 +483,13 @@ usePollWhile(() => isLive.value, refreshRuns)
                   :key="row.key"
                   class="flex items-center justify-between gap-3"
                 >
-                  <span class="k-mono truncate text-[12px] text-(--text-muted) transition-colors group-hover:text-(--text-toned)">{{ row.key }}</span>
-                  <span class="k-mono select-none text-[12px] tracking-[0.2em] text-(--text-dimmed)">••••••••</span>
+                  <span class="k-mono truncate text-xs text-muted transition-colors group-hover:text-toned">{{ row.key }}</span>
+                  <span class="k-mono select-none text-xs tracking-[0.2em] text-dimmed">••••••••</span>
                 </div>
               </div>
               <span
                 v-else
-                class="k-mono flex items-center gap-1.5 text-[11.5px] text-(--text-dimmed) group-hover:text-(--text-muted)"
+                class="k-mono flex items-center gap-1.5 text-2xs text-dimmed group-hover:text-muted"
               >
                 <UIcon
                   name="i-lucide-plus"
@@ -501,7 +499,7 @@ usePollWhile(() => isLive.value, refreshRuns)
               </span>
             </button>
 
-            <div class="flex flex-col items-start border-t border-(--border-muted) pt-3.5">
+            <div class="flex flex-col items-start border-t border-muted pt-3.5">
               <span class="k-label">Database dump</span>
               <div
                 v-if="dumpName"
@@ -509,9 +507,9 @@ usePollWhile(() => isLive.value, refreshRuns)
               >
                 <UIcon
                   name="i-lucide-database"
-                  class="size-4 flex-none text-(--text-dimmed)"
+                  class="size-4 flex-none text-dimmed"
                 />
-                <span class="k-mono flex-1 truncate text-[11.5px] text-(--text-muted)">{{ dumpName }}</span>
+                <span class="k-mono flex-1 truncate text-2xs text-muted">{{ dumpName }}</span>
                 <UButton
                   size="xs"
                   color="neutral"
@@ -568,10 +566,10 @@ usePollWhile(() => isLive.value, refreshRuns)
                   :radius="7"
                 />
                 <span class="min-w-0 flex-1">
-                  <span class="k-mono block truncate text-[12.5px] text-(--text-default) transition-colors group-hover:text-(--text-highlighted)">
+                  <span class="k-mono block truncate text-xs text-default transition-colors group-hover:text-highlighted">
                     {{ row.name }}
                   </span>
-                  <span class="k-mono block truncate text-[11px] text-(--text-dimmed)">
+                  <span class="k-mono block truncate text-2xs text-dimmed">
                     <template v-if="row.trigger">
                       {{ row.trigger.event }} · {{ triggerSourceMeta(row.trigger.source).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
                     </template>
@@ -613,17 +611,17 @@ usePollWhile(() => isLive.value, refreshRuns)
           autofocus
           :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
           class="w-full"
-          :ui="{ base: 'k-mono text-[12.5px] leading-[1.8] resize-none' }"
+          :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
         />
       </template>
       <template #footer>
         <span
-          class="k-mono flex items-center gap-1.5 text-[11px] text-(--text-dimmed)"
+          class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
         >
           <UIcon
             :name="envSaveState === 'saving' ? 'i-lucide-loader-circle' : 'i-lucide-check'"
             class="size-3.5"
-            :class="envSaveState === 'saving' ? 'animate-spin' : 'text-(--text-primary)'"
+            :class="envSaveState === 'saving' ? 'animate-spin' : 'text-primary'"
           />
           {{ envSaveState === 'saving' ? 'Saving…' : 'Saved' }}
         </span>

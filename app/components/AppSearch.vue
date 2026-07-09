@@ -60,7 +60,7 @@ const groups = computed(() => [
   >
     <UIcon
       name="i-lucide-search"
-      class="size-4 text-(--text-dimmed)"
+      class="size-4 text-dimmed"
     />
     Search
     <span class="ml-4 flex items-center gap-1">

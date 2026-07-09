@@ -382,10 +382,10 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
 
 <template>
   <div>
-    <div class="mb-3.5 flex items-center gap-2 text-(--text-dimmed)">
+    <div class="mb-3.5 flex items-center gap-2 text-dimmed">
       <NuxtLink
         to="/workflows"
-        class="k-mono text-xs transition-colors hover:text-(--text-muted)"
+        class="k-mono text-xs transition-colors hover:text-muted"
       >
         Workflows
       </NuxtLink>
@@ -393,7 +393,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
         name="i-lucide-chevron-right"
         class="size-3"
       />
-      <span class="k-mono truncate text-xs text-(--text-muted)">{{ isNew ? 'New' : routeName }}</span>
+      <span class="k-mono truncate text-xs text-muted">{{ isNew ? 'New' : routeName }}</span>
     </div>
 
     <div
@@ -402,20 +402,20 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
     >
       <UIcon
         name="i-lucide-workflow"
-        class="size-7 text-(--text-dimmed)"
+        class="size-7 text-dimmed"
       />
-      <p class="text-[13px] text-(--text-muted)">
+      <p class="text-2sm text-muted">
         Workflow not found.
         <NuxtLink
           to="/workflows"
-          class="text-(--text-primary) hover:underline"
+          class="text-primary hover:underline"
         >Back to workflows</NuxtLink>
       </p>
     </div>
 
     <template v-else>
       <!-- Header -->
-      <div class="mb-[18px] flex items-start justify-between gap-5">
+      <div class="mb-4.5 flex items-start justify-between gap-5">
         <div class="flex min-w-0 flex-1 items-center gap-3.5">
           <KStepIcon
             icon="i-lucide-workflow"
@@ -430,7 +430,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               v-model="draft.name"
               placeholder="Workflow name"
               spellcheck="false"
-              class="k-mono w-full bg-transparent text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted) outline-none placeholder:text-(--text-dimmed)"
+              class="k-mono w-full bg-transparent text-xl font-semibold tracking-tight text-highlighted outline-none placeholder:text-dimmed"
             >
             <!-- Renaming an existing workflow: deliberate + atomic. -->
             <input
@@ -438,7 +438,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               ref="renameInput"
               v-model="renameValue"
               spellcheck="false"
-              class="k-mono w-full bg-transparent text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted) outline-none"
+              class="k-mono w-full bg-transparent text-xl font-semibold tracking-tight text-highlighted outline-none"
               @keyup.enter="commitRename"
               @keyup.esc="cancelRename"
               @blur="commitRename"
@@ -450,7 +450,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             >
               <h1
                 tabindex="0"
-                class="k-mono min-w-0 cursor-text truncate text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted) outline-none transition-opacity hover:opacity-70"
+                class="k-mono min-w-0 cursor-text truncate text-xl font-semibold tracking-tight text-highlighted outline-none transition-opacity hover:opacity-70"
                 @click="startRename"
                 @keyup.enter="startRename"
               >
@@ -459,7 +459,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </UTooltip>
             <h1
               v-else
-              class="k-mono min-w-0 truncate text-xl font-semibold tracking-[-0.02em] text-(--text-highlighted)"
+              class="k-mono min-w-0 truncate text-xl font-semibold tracking-tight text-highlighted"
             >
               {{ saved?.name ?? draft.name }}
             </h1>
@@ -473,7 +473,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               />
               <span
                 v-else-if="mode === 'running'"
-                class="k-mono flex items-center gap-1.5 text-[11px] text-(--accent-orange)"
+                class="k-mono flex items-center gap-1.5 text-2xs text-accent-orange"
               >
                 <KStatusDot
                   color="orange"
@@ -483,16 +483,16 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               </span>
               <span
                 v-else-if="mode === 'success'"
-                class="k-mono flex items-center gap-1.5 text-[11px] text-(--text-primary)"
+                class="k-mono flex items-center gap-1.5 text-2xs text-primary"
               >
                 <UIcon
                   name="i-lucide-check"
-                  class="size-[13px]"
+                  class="size-3.5"
                 /> Test succeeded
               </span>
               <span
                 v-else-if="mode === 'failed'"
-                class="k-mono flex items-center gap-1.5 text-[11px] text-(--status-error)"
+                class="k-mono flex items-center gap-1.5 text-2xs text-error"
               >
                 <KStatusDot
                   color="error"
@@ -561,7 +561,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             <!-- auto-save status (no save button) -->
             <span
               v-if="saveStatus === 'saving'"
-              class="k-mono flex items-center gap-1.5 text-[11px] text-(--text-dimmed)"
+              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
             >
               <UIcon
                 name="i-lucide-loader-circle"
@@ -570,18 +570,18 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </span>
             <span
               v-else-if="saveStatus === 'saved'"
-              class="k-mono flex items-center gap-1.5 text-[11px] text-(--text-dimmed)"
+              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
             >
               <UIcon
                 name="i-lucide-check"
-                class="size-3.5 text-(--text-primary)"
+                class="size-3.5 text-primary"
               /> Saved
             </span>
             <UTooltip
               v-else-if="saveStatus === 'invalid'"
               text="Give it a name and fill in every step's fields to save"
             >
-              <span class="k-mono flex items-center gap-1.5 text-[11px] text-(--accent-orange)">
+              <span class="k-mono flex items-center gap-1.5 text-2xs text-accent-orange">
                 <UIcon
                   name="i-lucide-circle-alert"
                   class="size-3.5"
@@ -592,7 +592,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               v-else-if="saveStatus === 'error'"
               :text="saveError"
             >
-              <span class="k-mono flex items-center gap-1.5 text-[11px] text-(--status-error)">
+              <span class="k-mono flex items-center gap-1.5 text-2xs text-error">
                 <UIcon
                   name="i-lucide-circle-x"
                   class="size-3.5"
@@ -621,41 +621,41 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
         v-if="editable"
         v-model="draft.description"
         placeholder="Short description (optional)"
-        class="mb-[18px] w-full bg-transparent text-[13.5px] text-(--text-muted) outline-none placeholder:text-(--text-dimmed)"
+        class="mb-4.5 w-full bg-transparent text-2sm text-muted outline-none placeholder:text-dimmed"
       >
 
       <!-- Banner -->
       <div
         v-if="mode === 'running'"
-        class="mb-[18px] overflow-hidden rounded-(--radius-lg) border"
+        class="mb-4.5 overflow-hidden rounded-lg border"
         style="border-color: color-mix(in oklab, var(--accent-orange) 40%, transparent); background: color-mix(in oklab, var(--accent-orange) 10%, transparent)"
       >
         <div class="flex items-center gap-3 px-4 py-3.5">
           <UIcon
             name="i-lucide-play"
-            class="size-[17px] flex-none text-(--accent-orange)"
+            class="size-4.5 flex-none text-accent-orange"
           />
-          <div class="text-[13.5px] leading-[1.4] text-(--text-toned)">
+          <div class="text-2sm leading-snug text-toned">
             Test run in the real project · <b>Step {{ startedSteps }} of {{ steps.length }}</b> · executing…
           </div>
         </div>
-        <div class="h-[3px] bg-(--surface-accented)">
+        <div class="h-1 bg-(--surface-accented)">
           <div
-            class="h-full bg-(--accent-orange)"
+            class="h-full bg-accent-orange"
             :style="{ width: `${(startedSteps / steps.length) * 100}%`, boxShadow: '0 0 12px var(--accent-orange)' }"
           />
         </div>
       </div>
       <div
         v-else-if="mode === 'success'"
-        class="mb-[18px] flex items-center gap-3 rounded-(--radius-lg) border px-4 py-3.5"
+        class="mb-4.5 flex items-center gap-3 rounded-lg border px-4 py-3.5"
         style="border-color: var(--primary-border); background: color-mix(in oklab, var(--primary) 10%, transparent)"
       >
         <UIcon
           name="i-lucide-check"
-          class="size-[17px] flex-none text-(--primary)"
+          class="size-4.5 flex-none text-primary"
         />
-        <div class="text-[13.5px] leading-[1.4] text-(--text-toned)">
+        <div class="text-2sm leading-snug text-toned">
           <b>Test succeeded.</b> All {{ steps.length }} steps green<template v-if="pr">
             · Pull Request #{{ pr.number }} created
           </template> · runtime {{ fmtDuration(activeRun!.startedAt, activeRun!.finishedAt) }}
@@ -663,14 +663,14 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
       </div>
       <div
         v-else-if="mode === 'failed'"
-        class="mb-[18px] flex items-center gap-3 rounded-(--radius-lg) border px-4 py-3.5"
+        class="mb-4.5 flex items-center gap-3 rounded-lg border px-4 py-3.5"
         style="border-color: color-mix(in oklab, var(--status-error) 45%, transparent); background: color-mix(in oklab, var(--status-error) 12%, transparent)"
       >
         <UIcon
           name="i-lucide-flask-conical"
-          class="size-[17px] flex-none text-(--status-error)"
+          class="size-4.5 flex-none text-error"
         />
-        <div class="text-[13.5px] leading-[1.4] text-(--text-toned)">
+        <div class="text-2sm leading-snug text-toned">
           <b>Test failed at step {{ startedSteps }}.</b> The following steps were skipped.
         </div>
       </div>
@@ -688,14 +688,14 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                configured triggers, the always-available manual start), joined to
                the steps below by the rail spine so it reads as a single flow. -->
           <div class="mb-3 flex gap-3.5">
-            <div class="flex w-[30px] flex-none flex-col items-center">
+            <div class="flex w-7.5 flex-none flex-col items-center">
               <span
-                class="grid size-[30px] flex-none place-items-center rounded-full"
+                class="grid size-7.5 flex-none place-items-center rounded-full"
                 style="background: color-mix(in oklab, var(--accent-violet) 16%, var(--surface-muted)); border: 1px solid color-mix(in oklab, var(--accent-violet) 55%, transparent)"
               >
                 <UIcon
                   name="i-lucide-zap"
-                  class="size-[15px] text-(--accent-violet)"
+                  class="size-4 text-accent-violet"
                 />
               </span>
               <span
@@ -705,8 +705,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </div>
 
             <div
-              class="min-w-0 flex-1 overflow-hidden rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted)"
-              style="box-shadow: var(--shadow-panel)"
+              class="min-w-0 flex-1 overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-panel"
             >
               <!-- Header + master switch: pauses every trigger at once (manual
                    runs / tests are unaffected). Only shown once a trigger is
@@ -714,22 +713,22 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                    nothing the switch could pause. -->
               <div
                 v-if="saved && workflowTriggers.length"
-                class="flex items-center justify-between gap-3 border-b border-(--border-muted) px-4 py-2.5 transition-colors"
+                class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2.5 transition-colors"
                 :style="saved.enabled ? {} : { background: 'color-mix(in oklab, var(--accent-orange) 9%, transparent)' }"
               >
                 <div class="flex min-w-0 items-center gap-2.5">
                   <UIcon
                     :name="saved.enabled ? 'i-lucide-zap' : 'i-lucide-pause'"
                     class="size-4 flex-none transition-colors"
-                    :class="saved.enabled ? 'text-(--text-dimmed)' : 'text-(--accent-orange)'"
+                    :class="saved.enabled ? 'text-dimmed' : 'text-accent-orange'"
                   />
                   <div class="min-w-0">
-                    <div class="text-[13px] font-medium text-(--text-highlighted)">
+                    <div class="text-2sm font-medium text-highlighted">
                       Automation
                     </div>
                     <div
-                      class="k-mono truncate text-[11px] transition-colors"
-                      :class="saved.enabled ? 'text-(--text-dimmed)' : 'text-(--accent-orange)'"
+                      class="k-mono truncate text-2xs transition-colors"
+                      :class="saved.enabled ? 'text-dimmed' : 'text-accent-orange'"
                     >
                       {{ saved.enabled ? 'Triggers fire automatically' : 'Paused: triggers won’t fire' }}
                     </div>
@@ -751,7 +750,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               <div
                 v-for="t in workflowTriggers"
                 :key="t.id"
-                class="group/row flex items-center gap-3 border-b border-(--border-muted) px-3 py-2.5 transition-opacity"
+                class="group/row flex items-center gap-3 border-b border-muted px-3 py-2.5 transition-opacity"
                 :style="{ opacity: (t.active && saved?.enabled) ? 1 : 0.45 }"
               >
                 <button
@@ -768,10 +767,10 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                     :radius="8"
                   />
                   <span class="min-w-0 flex-1">
-                    <span class="block text-[13px] text-(--text-highlighted)">
+                    <span class="block text-2sm text-highlighted">
                       {{ triggerSourceMeta(t.source).label }}
                     </span>
-                    <span class="k-mono block truncate text-[11px] text-(--text-dimmed) transition-colors group-hover:text-(--text-muted)">
+                    <span class="k-mono block truncate text-2xs text-dimmed transition-colors group-hover:text-muted">
                       {{ t.event }} · {{ t.projects.length ? t.projects.join(', ') : 'no projects' }}
                     </span>
                   </span>
@@ -804,10 +803,10 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   :radius="8"
                 />
                 <div class="min-w-0 flex-1">
-                  <div class="text-[13px] text-(--text-highlighted)">
+                  <div class="text-2sm text-highlighted">
                     Manual
                   </div>
-                  <div class="k-mono truncate text-[11px] text-(--text-dimmed)">
+                  <div class="k-mono truncate text-2xs text-dimmed">
                     always available · run on demand
                   </div>
                 </div>
@@ -862,7 +861,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                         >
                           <UIcon
                             name="i-lucide-chevron-right"
-                            class="size-3.5 text-(--text-dimmed) transition-transform"
+                            class="size-3.5 text-dimmed transition-transform"
                             :class="mockOpen && 'rotate-90'"
                           />
                           <span class="k-label">Trigger event (mock)</span>
@@ -881,17 +880,17 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                               :placeholder="v.path"
                               :rows="2"
                               class="w-full"
-                              :ui="{ base: 'k-mono text-[12px]' }"
+                              :ui="{ base: 'k-mono text-xs' }"
                             />
                             <UInput
                               v-else
                               v-model="mockInputs[varPathParts(v.path)[1]]"
                               :placeholder="v.path"
                               class="w-full"
-                              :ui="{ base: 'k-mono text-[12px]' }"
+                              :ui="{ base: 'k-mono text-xs' }"
                             />
                           </template>
-                          <p class="text-[11px] leading-[1.5] text-(--text-dimmed)">
+                          <p class="text-2xs leading-normal text-dimmed">
                             Empty fields render as empty strings, exactly like a
                             trigger that didn't send them.
                           </p>
@@ -920,13 +919,13 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               >
                 <button
                   type="button"
-                  class="flex w-full cursor-pointer items-center gap-2 border-t border-(--border-muted) px-3 py-2.5 text-left text-[12.5px] text-(--text-muted) transition-colors hover:bg-(--surface-glass) disabled:cursor-not-allowed disabled:opacity-50"
+                  class="flex w-full cursor-pointer items-center gap-2 border-t border-muted px-3 py-2.5 text-left text-xs text-muted transition-colors hover:bg-(--surface-glass) disabled:cursor-not-allowed disabled:opacity-50"
                   :disabled="!saved || !editable"
                   @click="triggerModalOpen = true"
                 >
                   <UIcon
                     name="i-lucide-plus"
-                    class="size-4 flex-none text-(--text-dimmed)"
+                    class="size-4 flex-none text-dimmed"
                   />
                   Add trigger
                 </button>
@@ -939,29 +938,28 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             v-if="!steps.length"
             class="flex gap-3.5"
           >
-            <div class="flex w-[30px] flex-none justify-center">
-              <span class="grid size-[30px] place-items-center rounded-full border border-dashed border-(--border-accented) text-(--text-dimmed)">
+            <div class="flex w-7.5 flex-none justify-center">
+              <span class="grid size-7.5 place-items-center rounded-full border border-dashed border-accented text-dimmed">
                 <UIcon
                   name="i-lucide-plus"
-                  class="size-[15px]"
+                  class="size-4"
                 />
               </span>
             </div>
             <div
-              class="flex flex-1 flex-col items-center gap-4 rounded-(--radius-lg) border border-dashed bg-(--surface-glass) px-6 py-9 text-center"
+              class="flex flex-1 flex-col items-center gap-4 rounded-lg border border-dashed bg-(--surface-glass) px-6 py-9 text-center"
               :style="{ borderColor: libDrag ? 'var(--primary)' : 'var(--border-accented)' }"
             >
               <img
                 src="/mascot/mascotRight.png"
                 alt="Knecht"
-                class="h-auto w-[76px]"
-                style="filter: var(--drop-shadow-mascot)"
+                class="h-auto w-19 drop-shadow-mascot"
               >
               <div>
-                <div class="text-[15px] font-medium text-(--text-toned)">
+                <div class="text-base font-medium text-toned">
                   No steps yet
                 </div>
-                <div class="mx-auto mt-1.5 max-w-[320px] text-[13px] text-(--text-muted)">
+                <div class="mx-auto mt-1.5 max-w-80 text-2sm text-muted">
                   Add steps from the library on the right to build out the sequence.
                 </div>
               </div>
@@ -983,7 +981,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             <!-- library-drop insertion line -->
             <div
               v-if="libDrag && dropIndex === i"
-              class="mb-3 ml-[44px] h-[3px] rounded-full bg-(--primary)"
+              class="mb-3 ml-11 h-1 rounded-full bg-primary"
               style="box-shadow: 0 0 10px var(--primary)"
             />
             <div
@@ -994,21 +992,21 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               @dragover="onDragOver(i, $event)"
               @dragend="endDrag"
             >
-              <div class="flex w-[30px] flex-none flex-col items-center">
+              <div class="flex w-7.5 flex-none flex-col items-center">
                 <!-- status mark -->
                 <span
                   v-if="r.status === 'done'"
-                  class="k-mono grid size-[30px] flex-none place-items-center rounded-full"
+                  class="k-mono grid size-7.5 flex-none place-items-center rounded-full"
                   style="background: var(--lime-950); border: 1px solid var(--primary-border); color: var(--primary)"
                 >
                   <UIcon
                     name="i-lucide-check"
-                    class="size-[15px]"
+                    class="size-4"
                   />
                 </span>
                 <span
                   v-else-if="r.status === 'running'"
-                  class="grid size-[30px] flex-none place-items-center rounded-full"
+                  class="grid size-7.5 flex-none place-items-center rounded-full"
                   style="background: color-mix(in oklab, var(--accent-orange) 20%, var(--surface-muted)); border: 1px solid var(--accent-orange)"
                 >
                   <KStatusDot
@@ -1019,16 +1017,16 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 </span>
                 <span
                   v-else-if="r.status === 'error'"
-                  class="k-mono grid size-[30px] flex-none place-items-center rounded-full text-[13px] font-semibold"
+                  class="k-mono grid size-7.5 flex-none place-items-center rounded-full text-2sm font-semibold"
                   style="background: color-mix(in oklab, var(--status-error) 18%, var(--surface-muted)); border: 1px solid var(--status-error); color: var(--status-error)"
                 >!</span>
                 <span
                   v-else-if="r.status === 'skipped'"
-                  class="k-mono grid size-[30px] flex-none place-items-center rounded-full border border-(--border-muted) bg-(--surface-muted) text-(--text-dimmed)"
+                  class="k-mono grid size-7.5 flex-none place-items-center rounded-full border border-muted bg-(--surface-muted) text-dimmed"
                 >–</span>
                 <span
                   v-else
-                  class="k-mono grid size-[30px] flex-none place-items-center rounded-full text-xs font-semibold"
+                  class="k-mono grid size-7.5 flex-none place-items-center rounded-full text-xs font-semibold"
                   :style="r.status === 'selected'
                     ? { background: 'var(--surface-accented)', border: '1px solid var(--border-accented)', color: 'var(--text-toned)' }
                     : { background: 'var(--surface-muted)', border: '1px solid var(--border-accented)', color: 'var(--text-muted)' }"
@@ -1042,26 +1040,26 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
 
               <!-- Card: summary row; clicking expands the settings inline. -->
               <div
-                class="relative mb-3 min-w-0 flex-1 overflow-hidden rounded-(--radius-lg)"
+                class="relative mb-3 min-w-0 flex-1 overflow-hidden rounded-lg"
                 :style="{ border: `1px solid ${openSteps.has(r.step) ? 'var(--border-accented)' : TREAT[r.status].border}`, background: TREAT[r.status].bg, boxShadow: 'var(--shadow-panel)' }"
               >
                 <span
                   v-if="TREAT[r.status].accent"
-                  class="absolute inset-y-0 left-0 z-10 w-[3px]"
+                  class="absolute inset-y-0 left-0 z-10 w-1"
                   :style="{ background: TREAT[r.status].accent! }"
                 />
-                <div class="group/row flex items-center gap-2.5 py-[11px] pl-2.5 pr-3">
+                <div class="group/row flex items-center gap-2.5 py-2.5 pl-2.5 pr-3">
                   <!-- drag grip: arms the row for HTML5 dragging -->
                   <span
                     v-if="editable"
-                    class="flex-none cursor-grab text-(--text-dimmed) transition-colors hover:text-(--text-muted) active:cursor-grabbing"
+                    class="flex-none cursor-grab text-dimmed transition-colors hover:text-muted active:cursor-grabbing"
                     aria-label="Drag to reorder"
                     @mousedown="dragArmed = i"
                     @mouseup="dragArmed = null"
                   >
                     <UIcon
                       name="i-lucide-grip-vertical"
-                      class="size-[15px]"
+                      class="size-4"
                     />
                   </span>
                   <button
@@ -1077,9 +1075,9 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                       :radius="8"
                     />
                     <span class="min-w-0 flex-1">
-                      <span class="block whitespace-nowrap text-sm font-medium text-(--text-highlighted)">{{ r.meta.label }}</span>
+                      <span class="block whitespace-nowrap text-sm font-medium text-highlighted">{{ r.meta.label }}</span>
                       <span
-                        class="mt-[3px] block truncate text-xs"
+                        class="mt-1 block truncate text-xs"
                         :style="{ color: r.status === 'error' ? 'var(--status-error)' : 'var(--text-muted)' }"
                       >
                         {{ r.meta.detail || 'Not configured yet' }}
@@ -1088,7 +1086,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   </button>
                   <span
                     v-if="STATUS_LABEL[r.status]"
-                    class="k-mono flex-none text-[10.5px] uppercase tracking-[0.08em]"
+                    class="k-mono flex-none text-3xs uppercase tracking-widest"
                     :style="{ color: STATUS_LABEL[r.status]!.color }"
                   >{{ STATUS_LABEL[r.status]!.text }}</span>
                   <UButton
@@ -1103,7 +1101,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   />
                   <UIcon
                     name="i-lucide-chevron-down"
-                    class="size-[16px] flex-none cursor-pointer text-(--text-dimmed) transition-transform duration-300"
+                    class="size-4 flex-none cursor-pointer text-dimmed transition-transform duration-300"
                     :class="{ 'rotate-180': openSteps.has(r.step) }"
                     @click="toggleStep(r.step)"
                   />
@@ -1137,11 +1135,11 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
           >
             <div
               v-if="libDrag && dropIndex === steps.length"
-              class="mb-3 ml-[44px] h-[3px] rounded-full bg-(--primary)"
+              class="mb-3 ml-11 h-1 rounded-full bg-primary"
               style="box-shadow: 0 0 10px var(--primary)"
             />
             <div class="flex gap-3.5">
-              <div class="w-[30px] flex-none" />
+              <div class="w-7.5 flex-none" />
               <UButton
                 color="neutral"
                 variant="outline"
@@ -1156,7 +1154,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
           <!-- Run output, below the steps -->
           <div
             v-if="activeRun"
-            class="ml-[44px] mt-1"
+            class="ml-11 mt-1"
           >
             <KPanel
               v-if="mode === 'running'"
@@ -1165,12 +1163,12 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               accent="var(--accent-orange)"
             >
               <template #action>
-                <span class="k-mono text-[10.5px] text-(--text-dimmed)">run #{{ activeRun.id }}</span>
+                <span class="k-mono text-3xs text-dimmed">run #{{ activeRun.id }}</span>
               </template>
               <KLogView
                 :log="activeRun.log"
                 :max-height="340"
-                class="text-[11.5px] leading-[1.9]"
+                class="text-2xs leading-loose"
               />
             </KPanel>
 
@@ -1185,7 +1183,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   v-if="pr"
                   :href="pr.url"
                   target="_blank"
-                  class="flex items-center gap-3 rounded-(--radius-md) border p-3"
+                  class="flex items-center gap-3 rounded-md border p-3"
                   style="border-color: var(--primary-border); background: color-mix(in oklab, var(--primary) 7%, transparent)"
                 >
                   <KStepIcon
@@ -1195,24 +1193,24 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                     :radius="7"
                   />
                   <div class="min-w-0 flex-1">
-                    <div class="text-[13px] text-(--text-default)">
+                    <div class="text-2sm text-default">
                       Pull Request #{{ pr.number }}
                     </div>
-                    <span class="k-mono text-[11px] text-(--text-dimmed)">view on GitHub</span>
+                    <span class="k-mono text-2xs text-dimmed">view on GitHub</span>
                   </div>
                   <UIcon
                     name="i-lucide-external-link"
-                    class="size-[15px] text-(--text-dimmed)"
+                    class="size-4 text-dimmed"
                   />
                 </a>
                 <div class="flex items-center gap-6">
-                  <span class="k-mono text-[11.5px] text-(--text-dimmed)">Steps <span class="text-(--text-primary)">{{ steps.length }} / {{ steps.length }}</span></span>
-                  <span class="k-mono text-[11.5px] text-(--text-dimmed)">Runtime <span class="text-(--text-toned)">{{ fmtDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
+                  <span class="k-mono text-2xs text-dimmed">Steps <span class="text-primary">{{ steps.length }} / {{ steps.length }}</span></span>
+                  <span class="k-mono text-2xs text-dimmed">Runtime <span class="text-toned">{{ fmtDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
                 </div>
                 <KLogView
                   :log="activeRun.log"
                   :max-height="260"
-                  class="text-[11.5px] leading-[1.85]"
+                  class="text-2xs leading-loose"
                 />
               </div>
             </KPanel>
@@ -1225,13 +1223,13 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             >
               <div class="flex flex-col gap-3.5">
                 <div class="flex items-center justify-between">
-                  <span class="k-mono text-[11.5px] text-(--text-dimmed)">Failed at step</span>
-                  <span class="k-mono text-[11.5px] text-(--status-error)">{{ startedSteps }} of {{ steps.length }}</span>
+                  <span class="k-mono text-2xs text-dimmed">Failed at step</span>
+                  <span class="k-mono text-2xs text-error">{{ startedSteps }} of {{ steps.length }}</span>
                 </div>
                 <KLogView
                   :log="activeRun.log"
                   :max-height="340"
-                  class="rounded-(--radius-md) border border-(--border-muted) bg-(--surface-base) p-3 text-[11.5px] leading-[1.7]"
+                  class="rounded-md border border-muted bg-(--surface-base) p-3 text-2xs leading-relaxed"
                 />
               </div>
             </KPanel>

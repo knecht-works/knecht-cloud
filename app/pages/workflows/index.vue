@@ -134,7 +134,7 @@ const filtered = computed(() =>
       </template>
     </KTopBar>
 
-    <div class="mb-[22px] grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div class="mb-5.5 grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KMetric
         :value="metrics.workflows"
         label="Workflows"
@@ -170,9 +170,9 @@ const filtered = computed(() =>
     >
       <UIcon
         name="i-lucide-workflow"
-        class="size-7 text-(--text-dimmed)"
+        class="size-7 text-dimmed"
       />
-      <p class="text-[13px] text-(--text-muted)">
+      <p class="text-2sm text-muted">
         {{ tab !== 'all' ? 'No workflows match.' : 'No workflows configured yet.' }}
       </p>
     </div>

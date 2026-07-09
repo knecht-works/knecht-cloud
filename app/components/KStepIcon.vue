@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<{
 
 <template>
   <span
-    class="grid flex-none place-items-center border border-(--border-default) bg-(--surface-accented)"
+    class="grid flex-none place-items-center border border-default bg-(--surface-accented)"
     :style="{ width: `${props.size}px`, height: `${props.size}px`, borderRadius: `${props.radius}px`, color: props.color }"
   >
     <UIcon

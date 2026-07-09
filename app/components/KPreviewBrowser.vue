@@ -197,14 +197,13 @@ const hostItems = computed(() => props.hosts.map(host => ({
 
 <template>
   <div
-    class="overflow-hidden rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted)"
-    style="box-shadow: var(--shadow-browser)"
+    class="overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-browser"
   >
-    <div class="flex items-center gap-3 border-b border-(--border-default) bg-(--surface-elevated) px-4 py-2.5">
+    <div class="flex items-center gap-3 border-b border-default bg-(--surface-elevated) px-4 py-2.5">
       <div class="flex flex-none items-center gap-2">
-        <span class="size-3 rounded-full bg-[rgba(248,113,113,0.8)]" />
-        <span class="size-3 rounded-full bg-[rgba(252,196,110,0.85)]" />
-        <span class="size-3 rounded-full bg-[rgba(183,248,162,0.85)]" />
+        <span class="size-3 rounded-full bg-error/80" />
+        <span class="size-3 rounded-full bg-accent-violet/85" />
+        <span class="size-3 rounded-full bg-accent-mint/85" />
       </div>
 
       <div class="flex flex-none items-center gap-0.5">
@@ -238,10 +237,10 @@ const hostItems = computed(() => props.hosts.map(host => ({
       </div>
 
       <div class="flex min-w-0 flex-1 items-center">
-        <div class="flex min-w-0 flex-1 items-center gap-2 rounded-(--radius-sm) bg-(--surface-base) px-3 py-1">
+        <div class="flex min-w-0 flex-1 items-center gap-2 rounded-sm bg-(--surface-base) px-3 py-1">
           <UIcon
             name="i-lucide-lock"
-            class="size-[11px] flex-none text-(--text-muted)"
+            class="size-3 flex-none text-muted"
           />
           <input
             v-if="live"
@@ -250,7 +249,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
             spellcheck="false"
             autocomplete="off"
             aria-label="Preview address"
-            class="k-mono min-w-0 flex-1 bg-transparent text-xs text-(--text-muted) outline-none focus:text-(--text-default)"
+            class="k-mono min-w-0 flex-1 bg-transparent text-xs text-muted outline-none focus:text-default"
             @focus="editing = true; ($event.target as HTMLInputElement).select()"
             @blur="resetAddress"
             @keydown.enter="submitAddress(); ($event.target as HTMLInputElement).blur()"
@@ -258,7 +257,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           >
           <span
             v-else
-            class="k-mono flex-1 truncate text-xs text-(--text-dimmed)"
+            class="k-mono flex-1 truncate text-xs text-dimmed"
           >{{ online ? 'starting the preview…' : 'no live preview' }}</span>
           <UDropdownMenu
             v-if="live && hostItems.length > 1"
@@ -268,7 +267,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
             <button
               type="button"
               aria-label="Switch preview host"
-              class="flex flex-none cursor-pointer items-center text-(--text-dimmed) transition-colors hover:text-(--text-muted)"
+              class="flex flex-none cursor-pointer items-center text-dimmed transition-colors hover:text-muted"
             >
               <UIcon
                 name="i-lucide-chevron-down"
@@ -279,7 +278,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
         </div>
       </div>
 
-      <span class="k-mono flex flex-none items-center gap-1.5 text-xs text-(--text-dimmed)">
+      <span class="k-mono flex flex-none items-center gap-1.5 text-xs text-dimmed">
         <KStatusDot
           :color="live ? 'primary' : online ? 'orange' : 'neutral'"
           :pulse="online && !live"
@@ -314,9 +313,9 @@ const hostItems = computed(() => props.hosts.map(host => ({
       >
         <UIcon
           name="i-lucide-loader-circle"
-          class="size-7 animate-spin text-(--text-dimmed)"
+          class="size-7 animate-spin text-dimmed"
         />
-        <p class="max-w-[280px] text-[13px] text-(--text-muted)">
+        <p class="max-w-70 text-2sm text-muted">
           Booting the project, the preview opens once it responds.
         </p>
       </div>

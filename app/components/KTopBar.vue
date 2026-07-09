@@ -9,20 +9,20 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-  <div class="mb-[18px] flex items-center justify-between gap-6">
+  <div class="mb-4.5 flex items-center justify-between gap-6">
     <div class="min-w-0">
       <div
         v-if="eyebrow"
-        class="k-label mb-2 flex items-center gap-2 text-(--text-muted)"
+        class="k-label mb-2 flex items-center gap-2 text-muted"
       >
         <KStatusDot :size="6" /> {{ eyebrow }}
       </div>
-      <h1 class="text-xl font-semibold leading-tight tracking-[-0.025em] text-(--text-highlighted)">
+      <h1 class="text-xl font-semibold leading-tight tracking-tight text-highlighted">
         {{ title }}
       </h1>
       <p
         v-if="sub"
-        class="mt-1.5 max-w-[560px] text-[13.5px] text-(--text-muted)"
+        class="mt-1.5 max-w-140 text-2sm text-muted"
       >
         {{ sub }}
       </p>

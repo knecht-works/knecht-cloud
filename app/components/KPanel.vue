@@ -13,14 +13,14 @@ const props = withDefaults(defineProps<{
 
 <template>
   <div class="k-card overflow-hidden">
-    <div class="flex items-center gap-2.5 border-b border-(--border-muted) px-[18px] py-3.5">
+    <div class="flex items-center gap-2.5 border-b border-muted px-4.5 py-3.5">
       <UIcon
         v-if="icon"
         :name="icon"
-        class="size-[15px]"
+        class="size-4"
         :style="{ color: accent ?? 'var(--text-dimmed)' }"
       />
-      <span class="k-mono text-[11.5px] uppercase tracking-[0.1em] text-(--text-toned)">{{ title }}</span>
+      <span class="k-mono text-2xs uppercase tracking-widest text-toned">{{ title }}</span>
       <div
         v-if="$slots.action"
         class="ml-auto"

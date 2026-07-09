@@ -41,8 +41,7 @@ const errorMessage = computed(() => {
       <img
         src="/mascot/mascotMain.png"
         alt="Knecht"
-        class="h-32 w-auto"
-        style="filter: var(--drop-shadow-mascot)"
+        class="h-32 w-auto drop-shadow-mascot"
       >
     </div>
 
@@ -75,7 +74,7 @@ const errorMessage = computed(() => {
         :description="errorMessage"
       />
 
-      <p class="mt-6 text-[13px] leading-relaxed text-(--text-muted) text-center">
+      <p class="mt-6 text-2sm leading-relaxed text-muted text-center">
         This is the one time setup. Knecht creates its own GitHub App, this covers both login and repo access.
         Click below, confirm on GitHub, then install the app on the repos Knecht
         should manage.

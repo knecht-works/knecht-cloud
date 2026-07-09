@@ -246,14 +246,14 @@ async function runGc() {
       </template>
     </KTopBar>
 
-    <div class="grid grid-cols-1 gap-[18px] lg:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4.5 lg:grid-cols-2">
       <KPanel
         title="Access"
         icon="i-lucide-users"
         class="lg:col-span-2"
       >
         <template #action>
-          <span class="k-mono text-[11px] text-(--text-dimmed)">
+          <span class="k-mono text-2xs text-dimmed">
             {{ members?.length ?? 0 }} {{ (members?.length ?? 0) === 1 ? 'member' : 'members' }}
           </span>
         </template>
@@ -264,7 +264,7 @@ async function runGc() {
              still-empty card (dashed, with an inline input), so adding someone
              reads as "filling the next slot". -->
         <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-          <div class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted) px-3.5 py-3">
+          <div class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3">
             <UAvatar
               :src="user?.avatarUrl"
               :alt="user?.login"
@@ -273,7 +273,7 @@ async function runGc() {
             />
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
-                <span class="truncate text-sm text-(--text-toned)">{{ user?.name || user?.login }}</span>
+                <span class="truncate text-sm text-toned">{{ user?.name || user?.login }}</span>
                 <UBadge
                   :color="me?.isOwner ? 'primary' : 'neutral'"
                   variant="subtle"
@@ -281,7 +281,7 @@ async function runGc() {
                   :label="me?.isOwner ? 'Owner' : 'You'"
                 />
               </div>
-              <div class="k-mono text-[11.5px] text-(--text-dimmed)">
+              <div class="k-mono text-2xs text-dimmed">
                 @{{ user?.login }}
               </div>
             </div>
@@ -300,7 +300,7 @@ async function runGc() {
           <div
             v-for="m in others"
             :key="m.login"
-            class="flex items-center gap-3 rounded-(--radius-lg) border border-(--border-default) bg-(--surface-muted) px-3.5 py-3"
+            class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3"
           >
             <UAvatar
               :src="m.avatarUrl ?? undefined"
@@ -310,7 +310,7 @@ async function runGc() {
             />
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
-                <span class="truncate text-sm text-(--text-toned)">{{ m.name || m.login }}</span>
+                <span class="truncate text-sm text-toned">{{ m.name || m.login }}</span>
                 <UBadge
                   v-if="m.isOwner"
                   color="primary"
@@ -319,7 +319,7 @@ async function runGc() {
                   label="Owner"
                 />
               </div>
-              <div class="k-mono text-[11.5px] text-(--text-dimmed)">
+              <div class="k-mono text-2xs text-dimmed">
                 @{{ m.login }}
               </div>
             </div>
@@ -340,10 +340,10 @@ async function runGc() {
           </div>
 
           <form
-            class="flex items-center gap-3 rounded-(--radius-lg) border border-dashed border-(--border-default) px-3.5 py-3"
+            class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3"
             @submit.prevent="invite"
           >
-            <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-(--border-default) text-(--text-dimmed)">
+            <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
               <UIcon
                 name="i-lucide-plus"
                 class="size-3.5"
@@ -381,30 +381,30 @@ async function runGc() {
         <template #action>
           <span
             v-if="agentSaveState !== 'idle'"
-            class="k-mono text-[11px]"
-            :class="agentSaveState === 'error' ? 'text-(--status-error)' : 'text-(--text-dimmed)'"
+            class="k-mono text-2xs"
+            :class="agentSaveState === 'error' ? 'text-error' : 'text-dimmed'"
           >
             {{ agentSaveState === 'saving' ? 'Saving…' : agentSaveState === 'saved' ? 'Saved' : 'Not saved, check the value' }}
           </span>
           <span
             v-else
-            class="k-mono text-[11px]"
-            :class="settings?.aiKeyConfigured ? 'text-(--text-muted)' : 'text-(--text-dimmed)'"
+            class="k-mono text-2xs"
+            :class="settings?.aiKeyConfigured ? 'text-muted' : 'text-dimmed'"
           >
             {{ settings?.aiKeyConfigured ? 'Configured' : 'Not configured' }}
           </span>
         </template>
         <div class="flex gap-10">
           <div class="min-w-0 max-w-4xl flex-1">
-            <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
-              The <span class="k-mono text-[12px] text-(--text-toned)">ai</span> workflow step
+            <p class="mb-5 text-2sm leading-relaxed text-muted">
+              The <span class="k-mono text-xs text-toned">ai</span> workflow step
               runs opencode inside the run's sandbox, authenticated against the selected
               provider with this key. The key is stored encrypted, and each step can override
               the default model.
             </p>
             <div class="grid grid-cols-1 gap-5 sm:grid-cols-[13rem_1fr]">
               <div>
-                <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Provider</span>
+                <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Provider</span>
                 <USelect
                   v-model="aiProvider"
                   :items="PROVIDER_ITEMS"
@@ -413,7 +413,7 @@ async function runGc() {
                 />
               </div>
               <div>
-                <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">API key</span>
+                <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">API key</span>
                 <form
                   class="mt-2 flex items-center gap-2"
                   @submit.prevent="saveAiKey"
@@ -435,7 +435,7 @@ async function runGc() {
                 </form>
               </div>
               <div class="sm:col-span-2">
-                <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">Default model</span>
+                <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Default model</span>
                 <div class="mt-2">
                   <UInput
                     v-if="aiModelsError"
@@ -454,7 +454,7 @@ async function runGc() {
                     class="w-full sm:max-w-md"
                   />
                 </div>
-                <p class="mt-2 text-[12px] leading-[1.5] text-(--text-muted)">
+                <p class="mt-2 text-xs leading-normal text-muted">
                   Only the selected provider's models are offered. For OpenCode the list comes
                   from your workspace, so models disabled there don't show up.
                 </p>
@@ -477,22 +477,22 @@ async function runGc() {
         <template #action>
           <span
             v-if="saveState !== 'idle'"
-            class="k-mono text-[11px]"
-            :class="saveState === 'error' ? 'text-(--status-error)' : 'text-(--text-dimmed)'"
+            class="k-mono text-2xs"
+            :class="saveState === 'error' ? 'text-error' : 'text-dimmed'"
           >
             {{ saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Not saved, check the values' }}
           </span>
         </template>
-        <p class="mb-5 text-[13px] leading-[1.6] text-(--text-muted)">
+        <p class="mb-5 text-2sm leading-relaxed text-muted">
           To free up the server, every run's preview steps down a ladder when nobody uses it:
-          <span class="k-mono text-[12px] text-(--text-toned)">live → stopped → archived → deleted</span>.
+          <span class="k-mono text-xs text-toned">live → stopped → archived → deleted</span>.
         </p>
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-3">
           <div
             v-for="f in ENV_FIELDS"
             :key="f.key"
           >
-            <span class="k-mono text-[10.5px] uppercase tracking-[0.08em] text-(--text-dimmed)">{{ f.label }}</span>
+            <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">{{ f.label }}</span>
             <div class="mt-2 flex items-center gap-2">
               <UInput
                 v-model.number="form[f.key]"
@@ -500,9 +500,9 @@ async function runGc() {
                 :min="f.min"
                 class="w-24"
               />
-              <span class="k-mono text-[11.5px] text-(--text-dimmed)">{{ f.unit }}</span>
+              <span class="k-mono text-2xs text-dimmed">{{ f.unit }}</span>
             </div>
-            <p class="mt-2 text-[12px] leading-[1.5] text-(--text-muted)">
+            <p class="mt-2 text-xs leading-normal text-muted">
               {{ f.hint }}
             </p>
           </div>
@@ -516,14 +516,14 @@ async function runGc() {
       >
         <template #action>
           <span
-            class="k-mono text-[11px]"
-            :class="webhook?.ready ? 'text-(--primary)' : 'text-(--text-dimmed)'"
+            class="k-mono text-2xs"
+            :class="webhook?.ready ? 'text-primary' : 'text-dimmed'"
           >
             {{ webhook ? (webhook.ready ? 'Ready' : 'Needs attention') : 'Checking…' }}
           </span>
         </template>
 
-        <p class="mb-5 max-w-3xl text-[13px] leading-[1.6] text-(--text-muted)">
+        <p class="mb-5 max-w-3xl text-2sm leading-relaxed text-muted">
           GitHub triggers receive push, pull request and issue events through the GitHub App's
           own webhook. It is configured automatically when the app is created during setup, so
           connected repos need no per-repo webhook setup. If a check fails, fix it in the
@@ -531,7 +531,7 @@ async function runGc() {
             v-if="webhook?.settingsUrl"
             :href="webhook.settingsUrl"
             target="_blank"
-            class="text-(--text-toned) underline underline-offset-2"
+            class="text-toned underline underline-offset-2"
           >app's settings</a><span v-else>app's settings</span>
           (General → Webhook, Permissions &amp; events).
         </p>
@@ -540,30 +540,30 @@ async function runGc() {
           <div
             v-for="c in webhookChecks"
             :key="c.label"
-            class="flex items-center gap-2.5 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5"
+            class="flex items-center gap-2.5 rounded-md border border-muted bg-(--surface-muted) px-3 py-2.5"
           >
             <UIcon
               :name="c.ok === true ? 'i-lucide-check-circle-2' : c.ok === false ? 'i-lucide-circle' : 'i-lucide-circle-help'"
               class="size-4 flex-none"
-              :class="c.ok === true ? 'text-(--primary)' : 'text-(--text-dimmed)'"
+              :class="c.ok === true ? 'text-primary' : 'text-dimmed'"
             />
-            <span class="min-w-0 flex-1 truncate text-[12.5px] text-(--text-muted)">{{ c.label }}</span>
+            <span class="min-w-0 flex-1 truncate text-xs text-muted">{{ c.label }}</span>
             <span
               v-if="c.manual && c.ok !== true"
-              class="k-mono flex-none text-[10.5px] text-(--text-dimmed)"
+              class="k-mono flex-none text-3xs text-dimmed"
             >on GitHub</span>
           </div>
         </div>
 
         <p
           v-if="webhook?.github?.url && webhook.github.url !== webhook.endpoint"
-          class="k-mono mt-3 text-[11px] leading-[1.5] text-(--text-dimmed)"
+          class="k-mono mt-3 text-2xs leading-normal text-dimmed"
         >
           The app's webhook points at {{ webhook.github.url }}. That's fine when a forwarder
           (e.g. smee) relays to this instance; otherwise fix the URL in the app settings.
         </p>
 
-        <p class="k-mono mt-5 max-w-2xl text-[11px] leading-[1.5] text-(--text-dimmed)">
+        <p class="k-mono mt-5 max-w-2xl text-2xs leading-normal text-dimmed">
           {{ webhook?.endpoint ?? 'Set KNECHT_BASE_DOMAIN so the webhook URL can be built.' }}
         </p>
       </KPanel>
@@ -574,7 +574,7 @@ async function runGc() {
         class="lg:col-span-2"
       >
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p class="max-w-2xl text-[13px] leading-[1.6] text-(--text-muted)">
+          <p class="max-w-2xl text-2sm leading-relaxed text-muted">
             Reclaims leftovers whose run or project is already gone: orphaned sandboxes, worktrees,
             archives, base clones and dump folders, plus superseded database dumps. This runs
             automatically every hour; use the button to run it now.

@@ -32,7 +32,7 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
       </template>
     </KTopBar>
 
-    <div class="mb-[22px] grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <div class="mb-5.5 grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KMetric
         :value="metrics.total"
         label="Runs"
@@ -62,14 +62,13 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
       <img
         src="/mascot/mascotRight.png"
         alt="Knecht"
-        class="h-20 w-auto"
-        style="filter: var(--drop-shadow-mascot)"
+        class="h-20 w-auto drop-shadow-mascot"
       >
       <div>
-        <div class="text-sm font-medium text-(--text-toned)">
+        <div class="text-sm font-medium text-toned">
           No runs yet
         </div>
-        <p class="mx-auto mt-1.5 max-w-[420px] text-[13px] leading-[1.5] text-(--text-muted)">
+        <p class="mx-auto mt-1.5 max-w-105 text-2sm leading-normal text-muted">
           A run is one execution of a workflow against a project. Start a workflow from a
           project, a workflow, or a trigger, and it shows up here.
         </p>
@@ -85,17 +84,17 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
         v-for="(r, i) in runs"
         :key="r.id"
         :to="`/runs/${r.id}`"
-        class="flex items-center gap-3 px-[18px] py-3 transition-colors hover:bg-(--surface-glass)"
-        :class="i ? 'border-t border-(--border-muted)' : ''"
+        class="flex items-center gap-3 px-4.5 py-3 transition-colors hover:bg-(--surface-glass)"
+        :class="i ? 'border-t border-muted' : ''"
       >
         <KStatusDot
           :color="RUN_STATUS_META[r.status].dot"
           :pulse="RUN_STATUS_META[r.status].pulse"
           :size="6"
         />
-        <span class="k-mono truncate text-[12.5px] text-(--text-default)">{{ r.workflow }}</span>
-        <span class="k-mono text-[11px] text-(--text-dimmed)">#{{ r.id }}</span>
-        <span class="k-mono hidden min-w-0 truncate text-[11px] text-(--text-muted) md:block">{{ r.project }}</span>
+        <span class="k-mono truncate text-xs text-default">{{ r.workflow }}</span>
+        <span class="k-mono text-2xs text-dimmed">#{{ r.id }}</span>
+        <span class="k-mono hidden min-w-0 truncate text-2xs text-muted md:block">{{ r.project }}</span>
 
         <UTooltip
           :text="origin(r).label"
@@ -103,19 +102,19 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
         >
           <UIcon
             :name="origin(r).icon"
-            class="size-[13px]"
+            class="size-3.5"
             :style="{ color: origin(r).color }"
           />
         </UTooltip>
         <span
-          class="k-mono w-16 flex-none text-right text-[11px]"
+          class="k-mono w-16 flex-none text-right text-2xs"
           :style="{ color: RUN_STATUS_META[r.status].text }"
         >{{ RUN_STATUS_META[r.status].label }}</span>
-        <span class="k-mono w-14 flex-none text-right text-[11px] text-(--text-dimmed)">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
-        <span class="k-mono hidden w-16 flex-none text-right text-[11px] text-(--text-dimmed) sm:block">{{ timeAgo(r.createdAt) }}</span>
+        <span class="k-mono w-14 flex-none text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
+        <span class="k-mono hidden w-16 flex-none text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
         <UIcon
           name="i-lucide-chevron-right"
-          class="size-4 flex-none text-(--text-dimmed)"
+          class="size-4 flex-none text-dimmed"
         />
       </NuxtLink>
     </div>

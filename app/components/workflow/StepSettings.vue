@@ -48,7 +48,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
 </script>
 
 <template>
-  <div class="flex flex-col gap-4 border-t border-(--border-muted) px-[15px] py-4">
+  <div class="flex flex-col gap-4 border-t border-muted px-4 py-4">
     <!-- display name + note (fall back to the derived label/detail) -->
     <div class="flex flex-col gap-2">
       <input
@@ -57,7 +57,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
         spellcheck="false"
         :disabled="!editable"
         aria-label="Step name"
-        class="w-full bg-transparent text-sm font-medium text-(--text-highlighted) outline-none placeholder:text-(--text-dimmed)"
+        class="w-full bg-transparent text-sm font-medium text-highlighted outline-none placeholder:text-dimmed"
         @input="record.label = ($event.target as HTMLInputElement).value"
       >
       <input
@@ -66,7 +66,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
         spellcheck="false"
         :disabled="!editable"
         aria-label="Step note"
-        class="w-full bg-transparent text-xs text-(--text-muted) outline-none placeholder:text-(--text-dimmed)"
+        class="w-full bg-transparent text-xs text-muted outline-none placeholder:text-dimmed"
         @input="record.description = ($event.target as HTMLInputElement).value"
       >
     </div>
@@ -86,7 +86,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
     </template>
     <p
       v-else-if="!isComposite(step)"
-      class="text-[12.5px] text-(--text-muted)"
+      class="text-xs text-muted"
     >
       {{ meta.detail }}. This step has no settings.
     </p>
@@ -128,7 +128,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
     <!-- available variables (n8n-style): context + prior steps' outputs -->
     <div
       v-if="hasVarFields"
-      class="border-t border-(--border-muted) pt-3.5"
+      class="border-t border-muted pt-3.5"
     >
       <button
         type="button"
@@ -138,15 +138,15 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       >
         <UIcon
           name="i-lucide-braces"
-          class="size-3.5 flex-none text-(--text-dimmed)"
+          class="size-3.5 flex-none text-dimmed"
         />
-        <span class="k-label transition-colors group-hover:text-(--text-muted)">Variables</span>
-        <span class="k-mono flex-none rounded-full border border-(--border-muted) px-1.5 text-[10px] leading-[16px] text-(--text-dimmed)">{{ varCount }}</span>
+        <span class="k-label transition-colors group-hover:text-muted">Variables</span>
+        <span class="k-mono flex-none rounded-full border border-muted px-1.5 text-3xs leading-4 text-dimmed">{{ varCount }}</span>
         <span class="min-w-0 flex-1" />
-        <span class="truncate text-[11px] text-(--text-dimmed)">click to insert, or type <span class="k-mono text-(--text-muted)">{{ '\{\{' }}</span> in a field</span>
+        <span class="truncate text-2xs text-dimmed">click to insert, or type <span class="k-mono text-muted">{{ '\{\{' }}</span> in a field</span>
         <UIcon
           name="i-lucide-chevron-down"
-          class="size-3.5 flex-none text-(--text-dimmed) transition-transform duration-300"
+          class="size-3.5 flex-none text-dimmed transition-transform duration-300"
           :class="{ 'rotate-180': varsOpen }"
         />
       </button>
@@ -171,7 +171,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
                   class="size-1.5 flex-none rounded-full"
                   :style="{ background: g.color }"
                 />
-                <span class="truncate text-[11px] text-(--text-dimmed)">{{ g.label }}</span>
+                <span class="truncate text-2xs text-dimmed">{{ g.label }}</span>
               </span>
               <div class="flex flex-wrap gap-1.5">
                 <UTooltip
@@ -183,10 +183,10 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
                     type="button"
                     :disabled="!editable"
                     :style="{ '--chip-accent': g.color }"
-                    class="k-mono rounded-(--radius-sm) border border-[color-mix(in_oklab,var(--chip-accent)_22%,var(--border-default))] bg-(--surface-base) px-2 py-1 text-[11px] transition-colors hover:border-[color-mix(in_oklab,var(--chip-accent)_60%,var(--border-default))] disabled:cursor-not-allowed disabled:opacity-50"
+                    class="k-mono rounded-sm border border-[color-mix(in_oklab,var(--chip-accent)_22%,var(--border-default))] bg-(--surface-base) px-2 py-1 text-2xs transition-colors hover:border-[color-mix(in_oklab,var(--chip-accent)_60%,var(--border-default))] disabled:cursor-not-allowed disabled:opacity-50"
                     @click="insert(v.path)"
                   >
-                    <span class="text-(--text-dimmed)">{{ varPathParts(v.path)[0] }}</span><span class="text-(--chip-accent)">{{ varPathParts(v.path)[1] }}</span>
+                    <span class="text-dimmed">{{ varPathParts(v.path)[0] }}</span><span class="text-(--chip-accent)">{{ varPathParts(v.path)[1] }}</span>
                   </button>
                 </UTooltip>
               </div>

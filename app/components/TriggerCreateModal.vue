@@ -190,22 +190,22 @@ watch(open, (isOpen) => {
               v-for="src in SOURCES"
               :key="src.key"
               type="button"
-              class="flex cursor-pointer flex-col items-center gap-1.5 rounded-(--radius-md) border px-2 py-3 text-center transition-colors"
+              class="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border px-2 py-3 text-center transition-colors"
               :class="source === src.key
                 ? 'border-(--primary-border) bg-(--lime-950)'
-                : 'border-(--border-muted) bg-(--surface-muted) hover:border-(--border-default)'"
+                : 'border-muted bg-(--surface-muted) hover:border-default'"
               @click="source = src.key"
             >
               <UIcon
                 :name="src.icon"
                 class="size-5"
-                :class="source === src.key ? 'text-(--primary)' : 'text-(--text-dimmed)'"
+                :class="source === src.key ? 'text-primary' : 'text-dimmed'"
               />
               <span
-                class="text-[12.5px] font-medium"
-                :class="source === src.key ? 'text-(--text-highlighted)' : 'text-(--text-muted)'"
+                class="text-xs font-medium"
+                :class="source === src.key ? 'text-highlighted' : 'text-muted'"
               >{{ src.label }}</span>
-              <span class="text-[10.5px] leading-[1.3] text-(--text-dimmed)">{{ src.hint }}</span>
+              <span class="text-3xs leading-snug text-dimmed">{{ src.hint }}</span>
             </button>
           </div>
         </div>
@@ -222,7 +222,7 @@ watch(open, (isOpen) => {
             icon="i-lucide-box"
             class="mt-2 w-full"
           />
-          <p class="mt-2 text-[11.5px] text-(--text-dimmed)">
+          <p class="mt-2 text-2xs text-dimmed">
             Fires the workflow once per selected project.
           </p>
         </div>
@@ -241,10 +241,10 @@ watch(open, (isOpen) => {
               v-for="p in CRON_PRESETS"
               :key="p.cron"
               type="button"
-              class="k-mono cursor-pointer rounded-full border px-2.5 py-1 text-[11px] transition-colors"
+              class="k-mono cursor-pointer rounded-full border px-2.5 py-1 text-2xs transition-colors"
               :class="cron.trim() === p.cron
-                ? 'border-(--primary-border) bg-(--lime-950) text-(--primary)'
-                : 'border-(--border-default) text-(--text-dimmed) hover:text-(--text-muted)'"
+                ? 'border-(--primary-border) bg-(--lime-950) text-primary'
+                : 'border-default text-dimmed hover:text-muted'"
               @click="cron = p.cron"
             >
               {{ p.label }}
@@ -252,7 +252,7 @@ watch(open, (isOpen) => {
           </div>
           <p
             v-if="!cronLooksValid"
-            class="mt-2 text-[11.5px] text-(--status-error)"
+            class="mt-2 text-2xs text-error"
           >
             A cron expression has 5 fields: minute hour day month weekday.
           </p>
@@ -286,7 +286,7 @@ watch(open, (isOpen) => {
               class="mt-2 w-full"
               :ui="{ base: 'k-mono' }"
             />
-            <p class="mt-2 text-[11.5px] text-(--text-dimmed)">
+            <p class="mt-2 text-2xs text-dimmed">
               {{ githubEvent === 'pull_request'
                 ? 'Fires when a pull request targeting one of these branches is opened or pushed to. Comma-separated, empty = every branch.'
                 : 'Fires on pushes to these branches. Comma-separated, empty = every branch.' }}
@@ -315,7 +315,7 @@ watch(open, (isOpen) => {
             </div>
             <p
               v-if="!issuesLookValid"
-              class="mt-2 text-[11.5px] text-(--status-error)"
+              class="mt-2 text-2xs text-error"
             >
               {{ issueLabeled && !issueLabel.trim()
                 ? 'Name the label that fires the trigger.'
@@ -323,7 +323,7 @@ watch(open, (isOpen) => {
             </p>
           </div>
 
-          <p class="text-[11.5px] text-(--text-dimmed)">
+          <p class="text-2xs text-dimmed">
             Events arrive via the GitHub App webhook (see Settings); no per-repo setup needed.
           </p>
         </div>

@@ -56,16 +56,16 @@ const updateTarget = computed(() =>
 </script>
 
 <template>
-  <div class="relative flex h-screen overflow-hidden bg-(--surface-base) text-(--text-default)">
+  <div class="relative flex h-screen overflow-hidden bg-(--surface-base) text-default">
     <KBgField />
 
     <aside
-      class="relative z-20 flex h-full flex-none flex-col border-r border-(--border-default) transition-[width] duration-200"
-      :class="collapsed ? 'w-[72px]' : 'w-[248px]'"
+      class="relative z-20 flex h-full flex-none flex-col border-r border-default transition-[width] duration-200"
+      :class="collapsed ? 'w-18' : 'w-62'"
       style="background: color-mix(in oklab, var(--surface-elevated) 60%, transparent); backdrop-filter: blur(12px)"
     >
       <div
-        class="flex items-center border-b border-(--border-muted) pb-[18px] pt-[22px]"
+        class="flex items-center border-b border-muted pb-4.5 pt-5.5"
         :class="collapsed ? 'justify-center px-2' : 'justify-between px-5'"
       >
         <NuxtLink
@@ -100,23 +100,23 @@ const updateTarget = computed(() =>
         >
           <NuxtLink
             :to="item.to"
-            class="group relative flex items-center gap-3 rounded-(--radius-md) border py-2.5 text-sm font-medium transition-colors"
+            class="group relative flex items-center gap-3 rounded-md border py-2.5 text-sm font-medium transition-colors"
             :class="[
               isActive(item)
-                ? 'border-(--border-default) bg-(--surface-glass) text-(--text-highlighted)'
-                : 'border-transparent text-(--text-muted) hover:text-(--text-toned)',
+                ? 'border-default bg-(--surface-glass) text-highlighted'
+                : 'border-transparent text-muted hover:text-toned',
               collapsed ? 'justify-center px-0' : 'px-3',
             ]"
           >
             <span
               v-if="isActive(item)"
-              class="absolute left-[-1px] top-[9px] bottom-[9px] w-[2.5px] rounded-sm bg-(--primary)"
+              class="absolute inset-y-2 -left-px w-0.5 rounded-sm bg-primary"
               style="box-shadow: 0 0 8px var(--primary)"
             />
             <UIcon
               :name="item.icon"
-              class="size-[18px] flex-none"
-              :class="isActive(item) ? 'text-(--primary)' : 'text-(--text-dimmed)'"
+              class="size-4.5 flex-none"
+              :class="isActive(item) ? 'text-primary' : 'text-dimmed'"
             />
             <span v-if="!collapsed">{{ item.label }}</span>
           </NuxtLink>
@@ -133,13 +133,13 @@ const updateTarget = computed(() =>
           >
             <UIcon
               name="i-lucide-arrow-up-circle"
-              class="size-4 flex-none text-(--primary)"
+              class="size-4 flex-none text-primary"
             />
             <div class="min-w-0">
-              <div class="k-mono truncate whitespace-nowrap text-[11.5px] leading-[1.3] text-(--primary)">
+              <div class="k-mono truncate whitespace-nowrap text-2xs leading-snug text-primary">
                 Update available
               </div>
-              <div class="k-mono mt-1 whitespace-nowrap text-[10.5px] text-(--text-dimmed)">
+              <div class="k-mono mt-1 whitespace-nowrap text-3xs text-dimmed">
                 {{ system?.version.current }} → {{ updateTarget }}
               </div>
             </div>
@@ -152,12 +152,12 @@ const updateTarget = computed(() =>
             <NuxtLink
               to="/system"
               :aria-label="`Update ${updateTarget} available`"
-              class="flex items-center justify-center rounded-(--radius-md) border border-(--primary-border) py-2.5 transition-colors hover:bg-(--surface-glass)"
+              class="flex items-center justify-center rounded-md border border-(--primary-border) py-2.5 transition-colors hover:bg-(--surface-glass)"
               style="background: color-mix(in oklab, var(--primary) 8%, transparent)"
             >
               <UIcon
                 name="i-lucide-arrow-up-circle"
-                class="size-[18px] text-(--primary)"
+                class="size-4.5 text-primary"
               />
             </NuxtLink>
           </UTooltip>
@@ -166,20 +166,20 @@ const updateTarget = computed(() =>
         <NuxtLink
           v-if="!collapsed"
           to="/system"
-          class="flex items-center gap-2.5 rounded-(--radius-lg) border bg-(--surface-muted) px-3.5 py-3 transition-colors"
+          class="flex items-center gap-2.5 rounded-lg border bg-(--surface-muted) px-3.5 py-3 transition-colors"
           :class="route.path.startsWith('/system')
-            ? 'border-(--border-default) bg-(--surface-glass)'
-            : 'border-(--border-default) hover:bg-(--surface-glass)'"
+            ? 'border-default bg-(--surface-glass)'
+            : 'border-default hover:bg-(--surface-glass)'"
         >
           <UIcon
             name="i-lucide-server"
-            class="size-4 flex-none text-(--text-primary)"
+            class="size-4 flex-none text-primary"
           />
           <div class="min-w-0">
-            <div class="k-mono truncate whitespace-nowrap text-[11.5px] leading-[1.3] text-(--text-toned)">
+            <div class="k-mono truncate whitespace-nowrap text-2xs leading-snug text-toned">
               {{ instanceHost }}
             </div>
-            <div class="k-mono mt-[3px] flex items-center gap-1.5 whitespace-nowrap text-[10.5px] uppercase tracking-[0.06em] text-(--text-dimmed)">
+            <div class="k-mono mt-1 flex items-center gap-1.5 whitespace-nowrap text-3xs uppercase tracking-wider text-dimmed">
               <KStatusDot
                 :color="systemLine.color"
                 :size="5"
@@ -195,11 +195,11 @@ const updateTarget = computed(() =>
           <NuxtLink
             to="/system"
             aria-label="System"
-            class="flex items-center justify-center rounded-(--radius-md) border border-transparent py-2.5 transition-colors hover:bg-(--surface-glass)"
+            class="flex items-center justify-center rounded-md border border-transparent py-2.5 transition-colors hover:bg-(--surface-glass)"
           >
             <UIcon
               name="i-lucide-server"
-              class="size-[18px] text-(--text-primary)"
+              class="size-4.5 text-primary"
             />
           </NuxtLink>
         </UTooltip>
@@ -209,12 +209,12 @@ const updateTarget = computed(() =>
           :content="{ side: 'top', align: 'start' }"
         >
           <button
-            class="flex w-full items-center gap-2.5 rounded-(--radius-md) py-1 text-left transition-colors hover:bg-(--surface-glass)"
+            class="flex w-full items-center gap-2.5 rounded-md py-1 text-left transition-colors hover:bg-(--surface-glass)"
             :class="collapsed ? 'justify-center px-0' : 'px-1'"
           >
             <span
               v-if="!user?.avatarUrl"
-              class="grid size-[30px] flex-none place-items-center rounded-full border text-[12px] font-semibold text-(--primary)"
+              class="grid size-7.5 flex-none place-items-center rounded-full border text-xs font-semibold text-primary"
               style="background: var(--lime-950); border-color: var(--primary-border); font-family: var(--font-mono)"
             >{{ initials }}</span>
             <UAvatar
@@ -226,16 +226,16 @@ const updateTarget = computed(() =>
             />
             <template v-if="!collapsed">
               <div class="min-w-0 flex-1">
-                <div class="truncate text-[13px] leading-[1.2] text-(--text-toned)">
+                <div class="truncate text-2sm leading-tight text-toned">
                   {{ user?.name || user?.login }}
                 </div>
-                <div class="truncate text-[11.5px] leading-[1.3] text-(--text-dimmed)">
+                <div class="truncate text-2xs leading-snug text-dimmed">
                   Admin
                 </div>
               </div>
               <UIcon
                 name="i-lucide-settings-2"
-                class="size-4 flex-none text-(--text-dimmed)"
+                class="size-4 flex-none text-dimmed"
               />
             </template>
           </button>
@@ -247,7 +247,7 @@ const updateTarget = computed(() =>
          tall enough to scroll or not, otherwise the ~15px scrollbar makes
          screens visibly "jump" in width between routes. -->
     <main class="relative z-10 min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-      <div class="mx-auto max-w-[1920px] px-8 py-7">
+      <div class="mx-auto max-w-480 px-8 py-7">
         <slot />
       </div>
     </main>

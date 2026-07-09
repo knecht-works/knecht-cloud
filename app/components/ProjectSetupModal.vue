@@ -162,12 +162,12 @@ watch(open, (isOpen) => {
         >
           <div class="flex items-center gap-2">
             <span
-              class="k-mono grid size-6 flex-none place-items-center rounded-full border text-[11px] transition-colors"
+              class="k-mono grid size-6 flex-none place-items-center rounded-full border text-2xs transition-colors"
               :class="i < stepIndex || step === 'done'
-                ? 'border-(--primary-border) bg-(--lime-950) text-(--primary)'
+                ? 'border-(--primary-border) bg-(--lime-950) text-primary'
                 : i === stepIndex
-                  ? 'border-(--border-default) bg-(--surface-glass) text-(--text-highlighted)'
-                  : 'border-(--border-muted) text-(--text-dimmed)'"
+                  ? 'border-default bg-(--surface-glass) text-highlighted'
+                  : 'border-muted text-dimmed'"
             >
               <UIcon
                 v-if="i < stepIndex || step === 'done'"
@@ -177,8 +177,8 @@ watch(open, (isOpen) => {
               <span v-else>{{ i + 1 }}</span>
             </span>
             <span
-              class="text-[12.5px] transition-colors"
-              :class="i === stepIndex ? 'text-(--text-toned)' : 'text-(--text-dimmed)'"
+              class="text-xs transition-colors"
+              :class="i === stepIndex ? 'text-toned' : 'text-dimmed'"
             >{{ s.label }}</span>
           </div>
           <div
@@ -210,7 +210,7 @@ watch(open, (isOpen) => {
           icon="i-lucide-git-branch"
           class="w-full"
         />
-        <p class="text-[12.5px] text-(--text-dimmed)">
+        <p class="text-xs text-dimmed">
           The repo must contain a <span class="k-mono">.ddev/config.yaml</span>. Framework, PHP and
           database are read from it automatically. Runs check out the selected branch and open PRs
           against it.
@@ -248,9 +248,9 @@ watch(open, (isOpen) => {
             spellcheck="false"
             :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
             class="mt-2.5 w-full"
-            :ui="{ base: 'k-mono text-[12.5px] leading-[1.8] resize-none' }"
+            :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
           />
-          <p class="k-mono mt-2 text-[11px] text-(--text-dimmed)">
+          <p class="k-mono mt-2 text-2xs text-dimmed">
             One KEY=value per line. Paste the project's .env. You can edit these later.
           </p>
         </div>
@@ -278,21 +278,21 @@ watch(open, (isOpen) => {
       >
         <div>
           <span class="k-label">Database dump</span>
-          <p class="mt-1.5 text-[12.5px] text-(--text-dimmed)">
+          <p class="mt-1.5 text-xs text-dimmed">
             Optional. Imported into the environment on the first boot.
           </p>
           <div
             v-if="dumpName"
-            class="mt-3 flex items-center gap-2 rounded-(--radius-md) border border-(--border-muted) bg-(--surface-muted) px-3 py-2.5"
+            class="mt-3 flex items-center gap-2 rounded-md border border-muted bg-(--surface-muted) px-3 py-2.5"
           >
             <UIcon
               name="i-lucide-database"
-              class="size-4 flex-none text-(--text-primary)"
+              class="size-4 flex-none text-primary"
             />
-            <span class="k-mono flex-1 truncate text-[12px] text-(--text-muted)">{{ dumpName }}</span>
+            <span class="k-mono flex-1 truncate text-xs text-muted">{{ dumpName }}</span>
             <UIcon
               name="i-lucide-check"
-              class="size-4 flex-none text-(--text-primary)"
+              class="size-4 flex-none text-primary"
             />
           </div>
           <input
@@ -335,17 +335,17 @@ watch(open, (isOpen) => {
         v-else
         class="flex flex-col items-center gap-4 py-2 text-center"
       >
-        <span class="grid size-12 place-items-center rounded-full border border-(--primary-border) bg-(--lime-950) text-(--primary)">
+        <span class="grid size-12 place-items-center rounded-full border border-(--primary-border) bg-(--lime-950) text-primary">
           <UIcon
             name="i-lucide-check"
             class="size-6"
           />
         </span>
         <div>
-          <p class="text-[15px] font-medium text-(--text-highlighted)">
+          <p class="text-base font-medium text-highlighted">
             {{ project?.fullName.split('/').pop() }} is ready
           </p>
-          <p class="mx-auto mt-1 max-w-[320px] text-[12.5px] text-(--text-dimmed)">
+          <p class="mx-auto mt-1 max-w-80 text-xs text-dimmed">
             {{ hasBootWorkflow
               ? 'Boot it to import the database, build, and open a live preview, or open the project to review the setup first.'
               : 'Open the project to review the setup and start your first run.' }}

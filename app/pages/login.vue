@@ -28,10 +28,9 @@ const error = computed(() => {
       <img
         src="/mascot/mascotMain.png"
         alt="Knecht"
-        class="h-32 w-auto"
-        style="filter: var(--drop-shadow-mascot)"
+        class="h-32 w-auto drop-shadow-mascot"
       >
-      <p class="mt-4 text-[13.5px] text-(--text-muted)">
+      <p class="mt-4 text-2sm text-muted">
         Boot. Fix. Test. Fully automatic.
       </p>
     </div>
@@ -57,6 +56,6 @@ const error = computed(() => {
       Sign in with GitHub
     </UButton>
 
-    <p class="k-mono mt-4 flex items-center justify-center gap-1.5 text-[11px] text-(--text-dimmed)" />
+    <p class="k-mono mt-4 flex items-center justify-center gap-1.5 text-2xs text-dimmed" />
   </div>
 </template>

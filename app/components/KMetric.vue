@@ -12,12 +12,12 @@ withDefaults(defineProps<{
 <template>
   <div class="k-card flex-1 p-5">
     <div
-      class="k-mono text-[32px] font-bold leading-none tracking-[-0.02em]"
+      class="k-mono text-3xl font-bold leading-none tracking-tight"
       :style="{ color: accent ?? 'var(--text-highlighted)' }"
     >
       {{ value }}<span
         v-if="suffix"
-        class="text-base font-medium text-(--text-dimmed)"
+        class="text-base font-medium text-dimmed"
       >{{ suffix }}</span>
     </div>
     <div class="k-label mt-2.5">

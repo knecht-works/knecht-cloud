@@ -89,13 +89,13 @@ async function runUpdate() {
 
     <div
       v-if="status === 'pending'"
-      class="k-mono text-[12px] text-(--text-dimmed)"
+      class="k-mono text-xs text-dimmed"
     >
       Loading system info…
     </div>
     <div
       v-else-if="error"
-      class="k-mono text-[12px] text-(--status-error)"
+      class="k-mono text-xs text-error"
     >
       {{ error.message }}
     </div>
@@ -107,23 +107,23 @@ async function runUpdate() {
         <span class="k-label">System</span>
         <div class="mt-2.5 flex flex-col gap-3">
           <div class="flex items-center justify-between">
-            <span class="k-mono text-[12px] text-(--text-dimmed)">knecht</span>
-            <span class="k-mono text-[12px] text-(--text-toned)">{{ data.version.current }}</span>
+            <span class="k-mono text-xs text-dimmed">knecht</span>
+            <span class="k-mono text-xs text-toned">{{ data.version.current }}</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="k-mono text-[12px] text-(--text-dimmed)">docker</span>
-            <span class="k-mono text-[12px] text-(--text-toned)">{{ data.dockerVersion }}</span>
+            <span class="k-mono text-xs text-dimmed">docker</span>
+            <span class="k-mono text-xs text-toned">{{ data.dockerVersion }}</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="k-mono text-[12px] text-(--text-dimmed)">sysbox</span>
+            <span class="k-mono text-xs text-dimmed">sysbox</span>
             <span
-              class="k-mono text-[12px]"
-              :class="data.sysboxAvailable ? 'text-(--text-toned)' : 'text-(--status-error)'"
+              class="k-mono text-xs"
+              :class="data.sysboxAvailable ? 'text-toned' : 'text-error'"
             >{{ data.sysboxAvailable ? 'available' : 'missing' }}</span>
           </div>
         </div>
       </div>
-      <div class="lg:border-l lg:border-(--border-muted) lg:pl-8">
+      <div class="lg:border-l lg:border-muted lg:pl-8">
         <span class="k-label">Host containers · {{ data.hostContainers.length }}</span>
         <div class="mt-2.5 flex flex-col gap-2">
           <div
@@ -135,16 +135,16 @@ async function runUpdate() {
               color="primary"
               :size="5"
             />
-            <span class="k-mono text-[11.5px] text-(--text-muted)">{{ name }}</span>
+            <span class="k-mono text-2xs text-muted">{{ name }}</span>
           </div>
           <span
             v-if="!data.hostContainers.length"
-            class="k-mono text-[11.5px] text-(--text-dimmed)"
+            class="k-mono text-2xs text-dimmed"
           >None running.</span>
         </div>
       </div>
 
-      <div class="border-t border-(--border-muted) pt-6 lg:col-span-2">
+      <div class="border-t border-muted pt-6 lg:col-span-2">
         <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <span class="k-label">What's new</span>
           <div class="flex items-center gap-4">
@@ -152,7 +152,7 @@ async function runUpdate() {
               :href="FULL_CHANGELOG_URL"
               target="_blank"
               rel="noopener"
-              class="k-mono flex items-center gap-1 text-[11px] text-(--text-dimmed) transition-colors hover:text-(--text-toned)"
+              class="k-mono flex items-center gap-1 text-2xs text-dimmed transition-colors hover:text-toned"
             >
               Full changelog
               <UIcon
@@ -173,21 +173,21 @@ async function runUpdate() {
         </div>
         <span
           v-if="updateError"
-          class="k-mono mt-2 block text-[11.5px] text-(--status-error)"
+          class="k-mono mt-2 block text-2xs text-error"
         >{{ updateError }}</span>
         <span
           v-if="updateStale"
-          class="k-mono mt-2 block text-[11.5px] text-(--text-dimmed)"
+          class="k-mono mt-2 block text-2xs text-dimmed"
         >Still updating. Check `docker logs knecht-updater` on the server.</span>
         <div
           v-if="changelogStatus === 'pending'"
-          class="k-mono mt-3 text-[12px] text-(--text-dimmed)"
+          class="k-mono mt-3 text-xs text-dimmed"
         >
           Loading changelog…
         </div>
         <div
           v-else-if="!newReleases.length"
-          class="k-mono mt-3 text-[12px] text-(--text-dimmed)"
+          class="k-mono mt-3 text-xs text-dimmed"
         >
           Up to date. Nothing to install.
         </div>
@@ -198,7 +198,7 @@ async function runUpdate() {
           <div
             v-for="rel in newReleases"
             :key="rel.tag"
-            class="border-b border-(--border-muted) last:border-0"
+            class="border-b border-muted last:border-0"
           >
             <button
               type="button"
@@ -207,12 +207,12 @@ async function runUpdate() {
             >
               <UIcon
                 name="i-lucide-chevron-right"
-                class="size-3.5 flex-none text-(--text-dimmed) transition-[transform,color] group-hover/row:text-(--primary)"
+                class="size-3.5 flex-none text-dimmed transition-[transform,color] group-hover/row:text-primary"
                 :class="expanded[rel.tag] && 'rotate-90'"
               />
-              <span class="k-mono text-[12.5px] text-(--text-toned) transition-colors group-hover/row:text-(--text-highlighted)">{{ rel.tag }}</span>
-              <span class="k-mono text-[11px] text-(--text-dimmed)">{{ timeAgo(rel.publishedAt) }}</span>
-              <span class="k-mono ml-auto text-[11px] text-(--text-dimmed)">{{ changeCount(rel.notes) }}</span>
+              <span class="k-mono text-xs text-toned transition-colors group-hover/row:text-highlighted">{{ rel.tag }}</span>
+              <span class="k-mono text-2xs text-dimmed">{{ timeAgo(rel.publishedAt) }}</span>
+              <span class="k-mono ml-auto text-2xs text-dimmed">{{ changeCount(rel.notes) }}</span>
             </button>
             <ul
               v-if="expanded[rel.tag]"
@@ -221,14 +221,14 @@ async function runUpdate() {
               <li
                 v-for="(line, i) in notesLines(rel.notes)"
                 :key="i"
-                class="k-mono flex gap-2 text-[11.5px] leading-[1.5] text-(--text-muted)"
+                class="k-mono flex gap-2 text-2xs leading-normal text-muted"
               >
-                <span class="flex-none text-(--text-dimmed)">·</span>
+                <span class="flex-none text-dimmed">·</span>
                 <span class="min-w-0 break-words">{{ line }}</span>
               </li>
               <li
                 v-if="!notesLines(rel.notes).length"
-                class="k-mono text-[11.5px] text-(--text-dimmed)"
+                class="k-mono text-2xs text-dimmed"
               >
                 No notes.
               </li>

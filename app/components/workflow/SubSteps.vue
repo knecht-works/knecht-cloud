@@ -88,7 +88,7 @@ function groupsFor(i: number): VarGroup[] {
     </div>
     <p
       v-if="!steps.length"
-      class="mt-1.5 rounded-(--radius-md) border border-dashed border-(--border-muted) px-3 py-2.5 text-[12px] text-(--text-dimmed)"
+      class="mt-1.5 rounded-md border border-dashed border-muted px-3 py-2.5 text-xs text-dimmed"
     >
       No steps yet.
     </p>
@@ -99,7 +99,7 @@ function groupsFor(i: number): VarGroup[] {
       <div
         v-for="({ step: s, meta, valid }, i) in rows"
         :key="s.id ?? i"
-        class="rounded-(--radius-md) border bg-(--surface-muted)"
+        class="rounded-md border bg-(--surface-muted)"
         :style="{ borderColor: valid ? 'var(--border-default)' : 'var(--accent-orange)' }"
       >
         <div class="group/row flex items-center gap-2.5 px-2.5 py-2">
@@ -114,13 +114,13 @@ function groupsFor(i: number): VarGroup[] {
             class="min-w-0 flex-1 text-left"
             @click="toggle(s)"
           >
-            <span class="block truncate text-[12.5px] font-medium text-(--text-highlighted)">{{ meta.label }}</span>
+            <span class="block truncate text-xs font-medium text-highlighted">{{ meta.label }}</span>
             <span
               v-if="meta.detail"
-              class="k-mono block truncate text-[10.5px] text-(--text-dimmed)"
+              class="k-mono block truncate text-3xs text-dimmed"
             >{{ meta.detail }}</span>
           </button>
-          <span class="k-mono text-[10px] text-(--text-dimmed)">{{ s.id }}</span>
+          <span class="k-mono text-3xs text-dimmed">{{ s.id }}</span>
           <div class="flex flex-none items-center">
             <UButton
               color="neutral"

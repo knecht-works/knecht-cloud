@@ -27,6 +27,32 @@
   --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
+  /* Dense dashboard type scale below text-xs. Like arbitrary values,
+     these set only font-size; line-height stays inherited. */
+  --text-3xs: 10px;
+  --text-2xs: 11px;
+  --text-2sm: 13px;
+
+  /* Accent colours from the mascot/logo artwork, as utility colours
+     (text-accent-orange, bg-accent-mint/85, ...). */
+  --color-accent-mint: #b7f8a2;
+  --color-accent-orange: #fa7a2c;
+  --color-accent-violet: #fcc46e;
+
+  /* Elevation shadows: neutral, tuned for near-black. */
+  --shadow-panel:
+    0 1px 2px -1px oklch(0 0 0 / 0.5),
+    0 10px 24px -14px oklch(0 0 0 / 0.65);
+  --shadow-panel-lg:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.05),
+    0 2px 6px -2px oklch(0 0 0 / 0.5),
+    0 30px 60px -28px oklch(0 0 0 / 0.8);
+  --shadow-browser:
+    inset 0 1px 0 0 oklch(1 0 0 / 0.08),
+    0 18px 40px -24px oklch(0 0 0 / 0.65),
+    0 50px 90px -40px oklch(0 0 0 / 0.85);
+  --drop-shadow-mascot: 0 26px 42px oklch(0 0 0 / 0.6);
+
   --color-knecht-50: #f5fef1;
   --color-knecht-100: #ecfde6;
   --color-knecht-200: #ddfdd2;
@@ -95,19 +121,12 @@
   --tracking-tight: -0.025em;
   --tracking-label: 0.1em;
 
-  /* elevation shadows: neutral, tuned for near-black */
-  --shadow-panel:
-    0 1px 2px -1px oklch(0 0 0 / 0.5),
-    0 10px 24px -14px oklch(0 0 0 / 0.65);
-  --shadow-panel-lg:
-    inset 0 1px 0 0 oklch(1 0 0 / 0.05),
-    0 2px 6px -2px oklch(0 0 0 / 0.5),
-    0 30px 60px -28px oklch(0 0 0 / 0.8);
-  --shadow-browser:
-    inset 0 1px 0 0 oklch(1 0 0 / 0.08),
-    0 18px 40px -24px oklch(0 0 0 / 0.65),
-    0 50px 90px -40px oklch(0 0 0 / 0.85);
-  --drop-shadow-mascot: drop-shadow(0 26px 42px oklch(0 0 0 / 0.6));
+  /* Nuxt UI semantic border aliases, aligned with the knecht hairlines
+     so border-default/muted/accented render the design-system values.
+     The text/bg aliases already match (neutral is zinc) and stay as-is. */
+  --ui-border: var(--border-default);
+  --ui-border-muted: var(--border-muted);
+  --ui-border-accented: var(--border-accented);
 }
 
 /* The product ships in a single dark theme. */

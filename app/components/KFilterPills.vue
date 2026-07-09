@@ -13,10 +13,10 @@ const model = defineModel<T>({ required: true })
       v-for="item in items"
       :key="String(item.value)"
       type="button"
-      class="k-mono cursor-pointer rounded-full px-2.5 py-1 text-[11.5px] transition-colors"
+      class="k-mono cursor-pointer rounded-full px-2.5 py-1 text-2xs transition-colors"
       :class="model === item.value
-        ? 'border border-(--border-default) bg-(--surface-glass) text-(--text-muted)'
-        : 'border border-transparent text-(--text-dimmed) hover:text-(--text-muted)'"
+        ? 'border border-default bg-(--surface-glass) text-muted'
+        : 'border border-transparent text-dimmed hover:text-muted'"
       @click="model = item.value"
     >
       {{ item.label }}

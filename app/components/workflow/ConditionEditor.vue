@@ -50,7 +50,7 @@ function removeCondition(gi: number, ci: number) {
 
 <template>
   <div>
-    <span class="k-label">Conditions<span class="text-(--text-dimmed)"> *</span></span>
+    <span class="k-label">Conditions<span class="text-dimmed"> *</span></span>
     <div class="mt-1.5 flex flex-col gap-2">
       <template
         v-for="(group, gi) in step.conditions"
@@ -58,11 +58,11 @@ function removeCondition(gi: number, ci: number) {
       >
         <div
           v-if="gi > 0"
-          class="k-mono text-[10px] uppercase tracking-[0.08em] text-(--text-dimmed)"
+          class="k-mono text-3xs uppercase tracking-widest text-dimmed"
         >
           or
         </div>
-        <div class="flex flex-col gap-1.5 rounded-(--radius-md) border border-(--border-muted) p-2">
+        <div class="flex flex-col gap-1.5 rounded-md border border-muted p-2">
           <div
             v-for="(c, ci) in group"
             :key="ci"
@@ -74,14 +74,14 @@ function removeCondition(gi: number, ci: number) {
               :disabled="!editable"
               placeholder="{{ steps.s2.exitCode }}"
               class="min-w-0 flex-1"
-              :ui="{ base: 'k-mono text-[12px]' }"
+              :ui="{ base: 'k-mono text-xs' }"
             />
             <USelect
               v-model="c.op"
               :items="OP_ITEMS"
               :disabled="!editable"
               class="w-36 flex-none"
-              :ui="{ base: 'text-[12px]' }"
+              :ui="{ base: 'text-xs' }"
             />
             <UInput
               v-if="hasRight(c.op)"
@@ -90,7 +90,7 @@ function removeCondition(gi: number, ci: number) {
               :disabled="!editable"
               placeholder="0"
               class="min-w-0 flex-1"
-              :ui="{ base: 'k-mono text-[12px]' }"
+              :ui="{ base: 'k-mono text-xs' }"
             />
             <UButton
               color="neutral"
