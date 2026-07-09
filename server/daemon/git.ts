@@ -17,12 +17,38 @@ import { projectCheckoutDir, runWorktreeDir } from '../utils/storage'
 // `sha` pins the worktree to an exact commit instead of the branch tip:
 // restoring an archived run (daemon/envs.ts) passes the HEAD recorded at
 // archive time.
+// Concurrent runs of the same project share the base clone, and git can't
+// take two fetch/worktree operations on it at once: the shallow file gets
+// rewritten mid-read ("fatal: shallow file has changed since we read it").
+// Serialize checkout preparation per project; different projects stay parallel.
+const checkoutLocks = new Map<number, Promise<unknown>>()
+
+function withCheckoutLock<T>(projectId: number, fn: () => Promise<T>): Promise<T> {
+  const prev = checkoutLocks.get(projectId) ?? Promise.resolve()
+  const next = prev.then(fn, fn)
+  // The stored chain link swallows the error; `next` still rejects for THIS
+  // caller, but the next run in line proceeds instead of inheriting it.
+  checkoutLocks.set(projectId, next.catch(() => {}))
+  return next
+}
+
 export async function prepareRunCheckout(
   project: Project,
   runId: number,
   token: string,
   onLog: (line: string) => void,
   branch: string = project.defaultBranch,
+  sha?: string | null,
+): Promise<string> {
+  return withCheckoutLock(project.id, () => doPrepareRunCheckout(project, runId, token, onLog, branch, sha))
+}
+
+async function doPrepareRunCheckout(
+  project: Project,
+  runId: number,
+  token: string,
+  onLog: (line: string) => void,
+  branch: string,
   sha?: string | null,
 ): Promise<string> {
   const base = projectCheckoutDir(project)
