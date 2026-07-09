@@ -47,6 +47,12 @@ const systemLine = computed(() => {
   const n = system.value.hostContainers.length
   return { color: 'primary' as const, text: `${n} container${n === 1 ? '' : 's'} up` }
 })
+
+// Update banner: the shared probe already knows whether a newer release
+// exists; the System page holds the changelog and the update button.
+const updateTarget = computed(() =>
+  system.value?.version.updateAvailable ? system.value.version.latest : null,
+)
 </script>
 
 <template>
@@ -118,6 +124,45 @@ const systemLine = computed(() => {
       </nav>
 
       <div class="mt-auto flex flex-col gap-3 p-4">
+        <template v-if="updateTarget">
+          <NuxtLink
+            v-if="!collapsed"
+            to="/system"
+            class="flex items-center gap-2.5 rounded-lg border border-(--primary-border) px-3.5 py-3 transition-colors hover:bg-(--surface-glass)"
+            style="background: color-mix(in oklab, var(--primary) 8%, transparent)"
+          >
+            <UIcon
+              name="i-lucide-arrow-up-circle"
+              class="size-4 flex-none text-(--primary)"
+            />
+            <div class="min-w-0">
+              <div class="k-mono truncate whitespace-nowrap text-[11.5px] leading-[1.3] text-(--primary)">
+                Update available
+              </div>
+              <div class="k-mono mt-1 whitespace-nowrap text-[10.5px] text-(--text-dimmed)">
+                {{ system?.version.current }} → {{ updateTarget }}
+              </div>
+            </div>
+          </NuxtLink>
+          <UTooltip
+            v-else
+            :text="`Update ${updateTarget} available`"
+            :content="{ side: 'right' }"
+          >
+            <NuxtLink
+              to="/system"
+              :aria-label="`Update ${updateTarget} available`"
+              class="flex items-center justify-center rounded-(--radius-md) border border-(--primary-border) py-2.5 transition-colors hover:bg-(--surface-glass)"
+              style="background: color-mix(in oklab, var(--primary) 8%, transparent)"
+            >
+              <UIcon
+                name="i-lucide-arrow-up-circle"
+                class="size-[18px] text-(--primary)"
+              />
+            </NuxtLink>
+          </UTooltip>
+        </template>
+
         <NuxtLink
           v-if="!collapsed"
           to="/system"
