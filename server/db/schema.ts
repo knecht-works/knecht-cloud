@@ -244,16 +244,19 @@ export type Settings = typeof settings.$inferSelect
 // Issue actions a GitHub 'issues' trigger can listen for.
 export type IssueAction = 'opened' | 'labeled'
 
-// A configured trigger that starts a workflow automatically. Three sources:
+// A configured trigger that starts a workflow automatically. Sources:
 // 'schedule', a standard 5-field cron expression, fired by the in-process
 // scheduler (server/plugins/scheduler.ts); 'github', fired by matching
 // deliveries on the GitHub App webhook (/api/github/webhook, configured
-// automatically at setup); and 'manual', a saved "run this workflow on these
-// projects" shortcut, fired from the Triggers screen. Every fire starts the
-// workflow against each project in `projectIds`: one run per project.
+// automatically at setup); 'manual', a saved "run this workflow on these
+// projects" shortcut, fired from the Triggers screen; and registry sources
+// (server/utils/trigger-sources/, e.g. 'jira'), which keep their settings in
+// `config` and are fired by the generic poller (server/plugins/
+// trigger-poller.ts). Every fire starts the workflow against each project in
+// `projectIds`: one run per project.
 export const triggers = sqliteTable('triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  source: text('source', { enum: ['schedule', 'github', 'manual'] }).notNull(),
+  source: text('source', { enum: ['schedule', 'github', 'manual', 'jira'] }).notNull(),
   workflow: text('workflow').notNull(),
   projectIds: text('project_ids', { mode: 'json' })
     .$type<number[]>()
@@ -281,6 +284,20 @@ export const triggers = sqliteTable('triggers', {
     .notNull()
     .default(sql`'["opened"]'`),
   issueLabel: text('issue_label'),
+
+  // Registry sources only (server/utils/trigger-sources/): `config` is the
+  // source-specific settings, validated by the source's zod schema (e.g. jira:
+  // { projectKey, label }); `state` is the source's runtime memory across
+  // poller ticks (e.g. jira: { seenKeys }). Both JSON, so a new source needs
+  // no schema migration. Empty objects for the built-in sources above.
+  config: text('config', { mode: 'json' })
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'`),
+  state: text('state', { mode: 'json' })
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default(sql`'{}'`),
 
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   lastFiredAt: integer('last_fired_at', { mode: 'timestamp' }),
@@ -323,6 +340,29 @@ export const githubApp = sqliteTable('github_app', {
 
 export type GithubAppRow = typeof githubApp.$inferSelect
 export type NewGithubAppRow = typeof githubApp.$inferInsert
+
+// The Jira Cloud connection that powers 'jira' triggers (polling) and the
+// PR-link comment posted back on tickets. A single row (id = 1), configured in
+// Settings: site URL + the email/API token of the Jira account Knecht acts as
+// (ideally a dedicated service account). The token is encrypted at rest
+// (server/utils/crypto.ts); read it through server/utils/jira-credentials.ts.
+export const jiraConnection = sqliteTable('jira_connection', {
+  id: integer('id').primaryKey(), // singleton, always 1
+
+  // e.g. https://acme.atlassian.net (no trailing slash)
+  siteUrl: text('site_url').notNull(),
+  email: text('email').notNull(),
+  apiTokenEnc: text('api_token_enc').notNull(),
+  // Display name of the connected account, captured from /myself when the
+  // connection is saved ("Connected as Knecht Bot").
+  accountName: text('account_name'),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+export type JiraConnectionRow = typeof jiraConnection.$inferSelect
 
 // The login allowlist: who may obtain a session. First-run setup claims the
 // GitHub App's owner as the initial member (server/routes/setup/callback), and

@@ -64,6 +64,13 @@
       "when": 1783454666031,
       "tag": "0008_drop_trigger_webhook_secret",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1783606010242,
+      "tag": "0009_panoramic_blink",
+      "breakpoints": true
     }
   ]
 }
