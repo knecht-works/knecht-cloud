@@ -4,6 +4,37 @@
 // Shared with the sidebar's system card: one probe per app load.
 const { data, status, error, refresh } = useSystemInfo()
 
+// The changelog: published releases with their commit-list notes. Lazy and
+// separate from useSystemInfo so the sidebar's shared probe stays light.
+// Only versions the instance would gain by updating are shown; the full
+// history lives on GitHub (linked below).
+const { data: changelog, status: changelogStatus } = useFetch('/api/system/releases', { lazy: true })
+const newReleases = computed(() => changelog.value?.releases.filter(r => r.isNew) ?? [])
+const FULL_CHANGELOG_URL = 'https://github.com/knecht-works/knecht-cloud/releases'
+
+// Collapsed by default: with several pending versions the notes would pile up
+// into a wall; a row per version stays scannable.
+const expanded = ref<Record<string, boolean>>({})
+function toggleRelease(tag: string) {
+  expanded.value[tag] = !expanded.value[tag]
+}
+
+function changeCount(notes: string): string {
+  const n = notesLines(notes).length
+  return n === 1 ? '1 change' : `${n} changes`
+}
+
+// Release bodies are plain "- subject" lines (see release.yml); render them
+// as list items, not markdown. Releases published before that convention
+// carry --generate-notes markdown, so boilerplate (headings, "Full
+// Changelog" compare links, ** emphasis) is stripped rather than shown raw.
+function notesLines(notes: string): string[] {
+  return notes
+    .split('\n')
+    .map(line => line.trim().replace(/^[-*]\s+/, '').replaceAll('**', ''))
+    .filter(line => line && !line.startsWith('#') && !/^full changelog/i.test(line))
+}
+
 // Self-update: kick off the updater, then poll until the recreated container
 // answers with the target version (fetches fail while it restarts; that's
 // expected) and reload into the new build.
@@ -90,30 +121,6 @@ async function runUpdate() {
               :class="data.sysboxAvailable ? 'text-(--text-toned)' : 'text-(--status-error)'"
             >{{ data.sysboxAvailable ? 'available' : 'missing' }}</span>
           </div>
-          <div
-            v-if="data.version.updateAvailable"
-            class="flex flex-col gap-2"
-          >
-            <UButton
-              size="xs"
-              color="primary"
-              variant="soft"
-              icon="i-lucide-arrow-up-circle"
-              :loading="updating"
-              class="self-start"
-              @click="runUpdate()"
-            >
-              {{ updating ? `Updating to ${data.version.latest}…` : `Update to ${data.version.latest}` }}
-            </UButton>
-            <span
-              v-if="updateError"
-              class="k-mono text-[11.5px] text-(--status-error)"
-            >{{ updateError }}</span>
-            <span
-              v-if="updateStale"
-              class="k-mono text-[11.5px] text-(--text-dimmed)"
-            >Still updating. Check `docker logs knecht-updater` on the server.</span>
-          </div>
         </div>
       </div>
       <div class="lg:border-l lg:border-(--border-muted) lg:pl-8">
@@ -134,6 +141,99 @@ async function runUpdate() {
             v-if="!data.hostContainers.length"
             class="k-mono text-[11.5px] text-(--text-dimmed)"
           >None running.</span>
+        </div>
+      </div>
+
+      <div class="border-t border-(--border-muted) pt-6 lg:col-span-2">
+        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <span class="k-label">What's new</span>
+          <div class="flex items-center gap-4">
+            <a
+              :href="FULL_CHANGELOG_URL"
+              target="_blank"
+              rel="noopener"
+              class="k-mono flex items-center gap-1 text-[11px] text-(--text-dimmed) transition-colors hover:text-(--text-toned)"
+            >
+              Full changelog
+              <UIcon
+                name="i-lucide-arrow-up-right"
+                class="size-3"
+              />
+            </a>
+            <UButton
+              v-if="data.version.updateAvailable"
+              color="primary"
+              icon="i-lucide-arrow-up-circle"
+              :loading="updating"
+              @click="runUpdate()"
+            >
+              {{ updating ? `Updating to ${data.version.latest}…` : `Update to ${data.version.latest}` }}
+            </UButton>
+          </div>
+        </div>
+        <span
+          v-if="updateError"
+          class="k-mono mt-2 block text-[11.5px] text-(--status-error)"
+        >{{ updateError }}</span>
+        <span
+          v-if="updateStale"
+          class="k-mono mt-2 block text-[11.5px] text-(--text-dimmed)"
+        >Still updating. Check `docker logs knecht-updater` on the server.</span>
+        <div
+          v-if="changelogStatus === 'pending'"
+          class="k-mono mt-3 text-[12px] text-(--text-dimmed)"
+        >
+          Loading changelog…
+        </div>
+        <div
+          v-else-if="!newReleases.length"
+          class="k-mono mt-3 text-[12px] text-(--text-dimmed)"
+        >
+          Up to date. Nothing to install.
+        </div>
+        <div
+          v-else
+          class="mt-2 flex flex-col"
+        >
+          <div
+            v-for="rel in newReleases"
+            :key="rel.tag"
+            class="border-b border-(--border-muted) last:border-0"
+          >
+            <button
+              type="button"
+              class="group/row flex w-full cursor-pointer items-center gap-2.5 py-2.5 text-left"
+              @click="toggleRelease(rel.tag)"
+            >
+              <UIcon
+                name="i-lucide-chevron-right"
+                class="size-3.5 flex-none text-(--text-dimmed) transition-[transform,color] group-hover/row:text-(--primary)"
+                :class="expanded[rel.tag] && 'rotate-90'"
+              />
+              <span class="k-mono text-[12.5px] text-(--text-toned) transition-colors group-hover/row:text-(--text-highlighted)">{{ rel.tag }}</span>
+              <span class="k-mono text-[11px] text-(--text-dimmed)">{{ timeAgo(rel.publishedAt) }}</span>
+              <span class="k-mono ml-auto text-[11px] text-(--text-dimmed)">{{ changeCount(rel.notes) }}</span>
+            </button>
+            <ul
+              v-if="expanded[rel.tag]"
+              class="flex flex-col gap-1.5 pb-3 pl-6"
+            >
+              <li
+                v-for="(line, i) in notesLines(rel.notes)"
+                :key="i"
+                class="k-mono flex gap-2 text-[11.5px] leading-[1.5] text-(--text-muted)"
+              >
+                <span class="flex-none text-(--text-dimmed)">·</span>
+                <span class="min-w-0 break-words">{{ line }}</span>
+              </li>
+              <li
+                v-if="!notesLines(rel.notes).length"
+                class="k-mono text-[11.5px] text-(--text-dimmed)"
+              >
+                No notes.
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
