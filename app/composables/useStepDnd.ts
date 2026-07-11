@@ -1,5 +1,16 @@
-import type { Ref } from 'vue'
+import type { InjectionKey, Ref } from 'vue'
 import type { WorkflowStep } from '~/utils/dashboard'
+
+// The library-drag state, provided to nested drop targets (WorkflowSubSteps):
+// they read the dragged type, suppress the rail's insertion line while
+// hovered, and close the drag out after a drop.
+export interface StepDnd {
+  libDrag: Ref<WorkflowStep['type'] | null>
+  dropIndex: Ref<number | null>
+  endDrag: () => void
+}
+
+export const STEP_DND = Symbol('step-dnd') as InjectionKey<StepDnd>
 
 // Drag & drop for the workflow editor's step rail. Rows: the grip handle arms
 // its row (HTML5 `draggable` needs to sit on the row, but dragging should only
@@ -75,6 +86,8 @@ export function useStepDnd(
     libDrag.value = null
     dropIndex.value = null
   }
+
+  provide(STEP_DND, { libDrag, dropIndex, endDrag })
 
   return { dragIndex, dragArmed, libDrag, dropIndex, onDragStart, onDragOver, onRailOver, onRailDrop, endDrag }
 }

@@ -29,15 +29,19 @@ interface VarFieldApi {
 }
 const fieldRefs = ref<(VarFieldApi | null)[]>([])
 const focused = ref<number | null>(null)
+// The if step has no registry fields; its condition editor routes inserts to
+// the last-focused condition side itself.
+const conditionEditor = ref<{ insertVar: (path: string) => void } | null>(null)
 
 function insert(path: string) {
   const target = (focused.value !== null && fieldRefs.value[focused.value]?.acceptsVars())
     ? fieldRefs.value[focused.value]
     : fieldRefs.value.find(f => f?.acceptsVars())
-  target?.insertVar(path)
+  if (target) target.insertVar(path)
+  else conditionEditor.value?.insertVar(path)
 }
 
-const hasVarFields = computed(() => def.value.fields.some(f => f.vars))
+const hasVarFields = computed(() => def.value.fields.some(f => f.vars) || props.step.type === 'if')
 
 // The variable reference list is collapsed by default. On big workflows it
 // grows a row per prior step and would dwarf the actual settings. The header
@@ -94,7 +98,9 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
     <!-- composite steps: conditions + nested step lists -->
     <template v-if="step.type === 'if'">
       <WorkflowConditionEditor
+        ref="conditionEditor"
         :step="step"
+        :groups="groups"
         :editable="editable"
       />
       <WorkflowSubSteps

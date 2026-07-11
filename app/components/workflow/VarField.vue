@@ -12,6 +12,10 @@ const props = defineProps<{
 const model = defineModel<string | boolean>()
 const emit = defineEmits<{ focus: [] }>()
 
+// Unlabeled fields render compact (no label line, smaller text): how inline
+// rows like the condition editor embed the field.
+const compact = computed(() => !props.field.label)
+
 const wrap = ref<HTMLElement>()
 
 function el(): HTMLInputElement | HTMLTextAreaElement | null {
@@ -155,7 +159,10 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
     class="relative"
     @focusin="emit('focus')"
   >
-    <span class="k-label">{{ field.label }}<span
+    <span
+      v-if="field.label"
+      class="k-label"
+    >{{ field.label }}<span
       v-if="field.required"
       class="text-dimmed"
     > *</span></span>
@@ -167,7 +174,8 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       spellcheck="false"
       :disabled="disabled"
       :placeholder="field.placeholder"
-      class="mt-1.5 w-full"
+      class="w-full"
+      :class="compact ? '' : 'mt-1.5'"
       :ui="{ base: 'k-mono text-xs resize-none' }"
       @input="field.vars && refreshToken()"
       @click="field.vars && refreshToken()"
@@ -180,8 +188,9 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       spellcheck="false"
       :disabled="disabled"
       :placeholder="field.placeholder"
-      class="mt-1.5 w-full"
-      :ui="{ base: 'k-mono' }"
+      class="w-full"
+      :class="compact ? '' : 'mt-1.5'"
+      :ui="{ base: compact ? 'k-mono text-xs' : 'k-mono' }"
       @input="field.vars && refreshToken()"
       @click="field.vars && refreshToken()"
       @keydown="onKeydown"

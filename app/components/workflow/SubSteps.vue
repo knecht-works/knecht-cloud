@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { isCompositeType, MAX_STEP_DEPTH } from '#shared/utils/workflow'
+import { STEP_DND } from '~/composables/useStepDnd'
 
 // A composite step's nested step list (if branches, loop body), edited inline
 // inside the parent's settings card. Deliberately simpler than the top-level
-// rail: reorder via up/down, add via a type menu, no drag & drop.
+// rail: reorder via up/down, add via a type menu (or a library drop).
 const props = defineProps<{
   /** The branch array, mutated in place (the draft owns the state). */
   steps: WorkflowStep[]
@@ -69,10 +70,57 @@ function remove(i: number) {
 function groupsFor(i: number): VarGroup[] {
   return [...props.varsBase, ...(props.loop ? [LOOP_VARS] : []), ...stepOutputGroups(props.steps, i)]
 }
+
+// ── library drops ────────────────────────────────────────────────────────────
+// The page provides the library-drag state (useStepDnd); this list is a drop
+// target too: rows track an insertion index (upper/lower half → before/after),
+// dragover suppresses the rail's own insertion line, drops respect the depth
+// cap. Row reordering stays up/down only.
+const dnd = inject(STEP_DND, null)
+const dropAt = ref<number | null>(null)
+
+const droppable = computed(() => {
+  const type = dnd?.libDrag.value
+  if (!type || !props.editable) return false
+  return props.depth < MAX_STEP_DEPTH || !isCompositeType(type)
+})
+
+function trackDrop(e: DragEvent, index: number | null) {
+  if (!droppable.value) return
+  e.preventDefault()
+  e.stopPropagation()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+  dnd!.dropIndex.value = null
+  dropAt.value = index ?? dropAt.value ?? list.value.length
+}
+
+function onRowOver(i: number, e: DragEvent) {
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  trackDrop(e, e.clientY > rect.top + rect.height / 2 ? i + 1 : i)
+}
+
+function onZoneLeave(e: DragEvent) {
+  if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) dropAt.value = null
+}
+
+function onZoneDrop(e: DragEvent) {
+  if (!droppable.value) return
+  e.preventDefault()
+  e.stopPropagation()
+  const step = makeStep(dnd!.libDrag.value!, props.root)
+  list.value.splice(dropAt.value ?? list.value.length, 0, step)
+  open.value.add(step)
+  dropAt.value = null
+  dnd!.endDrag()
+}
 </script>
 
 <template>
-  <div>
+  <div
+    @dragover="trackDrop($event, null)"
+    @dragleave="onZoneLeave"
+    @drop="onZoneDrop"
+  >
     <div class="flex items-center justify-between">
       <span class="k-label">{{ title }}</span>
       <UDropdownMenu :items="addItems">
@@ -88,87 +136,104 @@ function groupsFor(i: number): VarGroup[] {
     </div>
     <p
       v-if="!steps.length"
-      class="mt-1.5 rounded-md border border-dashed border-muted px-3 py-2.5 text-xs text-dimmed"
+      class="mt-1.5 rounded-md border border-dashed px-3 py-2.5 text-xs text-dimmed"
+      :style="{ borderColor: droppable ? 'var(--primary)' : 'var(--border-muted)' }"
     >
-      No steps yet.
+      {{ droppable ? 'Drop step here.' : 'No steps yet.' }}
     </p>
     <div
       v-else
       class="mt-1.5 flex flex-col gap-1.5"
     >
-      <div
+      <template
         v-for="({ step: s, meta, valid }, i) in rows"
         :key="s.id ?? i"
-        class="rounded-md border bg-(--surface-muted)"
-        :style="{ borderColor: valid ? 'var(--border-default)' : 'var(--accent-orange)' }"
       >
-        <div class="group/row flex items-center gap-2.5 px-2.5 py-2">
-          <KStepIcon
-            :icon="meta.icon"
-            :color="STEP_KIND_COLOR[meta.kind]"
-            :size="26"
-            :radius="6"
-          />
-          <button
-            type="button"
-            class="min-w-0 flex-1 text-left"
-            @click="toggle(s)"
-          >
-            <span class="block truncate text-xs font-medium text-highlighted">{{ meta.label }}</span>
-            <span
-              v-if="meta.detail"
-              class="k-mono block truncate text-3xs text-dimmed"
-            >{{ meta.detail }}</span>
-          </button>
-          <span class="k-mono text-3xs text-dimmed">{{ s.id }}</span>
-          <div class="flex flex-none items-center">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-chevron-up"
-              aria-label="Move up"
-              :disabled="!editable || i === 0"
-              @click="move(i, -1)"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-chevron-down"
-              aria-label="Move down"
-              :disabled="!editable || i === rows.length - 1"
-              @click="move(i, 1)"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-lucide-trash-2"
-              aria-label="Remove step"
-              :disabled="!editable"
-              class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
-              @click="remove(i)"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :icon="open.has(s) ? 'i-lucide-chevron-down' : 'i-lucide-settings-2'"
-              :aria-label="open.has(s) ? 'Collapse' : 'Settings'"
-              @click="toggle(s)"
-            />
-          </div>
-        </div>
-        <WorkflowStepSettings
-          v-if="open.has(s)"
-          :step="s"
-          :groups="groupsFor(i)"
-          :editable="editable"
-          :root="root"
-          :depth="depth"
+        <!-- library-drop insertion line -->
+        <div
+          v-if="droppable && dropAt === i"
+          class="h-1 rounded-full bg-primary"
+          style="box-shadow: 0 0 10px var(--primary)"
         />
-      </div>
+        <div
+          class="rounded-md border bg-(--surface-muted)"
+          :style="{ borderColor: valid ? 'var(--border-default)' : 'var(--accent-orange)' }"
+          @dragover="onRowOver(i, $event)"
+        >
+          <div class="group/row flex items-center gap-2.5 px-2.5 py-2">
+            <KStepIcon
+              :icon="meta.icon"
+              :color="STEP_KIND_COLOR[meta.kind]"
+              :size="26"
+              :radius="6"
+            />
+            <button
+              type="button"
+              class="min-w-0 flex-1 text-left"
+              @click="toggle(s)"
+            >
+              <span class="block truncate text-xs font-medium text-highlighted">{{ meta.label }}</span>
+              <span
+                v-if="meta.detail"
+                class="k-mono block truncate text-3xs text-dimmed"
+              >{{ meta.detail }}</span>
+            </button>
+            <span class="k-mono text-3xs text-dimmed">{{ s.id }}</span>
+            <div class="flex flex-none items-center">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-chevron-up"
+                aria-label="Move up"
+                :disabled="!editable || i === 0"
+                @click="move(i, -1)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-chevron-down"
+                aria-label="Move down"
+                :disabled="!editable || i === rows.length - 1"
+                @click="move(i, 1)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                icon="i-lucide-trash-2"
+                aria-label="Remove step"
+                :disabled="!editable"
+                class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
+                @click="remove(i)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
+                size="xs"
+                :icon="open.has(s) ? 'i-lucide-chevron-down' : 'i-lucide-settings-2'"
+                :aria-label="open.has(s) ? 'Collapse' : 'Settings'"
+                @click="toggle(s)"
+              />
+            </div>
+          </div>
+          <WorkflowStepSettings
+            v-if="open.has(s)"
+            :step="s"
+            :groups="groupsFor(i)"
+            :editable="editable"
+            :root="root"
+            :depth="depth"
+          />
+        </div>
+      </template>
+      <!-- append drop line (below the last row) -->
+      <div
+        v-if="droppable && dropAt === rows.length"
+        class="h-1 rounded-full bg-primary"
+        style="box-shadow: 0 0 10px var(--primary)"
+      />
     </div>
   </div>
 </template>

@@ -6,8 +6,34 @@ import { CONDITION_OPS, type Condition, type ConditionOp } from '#shared/utils/w
 // the operator compares the rendered strings.
 const props = defineProps<{
   step: Extract<WorkflowStep, { type: 'if' }>
+  /** Variable groups visible at the if step (both sides are templates). */
+  groups: VarGroup[]
   editable: boolean
 }>()
+
+// Both sides get the {{ }} treatment: unlabeled (compact) VarFields, so the
+// autocomplete and the inspector's chip inserts work like in any other field.
+const LEFT_FIELD: StepField = { key: 'left', label: '', input: 'text', vars: true, placeholder: '{{ steps.s2.exitCode }}' }
+const RIGHT_FIELD: StepField = { key: 'right', label: '', input: 'text', vars: true, placeholder: '0' }
+
+// Chip inserts go to the last-focused side (falling back to the first row),
+// mirroring StepSettings' field wiring; rows are dynamic, so refs live in a
+// map keyed by group/row/side.
+interface VarFieldApi { insertVar: (path: string) => void }
+const fieldRefs = new Map<string, VarFieldApi>()
+const focused = ref<string | null>(null)
+
+function setRef(key: string, el: unknown) {
+  if (el) fieldRefs.set(key, el as VarFieldApi)
+  else fieldRefs.delete(key)
+}
+
+function insertVar(path: string) {
+  const target = (focused.value ? fieldRefs.get(focused.value) : undefined) ?? fieldRefs.values().next().value
+  target?.insertVar(path)
+}
+
+defineExpose({ insertVar })
 
 const OP_LABELS: Record<ConditionOp, string> = {
   'eq': 'equals',
@@ -68,13 +94,14 @@ function removeCondition(gi: number, ci: number) {
             :key="ci"
             class="flex items-center gap-1.5"
           >
-            <UInput
+            <WorkflowVarField
+              :ref="(el: unknown) => setRef(`${gi}:${ci}:left`, el)"
               v-model="c.left"
-              spellcheck="false"
+              :field="LEFT_FIELD"
+              :groups="groups"
               :disabled="!editable"
-              placeholder="{{ steps.s2.exitCode }}"
               class="min-w-0 flex-1"
-              :ui="{ base: 'k-mono text-xs' }"
+              @focus="focused = `${gi}:${ci}:left`"
             />
             <USelect
               v-model="c.op"
@@ -83,14 +110,15 @@ function removeCondition(gi: number, ci: number) {
               class="w-36 flex-none"
               :ui="{ base: 'text-xs' }"
             />
-            <UInput
+            <WorkflowVarField
               v-if="hasRight(c.op)"
+              :ref="(el: unknown) => setRef(`${gi}:${ci}:right`, el)"
               v-model="c.right"
-              spellcheck="false"
+              :field="RIGHT_FIELD"
+              :groups="groups"
               :disabled="!editable"
-              placeholder="0"
               class="min-w-0 flex-1"
-              :ui="{ base: 'k-mono text-xs' }"
+              @focus="focused = `${gi}:${ci}:right`"
             />
             <UButton
               color="neutral"
