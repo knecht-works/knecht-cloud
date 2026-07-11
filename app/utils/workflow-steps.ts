@@ -12,6 +12,7 @@ import { bashStep } from '~/utils/steps/bash'
 import { aiStep } from '~/utils/steps/ai'
 import { jsStep } from '~/utils/steps/js'
 import { httpStep } from '~/utils/steps/http'
+import { linkCheckStep } from '~/utils/steps/link-check'
 import { ifStep } from '~/utils/steps/if'
 import { loopStep } from '~/utils/steps/loop'
 import { createBranchStep } from '~/utils/steps/create-branch'
@@ -27,6 +28,7 @@ export const STEP_DEFS: RegisteredStepDef[] = [
   aiStep,
   jsStep,
   httpStep,
+  linkCheckStep,
   ifStep,
   loopStep,
   createBranchStep,

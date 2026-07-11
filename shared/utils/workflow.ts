@@ -62,6 +62,11 @@ export type Step = StepMeta & (
   | { type: 'if', conditions: Condition[][], then: Step[], else: Step[] }
   // `items` resolves to an array (iterate it) or a number (repeat N times).
   | { type: 'loop', items: string, steps: Step[] }
+  // Requests every page of a sitemap (or of an explicit URL list: newline-
+  // separated, or a raw {{ ref }} to an array like a previous link-check's
+  // brokenUrls) and reports HTTP errors. `failOnBroken` (default true) turns
+  // broken pages into a step failure; off, the step just returns the counts.
+  | { type: 'link-check', sitemap?: string, urls?: string, failOnBroken?: boolean }
   | { type: 'create-branch', name: string }
   | { type: 'create-commit', message: string }
   | { type: 'create-pr', title: string, body: string }

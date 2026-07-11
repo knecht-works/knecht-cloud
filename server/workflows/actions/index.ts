@@ -5,6 +5,7 @@ import { bashAction } from './bash'
 import { aiAction } from './ai'
 import { jsAction } from './js'
 import { httpAction } from './http'
+import { linkCheckAction } from './link-check'
 import { createBranchAction } from './create-branch'
 import { createCommitAction } from './create-commit'
 import { createPrAction } from './create-pr'
@@ -22,6 +23,7 @@ export const ACTIONS: RegisteredAction[] = [
   aiAction,
   jsAction,
   httpAction,
+  linkCheckAction,
   createBranchAction,
   createCommitAction,
   createPrAction,
