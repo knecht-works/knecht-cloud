@@ -14,12 +14,16 @@ export interface StepRetry {
 }
 
 // Per-step metadata. `id` is the step's stable identity: unique within its
-// workflow, immutable once assigned (reorders and label edits keep it), and the
-// key later steps reference outputs under ({{ steps.<id>.<output> }}). It's
-// optional in the type because pre-id definitions exist in the DB. Every
-// load/save path backfills via ensureStepIds. `label`/`description` are
-// builder-only presentation. `continueOnError`/`retry` are the step's error
-// policy, enforced generically by the runner for every step type.
+// workflow (the namespace is flat across the whole tree) and the key later
+// steps reference outputs under ({{ steps.<id>.<output> }}). It's derived from
+// the label at creation (deriveStepId: "Run command" → run_command), follows
+// label edits while still auto-derived, and is hand-editable in the builder;
+// both rename paths rewrite the workflow's references (renameStepReferences),
+// reorders never touch it. It's optional in the type because pre-id
+// definitions exist in the DB. Every load/save path backfills via
+// ensureStepIds. `label`/`description` are builder-only presentation.
+// `continueOnError`/`retry` are the step's error policy, enforced generically
+// by the runner for every step type.
 export interface StepMeta {
   id?: string
   label?: string
@@ -131,14 +135,6 @@ export function stepTreeDepth(steps: Step[]): number {
 // URL-safe once encoded: no slash/percent/etc.
 export const WORKFLOW_NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u
 
-// The lowest free `s<n>` id: deterministic, so backfilling the same stored
-// list always produces the same ids even before they're persisted.
-function freeStepId(taken: Set<string>): string {
-  for (let n = 1; ; n++) {
-    if (!taken.has(`s${n}`)) return `s${n}`
-  }
-}
-
 // Every id declared anywhere in the tree.
 function declaredIds(flat: Step[]): Set<string> {
   return new Set(flat.map(s => s.id).filter((id): id is string => !!id))
@@ -146,8 +142,11 @@ function declaredIds(flat: Step[]): Set<string> {
 
 // Backfill missing (or duplicated) step ids without touching valid ones,
 // recursing into composite steps: the id namespace is flat across the whole
-// tree. Applied on every load/save boundary: the API schemas, the engine's row
-// loader, and the workflows GET, so pre-id rows behave as if they had ids.
+// tree. Ids derive from the step's label (or its type), so backfilled
+// definitions read like builder-created ones; deterministic, so the same
+// stored list always produces the same ids even before they're persisted.
+// Applied on every load/save boundary: the API schemas, the engine's row
+// loader, and the workflows GET.
 export function ensureStepIds(steps: Step[]): Step[] {
   const flat = flattenSteps(steps)
   const declared = declaredIds(flat)
@@ -156,12 +155,10 @@ export function ensureStepIds(steps: Step[]): Step[] {
   if (declared.size === flat.length) return steps
 
   const assigned = new Set<string>()
-  let cursor = 1
   const assign = (list: Step[]): Step[] => list.map((step) => {
     let id = step.id
     if (!id || assigned.has(id)) {
-      while (declared.has(`s${cursor}`) || assigned.has(`s${cursor}`)) cursor++
-      id = `s${cursor}`
+      id = deriveStepId(step.label || step.type, new Set([...declared, ...assigned]))
     }
     assigned.add(id)
     const next: Step = step.id === id ? step : { ...step, id }
@@ -170,10 +167,81 @@ export function ensureStepIds(steps: Step[]): Step[] {
   return assign(steps)
 }
 
-// The id for a step the builder is about to append/insert; `steps` is the
-// workflow's ROOT list (ids are unique across the whole tree).
-export function nextStepId(steps: Step[]): string {
-  return freeStepId(declaredIds(flattenSteps(steps)))
+// ── step ids ─────────────────────────────────────────────────────────────────
+// A step id is the `steps.<id>` segment of template references, so it must fit
+// render()'s `[\w.]+` path grammar: word chars only (dots are the path
+// separator, hyphens don't match). Shared by the server schema and the
+// builder's id editor.
+export const STEP_ID_RE = /^[a-z][a-z0-9_]*$/
+
+// Label → id slug, GitHub-Actions style: "Run Lighthouse" → run_lighthouse.
+// '' when nothing survives (emoji-only labels); deriveStepId falls back then.
+export function slugifyStepId(label: string): string {
+  const base = label.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  if (!base) return ''
+  // Leading digit ("3rd check") gets a letter prefix; cap the length so
+  // collision suffixes stay readable.
+  return (/^[a-z]/.test(base) ? base : `s_${base}`).slice(0, 40).replace(/_+$/, '')
+}
+
+// Every id declared in the tree: what a new or renamed id must stay unique
+// against. `steps` is the workflow's ROOT list (the namespace is flat).
+export function stepIds(steps: Step[]): Set<string> {
+  return declaredIds(flattenSteps(steps))
+}
+
+// The id for a new, relabeled or backfilled step: the label's slug (`step`
+// when it slugs to nothing), `_2`-suffixed on collision.
+export function deriveStepId(label: string, taken: Set<string>): string {
+  const slug = slugifyStepId(label) || 'step'
+  if (!taken.has(slug)) return slug
+  for (let n = 2; ; n++) {
+    if (!taken.has(`${slug}_${n}`)) return `${slug}_${n}`
+  }
+}
+
+// Whether `id` is (still) the auto-derived id for `label`: the slug itself or
+// a collision-suffixed variant. The builder keeps such ids in sync with label
+// edits (checking the label AND the type, backfill's base) and leaves
+// hand-edited ones alone.
+export function isDerivedStepId(id: string, label: string): boolean {
+  const slug = slugifyStepId(label) || 'step'
+  return id === slug || (id.startsWith(`${slug}_`) && /^\d+$/.test(id.slice(slug.length + 1)))
+}
+
+// Rewrite every `{{ steps.<oldId>… }}` reference in the tree to the new id:
+// string params and nested param shapes (if conditions), composite bodies
+// included. Mutates the steps in place (the editor's draft owns the state).
+export function renameStepReferences(steps: Step[], oldId: string, newId: string): void {
+  const re = new RegExp(`(\\{\\{\\s*steps\\.)${oldId}(?=[.\\s}])`, 'g')
+  const rewrite = (text: string) => text.replace(re, `$1${newId}`)
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach((item, i) => {
+        if (typeof item === 'string') (value as unknown[])[i] = rewrite(item)
+        else walk(item)
+      })
+    }
+    else if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>
+      for (const [key, item] of Object.entries(record)) {
+        if (typeof item === 'string') record[key] = rewrite(item)
+        else walk(item)
+      }
+    }
+  }
+  for (const step of flattenSteps(steps)) {
+    // Sub-step lists are covered by flattenSteps; meta strings hold no
+    // templates.
+    const skip = new Set<string>([...STEP_META_KEYS, ...(isComposite(step) ? COMPOSITE_CHILD_KEYS[step.type] : [])])
+    const record = step as unknown as Record<string, unknown>
+    for (const [key, value] of Object.entries(record)) {
+      if (skip.has(key)) continue
+      if (typeof value === 'string') record[key] = rewrite(value)
+      else walk(value)
+    }
+  }
 }
 
 // ── ai step: structured output spec ──────────────────────────────────────────

@@ -5,7 +5,7 @@
 // (server/workflows/actions/<type>.ts); the shared Step union
 // (shared/utils/workflow.ts) is the type-level single source both build on.
 
-import { nextStepId, stepChildren } from '#shared/utils/workflow'
+import { deriveStepId, stepChildren, stepIds } from '#shared/utils/workflow'
 import type { RegisteredStepDef, StepMeta, StepVar } from '~/utils/steps/define'
 import { ddevStartStep } from '~/utils/steps/ddev-start'
 import { bashStep } from '~/utils/steps/bash'
@@ -48,10 +48,12 @@ export function stepDef(type: WorkflowStep['type']): RegisteredStepDef {
   return BY_TYPE.get(type)!
 }
 
-// A fresh step for the given type, with its stable id assigned against the
-// steps it's joining: the single creation path (library click AND drag-drop).
+// A fresh step for the given type, with its stable id derived from the type's
+// label against the steps it's joining (run_command, run_command_2, …): the
+// single creation path (library click AND drag-drop).
 export function makeStep(type: WorkflowStep['type'], steps: WorkflowStep[]): WorkflowStep {
-  return { ...stepDef(type).make(), id: nextStepId(steps) }
+  const def = stepDef(type)
+  return { ...def.make(), id: deriveStepId(def.label, stepIds(steps)) }
 }
 
 // How a step instance presents in lists: the def's identity, overlaid with its

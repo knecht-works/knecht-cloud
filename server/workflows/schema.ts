@@ -4,6 +4,7 @@ import {
   CONDITION_OPS,
   ensureStepIds,
   MAX_STEP_DEPTH,
+  STEP_ID_RE,
   stepTreeDepth,
   WORKFLOW_NAME_RE,
   type Step,
@@ -72,7 +73,9 @@ export interface Workflow {
 // already in their NORMALIZED, `type`-tagged shape, so this validates that
 // shape directly. Required params are enforced (a half-filled step can't save).
 const stepMeta = {
-  id: z.string().optional(),
+  // Ids are template path segments (STEP_ID_RE); ensureStepIds backfills
+  // missing ones and de-duplicates, so only the FORMAT is enforced here.
+  id: z.string().regex(STEP_ID_RE, 'Step ids use lowercase letters, digits and underscores, starting with a letter').optional(),
   label: z.string().optional(),
   description: z.string().optional(),
   // The step's error policy (shared/utils/workflow.ts StepMeta), enforced by

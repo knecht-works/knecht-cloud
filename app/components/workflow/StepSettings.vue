@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { isComposite } from '#shared/utils/workflow'
+import { deriveStepId, isComposite, isDerivedStepId, renameStepReferences, STEP_ID_RE, stepIds } from '#shared/utils/workflow'
 
 // The expanded step's settings, rendered inline inside its card: display
 // name/note, the registry-driven fields, and the n8n-style variable list,
@@ -20,6 +20,50 @@ const meta = computed(() => workflowStepMeta(props.step))
 
 // Step params are edited in place (the draft object owns the state).
 const record = computed(() => props.step as unknown as Record<string, string | boolean>)
+
+// ── step id: derived from the label, hand-editable, references follow ────────
+// While the id still looks auto-derived (run_command, run_command_2, or the
+// backfill's type slug link_check) a label edit re-derives it; a hand-edited
+// id sticks. Every rename rewrites the tree's {{ steps.<id>… }} references,
+// so templates never break.
+const idDraft = ref(props.step.id ?? '')
+watch(() => props.step.id, id => idDraft.value = id ?? '')
+
+// The tree's ids minus this step's own: what a rename must stay unique against.
+function takenIds(): Set<string> {
+  const taken = stepIds(props.root)
+  if (props.step.id) taken.delete(props.step.id)
+  return taken
+}
+
+const idError = computed(() => {
+  const id = idDraft.value.trim()
+  if (id === props.step.id) return ''
+  if (!STEP_ID_RE.test(id)) return 'Lowercase letters, digits and underscores, starting with a letter'
+  if (takenIds().has(id)) return 'Already used by another step'
+  return ''
+})
+
+function renameId(newId: string) {
+  const oldId = props.step.id
+  if (!oldId || newId === oldId) return
+  renameStepReferences(props.root, oldId, newId)
+  record.value.id = newId
+}
+
+function onIdInput(value: string) {
+  idDraft.value = value
+  const id = value.trim()
+  if (STEP_ID_RE.test(id) && !takenIds().has(id)) renameId(id)
+}
+
+function onLabelInput(value: string) {
+  const prev = props.step.label?.trim() || def.value.label
+  const auto = !!props.step.id
+    && (isDerivedStepId(props.step.id, prev) || isDerivedStepId(props.step.id, props.step.type))
+  record.value.label = value
+  if (auto) renameId(deriveStepId(value.trim() || def.value.label, takenIds()))
+}
 
 // Chip inserts go to the last-focused template-capable field (falls back to
 // the first one). Typed against VarField's exposed API.
@@ -62,7 +106,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
         :disabled="!editable"
         aria-label="Step name"
         class="w-full bg-transparent text-sm font-medium text-highlighted outline-none placeholder:text-dimmed"
-        @input="record.label = ($event.target as HTMLInputElement).value"
+        @input="onLabelInput(($event.target as HTMLInputElement).value)"
       >
       <input
         :value="step.description ?? ''"
@@ -73,6 +117,28 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
         class="w-full bg-transparent text-xs text-muted outline-none placeholder:text-dimmed"
         @input="record.description = ($event.target as HTMLInputElement).value"
       >
+      <!-- the id templates reference this step under; invalid edits stay in
+           the draft (red) and revert on blur -->
+      <div
+        class="flex items-baseline"
+        :title="`Templates reference this step as steps.${step.id}`"
+      >
+        <span class="k-mono text-2xs text-dimmed">steps.</span>
+        <input
+          :value="idDraft"
+          spellcheck="false"
+          :disabled="!editable"
+          aria-label="Step id"
+          class="k-mono min-w-0 flex-1 bg-transparent text-2xs outline-none"
+          :class="idError ? 'text-(--accent-orange)' : 'text-muted'"
+          @input="onIdInput(($event.target as HTMLInputElement).value)"
+          @blur="idDraft = step.id ?? ''"
+        >
+        <span
+          v-if="idError"
+          class="flex-none text-2xs text-(--accent-orange)"
+        >{{ idError }}</span>
+      </div>
     </div>
 
     <!-- settings fields, from the registry -->
