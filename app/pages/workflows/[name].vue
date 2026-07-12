@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { stepChildren } from '#shared/utils/workflow'
 import type { TestRunRow } from '~/composables/useWorkflowTestRun'
 
 // The workflow create/edit surface. A numbered step rail on the left (editable:
@@ -40,6 +41,28 @@ function toggleStep(step: WorkflowStep) {
   if (openSteps.value.has(step)) openSteps.value.delete(step)
   else openSteps.value.add(step)
 }
+
+// Open a step's settings and bring its card into view.
+function revealStep(step: WorkflowStep) {
+  openSteps.value.add(step)
+  nextTick(() => document.getElementById(`step-card-${step.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+}
+
+// The top-level step carrying `id`, or the composite containing it: only
+// top-level cards expand, sub-steps render inside their composite's settings.
+function stepWithId(id: string): WorkflowStep | undefined {
+  const contains = (step: WorkflowStep): boolean =>
+    step.id === id || stepChildren(step).flat().some(contains)
+  return draft.value.steps.find(s => contains(s))
+}
+
+// Deep link from a run's failure card: ?step=<id> lands with that step open.
+onMounted(() => {
+  const id = route.query.step
+  if (typeof id !== 'string') return
+  const step = stepWithId(id)
+  if (step) revealStep(step)
+})
 
 function resetDraft() {
   const base: Draft = saved.value
@@ -344,6 +367,25 @@ const statuses = computed<StepStatus[]>(() => {
 // 1-based "step N of M" for the live banner.
 const startedSteps = computed(() => Math.max(1, topRows.value.size))
 
+// The failed test's banner facts: the step that stopped the run (1-based
+// position + label) and how many later steps never ran. A runner crash can
+// leave the dying step's row on 'running', so that counts as the stopper too.
+// Null when the run failed before its first step row; the log has the story.
+const failedStep = computed(() => {
+  if (mode.value !== 'failed') return null
+  const i = statuses.value.findIndex(s => s === 'error' || s === 'running')
+  if (i === -1) return null
+  return { n: i + 1, label: workflowStepMeta(steps.value[i]!).label, skipped: steps.value.length - i - 1 }
+})
+
+// Leaving a failed test jumps straight into fixing it: the failed step's
+// settings open and its card scrolls into view.
+function backToEditing() {
+  const failed = failedStep.value ? steps.value[failedStep.value.n - 1] : undefined
+  detach()
+  if (failed) revealStep(failed)
+}
+
 const railSteps = computed(() =>
   steps.value.map((step, i) => ({ step, meta: workflowStepMeta(step), status: statuses.value[i]!, n: i + 1 })),
 )
@@ -542,20 +584,33 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               label="View log"
               @click="() => { navigateTo(`/runs/${activeRun!.id}`) }"
             />
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-refresh-cw"
-              label="Test again"
-              @click="retest"
-            />
-            <UButton
-              color="primary"
-              icon="i-lucide-play"
-              label="Retry"
-              :loading="retrying"
-              @click="retry"
-            />
+            <UTooltip text="Closes the test result and opens the failed step for editing. The failed run stays on the runs page.">
+              <UButton
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-pencil"
+                label="Fix failed step"
+                @click="backToEditing"
+              />
+            </UTooltip>
+            <UTooltip text="Continues this run at the failed step, keeping earlier step results. Runs the definition this test started with, without edits made since.">
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-play"
+                label="Resume run"
+                :loading="retrying"
+                @click="retry"
+              />
+            </UTooltip>
+            <UTooltip text="Starts a fresh test run with the current workflow definition, picking up your edits.">
+              <UButton
+                color="primary"
+                icon="i-lucide-refresh-cw"
+                label="Test again"
+                @click="retest"
+              />
+            </UTooltip>
           </template>
           <template v-else>
             <!-- auto-save status (no save button) -->
@@ -671,7 +726,15 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
           class="size-4.5 flex-none text-error"
         />
         <div class="text-2sm leading-snug text-toned">
-          <b>Test failed at step {{ startedSteps }}.</b> The following steps were skipped.
+          <template v-if="failedStep">
+            <b>Test failed at step {{ failedStep.n }}, "{{ failedStep.label }}".</b>
+            <template v-if="failedStep.skipped">
+              The {{ failedStep.skipped === 1 ? 'following step was' : `following ${failedStep.skipped} steps were` }} skipped.
+            </template>
+          </template>
+          <template v-else>
+            <b>Test failed before its first step.</b> The log below has the details.
+          </template>
         </div>
       </div>
 
@@ -1040,6 +1103,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
 
               <!-- Card: summary row; clicking expands the settings inline. -->
               <div
+                :id="`step-card-${r.step.id}`"
                 class="relative mb-3 min-w-0 flex-1 overflow-hidden rounded-lg"
                 :style="{ border: `1px solid ${openSteps.has(r.step) ? 'var(--border-accented)' : TREAT[r.status].border}`, background: TREAT[r.status].bg, boxShadow: 'var(--shadow-panel)' }"
               >
@@ -1224,7 +1288,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               <div class="flex flex-col gap-3.5">
                 <div class="flex items-center justify-between">
                   <span class="k-mono text-2xs text-dimmed">Failed at step</span>
-                  <span class="k-mono text-2xs text-error">{{ startedSteps }} of {{ steps.length }}</span>
+                  <span class="k-mono text-2xs text-error">{{ failedStep ? `${failedStep.n} of ${steps.length}` : 'before step 1' }}</span>
                 </div>
                 <KLogView
                   :log="activeRun.log"

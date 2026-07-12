@@ -34,16 +34,25 @@ const timeline = computed(() => {
   })
 })
 
-// The run's meta facts (how it was triggered, the branch it works on, timing,
-// the PR it opened). Chips are skipped when a run predates the recorded field.
-// A run fired by a configured trigger links back to its workflow (where its
-// triggers are managed).
+// The step behind the failure card: rows are in execution order, so the last
+// row carrying an error is the most specific one (a composite is finalized
+// after the child that failed it). Null when the run failed before any step
+// recorded an error (e.g. a runner crash); the card then points at the log.
+const failedStep = computed(() => {
+  if (run.value?.status !== 'failed') return null
+  return [...timeline.value].reverse().find(s => s.error) ?? null
+})
+
+// The run's meta facts (the workflow it executes, how it was triggered, the
+// branch it works on, timing, the PR it opened). Chips are skipped when a run
+// predates the recorded field. The workflow chip links to the editor.
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
   const trigger = r.trigger ? triggerSourceMeta(r.trigger) : null
   return [
-    trigger && { icon: trigger.icon, text: trigger.label, href: r.triggerId ? `/workflows/${encodeURIComponent(r.workflow)}` : undefined },
+    { icon: 'i-lucide-workflow', text: r.workflow, href: `/workflows/${encodeURIComponent(r.workflow)}` },
+    trigger && { icon: trigger.icon, text: trigger.label },
     r.branch && { icon: 'i-lucide-git-branch', text: r.branch },
     r.startedAt && { icon: 'i-lucide-timer', text: runDuration(r.startedAt, r.finishedAt) },
     r.createdAt && { icon: 'i-lucide-calendar', text: timeAgo(r.createdAt) },
@@ -111,7 +120,8 @@ async function cancel() {
 
 // Resume from the step that stopped the run: completed steps keep their
 // results, only the failed step onward re-executes. Polling resumes via isLive.
-const retryable = computed(() => run.value?.status === 'failed' || run.value?.status === 'cancelled')
+// For failed runs the retry button lives in the failure card; the header
+// button covers cancelled runs.
 const retrying = ref(false)
 async function retry() {
   retrying.value = true
@@ -181,7 +191,7 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
           @click="cancel"
         />
         <UButton
-          v-else-if="retryable"
+          v-else-if="run.status === 'cancelled'"
           color="primary"
           icon="i-lucide-play"
           label="Retry"
@@ -224,6 +234,51 @@ usePollWhile(() => isLive.value, () => Promise.all([refresh(), refreshSteps()]))
     </div>
 
     <div class="flex flex-col gap-4.5">
+      <div
+        v-if="run.status === 'failed'"
+        class="k-card flex flex-wrap items-center justify-between gap-4 p-5"
+      >
+        <div class="min-w-0 max-w-130">
+          <p class="text-2sm text-highlighted">
+            <template v-if="failedStep">
+              This run failed at "{{ failedStep.label }}" ({{ failedStep.stepId }}).
+            </template>
+            <template v-else>
+              This run failed before a step could report an error.
+            </template>
+          </p>
+          <p
+            v-if="failedStep?.error"
+            class="mt-1 text-xs"
+            style="color: var(--status-error)"
+          >
+            {{ failedStep.error }}
+          </p>
+          <p
+            v-else
+            class="mt-1 text-xs text-muted"
+          >
+            Check the log below for details.
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <UButton
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-workflow"
+            :label="failedStep ? 'Fix failed step' : 'Edit workflow'"
+            :to="`/workflows/${encodeURIComponent(run.workflow)}${failedStep ? `?step=${encodeURIComponent(failedStep.stepId)}` : ''}`"
+          />
+          <UButton
+            color="primary"
+            icon="i-lucide-play"
+            label="Retry"
+            :loading="retrying"
+            @click="retry"
+          />
+        </div>
+      </div>
+
       <template v-if="run.envState !== 'down'">
         <KPreviewBrowser
           v-if="run.envState === 'up'"
