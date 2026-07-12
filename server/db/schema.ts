@@ -241,6 +241,16 @@ export const settings = sqliteTable('settings', {
 
 export type Settings = typeof settings.$inferSelect
 
+// JS data migrations applied to this instance (server/db/data-migrations.ts):
+// transformations the SQL migration files can't express. Mirrors drizzle's
+// __drizzle_migrations bookkeeping: each runs exactly once, tracked by name.
+export const dataMigrations = sqliteTable('data_migrations', {
+  name: text('name').primaryKey(),
+  appliedAt: integer('applied_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
 // Issue actions a GitHub 'issues' trigger can listen for.
 export type IssueAction = 'opened' | 'labeled'
 
