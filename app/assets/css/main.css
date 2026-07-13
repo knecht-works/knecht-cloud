@@ -241,3 +241,16 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .knecht-march { animation: none; }
 }
+
+/* ============================================================
+   Comark (agent markdown in the follow-up chat)
+   ============================================================ */
+/* The highlight plugin emits shiki dual-theme tokens; this flips them to the
+   dark palette (the app runs dark-only, html always carries .dark). */
+html.dark .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}

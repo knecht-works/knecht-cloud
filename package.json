@@ -20,6 +20,7 @@
     "preview:docker": "docker compose up -d --build"
   },
   "dependencies": {
+    "@comark/nuxt": "^0.5.0",
     "@nuxt/ui": "^4.8.2",
     "better-sqlite3": "^12.10.0",
     "drizzle-orm": "^0.45.2",
