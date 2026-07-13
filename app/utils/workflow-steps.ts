@@ -72,6 +72,7 @@ export function workflowStepMeta(step: WorkflowStep): StepMeta {
 // Variables seeded into every run before the first step (workflows/context.ts).
 const CONTEXT_VARS: StepVar[] = [
   { path: 'run.id', hint: 'This run\'s number' },
+  { path: 'run.url', hint: 'Link to this run\'s detail page' },
   { path: 'project.name', hint: 'Repo name' },
   { path: 'project.owner', hint: 'Repo owner' },
   { path: 'project.fullName', hint: 'owner/name' },

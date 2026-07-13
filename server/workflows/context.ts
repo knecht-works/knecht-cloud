@@ -1,6 +1,7 @@
 import type { Project } from '../db/schema'
 import { STEP_META_KEYS, type Condition, type Step } from '../../shared/utils/workflow'
 import { tryParseJson } from '../utils/json'
+import { dashboardOrigin } from '../utils/origin'
 
 // The run-scoped variable namespace (workflows.md §6): a single object seeded
 // at run start, into which each block's outputs land as it runs, so values
@@ -14,7 +15,7 @@ import { tryParseJson } from '../utils/json'
 // before step ids existed keep rendering; the legacy key holds the LAST such
 // step's outputs, exactly as before.
 export interface RunContext {
-  run: { id: number }
+  run: { id: number, url: string }
   project: { name: string, owner: string, fullName: string, defaultBranch: string }
   inputs: Record<string, string>
   steps: Record<string, Record<string, unknown>>
@@ -28,7 +29,8 @@ export function createContext(
   inputs: Record<string, string> = {},
 ): RunContext {
   return {
-    run: { id: runId },
+    // url stays a relative path when no public origin is configured.
+    run: { id: runId, url: `${dashboardOrigin()}/runs/${runId}` },
     project: {
       name: project.name,
       owner: project.owner,
