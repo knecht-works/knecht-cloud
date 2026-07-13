@@ -78,6 +78,13 @@
       "when": 1783870267185,
       "tag": "0010_data_migrations",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1783871144000,
+      "tag": "0011_brainy_sleeper",
+      "breakpoints": true
     }
   ]
 }

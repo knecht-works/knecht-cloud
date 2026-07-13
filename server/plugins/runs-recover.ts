@@ -26,4 +26,15 @@ export default defineNitroPlugin(() => {
     })
     .where(sql`${schema.runSteps.status} = 'running'`)
     .run()
+
+  // Same for follow-ups: a 'running' one died with the process ('queued' ones
+  // are crash-safe, the dispatcher picks them up again).
+  db.update(schema.followups)
+    .set({
+      status: 'failed',
+      error: 'Interrupted by a daemon restart',
+      finishedAt: new Date(),
+    })
+    .where(sql`${schema.followups.status} = 'running'`)
+    .run()
 })
