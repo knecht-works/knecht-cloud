@@ -149,6 +149,13 @@ export const runSteps = sqliteTable('run_steps', {
   stepIndex: integer('step_index').notNull(),
   stepId: text('step_id').notNull(),
   type: text('type').notNull(),
+  // Where the row came from: 'workflow' rows execute the run's pinned step
+  // snapshot; 'followup' rows are appended after the run finished (a follow-up
+  // prompt sent from the dashboard). The runner's resume logic only looks at
+  // workflow rows; the timeline renders follow-ups as their own section.
+  origin: text('origin', { enum: ['workflow', 'followup'] })
+    .notNull()
+    .default('workflow'),
   status: text('status', { enum: ['running', 'success', 'failed'] })
     .notNull()
     .default('running'),
@@ -167,6 +174,44 @@ export const runSteps = sqliteTable('run_steps', {
 }, table => [
   index('run_steps_run_id_idx').on(table.runId),
 ])
+
+// A follow-up prompt sent to a FINISHED run: the agent continues the run's
+// opencode session inside the run's existing sandbox (rebooted first if it was
+// idle-stopped or archived). Queued rows wait for a dispatcher slot when their
+// env must be revived; a follow-up on an 'up' env executes immediately (its
+// RAM is already spent). Execution is recorded as a run_steps row with
+// origin 'followup', so the run timeline shows the full conversation.
+export const followups = sqliteTable('followups', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  runId: integer('run_id')
+    .notNull()
+    .references(() => runs.id, { onDelete: 'cascade' }),
+  prompt: text('prompt').notNull(),
+  // Whether the executor should publish after the agent is done: commit any
+  // changes the agent left uncommitted and push the run's branch. The agent is
+  // also told about it in the prompt, so it can commit/push itself through its
+  // git tools; the epilogue is the deterministic fallback.
+  push: integer('push', { mode: 'boolean' }).notNull().default(true),
+  // Login of the member who sent it, for the commit's Co-authored-by trailer.
+  requestedBy: text('requested_by'),
+  status: text('status', { enum: ['queued', 'running', 'success', 'failed'] })
+    .notNull()
+    .default('queued'),
+  error: text('error'),
+  startedAt: integer('started_at', { mode: 'timestamp' }),
+  finishedAt: integer('finished_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, table => [
+  // The run detail page lists a run's follow-ups; the dispatcher claims queued
+  // ones by status.
+  index('followups_run_id_idx').on(table.runId),
+  index('followups_status_idx').on(table.status),
+])
+
+export type Followup = typeof followups.$inferSelect
+export type NewFollowup = typeof followups.$inferInsert
 
 // Workflows. Every workflow is a row here, including the bundled starter
 // templates (server/workflows/index.ts), which are seeded once on first boot

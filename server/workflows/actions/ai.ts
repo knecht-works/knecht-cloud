@@ -7,6 +7,7 @@ import type { AiProviderId } from '../../../shared/utils/ai'
 import { getSettings } from '../../utils/settings'
 import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
+import { bridgeEnv } from '../../utils/agent-bridge'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 
@@ -58,29 +59,10 @@ export const aiAction = defineAction({
     ),
   },
   async run(step, rt) {
-    const settings = getSettings()
-    if (!settings.aiKeyEnc) {
-      throw new Error('AI provider API key not configured, add it under Settings → Agent')
-    }
-    const model = step.model?.trim() || settings.aiModel
-    if (!MODEL_RE.test(model)) {
-      throw new Error(`Invalid model '${model}': expected opencode's provider/model form, e.g. anthropic/claude-sonnet-4-5`)
-    }
-    // The key belongs to the CONFIGURED provider; a model from another one
-    // would run against credentials that can't serve it.
-    const provider = settings.aiProvider as AiProviderId
-    const envNames = PROVIDER_KEY_ENV[provider]
-    if (!envNames) {
-      throw new Error(`Unsupported provider '${provider}'. Supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
-    }
-    if (model.split('/')[0] !== provider) {
-      throw new Error(`Model '${model}' does not match the configured provider '${provider}' (Settings → Agent)`)
-    }
+    const { model, env } = await resolveAgentEnv(rt.runId, step.model)
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
 
-    const key = decrypt(settings.aiKeyEnc)
-    const env = Object.fromEntries(envNames.map(name => [name, key]))
     const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
     try {
       // Reset the merged-in system prompt for THIS step (empty when unset).
@@ -100,6 +82,57 @@ export const aiAction = defineAction({
     }
   },
 })
+
+// Resolve everything an opencode invocation needs from settings: the model
+// (with an optional per-step override) and the env handed to the process (the
+// provider key plus the agent bridge vars that switch on the knecht-git
+// tools). Shared by the ai step and the follow-up executor.
+async function resolveAgentEnv(
+  runId: number,
+  stepModel?: string,
+): Promise<{ model: string, env: Record<string, string> }> {
+  const settings = getSettings()
+  if (!settings.aiKeyEnc) {
+    throw new Error('AI provider API key not configured, add it under Settings → Agent')
+  }
+  const model = stepModel?.trim() || settings.aiModel
+  if (!MODEL_RE.test(model)) {
+    throw new Error(`Invalid model '${model}': expected opencode's provider/model form, e.g. anthropic/claude-sonnet-4-5`)
+  }
+  // The key belongs to the CONFIGURED provider; a model from another one
+  // would run against credentials that can't serve it.
+  const provider = settings.aiProvider as AiProviderId
+  const envNames = PROVIDER_KEY_ENV[provider]
+  if (!envNames) {
+    throw new Error(`Unsupported provider '${provider}'. Supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
+  }
+  if (model.split('/')[0] !== provider) {
+    throw new Error(`Model '${model}' does not match the configured provider '${provider}' (Settings → Agent)`)
+  }
+  const key = decrypt(settings.aiKeyEnc)
+  return {
+    model,
+    env: { ...Object.fromEntries(envNames.map(name => [name, key])), ...await bridgeEnv(runId) },
+  }
+}
+
+// Run one prompt against the run's EXISTING opencode session (the follow-up
+// executor's entry): same settings resolution as the ai step, but always
+// `--continue`, so the agent keeps the context of what it did during the run.
+// The step's workflow.md system prompt is deliberately left as-is: the last
+// ai step's system context stays valid for tweaks to that step's work.
+export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Promise<string> {
+  const { model, env } = await resolveAgentEnv(rt.runId)
+  rt.log(`\n▶ follow-up (${model}): ${oneLine(prompt, 100)}\n`)
+  await rt.sandbox.ensureUp()
+  const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
+  try {
+    return await runOpencode(rt, dir, model, env, prompt, true)
+  }
+  finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+}
 
 // The structured-output path: run, read the file the agent was told to write,
 // validate against the spec, and on a miss re-ask (same session) with the exact
@@ -149,7 +182,10 @@ async function runOpencode(
 ): Promise<string> {
   const hostFile = join(dir, 'prompt.txt')
   await writeFile(hostFile, message)
-  const inSandbox = `/tmp/knecht-ai-${rt.runId}.txt`
+  // Unique per invocation: under sysbox, docker cp INTO the container reports
+  // success but does NOT overwrite an existing file, so reusing one path would
+  // silently resend the FIRST prompt on every retry and follow-up.
+  const inSandbox = `/tmp/knecht-ai-${rt.runId}-${Date.now()}.txt`
   await rt.sandbox.copyIn(hostFile, inSandbox)
   // --auto: auto-approve tool permissions. A workflow agent is non-interactive,
   // so without it file writes and bash calls get rejected and the run stalls.

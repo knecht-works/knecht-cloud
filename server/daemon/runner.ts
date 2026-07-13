@@ -55,10 +55,16 @@ export function cancelRun(runId: number): boolean {
 // later row (its nested sub-rows) are dropped on resume so the step gets
 // fresh rows.
 export function resumePoint(runId: number): { fromIndex: number, tailRowId: number | null } {
+  // Only workflow rows: follow-up rows appended after the run finished are not
+  // part of the pinned step sequence and must not shift the resume point.
   const top = db
     .select({ id: schema.runSteps.id, stepIndex: schema.runSteps.stepIndex, status: schema.runSteps.status })
     .from(schema.runSteps)
-    .where(and(eq(schema.runSteps.runId, runId), isNull(schema.runSteps.parentStepId)))
+    .where(and(
+      eq(schema.runSteps.runId, runId),
+      isNull(schema.runSteps.parentStepId),
+      eq(schema.runSteps.origin, 'workflow'),
+    ))
     .orderBy(asc(schema.runSteps.id))
     .all()
   const last = top.at(-1)
@@ -131,8 +137,14 @@ async function execRun(runId: number, project: Project): Promise<void> {
     // and resumes from 0, i.e. runs normally.
     const resume = resumePoint(runId)
     if (resume.tailRowId !== null) {
+      // Follow-up rows are kept: they record an already-delivered conversation,
+      // not steps of the sequence being resumed.
       db.delete(schema.runSteps)
-        .where(and(eq(schema.runSteps.runId, runId), gte(schema.runSteps.id, resume.tailRowId)))
+        .where(and(
+          eq(schema.runSteps.runId, runId),
+          gte(schema.runSteps.id, resume.tailRowId),
+          eq(schema.runSteps.origin, 'workflow'),
+        ))
         .run()
     }
     if (resume.fromIndex > 0 || resume.tailRowId !== null) {
@@ -194,7 +206,7 @@ function replayOutputs(runId: number, ctx: RunContext): void {
   const rows = db
     .select({ stepId: schema.runSteps.stepId, type: schema.runSteps.type, outputs: schema.runSteps.outputs })
     .from(schema.runSteps)
-    .where(eq(schema.runSteps.runId, runId))
+    .where(and(eq(schema.runSteps.runId, runId), eq(schema.runSteps.origin, 'workflow')))
     .orderBy(asc(schema.runSteps.id))
     .all()
   for (const row of rows) {
@@ -406,8 +418,9 @@ const STREAM_TAIL_CHARS = 128 * 1024
 // Run a command in the sandbox, streaming its stdout/stderr into the run log
 // (routed through the run's logger, so it also lands in the current step's
 // row) while capturing a tail for the caller. Resolves with the exit code:
-// never rejects on a non-zero exit, the caller decides.
-function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
+// never rejects on a non-zero exit, the caller decides. Exported: the
+// follow-up executor builds its ActionRuntime on the same streaming.
+export function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
   const sub = execInSandbox(runId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
   // Chunk list instead of string concat: re-slicing a full 128 KB string per
   // stdout event would make chatty commands quadratic.
@@ -427,7 +440,9 @@ function streamInSandbox(runId: number, command: string[], log: (text: string) =
   return sub.then(r => ({ code: r.exitCode ?? 1, tail: chunks.join('').slice(-STREAM_TAIL_CHARS) }))
 }
 
-function appendLog(runId: number, text: string): void {
+// Exported: the follow-up executor and the agent bridge append to the same
+// run log the runner streams into.
+export function appendLog(runId: number, text: string): void {
   db.update(schema.runs)
     .set({ log: sql`${schema.runs.log} || ${text}` })
     .where(eq(schema.runs.id, runId))

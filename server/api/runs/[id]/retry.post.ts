@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { resumePoint } from '../../../daemon/runner'
 import { dispatchRuns } from '../../../daemon/dispatcher'
+import { hasActiveFollowup } from '../../../daemon/followups'
 import { runWorktreeDir } from '../../../utils/storage'
 
 // POST /api/runs/:id/retry → re-queue a failed (or cancelled) run without
@@ -18,6 +19,10 @@ export default defineEventHandler((event) => {
 
   if (run.status !== 'failed' && run.status !== 'cancelled') {
     throw createError({ statusCode: 409, statusMessage: 'Only failed or cancelled runs can be retried' })
+  }
+  // A retry and a follow-up would share the run's sandbox; one at a time.
+  if (hasActiveFollowup(id)) {
+    throw createError({ statusCode: 409, statusMessage: 'A follow-up is running on this run. Wait for it to finish.' })
   }
   if (!run.steps) {
     throw createError({ statusCode: 409, statusMessage: 'This run predates step snapshots and cannot resume. Run the workflow again.' })
