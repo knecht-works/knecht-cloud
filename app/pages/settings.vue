@@ -465,9 +465,9 @@ async function runGc() {
           <span
             v-else
             class="k-mono text-2xs"
-            :class="settings?.aiKeyConfigured ? 'text-muted' : 'text-dimmed'"
+            :class="settings?.aiKeyConfigured ? 'text-primary' : 'text-dimmed'"
           >
-            {{ settings?.aiKeyConfigured ? 'Configured' : 'Not configured' }}
+            {{ settings?.aiKeyConfigured ? 'Ready' : 'Not configured' }}
           </span>
         </template>
         <div class="flex gap-10">
