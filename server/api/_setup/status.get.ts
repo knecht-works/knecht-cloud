@@ -36,8 +36,13 @@ export default defineEventHandler((event) => {
   // the conversion and stored encrypted). The logo can't be set here: GitHub's
   // manifest has no field for it; upload it once in the app's settings after
   // creation.
+  // App names are globally unique on GitHub (and capped at 34 chars), so a
+  // fixed name could only ever be claimed by a single instance worldwide.
+  // Derive it from this instance's host instead; the creator can still edit
+  // the pre-filled name on GitHub's confirmation page before the app is made.
+  const host = new URL(origin).hostname.replace(/[^a-z0-9-]+/gi, '-')
   const manifest = {
-    name: 'Knecht Works',
+    name: `Knecht ${host}`.slice(0, 34).replace(/[\s-]+$/, ''),
     url: origin,
     description: 'Boot, fix and test your repos automatically with Knecht.',
     redirect_url: `${origin}/setup/callback`,
