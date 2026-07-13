@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { commitAll } from '../../daemon/git'
+import { getBotIdentity } from '../../utils/github-app'
 import { defineAction } from './types'
 
 export const createCommitAction = defineAction({
@@ -10,7 +11,7 @@ export const createCommitAction = defineAction({
   legacyKey: 'commit',
   async run(step, rt) {
     rt.log(`\n▶ create-commit: ${step.message}\n`)
-    const sha = await commitAll(rt.checkoutDir, step.message)
+    const sha = await commitAll(rt.checkoutDir, step.message, { identity: await getBotIdentity() })
     if (sha) {
       rt.log(`Committed ${sha.slice(0, 8)}\n`)
       return { sha, created: true }
