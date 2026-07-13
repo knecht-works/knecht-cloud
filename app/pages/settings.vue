@@ -591,7 +591,9 @@ async function runGc() {
             target="_blank"
             class="text-toned underline underline-offset-2"
           >app's settings</a><span v-else>app's settings</span>
-          (General → Webhook, Permissions &amp; events).
+          (General → Webhook, Permissions &amp; events). While you are there: uploading a logo
+          under Display information gives the app's commits and pull requests their avatar;
+          GitHub offers no API for this, so it is a one-time manual step.
         </p>
 
         <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
