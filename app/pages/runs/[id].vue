@@ -312,6 +312,14 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
     <KTopBar :title="`Run #${run.id}`">
       <template #actions>
         <UButton
+          v-if="run.prUrl"
+          color="primary"
+          icon="i-lucide-git-pull-request"
+          label="Open Pull Request"
+          :to="run.prUrl"
+          target="_blank"
+        />
+        <UButton
           v-if="isLive"
           color="error"
           variant="outline"
@@ -462,6 +470,79 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
       </div>
 
       <KPanel
+        v-if="canFollowup"
+        title="Follow-up"
+        icon="i-lucide-message-circle-reply"
+      >
+        <p class="mb-3 text-2sm text-muted">
+          Tell the agent what to tweak: it continues this run's session in the
+          run's own environment.
+          <span v-if="followupHint"> {{ followupHint }}</span>
+        </p>
+        <div
+          v-if="chatMessages.length || followupActive"
+          class="mb-4 max-h-100 overflow-y-auto"
+        >
+          <UChatMessages
+            :messages="chatMessages"
+            :status="chatStatus"
+            should-auto-scroll
+            :assistant="{ avatar: { src: '/mascot/knecht-avatar.svg', alt: 'Knecht' } }"
+          >
+            <template #content="{ message }">
+              <ChatComark
+                v-if="message.role === 'assistant'"
+                :markdown="messageText(message)"
+              />
+              <p
+                v-else
+                class="whitespace-pre-wrap"
+              >
+                {{ messageText(message) }}
+              </p>
+            </template>
+          </UChatMessages>
+        </div>
+        <div
+          v-if="publishable"
+          class="mb-2"
+        >
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="xs"
+            class="rounded-full"
+            icon="i-lucide-git-pull-request"
+            label="Open a PR"
+            :disabled="followupActive || sendingFollowup"
+            @click="sendFollowup(PUBLISH_FOLLOWUP_PROMPT, true)"
+          />
+        </div>
+        <UChatPrompt
+          v-model="followupPrompt"
+          placeholder="e.g. The button label should say 'Save changes' instead"
+          :disabled="followupActive || sendingFollowup"
+          @submit="sendFollowup(followupPrompt, followupPush)"
+        >
+          <UChatPromptSubmit
+            color="primary"
+            :disabled="followupActive || sendingFollowup || !followupPrompt.trim()"
+          />
+          <template #footer>
+            <label class="flex items-center gap-2">
+              <KToggle
+                :active="followupPush"
+                :disabled="followupActive || sendingFollowup"
+                aria-label="Push changes after the follow-up"
+                @toggle="followupPush = !followupPush"
+              />
+              <span class="text-xs text-muted">Push changes</span>
+            </label>
+          </template>
+        </UChatPrompt>
+      </KPanel>
+
+      <KPanel
         v-if="timeline.length"
         title="Steps"
         icon="i-lucide-list-checks"
@@ -577,82 +658,10 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
       </KPanel>
 
       <KPanel
-        v-if="canFollowup"
-        title="Follow-up"
-        icon="i-lucide-message-circle-reply"
-      >
-        <p class="mb-3 text-2sm text-muted">
-          Tell the agent what to tweak: it continues this run's session in the
-          run's own environment.
-          <span v-if="followupHint"> {{ followupHint }}</span>
-        </p>
-        <div
-          v-if="chatMessages.length || followupActive"
-          class="mb-4 max-h-100 overflow-y-auto"
-        >
-          <UChatMessages
-            :messages="chatMessages"
-            :status="chatStatus"
-            should-auto-scroll
-            :assistant="{ avatar: { src: '/mascot/knecht-avatar.svg', alt: 'Knecht' } }"
-          >
-            <template #content="{ message }">
-              <ChatComark
-                v-if="message.role === 'assistant'"
-                :markdown="messageText(message)"
-              />
-              <p
-                v-else
-                class="whitespace-pre-wrap"
-              >
-                {{ messageText(message) }}
-              </p>
-            </template>
-          </UChatMessages>
-        </div>
-        <div
-          v-if="publishable"
-          class="mb-2"
-        >
-          <UButton
-            color="neutral"
-            variant="outline"
-            size="xs"
-            class="rounded-full"
-            icon="i-lucide-git-pull-request"
-            label="Open a PR"
-            :disabled="followupActive || sendingFollowup"
-            @click="sendFollowup(PUBLISH_FOLLOWUP_PROMPT, true)"
-          />
-        </div>
-        <UChatPrompt
-          v-model="followupPrompt"
-          placeholder="e.g. The button label should say 'Save changes' instead"
-          :disabled="followupActive || sendingFollowup"
-          @submit="sendFollowup(followupPrompt, followupPush)"
-        >
-          <UChatPromptSubmit
-            color="primary"
-            :disabled="followupActive || sendingFollowup || !followupPrompt.trim()"
-          />
-          <template #footer>
-            <label class="flex items-center gap-2">
-              <KToggle
-                :active="followupPush"
-                :disabled="followupActive || sendingFollowup"
-                aria-label="Push changes after the follow-up"
-                @toggle="followupPush = !followupPush"
-              />
-              <span class="text-xs text-muted">Push changes</span>
-            </label>
-          </template>
-        </UChatPrompt>
-      </KPanel>
-
-      <KPanel
         title="Log"
         icon="i-lucide-terminal"
         :pad="0"
+        collapsible
       >
         <template #action>
           <span class="flex items-center gap-2">
