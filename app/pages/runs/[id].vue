@@ -217,9 +217,16 @@ const followupHint = computed(() => {
   if (run.value?.envState === 'archived') return 'The environment is restored first (a few minutes).'
   return null
 })
+
+// Follow-ups run the agent, so without a provider key (Settings → Agent) the
+// composer is disabled instead of letting the follow-up fail at execution.
+const { data: settings } = await useFetch('/api/settings')
+const aiConfigured = computed(() => !!settings.value?.aiKeyConfigured)
 const followupPrompt = ref('')
 const followupPush = ref(true)
 const sendingFollowup = ref(false)
+// One flag for everything the composer disables on.
+const followupLocked = computed(() => !aiConfigured.value || followupActive.value || sendingFollowup.value)
 async function sendFollowup(prompt: string, push: boolean) {
   const text = prompt.trim()
   if (!text || sendingFollowup.value) return
@@ -477,7 +484,15 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
         <p class="mb-3 text-2sm text-muted">
           Tell the agent what to tweak: it continues this run's session in the
           run's own environment.
-          <span v-if="followupHint"> {{ followupHint }}</span>
+          <span v-if="!aiConfigured">
+            Add your AI provider key under
+            <NuxtLink
+              to="/settings"
+              class="text-toned underline underline-offset-2"
+            >Settings → Agent</NuxtLink>
+            first.
+          </span>
+          <span v-else-if="followupHint"> {{ followupHint }}</span>
         </p>
         <div
           v-if="chatMessages.length || followupActive"
@@ -514,25 +529,25 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
             class="rounded-full"
             icon="i-lucide-git-pull-request"
             label="Open a PR"
-            :disabled="followupActive || sendingFollowup"
+            :disabled="followupLocked"
             @click="sendFollowup(PUBLISH_FOLLOWUP_PROMPT, true)"
           />
         </div>
         <UChatPrompt
           v-model="followupPrompt"
           placeholder="e.g. The button label should say 'Save changes' instead"
-          :disabled="followupActive || sendingFollowup"
+          :disabled="followupLocked"
           @submit="sendFollowup(followupPrompt, followupPush)"
         >
           <UChatPromptSubmit
             color="primary"
-            :disabled="followupActive || sendingFollowup || !followupPrompt.trim()"
+            :disabled="followupLocked || !followupPrompt.trim()"
           />
           <template #footer>
             <label class="flex items-center gap-2">
               <KToggle
                 :active="followupPush"
-                :disabled="followupActive || sendingFollowup"
+                :disabled="followupLocked"
                 aria-label="Push changes after the follow-up"
                 @toggle="followupPush = !followupPush"
               />
