@@ -131,11 +131,15 @@ export async function getBotIdentity(): Promise<{ name: string, email: string } 
     const { data: app } = await octokit.rest.apps.getAuthenticated()
     if (!app?.slug) return null
     const login = `${app.slug}[bot]`
-    const { data: user } = await octokit.rest.users.getByUsername({ username: login })
+    // The app JWT may only call /app/* endpoints (users.getByUsername 403s),
+    // so the bot user's numeric id comes from the PUBLIC users endpoint,
+    // unauthenticated. One call per boot: the identity is cached.
+    const user = await $fetch<{ id: number }>(`https://api.github.com/users/${encodeURIComponent(login)}`)
     cachedBotIdentity = { name: login, email: `${user.id}+${login}@users.noreply.github.com` }
     return cachedBotIdentity
   }
-  catch {
+  catch (e) {
+    console.warn(`Could not resolve the GitHub App bot identity (commits fall back to a generic one): ${(e as Error).message}`)
     return null
   }
 }

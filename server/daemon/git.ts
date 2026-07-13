@@ -131,9 +131,11 @@ export async function createBranch(dir: string, name: string): Promise<void> {
 
 // A commit's author identity. Callers pass the GitHub App's bot identity
 // (github-app.ts getBotIdentity) when available so commits link to the app's
-// account; the fallback keeps the historic placeholder.
+// account. The fallback deliberately avoids users.noreply.github.com: such an
+// address attributes commits to whatever REAL GitHub account owns the prefix
+// (knecht@... belongs to the unrelated user 'knecht').
 export interface CommitIdentity { name: string, email: string }
-const FALLBACK_IDENTITY: CommitIdentity = { name: 'Knecht', email: 'knecht@users.noreply.github.com' }
+const FALLBACK_IDENTITY: CommitIdentity = { name: 'Knecht', email: 'noreply@knecht.works' }
 
 // Stage and commit (the `create-commit` block and the agent bridge's commit
 // op). Stages the whole working tree, or only `paths` when given (how the
