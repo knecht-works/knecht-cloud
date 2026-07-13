@@ -12,6 +12,8 @@ export default defineEventHandler((event) => {
       stepIndex: schema.runSteps.stepIndex,
       stepId: schema.runSteps.stepId,
       type: schema.runSteps.type,
+      origin: schema.runSteps.origin,
+      params: schema.runSteps.params,
       status: schema.runSteps.status,
       error: schema.runSteps.error,
       attempt: schema.runSteps.attempt,

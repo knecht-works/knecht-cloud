@@ -1,7 +1,8 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
 
-  modules: ['@nuxt/ui', '@nuxt/eslint', 'nuxt-auth-utils'],
+  // @comark/nuxt renders the agent's markdown replies in the follow-up chat.
+  modules: ['@nuxt/ui', '@nuxt/eslint', 'nuxt-auth-utils', '@comark/nuxt'],
 
   devtools: { enabled: true },
 
