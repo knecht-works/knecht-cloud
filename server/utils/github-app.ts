@@ -118,6 +118,28 @@ export async function listRepoBranches(owner: string, repo: string): Promise<str
   return branches.map(b => b.name)
 }
 
+// The identity commits should carry so GitHub links them to the app's bot
+// account (avatar + profile): `<slug>[bot]` with the bot user's noreply
+// address, which needs the bot's numeric user id (one extra lookup, cached).
+// Null when it can't be resolved: callers fall back to a placeholder identity.
+let cachedBotIdentity: { name: string, email: string } | null = null
+
+export async function getBotIdentity(): Promise<{ name: string, email: string } | null> {
+  if (cachedBotIdentity) return cachedBotIdentity
+  try {
+    const octokit = getApp().octokit
+    const { data: app } = await octokit.rest.apps.getAuthenticated()
+    if (!app?.slug) return null
+    const login = `${app.slug}[bot]`
+    const { data: user } = await octokit.rest.users.getByUsername({ username: login })
+    cachedBotIdentity = { name: login, email: `${user.id}+${login}@users.noreply.github.com` }
+    return cachedBotIdentity
+  }
+  catch {
+    return null
+  }
+}
+
 // Open a pull request as the app. Returns null when there is no diff to open a
 // PR for (e.g. an empty agent run committed nothing): a skip, not a failure.
 export async function createPullRequest(

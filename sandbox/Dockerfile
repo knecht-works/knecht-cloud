@@ -93,6 +93,13 @@ RUN su - ddev -c 'curl -fsSL https://opencode.ai/install | bash' \
 COPY opencode /home/ddev/.config/opencode
 RUN chown -R ddev:ddev /home/ddev/.config
 
+# The agent's git tools: real git doesn't work in here (the checkout's .git
+# points at an unmounted host path, and no repo credential enters the sandbox),
+# so knecht-git forwards git actions to the Knecht host over the agent bridge
+# (server/routes/agent-bridge.post.ts), authenticated by per-run env vars.
+COPY knecht-git /usr/local/bin/knecht-git
+RUN chmod 0755 /usr/local/bin/knecht-git
+
 RUN systemctl enable docker
 
 # systemd shuts down cleanly on SIGRTMIN+3 (SIGTERM is ignored by PID 1). This
