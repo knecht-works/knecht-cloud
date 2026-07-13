@@ -167,6 +167,24 @@ async function saveAiKey() {
   }
 }
 
+// Remove the stored key (aiKey: null): ai steps then refuse to run until a
+// new key is saved, so the button only shows while one is configured.
+const removingAiKey = ref(false)
+async function removeAiKey() {
+  removingAiKey.value = true
+  try {
+    settings.value = await $fetch<Settings>('/api/settings', { method: 'PATCH', body: { aiKey: null } })
+    aiKey.value = ''
+    await refreshNuxtData('ai-models')
+  }
+  catch (e) {
+    toastError('Could not remove the key', e)
+  }
+  finally {
+    removingAiKey.value = false
+  }
+}
+
 async function save() {
   if (!ENV_FIELDS.every(f => Number.isInteger(form[f.key]))) return
   try {
@@ -489,6 +507,17 @@ async function runGc() {
                     label="Save"
                     :loading="savingAiKey"
                     :disabled="!aiKey.trim()"
+                  />
+                  <UButton
+                    v-if="settings?.aiKeyConfigured"
+                    type="button"
+                    color="error"
+                    variant="ghost"
+                    size="xs"
+                    icon="i-lucide-trash-2"
+                    aria-label="Remove the stored API key"
+                    :loading="removingAiKey"
+                    @click="removeAiKey"
                   />
                 </form>
               </div>
