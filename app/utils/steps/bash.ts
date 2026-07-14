@@ -8,7 +8,7 @@ export const bashStep = defineStep({
   icon: 'i-lucide-terminal',
   group: 'Deterministic',
   fields: [
-    { key: 'command', label: 'Command', input: 'textarea', rows: 2, required: true, vars: true, placeholder: 'ddev composer install' },
+    { key: 'command', label: 'Command', input: 'code', lang: 'bash', rows: 2, required: true, vars: true, placeholder: 'ddev composer install' },
   ],
   outputs: [
     { path: 'stdout', hint: 'The command\'s output (tail)' },

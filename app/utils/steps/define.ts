@@ -12,7 +12,10 @@ export interface StepField {
   /** Property on the step object this field edits. */
   key: string
   label: string
-  input: 'text' | 'textarea' | 'switch' | 'model'
+  /** 'code' renders WorkflowCodeEditor (prism-code-editor); set `lang`. */
+  input: 'text' | 'textarea' | 'switch' | 'model' | 'code'
+  /** The language a 'code' field highlights and auto-indents as. */
+  lang?: 'javascript' | 'bash'
   placeholder?: string
   required?: boolean
   rows?: number

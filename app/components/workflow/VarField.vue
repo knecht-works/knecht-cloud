@@ -1,8 +1,12 @@
 <script setup lang="ts">
-// One settings field of a step (text/textarea/switch, driven by the registry's
-// StepField). Template-capable fields (`field.vars`) get the n8n treatment:
-// typing `{{ ` opens an autocomplete of every variable available at this step,
-// and the inspector's variable chips insert through `insertVar()` at the caret.
+import type { PrismEditor } from 'prism-code-editor'
+import { insertText } from 'prism-code-editor/utils'
+
+// One settings field of a step (text/textarea/switch/code, driven by the
+// registry's StepField). Template-capable fields (`field.vars`) get the n8n
+// treatment: typing `{{ ` opens an autocomplete of every variable available at
+// this step, and the inspector's variable chips insert through `insertVar()`
+// at the caret.
 const props = defineProps<{
   field: StepField
   groups: VarGroup[]
@@ -90,16 +94,10 @@ function pick(path: string) {
   const input = el()
   if (!input || typeof model.value !== 'string' || !token.value) return
   const cursor = input.selectionStart ?? model.value.length
-  const before = model.value.slice(0, token.value.start)
-  const after = model.value.slice(cursor).replace(/^\s*\}\}/, '')
-  const inserted = `{{ ${path} }}`
-  model.value = before + inserted + after
+  // Also consume a `}}` already sitting after the caret.
+  const trailing = /^\s*\}\}/.exec(model.value.slice(cursor))?.[0].length ?? 0
+  insertAt(`{{ ${path} }}`, token.value.start, cursor + trailing)
   close()
-  nextTick(() => {
-    input.focus()
-    const at = before.length + inserted.length
-    input.setSelectionRange(at, at)
-  })
 }
 
 function scrollActiveIntoView() {
@@ -111,35 +109,57 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'ArrowDown') {
     active.value = (active.value + 1) % matches.value.length
     scrollActiveIntoView()
-    e.preventDefault()
   }
   else if (e.key === 'ArrowUp') {
     active.value = (active.value - 1 + matches.value.length) % matches.value.length
     scrollActiveIntoView()
-    e.preventDefault()
   }
   else if (e.key === 'Enter' || e.key === 'Tab') {
     pick(matches.value[active.value]!.path)
-    e.preventDefault()
   }
   else if (e.key === 'Escape') {
     close()
+    return
   }
+  else {
+    return
+  }
+  // While the dropdown handles a key, the code editor's own keymap (Enter =
+  // auto-indent, Tab = indent, …) must not also act on it: this handler runs
+  // first (capture phase on the code branch), so stopping here wins.
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+// ── code fields (WorkflowCodeEditor) ─────────────────────────────────────────
+// prism-code-editor renders a real textarea inside `wrap`, so el() and the
+// whole {{ }} autocomplete above work on it unchanged. Only INSERTS go through
+// the editor's insertText, which keeps its undo/redo history intact (writing
+// model.value directly would bypass it).
+const codeEditor = ref<{ editor: PrismEditor | null } | null>(null)
+
+function insertAt(text: string, start: number, end: number) {
+  const editor = codeEditor.value?.editor
+  if (editor) {
+    insertText(editor, text, start, end)
+    return
+  }
+  const input = el()
+  const value = String(model.value ?? '')
+  model.value = value.slice(0, start) + text + value.slice(end)
+  nextTick(() => {
+    input?.focus()
+    const at = start + text.length
+    input?.setSelectionRange(at, at)
+  })
 }
 
 // The inspector's variable chips insert into the last-focused field.
 function insertVar(path: string) {
-  const input = el()
   if (typeof model.value === 'boolean') return
   const value = model.value ?? ''
-  const cursor = input?.selectionStart ?? value.length
-  const inserted = `{{ ${path} }}`
-  model.value = value.slice(0, cursor) + inserted + value.slice(cursor)
-  nextTick(() => {
-    input?.focus()
-    const at = cursor + inserted.length
-    input?.setSelectionRange(at, at)
-  })
+  const cursor = el()?.selectionStart ?? value.length
+  insertAt(`{{ ${path} }}`, cursor, cursor)
 }
 
 defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
@@ -172,8 +192,30 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       v-if="field.required"
       :class="invalid ? '' : 'text-dimmed'"
     > *</span></span>
+    <div
+      v-if="field.input === 'code'"
+      class="w-full overflow-hidden rounded-md bg-default ring ring-inset transition-colors focus-within:ring-2 focus-within:ring-primary"
+      :class="[
+        compact ? '' : 'mt-1.5',
+        invalid ? 'ring-(--accent-orange)' : 'ring-accented',
+        disabled ? 'opacity-75' : '',
+      ]"
+    >
+      <WorkflowCodeEditor
+        ref="codeEditor"
+        v-model="model as string"
+        :lang="field.lang ?? 'bash'"
+        :placeholder="field.placeholder"
+        :disabled="disabled"
+        :rows="field.rows"
+        @keydown.capture="onKeydown"
+        @input="field.vars && refreshToken()"
+        @click="field.vars && refreshToken()"
+        @focusout="close"
+      />
+    </div>
     <UTextarea
-      v-if="field.input === 'textarea'"
+      v-else-if="field.input === 'textarea'"
       v-model="model as string"
       :rows="field.rows ?? 3"
       autoresize
