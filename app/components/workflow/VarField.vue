@@ -190,8 +190,8 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       :style="invalid ? { color: 'var(--accent-orange)' } : undefined"
     >{{ field.label }}<span
       v-if="field.required"
-      :class="invalid ? '' : 'text-dimmed'"
-    > *</span></span>
+      class="text-(--accent-orange)"
+    >*</span></span>
     <div
       v-if="field.input === 'code'"
       class="w-full overflow-hidden rounded-md bg-default ring ring-inset transition-colors focus-within:ring-2 focus-within:ring-primary"
