@@ -1,0 +1,73 @@
+# The slow suite: real HTTP scenarios against a running instance
+# (test/e2e/**, vitest.e2e.config.ts). Deliberately NOT on every push: it
+# runs for PRs targeting main and on manual dispatch, so the expensive checks
+# are an explicit gesture (open a PR) instead of a tax on every commit.
+#
+# The repo is PUBLIC: nothing here may execute for fork PRs. The job-level
+# guard skips them (their pull_request runs get no secrets anyway, but the
+# guard makes that an explicit skip instead of a confusing failure, and it
+# stays load-bearing if a self-hosted runner ever picks these jobs up).
+name: e2e
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      # A PAT with no scopes (identity lookup only): the dev login resolves the
+      # session identity from it, mirroring the OAuth callback.
+      KNECHT_TEST_GITHUB_TOKEN: ${{ secrets.KNECHT_TEST_GITHUB_TOKEN }}
+      KNECHT_BASE_URL: http://lvh.me:3333
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the e2e secret
+        run: |
+          if [ -z "$KNECHT_TEST_GITHUB_TOKEN" ]; then
+            echo "::error::Set the KNECHT_TEST_GITHUB_TOKEN repo secret (a no-scope PAT) to run the e2e suite."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Per-job random secrets: the dev login gate and the session key need no
+      # configured values, only agreement between server and tests.
+      - name: Start a dev server
+        run: |
+          export KNECHT_TEST_AUTH="$(openssl rand -hex 16)"
+          export NUXT_SESSION_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$KNECHT_TEST_AUTH"
+          echo "KNECHT_TEST_AUTH=$KNECHT_TEST_AUTH" >> "$GITHUB_ENV"
+          npx nuxt dev --port 3333 > /tmp/knecht-dev.log 2>&1 &
+          for i in $(seq 1 90); do
+            curl -fsS http://lvh.me:3333/api/_setup/status > /dev/null 2>&1 && exit 0
+            sleep 2
+          done
+          echo "::error::Dev server never became ready"
+          tail -50 /tmp/knecht-dev.log
+          exit 1
+
+      - run: npm run test:e2e
+        env:
+          KNECHT_E2E_BASE_URL: http://lvh.me:3333
+
+      - name: Dump the server log on failure
+        if: failure()
+        run: tail -200 /tmp/knecht-dev.log
