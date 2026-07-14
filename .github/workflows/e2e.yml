@@ -65,7 +65,9 @@ jobs:
           export NUXT_SESSION_PASSWORD="$(openssl rand -hex 32)"
           echo "::add-mask::$KNECHT_TEST_AUTH"
           echo "KNECHT_TEST_AUTH=$KNECHT_TEST_AUTH" >> "$GITHUB_ENV"
-          npx nuxt dev --port 3333 > /tmp/knecht-dev.log 2>&1 &
+          # Explicit IPv4 bind: the default localhost bind can land on ::1
+          # only, while lvh.me is pinned to 127.0.0.1 above.
+          npx nuxt dev --host 127.0.0.1 --port 3333 > /tmp/knecht-dev.log 2>&1 &
           for i in $(seq 1 90); do
             curl -fsS http://lvh.me:3333/api/_setup/status > /dev/null 2>&1 && exit 0
             sleep 2
