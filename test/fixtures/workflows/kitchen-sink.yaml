@@ -1,0 +1,57 @@
+# Every step type plus nested control flow, written in the terse YAML
+# authoring sugar. The roundtrip test parses this, serializes it and parses it
+# again: the corpus to extend when a real-world workflow ever breaks
+# import/export.
+version: 1
+name: kitchen-sink
+description: Exercises every block and the composite forms.
+steps:
+  - ddev-start
+  - ddev-start:
+      commands: |
+        ddev composer install
+        ddev npm run build
+  - bash:
+      command: echo hello
+      continue-on-error: true
+  - ai:
+      prompt: Summarize the change on {{ project.name }}
+      model: anthropic/claude-sonnet-4-5
+      output: |
+        summary: string
+        score: number
+  - js:
+      code: |
+        function main(input) { return { ok: true, input } }
+      input: "{{ steps.ai.json }}"
+  - http:
+      method: POST
+      url: https://example.com/hook
+      headers: |
+        Content-Type: application/json
+      body: '{"run": {{ run.id }}}'
+  - link-check:
+      sitemap: "{{ preview.url }}/sitemap.xml"
+      failOnBroken: false
+  - if:
+      conditions:
+        - left: "{{ steps.link_check.broken }}"
+          op: gt
+          right: "0"
+      then:
+        - loop:
+            items: "{{ steps.link_check.brokenUrls }}"
+            steps:
+              - bash:
+                  command: echo {{ loop.item }}
+      else:
+        - bash:
+            command: echo all good
+  - create-branch:
+      name: knecht/fix-{{ run.id }}
+  - create-commit:
+      message: Fix broken links (run {{ run.id }})
+  - create-pr:
+      title: Fix broken links
+      description: |
+        Automated fix by Knecht, run {{ run.id }}.
