@@ -26,6 +26,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Node 22 bundles npm 10, but the lock file is written by npm 11 (the
+      # version the prod image pins, see Dockerfile) and npm 10 rejects its
+      # optional-peer resolution. Same npm everywhere.
+      - run: npm install -g npm@11.9.0
+
       - run: npm ci
 
       - run: npm run lint

@@ -45,6 +45,10 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Same npm as the prod image (Dockerfile), so npm ci accepts the lock
+      # file; see test.yml.
+      - run: npm install -g npm@11.9.0
+
       - run: npm ci
 
       # Per-job random secrets: the dev login gate and the session key need no
