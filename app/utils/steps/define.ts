@@ -16,6 +16,8 @@ export interface StepField {
   input: 'text' | 'textarea' | 'switch' | 'model' | 'code'
   /** The language a 'code' field highlights and auto-indents as. */
   lang?: 'javascript' | 'bash'
+  /** Muted helper text rendered below the field (keep labels short). */
+  hint?: string
   placeholder?: string
   required?: boolean
   rows?: number

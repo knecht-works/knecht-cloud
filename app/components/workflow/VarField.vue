@@ -244,6 +244,12 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       @keydown="onKeydown"
       @blur="close"
     />
+    <p
+      v-if="field.hint"
+      class="mt-1.5 text-2xs leading-normal text-muted"
+    >
+      {{ field.hint }}
+    </p>
 
     <!-- {{ autocomplete dropdown (teleported: the step card clips overflow) -->
     <Teleport to="body">
