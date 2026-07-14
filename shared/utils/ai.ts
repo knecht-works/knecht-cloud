@@ -1,10 +1,14 @@
 // The providers the `ai` step can hand a key to (server/workflows/actions/
 // ai.ts maps each id to its env var). Ids follow models.dev, the registry
-// opencode resolves providers from; 'opencode' is Zen.
+// opencode resolves providers from.
 export const AI_PROVIDERS = [
-  // Covers both OpenCode plans (Zen pay-per-use and the Go subscription):
-  // either key comes from the OpenCode console and authenticates the same way.
-  { id: 'opencode', label: 'OpenCode' },
+  // OpenCode's two plans share one console key but are DISTINCT providers with
+  // separate catalogs and billing: 'opencode' (Zen, pay-per-use credits) and
+  // 'opencode-go' (the Go subscription). Running a Go model under 'opencode'
+  // would bill Zen credits and fail with "insufficient funds" on a Go-only
+  // account, so the user picks the plan they actually pay for.
+  { id: 'opencode', label: 'OpenCode Zen' },
+  { id: 'opencode-go', label: 'OpenCode Go' },
   { id: 'anthropic', label: 'Anthropic' },
   { id: 'openai', label: 'OpenAI' },
   { id: 'google', label: 'Google' },

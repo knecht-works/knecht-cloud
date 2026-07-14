@@ -21,10 +21,11 @@ import type { ActionRuntime } from './types'
 // (shared/utils/ai.ts). Env names follow models.dev, the registry opencode
 // resolves providers from; google accepts several names, set all.
 const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
-  opencode: ['OPENCODE_API_KEY'],
-  anthropic: ['ANTHROPIC_API_KEY'],
-  openai: ['OPENAI_API_KEY'],
-  google: ['GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
+  'opencode': ['OPENCODE_API_KEY'],
+  'opencode-go': ['OPENCODE_API_KEY'],
+  'anthropic': ['ANTHROPIC_API_KEY'],
+  'openai': ['OPENAI_API_KEY'],
+  'google': ['GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
 }
 
 // provider/model (the model part may itself contain slashes), every segment
