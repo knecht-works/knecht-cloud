@@ -16,11 +16,10 @@ version: 1
 name: boot-and-preview
 description: Boot the project, install dependencies, import the DB, and preview it.
 steps:
-  - ddev-start
-  - bash:
-      command: ddev composer install
-  - bash:
-      command: ddev npm install && ddev npm run build
+  - ddev-start:
+      commands: |
+        ddev composer install
+        ddev npm install && ddev npm run build
 `
 
 // A self-contained demo of the git blocks + variable passing: it makes a small

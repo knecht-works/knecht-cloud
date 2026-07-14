@@ -59,7 +59,10 @@ export interface Condition {
 }
 
 export type Step = StepMeta & (
-  | { type: 'ddev-start' }
+  // `commands` are optional setup commands (one per line), run in the sandbox
+  // after the stack is up and the DB is imported: saves the bash step almost
+  // every boot needs (composer install, asset build).
+  | { type: 'ddev-start', commands?: string }
   | { type: 'bash', command: string }
   // `system` is a per-step system prompt, merged with the sandbox's baked-in
   // instructions. `output` is a field spec (`name: type` per line) that turns
