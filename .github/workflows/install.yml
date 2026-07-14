@@ -1,0 +1,80 @@
+# The install smoke: run scripts/install.sh on a fresh Ubuntu 24.04 runner
+# exactly the way a new user does (curl | bash, no checkout), then assert the
+# full substrate: pinned Docker, Sysbox registered, sandbox image + registry
+# cache, the app answering unconfigured, and a Sysbox sandbox whose inner
+# Docker comes up. This doubles as the spike for whether GitHub-hosted
+# runners can carry the Sysbox boot e2e.
+#
+# Manual for now; once proven stable it should also gate release tags.
+name: install
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # The runner ships a newer Docker; a fresh VPS has none. Purge it so the
+      # installer's pinned install runs the real fresh-server path (apt would
+      # otherwise refuse the downgrade).
+      - name: Remove the preinstalled Docker (simulate a fresh server)
+        run: |
+          sudo systemctl stop docker.socket docker 2>/dev/null || true
+          sudo apt-get purge -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
+          sudo rm -rf /etc/docker /var/lib/docker
+
+      - name: Run the installer like a user would
+        run: |
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/install.sh" \
+            | sudo env KNECHT_DOMAIN=knecht.invalid KNECHT_REF="$GITHUB_SHA" bash
+
+      - name: Assert the substrate
+        run: |
+          docker --version | grep -F 27.5.1
+          sudo docker info --format '{{range $k, $v := .Runtimes}}{{$k}} {{end}}' | grep -qw sysbox-runc
+          sudo docker image inspect knecht-sandbox > /dev/null
+          sudo docker ps --format '{{.Names}}' | grep -qx knecht-registry
+          echo "substrate ok"
+
+      - name: Assert the app is up and awaiting setup
+        run: |
+          code=""
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /tmp/status.json -w '%{http_code}' http://127.0.0.1:3000/api/_setup/status 2>/dev/null || true)
+            [ "$code" = "200" ] && break
+            sleep 2
+          done
+          if [ "$code" != "200" ]; then
+            echo "::error::App never answered (last probe: HTTP=$code)"
+            sudo docker compose --project-directory /opt/knecht logs --tail 100 knecht || true
+            exit 1
+          fi
+          grep -q '"configured": *false' /tmp/status.json
+          echo "app ok:" && head -c 200 /tmp/status.json && echo
+
+      # The core question of the spike: does a Sysbox sandbox boot on this
+      # kernel, with its inner dockerd reachable (what every run depends on)?
+      - name: Boot a Sysbox sandbox and reach its inner Docker
+        run: |
+          sudo docker run -d --name spike --runtime=sysbox-runc knecht-sandbox > /dev/null
+          ok=""
+          for i in $(seq 1 90); do
+            sudo docker exec spike docker info > /dev/null 2>&1 && ok=1 && break
+            sleep 1
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::Inner dockerd never came up"
+            sudo docker logs spike 2>&1 | tail -50
+            exit 1
+          fi
+          echo "inner docker ok after ~${i}s"
+          sudo docker rm -f spike > /dev/null
