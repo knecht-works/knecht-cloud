@@ -725,10 +725,13 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             >
               <span class="size-1.5 rounded-full bg-(--accent-orange)" /> Unsaved changes
             </span>
+            <!-- onCloseAutoFocus prevented: closing would refocus the chip,
+                 which scrolls the header back into view and cancels the
+                 jump-to-step scroll a row click just started. -->
             <UPopover
               v-else-if="headerState === 'incomplete'"
               v-model:open="issuesOpen"
-              :content="{ align: 'end' }"
+              :content="{ align: 'end', onCloseAutoFocus: (e: Event) => e.preventDefault() }"
             >
               <!-- Orange only once a touched step is broken; while everything
                    missing is just not-yet-configured, the chip stays neutral. -->
