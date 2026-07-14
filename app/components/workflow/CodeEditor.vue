@@ -77,6 +77,7 @@ defineExpose({ editor })
   font-family: var(--font-mono);
   font-size: 12px;
   min-height: calc(var(--code-min-lines) * 1.4em + 0.75rem);
+  resize: vertical;
   --pce-bg: transparent;
   --pce-cursor: var(--text-default);
   --pce-selection: color-mix(in oklab, var(--primary) 30%, transparent);
