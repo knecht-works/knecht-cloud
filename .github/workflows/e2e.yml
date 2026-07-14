@@ -68,11 +68,20 @@ jobs:
           # Explicit IPv4 bind: the default localhost bind can land on ::1
           # only, while lvh.me is pinned to 127.0.0.1 above.
           npx nuxt dev --host 127.0.0.1 --port 3333 > /tmp/knecht-dev.log 2>&1 &
+          code=""
           for i in $(seq 1 90); do
-            curl -fsS http://lvh.me:3333/api/_setup/status > /dev/null 2>&1 && exit 0
+            code=$(curl -sS -o /tmp/probe.body -w '%{http_code}' http://lvh.me:3333/api/_setup/status 2>/tmp/probe.err || true)
+            [ "$code" = "200" ] && exit 0
             sleep 2
           done
           echo "::error::Dev server never became ready"
+          echo "--- last probe: HTTP=$code"
+          cat /tmp/probe.err 2>/dev/null || true
+          head -c 300 /tmp/probe.body 2>/dev/null || true
+          echo "--- resolution/listeners:"
+          getent hosts lvh.me || echo "lvh.me does not resolve"
+          ss -tlnp 2>/dev/null | grep 3333 || echo "nothing listening on 3333"
+          echo "--- dev log:"
           tail -50 /tmp/knecht-dev.log
           exit 1
 
