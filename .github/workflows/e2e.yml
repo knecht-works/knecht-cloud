@@ -51,6 +51,12 @@ jobs:
 
       - run: npm ci
 
+      # lvh.me resolves to 127.0.0.1 via public DNS, but the runners' resolver
+      # filters such rebind-style answers, so pin it locally. (Preview-host
+      # wildcards will need per-host entries or dnsmasq when boot e2e lands.)
+      - name: Resolve lvh.me locally
+        run: echo "127.0.0.1 lvh.me" | sudo tee -a /etc/hosts
+
       # Per-job random secrets: the dev login gate and the session key need no
       # configured values, only agreement between server and tests.
       - name: Start a dev server
