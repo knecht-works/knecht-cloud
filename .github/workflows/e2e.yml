@@ -30,6 +30,9 @@ jobs:
       # session identity from it, mirroring the OAuth callback.
       KNECHT_TEST_GITHUB_TOKEN: ${{ secrets.KNECHT_TEST_GITHUB_TOKEN }}
       KNECHT_BASE_URL: http://lvh.me:3333
+      # Allow-lists .lvh.me in the dev server's host check (nuxt.config.ts
+      # vite.server.allowedHosts); without it every probe gets a 403.
+      KNECHT_BASE_DOMAIN: lvh.me
     steps:
       - uses: actions/checkout@v4
 
