@@ -10,13 +10,12 @@ export const linkCheckStep = defineStep({
   fields: [
     { key: 'sitemap', label: 'Sitemap URL', input: 'text', vars: true, placeholder: 'https://example.com/sitemap.xml' },
     { key: 'urls', label: 'URLs (instead of the sitemap): one per line, or an array reference', input: 'textarea', rows: 2, vars: true, placeholder: '{{ steps.s2.brokenUrls }}' },
-    { key: 'failOnBroken', label: 'Fail on broken pages', input: 'switch' },
   ],
   outputs: [
     { path: 'checked', hint: 'Number of pages checked' },
     { path: 'broken', hint: 'Number of broken pages' },
     { path: 'brokenUrls', hint: 'The broken pages, as [{ url, status }]' },
   ],
-  make: () => ({ type: 'link-check', sitemap: '', failOnBroken: true }),
+  make: () => ({ type: 'link-check', sitemap: '', continueOnError: true }),
   meta: step => ({ detail: step.sitemap || step.urls || '' }),
 })

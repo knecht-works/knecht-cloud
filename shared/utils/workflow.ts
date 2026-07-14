@@ -4,9 +4,21 @@
 // (server/workflows/actions/<type>.ts: schema + execution) and its client def
 // (app/utils/steps/<type>.ts: editor fields, outputs, presentation).
 
-// How long one attempt of an action may run before the runner fails it
-// (StepMeta.timeoutSeconds overrides per step).
+// How long one attempt of an action may run before the runner fails it: the
+// step's own StepMeta.timeoutSeconds, or its type's default here. ONE shared
+// definition: the runner enforces these, the builder shows them as the
+// timeout field's placeholder.
 export const DEFAULT_STEP_TIMEOUT_SECONDS = 600
+export const STEP_TIMEOUT_DEFAULTS: Partial<Record<Step['type'], number>> = {
+  // An agent task can legitimately work for a long time.
+  'ai': 3600,
+  // A big sitemap sweep is slow by nature.
+  'link-check': 1800,
+}
+
+export function defaultStepTimeout(type: Step['type']): number {
+  return STEP_TIMEOUT_DEFAULTS[type] ?? DEFAULT_STEP_TIMEOUT_SECONDS
+}
 
 // A step's retry policy, applied by the runner around ANY action: up to
 // `attempts` total tries, waiting backoffSeconds, then double per retry.
@@ -35,7 +47,7 @@ export interface StepMeta {
   description?: string
   /** A failing step logs and lets the run continue instead of failing it. */
   continueOnError?: boolean
-  /** Max seconds per attempt (DEFAULT_STEP_TIMEOUT_SECONDS when unset). */
+  /** Max seconds per attempt (the action's default when unset). */
   timeoutSeconds?: number
   retry?: StepRetry
 }

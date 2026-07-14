@@ -33,6 +33,11 @@ const notFound = computed(() => !isNew.value && !saved.value)
 interface Draft { name: string, description: string, steps: WorkflowStep[] }
 const draft = ref<Draft>({ name: '', description: '', steps: [] })
 const original = ref('')
+// Save state (see the explicit-save section below); declared with the draft
+// because resetDraft clears it.
+const saving = ref(false)
+const saveError = ref<string>()
+const submitted = ref(false)
 // Which steps have their settings expanded: several can be open at once.
 // Tracked by step OBJECT (not index), so the open state survives reordering.
 const openSteps = ref(new Set<WorkflowStep>())
@@ -71,6 +76,8 @@ function resetDraft() {
   draft.value = base
   original.value = JSON.stringify(base)
   openSteps.value.clear()
+  submitted.value = false
+  saveError.value = undefined
 }
 resetDraft()
 // Re-init only when navigating to a different workflow, NOT when the list
@@ -190,54 +197,101 @@ function removeStep(i: number) {
 const { dragIndex, dragArmed, libDrag, dropIndex, onDragStart, onDragOver, onRailOver, onRailDrop, endDrag }
   = useStepDnd(steps, openSteps)
 
-// ── auto-save ────────────────────────────────────────────────────────────────
-// There's no save button: edits persist automatically (debounced) once the
-// workflow is valid. New workflows are created as soon as they have a valid name
-// and at least one filled step; before that they stay an in-memory draft.
-type SaveStatus = 'idle' | 'saving' | 'saved' | 'invalid' | 'error'
-const saveStatus = ref<SaveStatus>('idle')
-const saveError = ref<string>()
+// ── explicit save ────────────────────────────────────────────────────────────
+// Edits stay local until Save (button or Cmd/Ctrl+S): the click is the one
+// fixed point where validation runs. An invalid draft flips `submitted`,
+// which drops the pristine grace everywhere and opens the issue list instead
+// of saving. Leaving with unsaved changes asks first.
 
 // The shared name rule (shared/utils/workflow.ts): the same regex the
 // server's workflowInputSchema validates with.
 const nameValid = computed(() => WORKFLOW_NAME_RE.test(draft.value.name.trim()))
-const valid = computed(() => nameValid.value && draft.value.steps.every(stepValid))
+
+// Everything blocking the save, one row per problem: the header's
+// "Incomplete" popover lists these; clicking a row opens the affected step.
+// `target` is the TOP-LEVEL step to reveal (sub-step problems name the
+// offender in the text but expand their composite's card). `pristine` rows
+// sit on a step (or name) the user hasn't started filling in: they still
+// block the save but render as neutral to-dos, not errors.
+interface DraftIssue { target?: WorkflowStep, pristine: boolean, text: string }
+const draftIssues = computed<DraftIssue[]>(() => {
+  const list: DraftIssue[] = []
+  if (!nameValid.value) {
+    const untouched = !draft.value.name.trim()
+    list.push({
+      pristine: untouched,
+      text: untouched
+        ? 'Give the workflow a name'
+        : 'Name: only letters, numbers, spaces, hyphens and underscores',
+    })
+  }
+  draft.value.steps.forEach((step, i) => {
+    for (const issue of stepIssues(step)) {
+      const where = issue.step === step ? '' : ` › ${workflowStepMeta(issue.step).label}`
+      list.push({
+        target: step,
+        pristine: stepPristine(issue.step),
+        text: `Step ${i + 1} · ${workflowStepMeta(step).label}${where}: ${issue.message}`,
+      })
+    }
+  })
+  return list
+})
+const valid = computed(() => !draftIssues.value.length)
+// Problems the editor highlights: those on steps the user has actually
+// started configuring, or ALL of them once a save attempt failed.
+const flaggedIssues = computed(() => draftIssues.value.filter(i => submitted.value || !i.pristine))
+// Children (field highlights, sub-step borders) follow the same switch.
+provide(FORCE_STEP_ISSUES, submitted)
+
+// The header popover's open state, closed when a row jumps to its step.
+const issuesOpen = ref(false)
+function jumpToIssue(issue: DraftIssue) {
+  issuesOpen.value = false
+  if (issue.target) revealStep(issue.target)
+}
 
 function saveBody() {
   return { name: draft.value.name.trim(), description: draft.value.description, steps: toRaw(draft.value.steps) }
 }
 
-let saveTimer: ReturnType<typeof setTimeout> | undefined
-watch(() => JSON.stringify(draft.value), (now) => {
-  if (activeRun.value) return
-  clearTimeout(saveTimer)
-  if (now === original.value) {
-    saveStatus.value = 'saved'
-    return
-  }
-  if (!valid.value) {
-    saveStatus.value = 'invalid'
-    return
-  }
-  saveStatus.value = 'saving'
-  saveTimer = setTimeout(persist, 700)
+const draftJson = computed(() => JSON.stringify(draft.value))
+const dirty = computed(() => draftJson.value !== original.value)
+
+// A save error belongs to the attempt it came from: the next edit clears it.
+watch(draftJson, () => {
+  saveError.value = undefined
 })
 
-async function persist() {
+// Once every problem is fixed, drop back into the quiet (pristine-aware)
+// mode: freshly added steps stay calm again until the next save attempt.
+watch(valid, (ok) => {
+  if (ok) submitted.value = false
+})
+
+// What the header shows next to the Save button.
+const headerState = computed(() => {
+  if (saving.value) return 'saving'
+  if (saveError.value !== undefined) return 'error'
+  if (!dirty.value) return saved.value ? 'saved' : 'idle'
+  return valid.value ? 'unsaved' : 'incomplete'
+})
+
+async function save() {
+  if (!editable.value || saving.value || !dirty.value) return
+  // The fixed validation point: an invalid draft doesn't save, it shows
+  // everything that's in the way instead.
   if (!valid.value) {
-    saveStatus.value = 'invalid'
+    submitted.value = true
+    issuesOpen.value = true
     return
   }
+  saving.value = true
+  saveError.value = undefined
   try {
     if (!saved.value) {
-      // Don't create an empty shell: wait until there's a step worth saving.
-      if (!draft.value.steps.length) {
-        saveStatus.value = 'idle'
-        return
-      }
       const created = await $fetch('/api/workflows', { method: 'POST', body: saveBody() })
       original.value = JSON.stringify(draft.value)
-      saveStatus.value = 'saved'
       skipReset = true
       await refresh()
       await navigateTo(`/workflows/${encodeURIComponent(created.name)}`)
@@ -247,7 +301,6 @@ async function persist() {
       // sub-route since it exists, which degrades Nitro's inference to unknown.
       const updated = await $fetch<{ name: string }>(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'PATCH', body: saveBody() })
       original.value = JSON.stringify(draft.value)
-      saveStatus.value = 'saved'
       if (updated.name !== saved.value.name) {
         skipReset = true
         await refresh()
@@ -256,10 +309,36 @@ async function persist() {
     }
   }
   catch (e) {
-    saveStatus.value = 'error'
     saveError.value = errMsg(e, '')
   }
+  finally {
+    saving.value = false
+  }
 }
+
+// Cmd/Ctrl+S saves; leaving with unsaved changes asks first (route change
+// AND hard reload/close).
+function onKeydown(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault()
+    save()
+  }
+}
+function onBeforeUnload(e: BeforeUnloadEvent) {
+  if (dirty.value) e.preventDefault()
+}
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  window.addEventListener('beforeunload', onBeforeUnload)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('beforeunload', onBeforeUnload)
+})
+onBeforeRouteLeave(() => {
+  if (!dirty.value) return true
+  return window.confirm('You have unsaved changes. Leave without saving?')
+})
 
 // ── rename (existing workflows) ─────────────────────────────────────────────
 // The title is a static heading; renaming is an explicit, atomic action so a
@@ -285,17 +364,25 @@ async function commitRename() {
   if (!renaming.value) return
   renaming.value = false
   const next = renameValue.value.trim()
-  if (next === draft.value.name || !renameValid.value) return
-  const prev = draft.value.name
-  draft.value.name = next
-  clearTimeout(saveTimer)
-  await persist()
-  // Rename failed (e.g. the name is taken) → keep the current identity. The
-  // rest of the workflow is unchanged, so clear the transient error state.
-  if (saveStatus.value === 'error') {
-    toast.add({ title: 'Rename failed', description: saveError.value, color: 'error' })
-    draft.value.name = prev
-    saveStatus.value = 'saved'
+  if (!saved.value || next === saved.value.name || !renameValid.value) return
+  // Renames PATCH the PERSISTED record (like toggleEnabled): an in-progress
+  // step edit stays local and unsaved, exactly as it was.
+  try {
+    const updated = await $fetch<{ name: string }>(`/api/workflows/${encodeURIComponent(saved.value.name)}`, {
+      method: 'PATCH',
+      body: { name: next, description: saved.value.description, steps: saved.value.steps },
+    })
+    draft.value.name = updated.name
+    // Keep the dirty diff honest: the baseline gets the new name too.
+    const base = JSON.parse(original.value) as Draft
+    base.name = updated.name
+    original.value = JSON.stringify(base)
+    skipReset = true
+    await refresh()
+    await navigateTo(`/workflows/${encodeURIComponent(updated.name)}`)
+  }
+  catch (e) {
+    toast.add({ title: 'Rename failed', description: errMsg(e, ''), color: 'error' })
   }
 }
 
@@ -320,14 +407,6 @@ async function removeWorkflow() {
     removing.value = false
   }
 }
-
-// Flush a pending edit (PATCH only, no navigation) when leaving the page.
-onUnmounted(() => {
-  clearTimeout(saveTimer)
-  if (saved.value && valid.value && JSON.stringify(draft.value) !== original.value) {
-    $fetch(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'PATCH', body: saveBody() }).catch(() => {})
-  }
-})
 
 // ── page mode ───────────────────────────────────────────────────────────
 type Mode = 'draft' | 'edit' | 'running' | 'success' | 'failed'
@@ -387,8 +466,24 @@ function backToEditing() {
 }
 
 const railSteps = computed(() =>
-  steps.value.map((step, i) => ({ step, meta: workflowStepMeta(step), status: statuses.value[i]!, n: i + 1 })),
+  steps.value.map((step, i) => ({
+    step,
+    meta: workflowStepMeta(step),
+    status: statuses.value[i]!,
+    n: i + 1,
+    // Only problems on touched steps light the card up (all of them after a
+    // failed save); a just-added step keeps its neutral "Not configured yet".
+    issues: stepIssues(step).filter(issue => submitted.value || !stepPristine(issue.step)),
+  })),
 )
+
+// The card's one-line problem summary ("Command is required · +2 more"),
+// naming the sub-step when the problem sits inside a composite.
+function issueSummary(r: { step: WorkflowStep, issues: StepIssue[] }): string {
+  const first = r.issues[0]!
+  const text = first.step === r.step ? first.message : `${workflowStepMeta(first.step).label}: ${first.message}`
+  return r.issues.length > 1 ? `${text} · +${r.issues.length - 1} more` : text
+}
 
 // status → card treatment (border / background / left accent / dim)
 const TREAT: Record<StepStatus, { border: string, bg: string, accent: string | null, dim?: boolean }> = {
@@ -472,7 +567,8 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               v-model="draft.name"
               placeholder="Workflow name"
               spellcheck="false"
-              class="k-mono w-full bg-transparent text-xl font-semibold tracking-tight text-highlighted outline-none placeholder:text-dimmed"
+              class="k-mono w-full bg-transparent text-xl font-semibold tracking-tight text-highlighted outline-none"
+              :class="submitted && !nameValid ? 'placeholder:text-(--accent-orange)' : 'placeholder:text-dimmed'"
             >
             <!-- Renaming an existing workflow: deliberate + atomic. -->
             <input
@@ -613,18 +709,9 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </UTooltip>
           </template>
           <template v-else>
-            <!-- auto-save status (no save button) -->
+            <!-- save state chip + the explicit Save button (Cmd/Ctrl+S) -->
             <span
-              v-if="saveStatus === 'saving'"
-              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
-            >
-              <UIcon
-                name="i-lucide-loader-circle"
-                class="size-3.5 animate-spin"
-              /> Saving…
-            </span>
-            <span
-              v-else-if="saveStatus === 'saved'"
+              v-if="headerState === 'saved'"
               class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
             >
               <UIcon
@@ -632,19 +719,54 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 class="size-3.5 text-primary"
               /> Saved
             </span>
-            <UTooltip
-              v-else-if="saveStatus === 'invalid'"
-              text="Give it a name and fill in every step's fields to save"
+            <span
+              v-else-if="headerState === 'unsaved'"
+              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
             >
-              <span class="k-mono flex items-center gap-1.5 text-2xs text-accent-orange">
+              <span class="size-1.5 rounded-full bg-(--accent-orange)" /> Unsaved changes
+            </span>
+            <UPopover
+              v-else-if="headerState === 'incomplete'"
+              v-model:open="issuesOpen"
+              :content="{ align: 'end' }"
+            >
+              <!-- Orange only once a touched step is broken; while everything
+                   missing is just not-yet-configured, the chip stays neutral. -->
+              <button
+                type="button"
+                class="k-mono flex cursor-pointer items-center gap-1.5 text-2xs"
+                :class="flaggedIssues.length ? 'text-accent-orange' : 'text-dimmed'"
+              >
                 <UIcon
-                  name="i-lucide-circle-alert"
+                  :name="flaggedIssues.length ? 'i-lucide-circle-alert' : 'i-lucide-circle-dashed'"
                   class="size-3.5"
-                /> Incomplete
-              </span>
-            </UTooltip>
+                /> {{ flaggedIssues.length ? `${flaggedIssues.length} ${flaggedIssues.length === 1 ? 'Issue' : 'Issues'}` : 'Incomplete' }}
+              </button>
+              <template #content>
+                <div class="w-80 p-1.5">
+                  <p class="px-2 pb-1 pt-1.5 text-2xs text-dimmed">
+                    {{ flaggedIssues.length ? 'Fix these to save:' : 'Left to fill in before this saves:' }}
+                  </p>
+                  <button
+                    v-for="(issue, i) in draftIssues"
+                    :key="i"
+                    type="button"
+                    class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs text-toned transition-colors enabled:cursor-pointer enabled:hover:bg-(--surface-accented)"
+                    :disabled="!issue.target"
+                    @click="jumpToIssue(issue)"
+                  >
+                    <UIcon
+                      :name="issue.pristine && !submitted ? 'i-lucide-circle-dashed' : 'i-lucide-circle-alert'"
+                      class="mt-0.5 size-3.5 flex-none"
+                      :class="issue.pristine && !submitted ? 'text-dimmed' : 'text-accent-orange'"
+                    />
+                    <span class="min-w-0">{{ issue.text }}</span>
+                  </button>
+                </div>
+              </template>
+            </UPopover>
             <UTooltip
-              v-else-if="saveStatus === 'error'"
+              v-else-if="headerState === 'error'"
               :text="saveError"
             >
               <span class="k-mono flex items-center gap-1.5 text-2xs text-error">
@@ -655,6 +777,28 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               </span>
             </UTooltip>
 
+            <UButton
+              color="primary"
+              :loading="saving"
+              :disabled="!dirty"
+              @click="save"
+            >
+              Save
+              <template #trailing>
+                <!-- Blend into the primary button: no solid chip background,
+                     just the button's ink, dimmed. -->
+                <span class="flex items-center gap-0.5 opacity-55">
+                  <UKbd
+                    value="meta"
+                    class="bg-transparent text-current ring-current/40"
+                  />
+                  <UKbd
+                    value="s"
+                    class="bg-transparent text-current ring-current/40"
+                  />
+                </span>
+              </template>
+            </UButton>
             <UDropdownMenu
               v-if="saved"
               :items="menuItems"
@@ -878,15 +1022,15 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   :content="{ side: 'bottom', align: 'end' }"
                 >
                   <UTooltip
-                    :text="!saved ? 'Add a name and a step first' : !valid ? 'Finish the step config first' : !projects?.length ? 'Connect a project first' : ''"
-                    :disabled="!!saved && valid && !!projects?.length"
+                    :text="!saved ? 'Save the workflow first' : dirty ? 'Save your changes first' : !valid ? 'Finish the step config first' : !projects?.length ? 'Connect a project first' : ''"
+                    :disabled="!!saved && !dirty && valid && !!projects?.length"
                   >
                     <UButton
                       color="primary"
                       size="xs"
                       icon="i-lucide-play"
                       label="Run"
-                      :disabled="!saved || !valid || saveStatus === 'saving' || !projects?.length"
+                      :disabled="!saved || dirty || saving || !valid || !projects?.length"
                     />
                   </UTooltip>
                   <template #content>
@@ -1090,9 +1234,11 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 <span
                   v-else
                   class="k-mono grid size-7.5 flex-none place-items-center rounded-full text-xs font-semibold"
-                  :style="r.status === 'selected'
-                    ? { background: 'var(--surface-accented)', border: '1px solid var(--border-accented)', color: 'var(--text-toned)' }
-                    : { background: 'var(--surface-muted)', border: '1px solid var(--border-accented)', color: 'var(--text-muted)' }"
+                  :style="editable && r.issues.length
+                    ? { background: 'color-mix(in oklab, var(--accent-orange) 12%, var(--surface-muted))', border: '1px solid var(--accent-orange)', color: 'var(--accent-orange)' }
+                    : r.status === 'selected'
+                      ? { background: 'var(--surface-accented)', border: '1px solid var(--border-accented)', color: 'var(--text-toned)' }
+                      : { background: 'var(--surface-muted)', border: '1px solid var(--border-accented)', color: 'var(--text-muted)' }"
                 >{{ r.n }}</span>
                 <span
                   v-if="i < railSteps.length - 1"
@@ -1105,7 +1251,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               <div
                 :id="`step-card-${r.step.id}`"
                 class="relative mb-3 min-w-0 flex-1 overflow-hidden rounded-lg"
-                :style="{ border: `1px solid ${openSteps.has(r.step) ? 'var(--border-accented)' : TREAT[r.status].border}`, background: TREAT[r.status].bg, boxShadow: 'var(--shadow-panel)' }"
+                :style="{ border: `1px solid ${editable && r.issues.length ? 'var(--accent-orange)' : openSteps.has(r.step) ? 'var(--border-accented)' : TREAT[r.status].border}`, background: TREAT[r.status].bg, boxShadow: 'var(--shadow-panel)' }"
               >
                 <span
                   v-if="TREAT[r.status].accent"
@@ -1142,9 +1288,9 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                       <span class="block whitespace-nowrap text-sm font-medium text-highlighted">{{ r.meta.label }}</span>
                       <span
                         class="mt-1 block truncate text-xs"
-                        :style="{ color: r.status === 'error' ? 'var(--status-error)' : 'var(--text-muted)' }"
+                        :style="{ color: r.status === 'error' ? 'var(--status-error)' : editable && r.issues.length ? 'var(--accent-orange)' : 'var(--text-muted)' }"
                       >
-                        {{ r.meta.detail || 'Not configured yet' }}
+                        {{ editable && r.issues.length ? issueSummary(r) : (r.meta.detail || 'Not configured yet') }}
                       </span>
                     </span>
                   </button>

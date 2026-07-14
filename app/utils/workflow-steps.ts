@@ -5,7 +5,8 @@
 // (server/workflows/actions/<type>.ts); the shared Step union
 // (shared/utils/workflow.ts) is the type-level single source both build on.
 
-import { deriveStepId, stepChildren, stepIds } from '#shared/utils/workflow'
+import type { InjectionKey, Ref } from 'vue'
+import { COMPOSITE_CHILD_KEYS, deriveStepId, isComposite, STEP_META_KEYS, stepChildren, stepIds } from '#shared/utils/workflow'
 import type { RegisteredStepDef, StepMeta, StepVar } from '~/utils/steps/define'
 import { ddevStartStep } from '~/utils/steps/ddev-start'
 import { bashStep } from '~/utils/steps/bash'
@@ -157,16 +158,60 @@ export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] 
   ]
 }
 
-// A step is saveable when its required fields are filled, its sub-steps (if
-// any) are valid, and, for an if, every condition row is usable.
-export function stepValid(step: WorkflowStep): boolean {
-  if (!stepChildren(step).flat().every(stepValid)) return false
+// One problem preventing a step from saving, phrased for the editor UI.
+// `step` is the step the problem sits on: for a composite that can be one of
+// its sub-steps, so the UI can name (and open) the exact offender.
+export interface StepIssue {
+  step: WorkflowStep
+  message: string
+}
+
+// Every problem on the step and (for composites) its sub-steps, depth-first:
+// what "Incomplete" actually means, spelled out. A step is saveable when its
+// required fields are filled, its sub-steps (if any) are valid, and, for an
+// if, every condition row is usable.
+export function stepIssues(step: WorkflowStep): StepIssue[] {
+  const issues: StepIssue[] = []
   if (step.type === 'if') {
-    const conditionsOk = step.conditions.length > 0
-      && step.conditions.every(g => g.length > 0 && g.every(c => !!c.left.trim()))
-    if (!conditionsOk) return false
+    if (!step.conditions.length || step.conditions.some(g => !g.length)) {
+      issues.push({ step, message: 'Add at least one condition' })
+    }
+    else if (step.conditions.some(g => g.some(c => !c.left.trim()))) {
+      issues.push({ step, message: 'Fill in the left side of every condition' })
+    }
   }
   const s = step as unknown as Record<string, unknown>
-  return stepDef(step.type).fields.every(f =>
-    !f.required || !!String(s[f.key] ?? '').trim())
+  for (const f of stepDef(step.type).fields) {
+    if (f.required && !String(s[f.key] ?? '').trim()) {
+      issues.push({ step, message: `${f.label} is required` })
+    }
+  }
+  for (const child of stepChildren(step).flat()) issues.push(...stepIssues(child))
+  return issues
+}
+
+export function stepValid(step: WorkflowStep): boolean {
+  return stepIssues(step).length === 0
+}
+
+// Provided by the editor page, flipped after a failed explicit save: the
+// save click is the fixed validation point, so from then on every component
+// drops the pristine grace and highlights all problems.
+export const FORCE_STEP_ISSUES: InjectionKey<Ref<boolean>> = Symbol('force-step-issues')
+
+// A step whose own params are all still at their just-added defaults: "not
+// configured yet" rather than "broken". The editor holds back such a step's
+// error highlights until the user starts filling it in; the save stays
+// blocked either way (stepValid). Meta (id/label/note) doesn't count as
+// configuring, nor do a composite's sub-step lists (each sub-step has its own
+// pristineness).
+export function stepPristine(step: WorkflowStep): boolean {
+  const defaults = stepDef(step.type).make() as unknown as Record<string, unknown>
+  const s = step as unknown as Record<string, unknown>
+  const skip = new Set<string>([...STEP_META_KEYS, ...(isComposite(step) ? COMPOSITE_CHILD_KEYS[step.type] : [])])
+  for (const key of new Set([...Object.keys(defaults), ...Object.keys(s)])) {
+    if (skip.has(key)) continue
+    if (JSON.stringify(s[key] ?? null) !== JSON.stringify(defaults[key] ?? null)) return false
+  }
+  return true
 }

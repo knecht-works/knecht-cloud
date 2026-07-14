@@ -52,6 +52,12 @@ const OP_ITEMS = CONDITION_OPS.map(op => ({ label: OP_LABELS[op], value: op }))
 // contract as StepSettings' `record`.
 const conditions = computed(() => props.step.conditions)
 
+// Empty left sides highlight only once the step is touched (stepPristine)
+// or a failed save flips FORCE_STEP_ISSUES: a just-added if starts with one
+// blank row and shouldn't open in orange.
+const forced = inject(FORCE_STEP_ISSUES, () => ref(false), true)
+const pristine = computed(() => stepPristine(props.step))
+
 // empty / not-empty have no right-hand side.
 function hasRight(op: ConditionOp): boolean {
   return op !== 'empty' && op !== 'not-empty'
@@ -100,6 +106,7 @@ function removeCondition(gi: number, ci: number) {
               :field="LEFT_FIELD"
               :groups="groups"
               :disabled="!editable"
+              :invalid="(forced || !pristine) && !c.left.trim()"
               class="min-w-0 flex-1"
               @focus="focused = `${gi}:${ci}:left`"
             />

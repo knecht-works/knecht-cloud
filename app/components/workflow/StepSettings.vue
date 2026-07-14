@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DEFAULT_STEP_TIMEOUT_SECONDS, deriveStepId, isComposite, isDerivedStepId, renameStepReferences, STEP_ID_RE, stepIds } from '#shared/utils/workflow'
+import { defaultStepTimeout, deriveStepId, isComposite, isDerivedStepId, renameStepReferences, STEP_ID_RE, stepIds } from '#shared/utils/workflow'
 
 // The expanded step's settings, rendered inline inside its card: display
 // name/note, the registry-driven fields, and the n8n-style variable list,
@@ -23,6 +23,18 @@ const record = computed(() => props.step as unknown as Record<string, string | b
 
 // The step's error policy (StepMeta), edited in place like the params.
 const policy = computed(() => props.step as { continueOnError?: boolean, timeoutSeconds?: number })
+
+// An empty required field blocks the save (stepIssues); the field itself
+// wears the highlight so the problem is visible right where it's fixed. A
+// pristine (just-added, untouched) step stays quiet: the required stars say
+// enough until the user starts filling it in, or until a failed save flips
+// the page's FORCE_STEP_ISSUES.
+const forced = inject(FORCE_STEP_ISSUES, () => ref(false), true)
+const pristine = computed(() => stepPristine(props.step))
+function fieldInvalid(f: StepField): boolean {
+  if (pristine.value && !forced.value) return false
+  return !!f.required && !String((props.step as unknown as Record<string, unknown>)[f.key] ?? '').trim()
+}
 
 // Empty (or invalid) input falls back to the runner's default: the key is
 // removed so the stored step doesn't pin the current default value.
@@ -162,6 +174,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
         :field="f"
         :groups="groups"
         :disabled="!editable"
+        :invalid="fieldInvalid(f)"
         @focus="focused = i"
       />
     </template>
@@ -221,7 +234,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
           :min="1"
           :max="21600"
           :disabled="!editable"
-          :placeholder="String(DEFAULT_STEP_TIMEOUT_SECONDS)"
+          :placeholder="String(defaultStepTimeout(step.type))"
           class="w-24"
           :ui="{ base: 'k-mono text-xs' }"
           @update:model-value="onTimeoutInput(String($event))"

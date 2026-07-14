@@ -28,10 +28,14 @@ const list = computed(() => props.steps)
 
 // One presentation object per row, computed once per invalidation instead of
 // per template read (the deep-reactive draft re-renders on every keystroke).
+// `flagged` drives the orange border: broken AND touched (a pristine
+// sub-step stays neutral until the user starts filling it in, or until a
+// failed save flips FORCE_STEP_ISSUES).
+const forced = inject(FORCE_STEP_ISSUES, () => ref(false), true)
 const rows = computed(() => list.value.map(step => ({
   step,
   meta: workflowStepMeta(step),
-  valid: stepValid(step),
+  flagged: !stepValid(step) && (forced.value || !stepPristine(step)),
 })))
 
 function toggle(step: WorkflowStep) {
@@ -146,7 +150,7 @@ function onZoneDrop(e: DragEvent) {
       class="mt-1.5 flex flex-col gap-1.5"
     >
       <template
-        v-for="({ step: s, meta, valid }, i) in rows"
+        v-for="({ step: s, meta, flagged }, i) in rows"
         :key="s.id ?? i"
       >
         <!-- library-drop insertion line -->
@@ -157,7 +161,7 @@ function onZoneDrop(e: DragEvent) {
         />
         <div
           class="rounded-md border bg-(--surface-muted)"
-          :style="{ borderColor: valid ? 'var(--border-default)' : 'var(--accent-orange)' }"
+          :style="{ borderColor: flagged ? 'var(--accent-orange)' : 'var(--border-default)' }"
           @dragover="onRowOver(i, $event)"
         >
           <div class="group/row flex items-center gap-2.5 px-2.5 py-2">

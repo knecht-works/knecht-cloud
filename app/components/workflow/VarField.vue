@@ -7,6 +7,8 @@ const props = defineProps<{
   field: StepField
   groups: VarGroup[]
   disabled?: boolean
+  /** Highlights the field as blocking the save (empty required field). */
+  invalid?: boolean
 }>()
 
 const model = defineModel<string | boolean>()
@@ -15,6 +17,9 @@ const emit = defineEmits<{ focus: [] }>()
 // Unlabeled fields render compact (no label line, smaller text): how inline
 // rows like the condition editor embed the field.
 const compact = computed(() => !props.field.label)
+
+// The invalid ring replaces the resting hairline on the input itself.
+const invalidRing = computed(() => props.invalid ? ' ring-(--accent-orange)' : '')
 
 const wrap = ref<HTMLElement>()
 
@@ -162,9 +167,10 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
     <span
       v-if="field.label"
       class="k-label"
+      :style="invalid ? { color: 'var(--accent-orange)' } : undefined"
     >{{ field.label }}<span
       v-if="field.required"
-      class="text-dimmed"
+      :class="invalid ? '' : 'text-dimmed'"
     > *</span></span>
     <UTextarea
       v-if="field.input === 'textarea'"
@@ -176,7 +182,7 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       :placeholder="field.placeholder"
       class="w-full"
       :class="compact ? '' : 'mt-1.5'"
-      :ui="{ base: 'k-mono text-xs resize-none' }"
+      :ui="{ base: 'k-mono text-xs resize-none' + invalidRing }"
       @input="field.vars && refreshToken()"
       @click="field.vars && refreshToken()"
       @keydown="onKeydown"
@@ -190,7 +196,7 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       :placeholder="field.placeholder"
       class="w-full"
       :class="compact ? '' : 'mt-1.5'"
-      :ui="{ base: compact ? 'k-mono text-xs' : 'k-mono' }"
+      :ui="{ base: (compact ? 'k-mono text-xs' : 'k-mono') + invalidRing }"
       @input="field.vars && refreshToken()"
       @click="field.vars && refreshToken()"
       @keydown="onKeydown"

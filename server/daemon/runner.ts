@@ -2,7 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { and, asc, eq, gte, isNull, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
-import { COMPOSITE_CHILD_KEYS, DEFAULT_STEP_TIMEOUT_SECONDS, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
+import { COMPOSITE_CHILD_KEYS, defaultStepTimeout, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
 import { actionFor, type ActionError, type ActionRuntime, type RegisteredAction } from '../workflows/actions'
 import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
@@ -348,7 +348,7 @@ async function execStep(
     for (let attempt = 1; ; attempt++) {
       try {
         const outputs = capOutputs(action
-          ? await runActionTimed(action, rendered, rt, step.timeoutSeconds ?? DEFAULT_STEP_TIMEOUT_SECONDS)
+          ? await runActionTimed(action, rendered, rt, step.timeoutSeconds ?? defaultStepTimeout(step.type))
           : await runComposite(runId, step as CompositeStep, ctx, rt, rowLog, scope))
         finalize({ status: 'success', outputs, attempt })
         return outputs
@@ -387,7 +387,7 @@ async function execStep(
 }
 
 // One action attempt under the step's timeout (StepMeta.timeoutSeconds,
-// DEFAULT_STEP_TIMEOUT_SECONDS when unset). The action runs with a signal
+// defaultStepTimeout(type) when unset). The action runs with a signal
 // that also fires on timeout, so streamed sandbox commands are killed; the
 // surrounding race fails the attempt even when an action ignores its signal.
 // A timeout is an ordinary step failure (retry/continueOnError apply): only
