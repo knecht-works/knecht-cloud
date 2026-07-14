@@ -45,7 +45,8 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.5.0",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.7"
   },
   "overrides": {
     "esbuild": "0.28.1"
