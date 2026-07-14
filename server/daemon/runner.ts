@@ -2,9 +2,9 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { and, asc, eq, gte, isNull, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
-import { COMPOSITE_CHILD_KEYS, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
+import { COMPOSITE_CHILD_KEYS, DEFAULT_STEP_TIMEOUT_SECONDS, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
-import { actionFor, type ActionError, type ActionRuntime } from '../workflows/actions'
+import { actionFor, type ActionError, type ActionRuntime, type RegisteredAction } from '../workflows/actions'
 import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
 import { runSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
@@ -26,8 +26,8 @@ import { ensureEnvUp } from './envs'
 // Execution is engine-generic (workflow-engine-plan.md D3–D5): the step
 // sequence is PINNED onto the run row at start; each step gets a run_steps row
 // whose result is persisted before the next step runs; the step's error policy
-// (retry with exponential backoff, continueOnError) wraps every action the
-// same way.
+// (retry with exponential backoff, timeout, continueOnError) wraps every
+// action the same way.
 
 // Cap a step's stored outputs (workflow-engine-plan.md D4): results transit the
 // context and the DB: large data belongs in the sandbox filesystem, passed by
@@ -348,7 +348,7 @@ async function execStep(
     for (let attempt = 1; ; attempt++) {
       try {
         const outputs = capOutputs(action
-          ? await action.run(rendered, rt)
+          ? await runActionTimed(action, rendered, rt, step.timeoutSeconds ?? DEFAULT_STEP_TIMEOUT_SECONDS)
           : await runComposite(runId, step as CompositeStep, ctx, rt, rowLog, scope))
         finalize({ status: 'success', outputs, attempt })
         return outputs
@@ -384,6 +384,37 @@ async function execStep(
   finally {
     rowLog.current = prevRow
   }
+}
+
+// One action attempt under the step's timeout (StepMeta.timeoutSeconds,
+// DEFAULT_STEP_TIMEOUT_SECONDS when unset). The action runs with a signal
+// that also fires on timeout, so streamed sandbox commands are killed; the
+// surrounding race fails the attempt even when an action ignores its signal.
+// A timeout is an ordinary step failure (retry/continueOnError apply): only
+// the run-level signal (rt.signal here) marks a cancel in execStep's catch.
+function runActionTimed(
+  action: RegisteredAction,
+  step: Step,
+  rt: ActionRuntime,
+  timeoutSeconds: number,
+): Promise<Record<string, unknown> | undefined> {
+  const timeout = AbortSignal.timeout(timeoutSeconds * 1000)
+  const signal = AbortSignal.any([rt.signal, timeout])
+  const timedRt: ActionRuntime = {
+    ...rt,
+    signal,
+    sandbox: {
+      ...rt.sandbox,
+      stream: (command, opts) => streamInSandbox(rt.runId, command, rt.log, opts?.env, signal),
+    },
+  }
+  return new Promise((resolve, reject) => {
+    const onTimeout = () => reject(new Error(`Step timed out after ${timeoutSeconds}s`))
+    timeout.addEventListener('abort', onTimeout, { once: true })
+    action.run(step, timedRt)
+      .then(resolve, reject)
+      .finally(() => timeout.removeEventListener('abort', onTimeout))
+  })
 }
 
 type StepRowPatch = Partial<typeof schema.runSteps.$inferInsert>

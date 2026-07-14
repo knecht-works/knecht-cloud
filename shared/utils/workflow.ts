@@ -4,6 +4,10 @@
 // (server/workflows/actions/<type>.ts: schema + execution) and its client def
 // (app/utils/steps/<type>.ts: editor fields, outputs, presentation).
 
+// How long one attempt of an action may run before the runner fails it
+// (StepMeta.timeoutSeconds overrides per step).
+export const DEFAULT_STEP_TIMEOUT_SECONDS = 600
+
 // A step's retry policy, applied by the runner around ANY action: up to
 // `attempts` total tries, waiting backoffSeconds, then double per retry.
 export interface StepRetry {
@@ -22,20 +26,23 @@ export interface StepRetry {
 // reorders never touch it. It's optional in the type because pre-id
 // definitions exist in the DB. Every load/save path backfills via
 // ensureStepIds. `label`/`description` are builder-only presentation.
-// `continueOnError`/`retry` are the step's error policy, enforced generically
-// by the runner for every step type.
+// `continueOnError`/`timeoutSeconds`/`retry` are the step's error policy,
+// enforced generically by the runner for every action (composite if/loop
+// steps carry no timeout; their sub-steps each have their own).
 export interface StepMeta {
   id?: string
   label?: string
   description?: string
   /** A failing step logs and lets the run continue instead of failing it. */
   continueOnError?: boolean
+  /** Max seconds per attempt (DEFAULT_STEP_TIMEOUT_SECONDS when unset). */
+  timeoutSeconds?: number
   retry?: StepRetry
 }
 
 // The keys every step shares (StepMeta + the discriminator). Engine code that
 // walks a step's OWN params (rendering, run_steps snapshots) skips these.
-export const STEP_META_KEYS = ['type', 'id', 'label', 'description', 'continueOnError', 'retry'] as const
+export const STEP_META_KEYS = ['type', 'id', 'label', 'description', 'continueOnError', 'timeoutSeconds', 'retry'] as const
 
 // A structured condition row (workflow-engine-plan.md D8): both sides are
 // templates rendered against the run context; the operator compares the

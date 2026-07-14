@@ -9,13 +9,12 @@ export const bashStep = defineStep({
   group: 'Deterministic',
   fields: [
     { key: 'command', label: 'Command', input: 'textarea', rows: 2, required: true, vars: true, placeholder: 'ddev composer install' },
-    { key: 'continueOnError', label: 'Continue on error', input: 'switch' },
   ],
   outputs: [
     { path: 'stdout', hint: 'The command\'s output (tail)' },
     { path: 'exitCode', hint: 'The exit code (0 on success)' },
   ],
-  make: () => ({ type: 'bash', command: '', continueOnError: false }),
+  make: () => ({ type: 'bash', command: '' }),
   // Well-known commands get a friendlier icon + label in lists.
   meta: (step) => {
     const cmd = step.command

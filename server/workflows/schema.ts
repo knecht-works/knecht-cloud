@@ -81,6 +81,7 @@ const stepMeta = {
   // The step's error policy (shared/utils/workflow.ts StepMeta), enforced by
   // the runner for every step type.
   continueOnError: z.boolean().optional(),
+  timeoutSeconds: z.number().int().min(1).max(21600).optional(),
   retry: z.object({
     attempts: z.number().int().min(1).max(10),
     backoffSeconds: z.number().min(0).max(3600),

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { deriveStepId, isComposite, isDerivedStepId, renameStepReferences, STEP_ID_RE, stepIds } from '#shared/utils/workflow'
+import { DEFAULT_STEP_TIMEOUT_SECONDS, deriveStepId, isComposite, isDerivedStepId, renameStepReferences, STEP_ID_RE, stepIds } from '#shared/utils/workflow'
 
 // The expanded step's settings, rendered inline inside its card: display
 // name/note, the registry-driven fields, and the n8n-style variable list,
@@ -20,6 +20,17 @@ const meta = computed(() => workflowStepMeta(props.step))
 
 // Step params are edited in place (the draft object owns the state).
 const record = computed(() => props.step as unknown as Record<string, string | boolean>)
+
+// The step's error policy (StepMeta), edited in place like the params.
+const policy = computed(() => props.step as { continueOnError?: boolean, timeoutSeconds?: number })
+
+// Empty (or invalid) input falls back to the runner's default: the key is
+// removed so the stored step doesn't pin the current default value.
+function onTimeoutInput(value: string) {
+  const seconds = Number.parseInt(value, 10)
+  if (Number.isFinite(seconds) && seconds > 0) policy.value.timeoutSeconds = seconds
+  else delete policy.value.timeoutSeconds
+}
 
 // ── step id: derived from the label, hand-editable, references follow ────────
 // While the id still looks auto-derived (run_command, run_command_2, or the
@@ -196,6 +207,34 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       :depth="depth + 1"
       :editable="editable"
     />
+
+    <!-- error policy (StepMeta): every action carries these -->
+    <div
+      v-if="!isComposite(step)"
+      class="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-muted pt-3.5"
+    >
+      <div class="flex items-center gap-2">
+        <span class="k-label">Timeout</span>
+        <UInput
+          :model-value="step.timeoutSeconds != null ? String(step.timeoutSeconds) : ''"
+          type="number"
+          :min="1"
+          :max="21600"
+          :disabled="!editable"
+          :placeholder="String(DEFAULT_STEP_TIMEOUT_SECONDS)"
+          class="w-24"
+          :ui="{ base: 'k-mono text-xs' }"
+          @update:model-value="onTimeoutInput(String($event))"
+        />
+        <span class="text-2xs text-dimmed">s</span>
+      </div>
+      <USwitch
+        :model-value="step.continueOnError ?? false"
+        :disabled="!editable"
+        label="Continue on error"
+        @update:model-value="policy.continueOnError = $event"
+      />
+    </div>
 
     <!-- available variables (n8n-style): context + prior steps' outputs -->
     <div
