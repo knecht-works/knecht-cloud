@@ -54,14 +54,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # The changelog: every commit subject since the previous release tag
-      # (whole history for the first release). Merge commits are noise, the
-      # subjects are the signal.
+      # The changelog: the user-facing (feat/fix) commits since the previous
+      # release tag, grouped by scripts/changelog-preview.sh: the same script
+      # that previews the notes locally, so what you preview is what ships.
       - name: Build release notes from commits
         run: |
-          prev="$(git describe --tags --match 'v*.*.*' --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
-          git log ${prev:+$prev..}"$GITHUB_REF_NAME" --no-merges --pretty='- %s' > /tmp/notes.md
-          echo "Notes ($prev -> $GITHUB_REF_NAME):" && cat /tmp/notes.md
+          bash scripts/changelog-preview.sh '' "$GITHUB_REF_NAME" > /tmp/notes.md
+          echo "Notes (-> $GITHUB_REF_NAME):" && cat /tmp/notes.md
 
       - run: gh release create "$GITHUB_REF_NAME" --notes-file /tmp/notes.md
         env:

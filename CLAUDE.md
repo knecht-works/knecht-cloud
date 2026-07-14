@@ -68,3 +68,16 @@ Never use an em-dash (the `—` character) anywhere: not in code, comments, stri
 
 Never add a `Co-Authored-By: Claude` trailer (or any Claude/Anthropic attribution) to commit messages. The author is always samuelreichor.
 
+## 6. Commit Messages
+
+**Conventional commits. feat/fix subjects are written for users.**
+
+Format: `<type>: <subject>`, optionally scoped (`feat(builder): ...`). Types: `feat`, `fix`, `chore`, `refactor`, `test`, `docs`, `ci`. Breaking changes use `feat!:` / `fix!:`.
+
+Only `feat:` and `fix:` subjects reach the release changelog (filtered by .github/workflows/release.yml; the dashboard shows the result to users). Write them as user-facing prose describing the visible behavior change, not the implementation:
+
+- Good: `feat: Workflows can be exported and imported as YAML`
+- Bad: `feat: add serializeWorkflow and workflowDocumentSchema`
+
+Everything internal (refactors, tests, CI, dependencies) uses the other types and stays out of the changelog automatically. When a commit mixes a user-visible change with internal work, the user-visible part decides the type and subject.
+
