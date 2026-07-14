@@ -31,6 +31,9 @@ jobs:
           sudo systemctl stop docker.socket docker 2>/dev/null || true
           sudo apt-get purge -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
           sudo rm -rf /etc/docker /var/lib/docker
+          # The runner image keeps a leftover 'packer' user on uid 1000; the
+          # installer reserves that uid for 'knecht' (free on fresh servers).
+          sudo userdel packer 2>/dev/null || true
 
       - name: Run the installer like a user would
         run: |
