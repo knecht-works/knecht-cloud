@@ -111,6 +111,17 @@ Host-level changes (Docker pin, Sysbox, the sandbox image) are not covered by th
 sudo KNECHT_UID=1000 KNECHT_GID=1000 /opt/knecht/scripts/provision-host.sh
 ```
 
+### Pre-releases
+
+Tags with a hyphen (e.g. `v0.3.0-rc.1`) are pre-releases: CI builds and publishes them like any release, but they never move the `latest` image tag, are never offered as an update, and a normal install ignores them. To test one, fetch the installer from the pre-release tag itself (so installer and version can't diverge) and pin the same tag:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/v0.3.0-rc.1/scripts/install.sh \
+  | sudo env KNECHT_DOMAIN=knecht.example.com KNECHT_REF=v0.3.0-rc.1 bash
+```
+
+Once the matching stable release is published, the instance offers it as a regular update in the dashboard. Updating from a stable version to a pre-release is not possible.
+
 ### Backup and rollback
 
 All state lives in `/data/knecht/data` (SQLite database, run archives, uploaded dumps). Back that folder up, or snapshot the server. Database migrations run forward only: rolling back to an older release does not roll the schema back, so take a copy of `/data/knecht/data` before updating if you want a safe return path.

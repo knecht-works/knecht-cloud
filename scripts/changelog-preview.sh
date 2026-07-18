@@ -11,9 +11,11 @@
 set -euo pipefail
 
 to="${2:-HEAD}"
-# Default range start: the last release tag before `to` (empty on the first
-# release, which then lists the whole history).
-from="${1:-$(git describe --tags --match 'v*.*.*' --abbrev=0 "$to^" 2>/dev/null || true)}"
+# Default range start: the last STABLE release tag before `to` (empty on the
+# first release, which then lists the whole history). Pre-release tags
+# (v*-rc.*) are excluded so the stable release after an RC still lists the
+# whole window since the previous stable one.
+from="${1:-$(git describe --tags --match 'v*.*.*' --exclude 'v*-*' --abbrev=0 "$to^" 2>/dev/null || true)}"
 
 git log ${from:+$from..}"$to" --no-merges --pretty='%s' | awk '
   /^(feat|fix)(\([^)]*\))?!: / { sub(/^[^:]*: */, "- "); breaking = breaking $0 "\n"; next }

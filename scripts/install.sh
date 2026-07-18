@@ -7,7 +7,8 @@
 #
 # Non-interactive: KNECHT_DOMAIN=knecht.example.com bash install.sh
 # Testing only: KNECHT_REF=<branch/tag> checks out that ref instead of the
-# latest release (the pinned image tag then stays `latest`).
+# latest release. A v-tag (e.g. a pre-release like v0.3.0-rc.1) also pins the
+# image to that tag; any other ref (branch, sha) pins `latest`.
 #
 # What it does:
 #   1. Reserves uid 1000 (the `knecht` user): the control-plane container runs
@@ -73,10 +74,15 @@ fi
 
 if [ -n "${KNECHT_REF:-}" ]; then
   TAG="$KNECHT_REF"
-  IMAGE_TAG="latest"
-  echo "⚠ KNECHT_REF=$KNECHT_REF (testing mode, image tag: latest)"
+  case "$KNECHT_REF" in
+    v*) IMAGE_TAG="$KNECHT_REF" ;;
+    *) IMAGE_TAG="latest" ;;
+  esac
+  echo "⚠ KNECHT_REF=$KNECHT_REF (testing mode, image tag: $IMAGE_TAG)"
 else
-  TAG="$(git -C "$INSTALL_DIR" describe --tags "$(git -C "$INSTALL_DIR" rev-list --tags --max-count=1 2>/dev/null)" 2>/dev/null || true)"
+  # The newest STABLE release: hyphenated tags are pre-releases (built and
+  # published by CI, but only ever installed via an explicit KNECHT_REF).
+  TAG="$(git -C "$INSTALL_DIR" tag --list 'v*.*.*' | grep -v -- - | sort -V | tail -n1)"
   [ -n "$TAG" ] || die "No release tag found. There is no published Knecht release yet."
   IMAGE_TAG="$TAG"
 fi

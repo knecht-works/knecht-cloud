@@ -2,6 +2,12 @@
 #
 #   git tag v0.1.0 && git push origin v0.1.0
 #
+# Pre-releases: any tag with a hyphen (v0.3.0-rc.1) runs the same pipeline but
+# marks the GitHub Release as a prerelease and does NOT move the `latest`
+# image tag. Nothing offers or installs a pre-release on its own (the app's
+# RELEASE_TAG_RE and install.sh both skip hyphenated tags); testers opt in
+# explicitly via KNECHT_REF=v0.3.0-rc.1.
+#
 # Builds the prod image for amd64 and arm64 (each on a native runner; the Nuxt
 # build is far too slow under QEMU), merges the two into one multi-arch
 # manifest on GHCR (the version tag + latest), and creates the GitHub Release.
@@ -76,9 +82,11 @@ jobs:
 
       - name: Merge the per-arch images into the release manifest
         run: |
+          LATEST="-t ghcr.io/knecht-works/knecht-cloud:latest"
+          case "$GITHUB_REF_NAME" in *-*) LATEST="" ;; esac
           docker buildx imagetools create \
             -t "ghcr.io/knecht-works/knecht-cloud:$GITHUB_REF_NAME" \
-            -t ghcr.io/knecht-works/knecht-cloud:latest \
+            $LATEST \
             "ghcr.io/knecht-works/knecht-cloud:$GITHUB_REF_NAME-amd64" \
             "ghcr.io/knecht-works/knecht-cloud:$GITHUB_REF_NAME-arm64"
 
@@ -90,6 +98,9 @@ jobs:
           bash scripts/changelog-preview.sh '' "$GITHUB_REF_NAME" > /tmp/notes.md
           echo "Notes (-> $GITHUB_REF_NAME):" && cat /tmp/notes.md
 
-      - run: gh release create "$GITHUB_REF_NAME" --notes-file /tmp/notes.md
+      - run: |
+          PRERELEASE=""
+          case "$GITHUB_REF_NAME" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" $PRERELEASE --notes-file /tmp/notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

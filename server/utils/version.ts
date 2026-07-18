@@ -65,14 +65,23 @@ export async function listReleases(): Promise<Release[]> {
   return releasesCache.value
 }
 
-// Strict numeric compare of two release tags. False whenever either side is
-// not a release tag (dev builds never see an update offer).
+// The RUNNING version may also be a pre-release (installed via install.sh's
+// KNECHT_REF); candidates stay strictly stable, so a pre-release is never
+// offered, only left behind.
+const CURRENT_TAG_RE = /^v(\d+)\.(\d+)\.(\d+)(-.+)?$/
+
+// Strict numeric compare of two release tags. The candidate must be a stable
+// release tag; the current version may be a pre-release, which its own stable
+// release (same version triplet) supersedes. False whenever a side matches
+// neither shape (dev builds never see an update offer).
 export function isNewerVersion(candidate: string, current: string): boolean {
-  if (!RELEASE_TAG_RE.test(candidate) || !RELEASE_TAG_RE.test(current)) return false
+  if (!RELEASE_TAG_RE.test(candidate)) return false
+  const cur = current.match(CURRENT_TAG_RE)
+  if (!cur) return false
   const a = candidate.slice(1).split('.').map(Number)
-  const b = current.slice(1).split('.').map(Number)
+  const b = [Number(cur[1]), Number(cur[2]), Number(cur[3])]
   for (let i = 0; i < 3; i++) {
     if (a[i]! !== b[i]!) return a[i]! > b[i]!
   }
-  return false
+  return Boolean(cur[4])
 }
