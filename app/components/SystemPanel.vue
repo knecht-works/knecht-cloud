@@ -20,19 +20,22 @@ function toggleRelease(tag: string) {
 }
 
 function changeCount(notes: string): string {
-  const n = notesLines(notes).length
+  const n = notesLines(notes).filter(l => !l.heading).length
   return n === 1 ? '1 change' : `${n} changes`
 }
 
-// Release bodies are plain "- subject" lines (see release.yml); render them
-// as list items, not markdown. Releases published before that convention
-// carry --generate-notes markdown, so boilerplate (headings, "Full
-// Changelog" compare links, ** emphasis) is stripped rather than shown raw.
-function notesLines(notes: string): string[] {
+// Release bodies are plain "- subject" lines grouped under "Breaking:/New:/
+// Fixed:" lines (see release.yml and scripts/changelog-preview.sh); the group
+// lines render as headings, everything else as list items, not markdown.
+// Releases published before that convention carry --generate-notes markdown,
+// so boilerplate (headings, "Full Changelog" compare links, ** emphasis) is
+// stripped rather than shown raw.
+function notesLines(notes: string): { text: string, heading: boolean }[] {
   return notes
     .split('\n')
     .map(line => line.trim().replace(/^[-*]\s+/, '').replaceAll('**', ''))
     .filter(line => line && !line.startsWith('#') && !/^full changelog/i.test(line))
+    .map(line => ({ text: line, heading: /^(Breaking|New|Fixed):$/.test(line) }))
 }
 
 // Self-update: kick off the updater, then poll until the recreated container
@@ -221,10 +224,14 @@ async function runUpdate() {
               <li
                 v-for="(line, i) in notesLines(rel.notes)"
                 :key="i"
-                class="k-mono flex gap-2 text-2xs leading-normal text-muted"
+                class="k-mono flex gap-2 text-2xs leading-normal"
+                :class="line.heading ? 'mt-1 font-medium text-toned first:mt-0' : 'text-muted'"
               >
-                <span class="flex-none text-dimmed">·</span>
-                <span class="min-w-0 break-words">{{ line }}</span>
+                <span
+                  v-if="!line.heading"
+                  class="flex-none text-dimmed"
+                >·</span>
+                <span class="min-w-0 break-words">{{ line.text }}</span>
               </li>
               <li
                 v-if="!notesLines(rel.notes).length"
