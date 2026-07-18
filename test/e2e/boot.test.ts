@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { previewLabel } from '../../shared/utils/preview-host'
 import type { E2eClient } from './client'
 import { expectJson, login, previewFetch } from './client'
 
@@ -8,14 +9,15 @@ import { expectJson, login, previewFetch } from './client'
 // same test runs against the CI dev server and the dev VM.
 //
 // The instance needs GitHub App credentials with the app installed on the
-// fixture repo. CI seeds them from KNECHT_TEST_GITHUB_APP_ID and
-// KNECHT_TEST_GITHUB_APP_PRIVATE_KEY (server/plugins/test-github-app.ts).
+// fixture repo. CI provides them via KNECHT_TEST_GITHUB_APP_ID and
+// KNECHT_TEST_GITHUB_APP_PRIVATE_KEY (the dev-only read fallback in
+// server/utils/github-credentials.ts).
 
 const FIXTURE = 'knecht-works/test-php'
 // The fixture's ddev hosts (its .ddev/config.yaml: name + additional_hostnames).
 const FIXTURE_PRIMARY_HOST = 'test-php.ddev.site'
 const FIXTURE_EXTRA_HOST = 'alpha.test-php.ddev.site'
-const FIXTURE_EXTRA_LABEL = 'alpha-test-php'
+const FIXTURE_EXTRA_LABEL = previewLabel(FIXTURE_EXTRA_HOST)
 
 const BOOT_DEADLINE_MS = 8 * 60_000
 
@@ -37,16 +39,31 @@ interface RunRow {
   log: string | null
 }
 
+// Poll the list endpoint (it omits the log blob) and fetch the full run once
+// at the end, so a minutes-long boot doesn't re-transfer its growing log
+// every five seconds.
 async function pollUntilFinished(client: E2eClient, runId: number): Promise<RunRow> {
   const deadline = Date.now() + BOOT_DEADLINE_MS
   while (true) {
-    const run = await expectJson<RunRow>(await client.fetch(`/api/runs/${runId}`))
-    if (run.status !== 'queued' && run.status !== 'running') return run
+    const runs = await expectJson<Pick<RunRow, 'id' | 'status'>[]>(await client.fetch('/api/runs'))
+    const status = runs.find(r => r.id === runId)?.status
+    if (!status) throw new Error(`Run ${runId} disappeared from the run list`)
+    if (status !== 'queued' && status !== 'running') {
+      return await expectJson<RunRow>(await client.fetch(`/api/runs/${runId}`))
+    }
     if (Date.now() > deadline) {
+      const run = await expectJson<RunRow>(await client.fetch(`/api/runs/${runId}`))
       throw new Error(`Run ${runId} still ${run.status} after ${BOOT_DEADLINE_MS / 60_000}min. Log:\n${(run.log ?? '').slice(-4000)}`)
     }
     await new Promise(r => setTimeout(r, 5000))
   }
+}
+
+// Best-effort teardown, but never silent: a failed DELETE on a persistent
+// instance (the dev VM) would otherwise leak the sandbox or project unnoticed.
+async function cleanup(client: E2eClient, path: string): Promise<void> {
+  const res = await client.fetch(path, { method: 'DELETE' })
+  if (!res.ok) console.warn(`Cleanup DELETE ${path} failed: ${res.status} ${await res.text()}`)
 }
 
 describe('boot-and-preview on the php fixture', () => {
@@ -62,8 +79,8 @@ describe('boot-and-preview on the php fixture', () => {
   })
 
   afterAll(async () => {
-    if (runId) await client.fetch(`/api/runs/${runId}`, { method: 'DELETE' })
-    if (projectId && ownProject) await client.fetch(`/api/projects/${projectId}`, { method: 'DELETE' })
+    if (runId) await cleanup(client, `/api/runs/${runId}`)
+    if (projectId && ownProject) await cleanup(client, `/api/projects/${projectId}`)
   })
 
   it('boots the fixture and serves every preview origin', async () => {

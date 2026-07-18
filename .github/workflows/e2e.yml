@@ -60,41 +60,18 @@ jobs:
       - name: Resolve lvh.me locally
         run: echo "127.0.0.1 lvh.me" | sudo tee -a /etc/hosts
 
-      # Per-job random secrets: the dev login gate and the session key need no
-      # configured values, only agreement between server and tests.
       - name: Start a dev server
-        run: |
-          export KNECHT_TEST_AUTH="$(openssl rand -hex 16)"
-          export NUXT_SESSION_PASSWORD="$(openssl rand -hex 32)"
-          echo "::add-mask::$KNECHT_TEST_AUTH"
-          echo "KNECHT_TEST_AUTH=$KNECHT_TEST_AUTH" >> "$GITHUB_ENV"
-          # Explicit IPv4 bind: the default localhost bind can land on ::1
-          # only, while lvh.me is pinned to 127.0.0.1 above.
-          npx nuxt dev --host 127.0.0.1 --port 3333 > /tmp/knecht-dev.log 2>&1 &
-          code=""
-          for i in $(seq 1 90); do
-            code=$(curl -sS -o /tmp/probe.body -w '%{http_code}' http://lvh.me:3333/api/_setup/status 2>/tmp/probe.err || true)
-            [ "$code" = "200" ] && exit 0
-            sleep 2
-          done
-          echo "::error::Dev server never became ready"
-          echo "--- last probe: HTTP=$code"
-          cat /tmp/probe.err 2>/dev/null || true
-          head -c 300 /tmp/probe.body 2>/dev/null || true
-          echo "--- resolution/listeners:"
-          getent hosts lvh.me || echo "lvh.me does not resolve"
-          ss -tlnp 2>/dev/null | grep 3333 || echo "nothing listening on 3333"
-          echo "--- dev log:"
-          tail -50 /tmp/knecht-dev.log
-          exit 1
+        run: bash scripts/ci-dev-server.sh
 
       # The boot e2e needs the Sysbox substrate and runs in its own job below.
       - run: npm run test:e2e -- --exclude test/e2e/boot.test.ts
         env:
           KNECHT_E2E_BASE_URL: http://lvh.me:3333
 
+      # failure() alone would skip this when the job dies of timeout-minutes
+      # (that surfaces as a cancellation), the case that needs the log most.
       - name: Dump the server log on failure
-        if: failure()
+        if: failure() || cancelled()
         run: tail -200 /tmp/knecht-dev.log
 
   # The boot e2e: provision the runner as a real Knecht substrate
@@ -109,7 +86,8 @@ jobs:
     env:
       KNECHT_TEST_GITHUB_TOKEN: ${{ secrets.KNECHT_TEST_GITHUB_TOKEN }}
       # A GitHub App (id + PEM private key) installed on the fixture repo; the
-      # dev server seeds it as its credentials (server/plugins/test-github-app.ts).
+      # dev server picks it up via the dev-only read fallback in
+      # server/utils/github-credentials.ts.
       KNECHT_TEST_GITHUB_APP_ID: ${{ secrets.KNECHT_TEST_GITHUB_APP_ID }}
       KNECHT_TEST_GITHUB_APP_PRIVATE_KEY: ${{ secrets.KNECHT_TEST_GITHUB_APP_PRIVATE_KEY }}
       KNECHT_BASE_URL: http://lvh.me:3333
@@ -163,34 +141,18 @@ jobs:
       - name: Resolve lvh.me locally
         run: echo "127.0.0.1 lvh.me" | sudo tee -a /etc/hosts
 
-      # Per-job random secrets, as in the api job.
       - name: Start a dev server
-        run: |
-          export KNECHT_TEST_AUTH="$(openssl rand -hex 16)"
-          export NUXT_SESSION_PASSWORD="$(openssl rand -hex 32)"
-          echo "::add-mask::$KNECHT_TEST_AUTH"
-          echo "KNECHT_TEST_AUTH=$KNECHT_TEST_AUTH" >> "$GITHUB_ENV"
-          npx nuxt dev --host 127.0.0.1 --port 3333 > /tmp/knecht-dev.log 2>&1 &
-          code=""
-          for i in $(seq 1 90); do
-            code=$(curl -sS -o /tmp/probe.body -w '%{http_code}' http://lvh.me:3333/api/_setup/status 2>/tmp/probe.err || true)
-            [ "$code" = "200" ] && exit 0
-            sleep 2
-          done
-          echo "::error::Dev server never became ready"
-          echo "--- last probe: HTTP=$code"
-          cat /tmp/probe.err 2>/dev/null || true
-          head -c 300 /tmp/probe.body 2>/dev/null || true
-          echo "--- dev log:"
-          tail -50 /tmp/knecht-dev.log
-          exit 1
+        run: bash scripts/ci-dev-server.sh
 
       - run: npm run test:e2e -- boot
         env:
           KNECHT_E2E_BASE_URL: http://lvh.me:3333
 
+      # failure() alone would skip this when the job dies of timeout-minutes
+      # (that surfaces as a cancellation), the likeliest way a sandbox boot
+      # wedges and exactly when these dumps matter.
       - name: Dump diagnostics on failure
-        if: failure()
+        if: failure() || cancelled()
         run: |
           echo "--- dev log:"
           tail -300 /tmp/knecht-dev.log || true

@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
 import { teardownRun } from '../../daemon/envs'
+import { cancelRun } from '../../daemon/runner'
 import { projectCheckoutDir, runArchiveDir } from '../../utils/storage'
 
 // DELETE /api/runs/:id → remove a run and tear down its isolated env, worktree
@@ -12,6 +13,11 @@ export default defineEventHandler(async (event) => {
   if (!run) {
     return { ok: true }
   }
+
+  // A still-executing run must stop before its env goes away: without the
+  // abort, the runner races the teardown and can recreate the sandbox for a
+  // row that no longer exists (an orphan container nothing ever reaps).
+  cancelRun(id)
 
   const project = getProject(run.projectId)
   if (project) {

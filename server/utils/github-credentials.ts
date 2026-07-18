@@ -43,8 +43,23 @@ export function githubAppCredentials(): GithubAppCredentials | null {
         privateKey: decrypt(row.privateKeyEnc),
         webhookSecret: row.webhookSecretEnc ? decrypt(row.webhookSecretEnc) : null,
       }
-    : null
+    : devTestCredentials()
   return cache
+}
+
+// Dev-only read-side fallback: an automated instance (the CI boot e2e, a fresh
+// dev VM) can run workflows without the interactive manifest setup by handing
+// the app id + PEM private key over env. Nothing is persisted, so unsetting the
+// vars restores the unconfigured state. The OAuth client fields stay empty:
+// browser login falls back to /setup and automation logs in via /_test/login;
+// repo access (installation tokens) only needs app id + key. A stored app
+// (the DB row) always wins. Dead code in production builds, like /_test/login.
+function devTestCredentials(): GithubAppCredentials | null {
+  if (!import.meta.dev) return null
+  const appId = process.env.KNECHT_TEST_GITHUB_APP_ID
+  const privateKey = process.env.KNECHT_TEST_GITHUB_APP_PRIVATE_KEY
+  if (!appId || !privateKey) return null
+  return { appId, clientId: '', clientSecret: '', privateKey, webhookSecret: null }
 }
 
 // Whether the instance has a GitHub App at all (repo access needs app id +
