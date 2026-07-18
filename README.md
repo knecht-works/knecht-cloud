@@ -74,7 +74,7 @@ Then:
 
 TLS is automatic: Caddy fetches the dashboard certificate on first start and per-preview certificates on demand (the first visit of a new preview URL takes a few extra seconds while its certificate is issued).
 
-### Install on macOS (e.g. a Mac mini)
+### Install on MacOS (e.g. a Mac mini)
 
 Sysbox is Linux-only, so on a Mac the same setup runs inside a [Lima](https://lima-vm.io) VM. Create the VM from the checked-in template, then run the installer inside it:
 
@@ -93,6 +93,31 @@ The VM template exposes ports 80 and 443 on all interfaces of the Mac, so the po
 2. Point the two DNS records at your public IP. Home connections usually change their IP over time, so use a dynamic DNS provider (or a static IP from your ISP) and give the Mac a fixed address in your router.
 
 After a macOS reboot, run `limactl start knecht`; the containers inside come back up on their own. Updating and backups work exactly as below, with `/opt/knecht` and `/data/knecht` living inside the VM (`limactl shell knecht`).
+
+#### Local Setup on MacOS
+
+To just try Knecht on a Mac, follow the macOS install above and use `lvh.me` as the domain. It resolves to 127.0.0.1, so the dashboard and all preview subdomains work without any DNS setup. Ports 80 and 443 on the Mac must be free.
+
+Let's Encrypt cannot issue certificates for a local domain, so you need to use Caddy's internal CA instead. Inside the VM, edit `/opt/knecht/Caddyfile` so both site blocks use `tls internal`:
+
+```
+{$KNECHT_BASE_DOMAIN} {
+	tls internal
+	reverse_proxy knecht:3000
+}
+
+https:// {
+	tls internal {
+		on_demand
+	}
+	reverse_proxy knecht:3000
+}
+```
+
+Restart Caddy with `cd /opt/knecht && sudo docker compose restart caddy`. Open `https://lvh.me`, accept the certificate warning and complete the GitHub App setup.
+
+> [!TIP]
+> GitHub webhooks cannot reach a local instance, so GitHub triggers wont work.
 
 ### Updating
 
