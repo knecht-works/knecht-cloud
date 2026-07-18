@@ -88,6 +88,7 @@ export async function stopEnv(runId: number): Promise<void> {
   stopping.add(runId)
   try {
     await exportRunDb(runId)
+    await pruneSandboxDocker(runId)
     await stopSandbox(runId)
     db.update(schema.runs).set({ envState: 'stopped' }).where(eq(schema.runs.id, runId)).run()
   }
@@ -113,6 +114,21 @@ async function exportRunDb(runId: number): Promise<void> {
   }
   catch {
     // No (working) DB to export: restore falls back to the project dump.
+  }
+}
+
+// Shrink the sandbox before it goes dormant: dangling inner images and the
+// builder cache of the project's web-image build are pure waste in a stopped
+// env, typically a few hundred MB each. Named images and volumes stay (no
+// --volumes), so the quick reboot path is unaffected; the running ddev
+// containers are untouched (prune only removes stopped ones). Best-effort:
+// a failed prune must never block the stop.
+async function pruneSandboxDocker(runId: number): Promise<void> {
+  try {
+    await execInSandbox(runId, ['docker', 'system', 'prune', '-f'])
+  }
+  catch {
+    // Inner daemon wedged or already down: stop proceeds either way.
   }
 }
 

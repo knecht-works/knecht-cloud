@@ -8,7 +8,8 @@ import { removeSandbox } from './sandbox'
 // The reconcile GC (companion to the retention reaper in envs.ts). The reaper
 // walks LIVE runs down their lifecycle ladder; this instead reclaims LEFTOVERS
 // whose owning DB row is already gone: sandboxes, worktrees, archives and base
-// clones a crash or a half-done delete left behind, plus stale DB dumps. It is
+// clones a crash or a half-done delete left behind, plus stale DB dumps and
+// host-side docker leftovers (dangling images, build cache). It is
 // safe to run any time because it only ever touches state the database no
 // longer references, so an in-flight run (whose row is present the whole time)
 // is never affected. Runs on a timer (server/plugins/gc.ts) and on demand from
@@ -21,6 +22,7 @@ export interface GcResult {
   baseClones: string[] // base clones of deleted projects removed
   dumpDirs: string[] // dump folders of deleted projects removed
   dumpFiles: string[] // superseded DB dumps of live projects removed
+  dockerPruned: string[] // host-side docker leftovers pruned (with reclaimed size)
 }
 
 // Sweep every category, tolerating a failure in one so the rest still run. Each
@@ -30,13 +32,14 @@ export async function collectGarbage(): Promise<GcResult> {
   const projects = db.select({ id: schema.projects.id, dbDumpPath: schema.projects.dbDumpPath }).from(schema.projects).all()
   const liveProjects = new Set(projects.map(p => p.id))
 
-  const result: GcResult = { sandboxes: [], worktrees: [], archives: [], baseClones: [], dumpDirs: [], dumpFiles: [] }
+  const result: GcResult = { sandboxes: [], worktrees: [], archives: [], baseClones: [], dumpDirs: [], dumpFiles: [], dockerPruned: [] }
   result.sandboxes = await reapOrphanSandboxes(liveRuns)
   result.worktrees = reapOrphanWorktrees(liveRuns)
   result.archives = reapOrphanArchives(liveRuns)
   result.baseClones = reapOrphanBaseClones(liveProjects)
   result.dumpDirs = reapOrphanDumpDirs(liveProjects)
   result.dumpFiles = reapStaleDumpFiles(projects)
+  result.dockerPruned = await pruneHostDocker()
 
   // Removing worktree dirs by rmSync leaves a stale admin entry in each base
   // clone's .git/worktrees; prune them so `git worktree` stays consistent.
@@ -118,6 +121,32 @@ function removeMatching(dir: string, pattern: RegExp, isOrphan: (id: number) => 
     removed.push(name)
   }
   return removed
+}
+
+// Host-side Docker leftovers: every sandbox rebuild (provision-host.sh) leaves
+// the previous knecht-sandbox build behind as a dangling image (~1GB each),
+// and those builds also pile up builder cache. Prune both, dangling-only, so
+// tagged images (knecht-sandbox, the pinned release image) are never touched.
+// Reports one entry per command that actually reclaimed space, with the size.
+async function pruneHostDocker(): Promise<string[]> {
+  const pruned: string[] = []
+  const targets: [string, string[]][] = [
+    ['dangling images', ['image', 'prune', '-f']],
+    ['build cache', ['builder', 'prune', '-f']],
+  ]
+  for (const [label, args] of targets) {
+    try {
+      const { stdout } = await execa('docker', args)
+      // Both commands end with a total line ("Total reclaimed space: 1.2GB" /
+      // "Total:  1.2GB"); 0B means the command found nothing to remove.
+      const size = stdout.match(/Total[^:]*:\s*([\d.]+\s*[A-Za-z]+)/)?.[1]
+      if (size && !/^0\s*B/.test(size)) pruned.push(`${label}: ${size}`)
+    }
+    catch {
+      // docker unreachable: try again next tick
+    }
+  }
+  return pruned
 }
 
 // Drop stale worktree admin entries from every base clone after their dirs were
