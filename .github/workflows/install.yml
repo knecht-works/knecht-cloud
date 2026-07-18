@@ -6,6 +6,11 @@
 # runners can carry the Sysbox boot e2e.
 #
 # Manual for now; once proven stable it should also gate release tags.
+#
+# Runs on amd64 AND arm64 (the two supported host architectures). Note: the
+# smoke installs with KNECHT_REF=<sha>, which pins the `latest` image, so the
+# arm64 leg can only pass once a stable release has published a multi-arch
+# `latest`. Until then it fails at `docker compose pull`, expected.
 name: install
 
 on:
@@ -20,7 +25,11 @@ concurrency:
 
 jobs:
   install:
-    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
       # The runner ships a newer Docker; a fresh VPS has none. Purge it so the
