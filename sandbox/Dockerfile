@@ -7,7 +7,7 @@
 # side that launches these lives in server/daemon/sandbox.ts; the decision and
 # verified findings are in internals/docs/run-isolation.md (§7, §11).
 #
-# Build (multi-arch: prod is amd64, the local dev VM is arm64):
+# Build (multi-arch: hosts are amd64 or arm64, always built on the host itself):
 #   docker build -t knecht-sandbox sandbox/
 #
 # Layout: systemd is PID 1 (Sysbox's supported mode), the inner dockerd is a

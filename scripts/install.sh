@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Install Knecht on a fresh Ubuntu 24.04 server (amd64). Idempotent: re-run it
+# Install Knecht on a fresh Ubuntu 24.04 host (amd64 or arm64; a VPS or the
+# Lima VM from scripts/lima-server.yaml on a Mac). Idempotent: re-run it
 # to repair or resume a broken install. Run as root:
 #
 #   curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | bash
@@ -38,8 +39,8 @@ if [ -r /etc/os-release ]; then
   [ "${VERSION_ID:-}" = "24.04" ] || echo "⚠ Tested on Ubuntu 24.04, found $VERSION_ID. Continuing anyway."
 fi
 case "$(dpkg --print-architecture)" in
-  amd64) ;;
-  *) die "Release images are built for amd64 only (found: $(dpkg --print-architecture))" ;;
+  amd64|arm64) ;;
+  *) die "Release images are built for amd64 and arm64 only (found: $(dpkg --print-architecture))" ;;
 esac
 
 say "Installing base packages"

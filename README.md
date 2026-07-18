@@ -52,7 +52,7 @@ Knecht is self hosted on your own server. You own your data.
 
 ### Requirements
 
-- A Linux server used only for Knecht: Ubuntu 24.04, amd64, at least 4 GB RAM and 40 GB disk (8 GB RAM and 80 GB disk are comfortable). A cheap KVM-based VPS is fine (e.g. a Hetzner CX23 or CX33); container-based virtualization (OpenVZ/LXC) won't work because Sysbox needs a real kernel. Keep the host free of other Docker setups, since the installer pins Docker to a Sysbox-compatible version and rewrites `/etc/docker/daemon.json`.
+- A Linux host used only for Knecht: Ubuntu 24.04, amd64 or arm64, at least 4 GB RAM and 40 GB disk (8 GB RAM and 80 GB disk are comfortable). A cheap KVM-based VPS is fine (e.g. a Hetzner CX23 or CX33); container-based virtualization (OpenVZ/LXC) won't work because Sysbox needs a real kernel. A Mac (e.g. a Mac mini) works too, via the Lima VM described below. Keep the host free of other Docker setups, since the installer pins Docker to a Sysbox-compatible version and rewrites `/etc/docker/daemon.json`.
 - A domain (or subdomain) for the instance. You will point two DNS records at the server.
 
 ### Install
@@ -73,6 +73,26 @@ Then:
 3. Open `https://knecht.example.com` and complete the GitHub App setup. The first login claims the instance as owner.
 
 TLS is automatic: Caddy fetches the dashboard certificate on first start and per-preview certificates on demand (the first visit of a new preview URL takes a few extra seconds while its certificate is issued).
+
+### Install on macOS (e.g. a Mac mini)
+
+Sysbox is Linux-only, so on a Mac the same setup runs inside a [Lima](https://lima-vm.io) VM. Create the VM from the checked-in template, then run the installer inside it:
+
+```bash
+brew install lima
+limactl create --name=knecht https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/lima-server.yaml
+limactl start knecht
+limactl shell knecht
+# inside the VM:
+curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | sudo bash
+```
+
+The VM template exposes ports 80 and 443 on all interfaces of the Mac, so the post-install steps above apply unchanged, with the home-network additions:
+
+1. Forward TCP ports 80 and 443 on your router to the Mac.
+2. Point the two DNS records at your public IP. Home connections usually change their IP over time, so use a dynamic DNS provider (or a static IP from your ISP) and give the Mac a fixed address in your router.
+
+After a macOS reboot, run `limactl start knecht`; the containers inside come back up on their own. Updating and backups work exactly as below, with `/opt/knecht` and `/data/knecht` living inside the VM (`limactl shell knecht`).
 
 ### Updating
 

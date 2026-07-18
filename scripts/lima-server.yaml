@@ -1,0 +1,40 @@
+# A production Knecht host on macOS (e.g. a Mac mini): Sysbox is Linux-only,
+# so Knecht runs inside this Ubuntu VM, the same substrate as a VPS. The VM is
+# created once by the operator, then scripts/install.sh runs inside it exactly
+# like on a fresh server:
+#
+#   brew install lima
+#   limactl create --name=knecht https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/lima-server.yaml
+#   limactl start knecht
+#   limactl shell knecht
+#   # inside the VM:
+#   curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | sudo bash
+#
+# After a macOS reboot: limactl start knecht (the containers inside restart on
+# their own). Not to be confused with scripts/lima-vm.yaml, the development VM.
+
+vmType: "vz"
+cpus: 4
+memory: "8GiB"
+disk: "80GiB"
+
+# No mounts: a server needs nothing from the Mac's filesystem, and nothing on
+# the Mac should be able to reach into the instance's state.
+
+# Caddy's ports, exposed on ALL interfaces of the Mac so the router's port
+# forwarding can reach them (Lima's default forwards bind to 127.0.0.1 only;
+# macOS allows unprivileged binds below 1024). TCP only: Lima does not forward
+# UDP, so HTTP/3 stays off and browsers fall back to HTTP/2.
+portForwards:
+- guestPort: 80
+  hostIP: "0.0.0.0"
+- guestPort: 443
+  hostIP: "0.0.0.0"
+
+minimumLimaVersion: 2.0.0
+
+images:
+- location: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-amd64.img"
+  arch: "x86_64"
+- location: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-arm64.img"
+  arch: "aarch64"
