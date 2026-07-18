@@ -88,10 +88,115 @@ jobs:
           tail -50 /tmp/knecht-dev.log
           exit 1
 
-      - run: npm run test:e2e
+      # The boot e2e needs the Sysbox substrate and runs in its own job below.
+      - run: npm run test:e2e -- --exclude test/e2e/boot.test.ts
         env:
           KNECHT_E2E_BASE_URL: http://lvh.me:3333
 
       - name: Dump the server log on failure
         if: failure()
         run: tail -200 /tmp/knecht-dev.log
+
+  # The boot e2e: provision the runner as a real Knecht substrate
+  # (provision-host.sh, the same script the VPS and the dev VM run), start the
+  # PR's code as a dev server and let the boot test connect the fixture repo,
+  # run boot-and-preview in a Sysbox sandbox and hit the preview origins.
+  # The install smoke proved GitHub-hosted runners carry Sysbox fine.
+  boot:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      KNECHT_TEST_GITHUB_TOKEN: ${{ secrets.KNECHT_TEST_GITHUB_TOKEN }}
+      # A GitHub App (id + PEM private key) installed on the fixture repo; the
+      # dev server seeds it as its credentials (server/plugins/test-github-app.ts).
+      KNECHT_TEST_GITHUB_APP_ID: ${{ secrets.KNECHT_TEST_GITHUB_APP_ID }}
+      KNECHT_TEST_GITHUB_APP_PRIVATE_KEY: ${{ secrets.KNECHT_TEST_GITHUB_APP_PRIVATE_KEY }}
+      KNECHT_BASE_URL: http://lvh.me:3333
+      KNECHT_BASE_DOMAIN: lvh.me
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require the boot e2e secrets
+        run: |
+          for v in KNECHT_TEST_GITHUB_TOKEN KNECHT_TEST_GITHUB_APP_ID KNECHT_TEST_GITHUB_APP_PRIVATE_KEY; do
+            if [ -z "${!v}" ]; then
+              echo "::error::Set the $v repo secret to run the boot e2e."
+              exit 1
+            fi
+          done
+
+      # The runner ships a newer Docker; provision-host.sh pins 27.5.1 (newer
+      # breaks under sysbox-runc) and apt refuses downgrades, so purge first.
+      - name: Remove the preinstalled Docker
+        run: |
+          sudo systemctl stop docker.socket docker 2>/dev/null || true
+          sudo apt-get purge -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
+          sudo rm -rf /etc/docker /var/lib/docker
+
+      # Pinned Docker, Sysbox, the sandbox image (built for this user's uid, so
+      # the dev server's worktrees are writable inside sandboxes), the registry
+      # cache + ddev image warm-up. Same path as the VPS and the dev VM.
+      - name: Provision the Sysbox substrate
+        run: |
+          ./scripts/provision-host.sh
+          # The job's processes carry the group set from before the reinstall;
+          # open the socket so the dev server can drive Docker without sudo.
+          sudo chmod 666 /var/run/docker.sock
+          docker info > /dev/null
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # Same npm as the prod image (Dockerfile), so npm ci accepts the lock
+      # file; see test.yml.
+      - run: npm install -g npm@11.9.0
+
+      - run: npm ci
+
+      # lvh.me resolves to 127.0.0.1 via public DNS, but the runners' resolver
+      # filters such rebind-style answers, so pin it locally. Preview hosts
+      # (*.preview.lvh.me) need no entries: the test connects to the base host
+      # and routes via the Host header (test/e2e/client.ts previewFetch).
+      - name: Resolve lvh.me locally
+        run: echo "127.0.0.1 lvh.me" | sudo tee -a /etc/hosts
+
+      # Per-job random secrets, as in the api job.
+      - name: Start a dev server
+        run: |
+          export KNECHT_TEST_AUTH="$(openssl rand -hex 16)"
+          export NUXT_SESSION_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$KNECHT_TEST_AUTH"
+          echo "KNECHT_TEST_AUTH=$KNECHT_TEST_AUTH" >> "$GITHUB_ENV"
+          npx nuxt dev --host 127.0.0.1 --port 3333 > /tmp/knecht-dev.log 2>&1 &
+          code=""
+          for i in $(seq 1 90); do
+            code=$(curl -sS -o /tmp/probe.body -w '%{http_code}' http://lvh.me:3333/api/_setup/status 2>/tmp/probe.err || true)
+            [ "$code" = "200" ] && exit 0
+            sleep 2
+          done
+          echo "::error::Dev server never became ready"
+          echo "--- last probe: HTTP=$code"
+          cat /tmp/probe.err 2>/dev/null || true
+          head -c 300 /tmp/probe.body 2>/dev/null || true
+          echo "--- dev log:"
+          tail -50 /tmp/knecht-dev.log
+          exit 1
+
+      - run: npm run test:e2e -- boot
+        env:
+          KNECHT_E2E_BASE_URL: http://lvh.me:3333
+
+      - name: Dump diagnostics on failure
+        if: failure()
+        run: |
+          echo "--- dev log:"
+          tail -300 /tmp/knecht-dev.log || true
+          echo "--- containers:"
+          docker ps -a || true
+          for c in $(docker ps -aq --filter label=knecht.run); do
+            echo "--- sandbox $c:"
+            docker logs "$c" 2>&1 | tail -50 || true
+          done
