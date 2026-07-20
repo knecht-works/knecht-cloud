@@ -156,14 +156,16 @@ async function execRun(runId: number, project: Project): Promise<void> {
 
     // Read the repo's own ddev host set and store it (the proxy serves the
     // whole set (readDdevHosts) under per-run preview origins; the UI builds
-    // its host switcher from the stored list).
+    // its host switcher from the stored list). The project's urlMode is
+    // pinned onto the run: the env written below either is or isn't
+    // translated, and the proxy must match that for the run's lifetime.
     const hosts = readDdevHosts(dir)
     db.update(schema.runs)
-      .set({ previewHosts: hosts.all })
+      .set({ previewHosts: hosts.all, urlMode: project.urlMode })
       .where(eq(schema.runs.id, runId))
       .run()
 
-    const injected = writeDdevConfig(dir, project.envVars, runId)
+    const injected = writeDdevConfig(dir, project.envVars, runId, project.urlMode)
     log(`Environment: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
 
     const ctx = createContext(runId, project, run.inputs ?? {})
