@@ -127,6 +127,41 @@ onUnmounted(() => {
   }
 })
 
+// ── Preview URL mode ───────────────────────────────────────────────────────
+// 'env' (default): the project derives all URLs from env vars; Knecht points
+// them at the preview origins and serves responses untouched. 'rewrite':
+// compatibility for projects with hard-coded/DB-stored absolute URLs; the
+// proxy rewrites every response. Applies to NEW runs; existing runs keep the
+// mode they booted with.
+const urlMode = ref<'env' | 'rewrite'>(project.value?.urlMode ?? 'env')
+// Collapsed by default inside the env modal: the default mode is right for
+// strictly env-based projects, so ideally nobody ever opens this.
+const urlModeAdvancedOpen = ref(false)
+const urlModeOptions = [
+  {
+    value: 'env' as const,
+    title: 'All base URLs come from the env',
+    description: 'The site builds every URL from its env variables. Previews are fastest and most accurate.',
+  },
+  {
+    value: 'rewrite' as const,
+    title: 'Base URLs are stored in the database',
+    description: 'Absolute URLs live in content, config or templates (e.g. WordPress, imported dumps). Knecht rewrites every response so links keep working.',
+  },
+]
+async function setUrlMode(mode: 'env' | 'rewrite') {
+  if (urlMode.value === mode) return
+  const previous = urlMode.value
+  urlMode.value = mode
+  try {
+    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { urlMode: mode } })
+  }
+  catch (e) {
+    urlMode.value = previous
+    toastError('Failed to save', e)
+  }
+}
+
 // Database dump upload (shared with the setup wizard via useProjectDump).
 const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump, remove: removeDump } = useProjectDump(project)
@@ -613,6 +648,54 @@ usePollWhile(() => isLive.value, refreshRuns)
           class="w-full"
           :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
         />
+
+        <!-- Deliberately tucked away: the default (env) is right for strictly
+             env-based projects and should never need touching. The escape
+             hatch exists for projects with hard-coded/DB-stored URLs. -->
+        <div class="mt-4">
+          <button
+            type="button"
+            class="k-mono flex items-center gap-1.5 text-2xs text-dimmed transition-colors hover:text-muted"
+            @click="urlModeAdvancedOpen = !urlModeAdvancedOpen"
+          >
+            <UIcon
+              :name="urlModeAdvancedOpen ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+              class="size-3.5"
+            />
+            Advanced: where do the site's base URLs live?
+          </button>
+          <div
+            v-if="urlModeAdvancedOpen"
+            class="mt-2.5 flex flex-col gap-2"
+          >
+            <button
+              v-for="option in urlModeOptions"
+              :key="option.value"
+              type="button"
+              class="rounded border p-2.5 text-left transition-colors"
+              :class="urlMode === option.value ? 'border-accented' : 'border-muted hover:border-accented/50'"
+              :aria-pressed="urlMode === option.value"
+              @click="setUrlMode(option.value)"
+            >
+              <span class="flex items-center gap-2">
+                <KStatusDot
+                  :color="urlMode === option.value ? 'primary' : 'neutral'"
+                  :size="5"
+                />
+                <span
+                  class="k-mono text-xs"
+                  :class="urlMode === option.value ? 'text-toned' : 'text-muted'"
+                >{{ option.title }}</span>
+              </span>
+              <span class="k-mono mt-1.5 block text-2xs leading-relaxed text-dimmed">
+                {{ option.description }}
+              </span>
+            </button>
+            <p class="k-mono text-2xs text-dimmed">
+              Applies to new runs; already-running previews keep the mode they booted with.
+            </p>
+          </div>
+        </div>
       </template>
       <template #footer>
         <span

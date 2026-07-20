@@ -9,24 +9,33 @@ import { runWorktreeDir } from './storage'
 
 // Reverse-proxy a whole request to a RUN's isolated environment (projects.md
 // §8). Called from the preview-host middleware for requests to
-// `[<label>--]<runId>.preview.<host>`.
+// `[<label>--]<runId>.preview.<host>`. EVERY hostname the project's ddev
+// config serves (primary + additional_hostnames/additional_fqdns, via
+// readDdevHosts) gets its own per-run preview origin: the primary as
+// `<runId>.preview.<base>`, each additional one as
+// `<label>--<runId>.preview.<base>`.
 //
-// The contract is: the operator pastes the project's local .env VERBATIM and
-// everything runs as it does with plain ddev: hard-coded `*.ddev.site` URLs,
-// multisite setups with one domain per site, all of it, nothing overridden.
-// So the proxy maps between the two worlds instead of touching the project:
+// TWO MODES, pinned per run (runs.urlMode, from the project setting):
 //
-//   - EVERY hostname the project's ddev config serves (primary +
-//     additional_hostnames/additional_fqdns, via readDdevHosts) gets its own
-//     per-run preview origin: the primary as `<runId>.preview.<base>`, each
-//     additional one as `<label>--<runId>.preview.<base>`.
-//   - Inward, the request carries the project's REAL host (so e.g. Craft
-//     matches the right site), targeting the sandbox's inner ddev-router at
-//     :80 over plain HTTP (run-isolation.md §3/§11).
-//   - Outward, every project host found in Location headers and rewritable
-//     bodies is replaced with ITS preview origin (cross-site links included),
-//     so what the browser loads always points back here (not at the
-//     unreachable *.ddev.site).
+//   'env' (default): the project derives all its URLs from env vars, and the
+//   run's env was already translated to the preview origins at boot
+//   (daemon/ddev.ts). The app natively speaks preview URLs, so this proxy is
+//   a plain pass-through: original Host, original bodies, streaming. Only the
+//   iframe concerns remain (frame headers stripped, bridge script injected
+//   into HTML documents).
+//
+//   'rewrite' (compatibility): the operator pastes the project's local .env
+//   VERBATIM and everything runs as it does with plain ddev: hard-coded
+//   `*.ddev.site` URLs, multisite setups with one domain per site, nothing
+//   overridden. The proxy maps between the two worlds instead of touching
+//   the project: inward, the request carries the project's REAL host (so
+//   e.g. Craft matches the right site); outward, every project host found in
+//   Location headers and rewritable bodies is replaced with ITS preview
+//   origin (cross-site links included), so what the browser loads always
+//   points back here (not at the unreachable *.ddev.site).
+//
+// Either way the target is the run's web container at :80 over plain HTTP
+// (its nginx serves any Host header; daemon/sandbox.ts).
 //
 // Access is login-gated (projects.md §8): the request must carry a valid Knecht
 // session, sent cross-subdomain via the base-domain cookie. Logged out: a
@@ -125,6 +134,9 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
 
   const url = getRequestURL(event)
   const baseHost = stripPreviewPrefix(url.host)
+  // 'env' runs boot with their env already translated to the preview origins;
+  // runs from before the setting existed (null) carry a verbatim env.
+  const rewriteMode = (run.urlMode ?? 'rewrite') === 'rewrite'
   // Longest first so a host that contains another as a suffix (knaus.kta.…
   // vs kta.…) is never half-rewritten by the shorter one.
   const mappings = hosts.all
@@ -136,19 +148,28 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
   const req = event.node.req
   const res = event.node.res
 
-  // Send the app's own host so it serves/builds URLs as configured, and map
-  // Origin/Referer back to the app's world. Otherwise same-origin checks
-  // (Craft's CP login) reject the POST because the browser's Origin (the
-  // preview subdomain) wouldn't match the Host. Ask for an uncompressed body
-  // so we can rewrite it.
-  const headers = { ...req.headers, 'host': appHost, 'accept-encoding': 'identity' }
-  for (const key of ['origin', 'referer'] as const) {
-    if (!headers[key]) continue
-    let value = String(headers[key])
-    for (const m of mappings) {
-      value = value.replaceAll(`${url.protocol}//${m.previewHost}`, `http://${m.host}`)
+  const headers = { ...req.headers }
+  if (rewriteMode) {
+    // Send the app's own host so it serves/builds URLs as configured, and map
+    // Origin/Referer back to the app's world. Otherwise same-origin checks
+    // (Craft's CP login) reject the POST because the browser's Origin (the
+    // preview subdomain) wouldn't match the Host. Ask for an uncompressed
+    // body so we can rewrite it.
+    headers['host'] = appHost
+    headers['accept-encoding'] = 'identity'
+    for (const key of ['origin', 'referer'] as const) {
+      if (!headers[key]) continue
+      let value = String(headers[key])
+      for (const m of mappings) {
+        value = value.replaceAll(`${url.protocol}//${m.previewHost}`, `http://${m.host}`)
+      }
+      headers[key] = value
     }
-    headers[key] = value
+  }
+  else if (String(headers['accept'] ?? '').includes('text/html')) {
+    // Pass-through mode touches nothing except HTML documents (the iframe
+    // bridge below must be injectable, so they need to arrive uncompressed).
+    headers['accept-encoding'] = 'identity'
   }
 
   await new Promise<void>((resolve, reject) => {
@@ -162,7 +183,10 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
       },
       (up) => {
         const type = String(up.headers['content-type'] ?? '')
-        const rewrite = !up.headers['content-encoding'] && REWRITABLE.test(type)
+        const isHtml = /text\/html/i.test(type)
+        const rewrite = rewriteMode && !up.headers['content-encoding'] && REWRITABLE.test(type)
+        // Pass-through mode only ever buffers HTML documents, for the bridge.
+        const buffer = rewrite || (!rewriteMode && isHtml && !up.headers['content-encoding'])
 
         res.statusCode = up.statusCode ?? 502
         for (const [key, value] of Object.entries(up.headers)) {
@@ -180,16 +204,16 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
             if (values.length) res.setHeader(key, values)
             continue
           }
-          // Recomputed below for rewritten bodies.
-          if (rewrite && (lower === 'content-length' || lower === 'transfer-encoding')) continue
-          if (lower === 'location') {
+          // Recomputed below for buffered bodies.
+          if (buffer && (lower === 'content-length' || lower === 'transfer-encoding')) continue
+          if (rewriteMode && lower === 'location') {
             res.setHeader(key, rewriteUrls(String(value), mappings, url.protocol))
             continue
           }
           res.setHeader(key, value)
         }
 
-        if (!rewrite) {
+        if (!buffer) {
           up.pipe(res)
           up.on('end', () => resolve())
           up.on('error', reject)
@@ -199,8 +223,9 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
         const chunks: Buffer[] = []
         up.on('data', (c: Buffer) => chunks.push(c))
         up.on('end', () => {
-          let body = rewriteUrls(Buffer.concat(chunks).toString('utf8'), mappings, url.protocol)
-          if (/text\/html/i.test(type)) body = injectBridge(body)
+          let body = Buffer.concat(chunks).toString('utf8')
+          if (rewrite) body = rewriteUrls(body, mappings, url.protocol)
+          if (isHtml) body = injectBridge(body)
           const buf = Buffer.from(body, 'utf8')
           res.setHeader('content-length', String(buf.byteLength))
           res.end(buf)
