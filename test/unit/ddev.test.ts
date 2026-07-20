@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse } from 'yaml'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { readDdevHosts, writeDdevConfig } from '../../server/daemon/ddev'
 
 function checkout(configYaml?: string): string {
@@ -19,7 +19,7 @@ describe('writeDdevConfig', () => {
       { key: 'PRIMARY_SITE_URL', value: '"https://demo.ddev.site"' },
       { key: 'PLAIN', value: 'value' },
       { key: 'HALF', value: '"unbalanced' },
-    ], 7)
+    ], 7, 'rewrite')
     expect(written).toBe(3)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
     expect(doc.name).toBe('knecht-run-7')
@@ -28,6 +28,29 @@ describe('writeDdevConfig', () => {
       'PLAIN=value',
       'HALF="unbalanced',
     ])
+  })
+
+  it('translates ddev-host URLs in env values to preview origins in env mode', () => {
+    vi.stubEnv('KNECHT_BASE_URL', 'http://lvh.me:3333')
+    try {
+      const dir = checkout('name: demo\nadditional_hostnames: [alpha]')
+      writeDdevConfig(dir, [
+        { key: 'PRIMARY_SITE_URL', value: 'https://demo.ddev.site' },
+        { key: 'ALPHA_SITE_URL', value: 'https://alpha.ddev.site/en' },
+        { key: 'COOKIE_DOMAIN', value: 'demo.ddev.site' },
+        { key: 'OTHER', value: 'https://example.com/x' },
+      ], 7, 'env')
+      const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+      expect(doc.web_environment).toEqual([
+        'PRIMARY_SITE_URL=http://7.preview.lvh.me:3333',
+        'ALPHA_SITE_URL=http://alpha--7.preview.lvh.me:3333/en',
+        'COOKIE_DOMAIN=7.preview.lvh.me',
+        'OTHER=https://example.com/x',
+      ])
+    }
+    finally {
+      vi.unstubAllEnvs()
+    }
   })
 
   it('omits web_environment entirely without env vars', () => {

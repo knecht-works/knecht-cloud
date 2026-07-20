@@ -62,7 +62,7 @@ export async function rehydrateEnv(runId: number): Promise<void> {
     const { stdout: status } = await execa('git', ['-C', dir, 'status', '--porcelain'])
     if (!status.trim()) await execa('git', ['-C', dir, 'apply', patch])
   }
-  writeDdevConfig(dir, project.envVars, runId)
+  writeDdevConfig(dir, project.envVars, runId, run.urlMode ?? 'rewrite')
 
   await startEnvStack(runId)
   await importArchivedDb(runId, project)

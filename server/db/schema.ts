@@ -45,6 +45,15 @@ export const projects = sqliteTable('projects', {
     .$type<EnvVar[]>()
     .notNull()
     .default(sql`'[]'`),
+  // How preview URLs reach the browser. 'env' (default): the project derives
+  // ALL its URLs from env vars, so Knecht translates the env values to the
+  // per-run preview origins at boot and proxies responses untouched.
+  // 'rewrite': legacy compatibility for projects with hard-coded/DB-stored
+  // absolute URLs; the env is passed verbatim and the proxy rewrites every
+  // response body/header between the ddev world and the preview origins.
+  urlMode: text('url_mode', { enum: ['env', 'rewrite'] })
+    .notNull()
+    .default('env'),
   dbDumpPath: text('db_dump_path'),
   // Whether the current dump has already been imported into the ddev volume.
   // The import is one-time (projects.md §6); reset to false when a new dump is
@@ -118,6 +127,12 @@ export const runs = sqliteTable('runs', {
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
+  // The project's urlMode PINNED at checkout time: the env baked into this
+  // run's environment either was or wasn't translated, and the proxy must
+  // match that forever, whatever the project setting changes to later. Null
+  // on runs from before the setting existed = 'rewrite' (their env is
+  // verbatim).
+  urlMode: text('url_mode', { enum: ['env', 'rewrite'] }),
   // Last time the preview was accessed; the idle-stopper stops envs that have
   // been quiet longer than the idle timeout.
   previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),

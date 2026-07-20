@@ -2,7 +2,11 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
+import { previewHostname, previewLabel } from '../../shared/utils/preview-host'
+import { dashboardOrigin } from '../utils/origin'
 import { runSandboxName, toolsDir } from '../utils/storage'
+
+export type UrlMode = 'env' | 'rewrite'
 
 // Per-container resource caps (compose mem_limit/pids_limit): all runs share
 // the host daemon now, so one runaway build or query must not take the box
@@ -20,9 +24,13 @@ const WEB_PIDS_LIMIT = 2048
 //     (the router is omitted, the preview proxy targets the web container's IP
 //     directly), so the project's own hostnames stay valid inward and the
 //     rename is invisible to the app.
-//   - `web_environment`: the project's configured env vars (projects.md §4),
-//     used VERBATIM: no rewriting. YAML sidesteps the comma-escaping of
-//     `ddev config --web-environment`.
+//   - `web_environment`: the project's configured env vars (projects.md §4).
+//     In 'env' urlMode (the default) every ddev-host URL in the VALUES is
+//     translated to its per-run preview origin, so a project that derives all
+//     its URLs from the env natively renders preview links and the proxy can
+//     pass responses through untouched. In 'rewrite' mode the values go in
+//     VERBATIM and the proxy maps the two worlds per response. YAML sidesteps
+//     the comma-escaping of `ddev config --web-environment`.
 //   - compose override: the web container joins the `knecht-ingress` network
 //     (how the preview proxy reaches it), gets the agent tools (opencode +
 //     knecht-git) bind-mounted read-only from the host tools dir, and web/db
@@ -31,16 +39,19 @@ const WEB_PIDS_LIMIT = 2048
 // them; the preview proxy maps the project's own hostnames to per-run preview
 // origins instead of touching the project. Returns how many env vars were
 // written.
-export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], runId: number): number {
+export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], runId: number, urlMode: UrlMode = 'env'): number {
   const doc: {
     name: string
     web_environment?: string[]
   } = { name: runSandboxName(runId) }
   if (envVars.length) {
+    const translate = urlMode === 'env'
+      ? envUrlTranslator(readDdevHosts(checkoutDir), runId)
+      : (v: string) => v
     // Strip a layer of surrounding quotes: a value like `"https://x"` (quotes
     // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
     // covers projects whose env vars were saved before the parser stripped them.
-    doc.web_environment = envVars.map(e => `${e.key}=${unquote(e.value)}`)
+    doc.web_environment = envVars.map(e => `${e.key}=${translate(unquote(e.value))}`)
   }
   // The marker comment silences ddev's "custom configuration detected"
   // warning, which would otherwise open every run log.
@@ -82,6 +93,41 @@ function composeOverride(): Record<string, unknown> {
     networks: {
       'knecht-ingress': { external: true },
     },
+  }
+}
+
+// Build the env-value translator for 'env' urlMode: every occurrence of a
+// project ddev host in an env VALUE becomes its per-run preview form. URL
+// forms (`https://host`, `http://host`) become the full preview origin
+// (scheme and port from the dashboard origin, since previews share its entry
+// point); a remaining bare host (e.g. a cookie-domain var) becomes the bare
+// preview hostname. Longest host first, so a host containing another as a
+// suffix is never half-translated. Without a configured base origin there is
+// nothing to translate towards; values pass through unchanged.
+function envUrlTranslator(hosts: DdevHosts, runId: number): (value: string) => string {
+  const base = dashboardOrigin()
+  if (!base || !hosts.all.length) return v => v
+  const origin = new URL(base)
+  const mappings = [...hosts.all]
+    .sort((a, b) => b.length - a.length)
+    .map((host) => {
+      const label = host === hosts.primary ? undefined : previewLabel(host)
+      return {
+        host,
+        // URL forms need the full origin (scheme + port); a remaining bare
+        // host (e.g. a cookie-domain var) must stay a plain hostname.
+        previewOrigin: `${origin.protocol}//${previewHostname(runId, origin.host, label)}`,
+        previewBare: previewHostname(runId, origin.hostname, label),
+      }
+    })
+  return (value: string) => {
+    for (const m of mappings) {
+      value = value
+        .replaceAll(`https://${m.host}`, m.previewOrigin)
+        .replaceAll(`http://${m.host}`, m.previewOrigin)
+        .replaceAll(m.host, m.previewBare)
+    }
+    return value
   }
 }
 
