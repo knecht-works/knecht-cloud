@@ -10,40 +10,41 @@ import { getInstallationToken } from '../utils/github-app'
 import { projectCheckoutDir, projectDumpDir, runArchiveDir, runWorktreeDir } from '../utils/storage'
 import { writeDdevConfig } from './ddev'
 import { prepareRunCheckout } from './git'
-import { bootSandbox, copyIntoSandbox, copyOutOfSandbox, execInSandbox, removeSandbox, stopSandbox } from './sandbox'
+import { envStackRunning, execInSandbox, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
 
 // Lifecycle of the per-run environments: the ONE place that moves envState.
 // Envs walk down a retention ladder that trades disk for restore time:
 //
 //   up ─idleStopMinutes─▶ stopped ─previewRetentionDays─▶ archived ─archiveRetentionDays─▶ down
-//      (DB exported on          (sandbox + worktree (               (archive deleted;
+//      (DB exported on          (volumes + worktree (               (archive deleted;
 //       the way down;            the GBs) deleted; DB               only a re-run
-//       sandbox kept)            export + worktree patch             boots it again)
-//                                (MBs) kept)
+//       containers gone,         export + worktree patch             boots it again)
+//       volumes kept)            (MBs) kept)
 //
-// Reactivation: 'stopped' reboots in seconds (rebootEnv); 'archived' is
-// restored exactly: worktree at the recorded commit + patch, fresh sandbox,
-// the run's own DB export re-imported (rehydrateEnv). All timeouts are
-// operator settings (server/utils/settings.ts).
+// Reactivation: 'stopped' reboots in seconds (rebootEnv: `ddev start` revives
+// the containers around the kept volumes); 'archived' is restored exactly:
+// worktree at the recorded commit + patch, fresh stack, the run's own DB
+// export re-imported (rehydrateEnv). All timeouts are operator settings
+// (server/utils/settings.ts).
 
-// Bring a run's env up before project-facing work: boot (or resume) its
-// sandbox, mark it previewable. Idempotent.
+// Bring a run's env up before project-facing work: start its ddev stack if it
+// isn't running, mark it previewable. Idempotent; the running check keeps the
+// per-step calls cheap (a no-op `ddev start` still takes seconds).
 export async function ensureEnvUp(runId: number): Promise<void> {
-  await bootSandbox(runId)
+  if (!await envStackRunning(runId)) await startEnvStack(runId)
   markUp(runId)
 }
 
-// Restart an idle-stopped env. The stopped sandbox keeps its filesystem
-// (worktree mount, inner volumes, the imported DB), so booting it and running
-// `ddev start` inside brings it back without re-running the workflow.
+// Restart an idle-stopped env: the project's volumes (the imported DB) and the
+// worktree survived the stop, so `ddev start` brings it back without
+// re-running the workflow.
 export async function rebootEnv(runId: number): Promise<void> {
-  await bootSandbox(runId)
-  await execInSandbox(runId, ['ddev', 'start'])
+  await startEnvStack(runId)
   markUp(runId)
 }
 
 // Restore an archived env exactly: recreate the worktree at the recorded
-// commit, re-apply the uncommitted diff, boot a fresh sandbox and import the
+// commit, re-apply the uncommitted diff, start a fresh stack and import the
 // run's own DB export (falling back to the project dump for archives without
 // one). Takes minutes, the price of archives costing MBs instead of GBs.
 export async function rehydrateEnv(runId: number): Promise<void> {
@@ -61,10 +62,9 @@ export async function rehydrateEnv(runId: number): Promise<void> {
     const { stdout: status } = await execa('git', ['-C', dir, 'status', '--porcelain'])
     if (!status.trim()) await execa('git', ['-C', dir, 'apply', patch])
   }
-  writeDdevConfig(dir, project.envVars)
+  writeDdevConfig(dir, project.envVars, runId)
 
-  await bootSandbox(runId)
-  await execInSandbox(runId, ['ddev', 'start'])
+  await startEnvStack(runId)
   await importArchivedDb(runId, project)
   markUp(runId)
 }
@@ -79,17 +79,18 @@ function markUp(runId: number): void {
 }
 
 // Stop a run's env: export its database into the run archive while the stack
-// is still up, then stop the sandbox (which keeps its filesystem, so it can be
-// rebooted quickly). Guarded: the export makes a stop take a while, and the
-// reaper tick must not pile a second stop onto a run mid-export.
+// is still up, then stop it (containers removed, volumes and worktree kept, so
+// it can be rebooted quickly). Guarded: the export makes a stop take a while,
+// and the reaper tick must not pile a second stop onto a run mid-export.
 const stopping = new Set<number>()
 export async function stopEnv(runId: number): Promise<void> {
   if (stopping.has(runId)) return
   stopping.add(runId)
   try {
     await exportRunDb(runId)
-    await pruneSandboxDocker(runId)
-    await stopSandbox(runId)
+    // A run whose stack never came up has nothing to stop; `ddev stop` on an
+    // unregistered project would fail and wedge the env in 'up' forever.
+    if (await envStackRunning(runId)) await stopEnvStack(runId)
     db.update(schema.runs).set({ envState: 'stopped' }).where(eq(schema.runs.id, runId)).run()
   }
   catch {
@@ -102,38 +103,23 @@ export async function stopEnv(runId: number): Promise<void> {
 
 // Export the env's CURRENT database into the run's archive. The DB can only
 // change while the env is 'up', so exporting on the way down always captures
-// the latest state, each stop overwrites the previous export. Best-effort: a
-// run whose ddev never came up has nothing to export, and that must not block
+// the latest state, each stop overwrites the previous export. The ddev CLI
+// runs host-side, so it writes the archive file directly. Best-effort: a run
+// whose ddev never came up has nothing to export, and that must not block
 // the stop.
 async function exportRunDb(runId: number): Promise<void> {
-  const inSandbox = '/tmp/knecht-db-export.sql.gz'
   try {
-    await execInSandbox(runId, ['ddev', 'export-db', `--file=${inSandbox}`])
     mkdirSync(runArchiveDir(runId), { recursive: true })
-    await copyOutOfSandbox(runId, inSandbox, join(runArchiveDir(runId), 'db.sql.gz'))
+    await execInSandbox(runId, ['ddev', 'export-db', `--file=${join(runArchiveDir(runId), 'db.sql.gz')}`])
   }
   catch {
     // No (working) DB to export: restore falls back to the project dump.
   }
 }
 
-// Shrink the sandbox before it goes dormant: dangling inner images and the
-// builder cache of the project's web-image build are pure waste in a stopped
-// env, typically a few hundred MB each. Named images and volumes stay (no
-// --volumes), so the quick reboot path is unaffected; the running ddev
-// containers are untouched (prune only removes stopped ones). Best-effort:
-// a failed prune must never block the stop.
-async function pruneSandboxDocker(runId: number): Promise<void> {
-  try {
-    await execInSandbox(runId, ['docker', 'system', 'prune', '-f'])
-  }
-  catch {
-    // Inner daemon wedged or already down: stop proceeds either way.
-  }
-}
-
 // Stop envs that have been idle (no preview access) longer than the configured
-// timeout. This is the RAM guard: each 'up' env is a full nested Docker host.
+// timeout. This is the RAM guard: each 'up' env keeps a web + db container
+// running.
 export async function reapIdleEnvs(): Promise<void> {
   const { idleStopMinutes } = getSettings()
   const cutoff = new Date(Date.now() - idleStopMinutes * 60_000)
@@ -213,23 +199,21 @@ export async function reapExpiredArchives(): Promise<void> {
 
 // Import the run's archived DB export into a freshly restored env; archives
 // without one (the export never succeeded) fall back to the project's dump.
+// The ddev CLI runs host-side and reads the file itself, no copy step.
 async function importArchivedDb(runId: number, project: Project): Promise<void> {
   const archived = join(runArchiveDir(runId), 'db.sql.gz')
   const fallback = project.dbDumpPath && join(projectDumpDir(project.id), basename(project.dbDumpPath))
   const file = existsSync(archived) ? archived : fallback && existsSync(fallback) ? fallback : null
   if (!file) return
-  const inSandbox = `/tmp/${basename(file)}`
-  await copyIntoSandbox(runId, file, inSandbox)
-  await execInSandbox(runId, ['ddev', 'import-db', `--file=${inSandbox}`])
+  await execInSandbox(runId, ['ddev', 'import-db', `--file=${file}`])
 }
 
-// Fully tear down a run's isolated environment: remove its sandbox container
-// (the whole nested world of inner containers, volumes, imported DB lives in
-// its filesystem and goes with it) and remove its git worktree. Both steps are
-// best-effort so a half-gone env still gets cleaned up. `baseDir` is the
-// project's base clone the worktree hangs off.
+// Fully tear down a run's isolated environment: remove its ddev stack
+// (containers, volumes, project registration) and its git worktree. Both
+// steps are best-effort so a half-gone env still gets cleaned up. `baseDir`
+// is the project's base clone the worktree hangs off.
 export async function teardownRun(runId: number, baseDir: string): Promise<void> {
-  await removeSandbox(runId)
+  await removeEnvStack(runId)
   try {
     await execa('git', ['-C', baseDir, 'worktree', 'remove', '--force', runWorktreeDir(runId)])
   }

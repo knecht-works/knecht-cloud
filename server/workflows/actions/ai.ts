@@ -1,4 +1,5 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
@@ -11,11 +12,12 @@ import { bridgeEnv } from '../../utils/agent-bridge'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 
-// The `ai` step (the "knecht block"): an opencode run INSIDE the run's sandbox,
-// working on the project checkout: a real agent that can read/edit files and
-// execute commands, not a bare chat call. opencode is baked into the sandbox
-// image (sandbox/Dockerfile); the provider API key and default model live in
-// settings (Settings → Agent), a step can override the model.
+// The `ai` step (the "knecht block"): an opencode run INSIDE the run's web
+// container, working on the project checkout: a real agent that can read/edit
+// files and execute commands, not a bare chat call. The opencode binary is
+// bind-mounted into the container from the host tools dir (daemon/ddev.ts,
+// staged by plugins/agent-tools.ts); the provider API key and default model
+// live in settings (Settings → Agent), a step can override the model.
 
 // Which env var hands the configured key to opencode, per AI_PROVIDERS id
 // (shared/utils/ai.ts). Env names follow models.dev, the registry opencode
@@ -33,13 +35,15 @@ const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
 // the bash command line below.
 const MODEL_RE = /^[\w.-]+(\/[\w.:-]+)+$/
 
-// opencode runs as ddev with HOME=/home/ddev (daemon/sandbox.ts), so it reads
-// its config from here. The per-step `system` prompt is dropped into workflow.md
-// each run; a baked opencode.json merges it into opencode's instructions
-// (sandbox/Dockerfile). Always (over)written, empty when unset, so one ai step's
-// system prompt never leaks into a later ai step sharing the same sandbox.
-const OPENCODE_CONFIG_DIR = '/home/ddev/.config/opencode'
-const WORKFLOW_SYSTEM_PATH = `${OPENCODE_CONFIG_DIR}/workflow.md`
+// opencode runs with XDG_CONFIG_HOME pointed at the worktree's .knecht dir
+// (daemon/sandbox.ts), so its config lives at <worktree>/.knecht/opencode:
+// host-visible (this module writes it directly, no copy into the container)
+// and git-excluded (daemon/git.ts). AGENTS.md + opencode.json are seeded from
+// the bundled templates; the per-step `system` prompt is dropped into
+// workflow.md each run, which opencode.json merges into the instructions.
+// Always (over)written, empty when unset, so one ai step's system prompt
+// never leaks into a later ai step sharing the same environment.
+const AGENT_CONFIG_SUBDIR = join('.knecht', 'opencode')
 
 // Structured output: how many times we re-ask the agent (continuing the same
 // session, so it fixes the file rather than redoing the work) before failing.
@@ -67,7 +71,7 @@ export const aiAction = defineAction({
     const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
     try {
       // Reset the merged-in system prompt for THIS step (empty when unset).
-      await writeSystemPrompt(rt, dir, step.system ?? '')
+      await writeAgentConfig(rt, step.system ?? '')
 
       if (!step.output) {
         const text = await runOpencode(rt, dir, model, env, step.prompt, false)
@@ -126,6 +130,7 @@ export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Prom
   const { model, env } = await resolveAgentEnv(rt.runId)
   rt.log(`\n▶ follow-up (${model}): ${oneLine(prompt, 100)}\n`)
   await rt.sandbox.ensureUp()
+  await writeAgentConfig(rt, null)
   const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
   try {
     return await runOpencode(rt, dir, model, env, prompt, true)
@@ -183,9 +188,8 @@ async function runOpencode(
 ): Promise<string> {
   const hostFile = join(dir, 'prompt.txt')
   await writeFile(hostFile, message)
-  // Unique per invocation: under sysbox, docker cp INTO the container reports
-  // success but does NOT overwrite an existing file, so reusing one path would
-  // silently resend the FIRST prompt on every retry and follow-up.
+  // Unique per invocation so a retry or follow-up never races an earlier
+  // prompt file.
   const inSandbox = `/tmp/knecht-ai-${rt.runId}-${Date.now()}.txt`
   await rt.sandbox.copyIn(hostFile, inSandbox)
   // --auto: auto-approve tool permissions. A workflow agent is non-interactive,
@@ -201,9 +205,7 @@ async function runOpencode(
   return text
 }
 
-// Read the file the agent was asked to write. Read it with exec (cat), NOT
-// docker cp: under the sysbox runtime, docker cp can't see files the agent wrote
-// into the container's /tmp, but exec always can. Reading a dedicated file (not
+// Read the file the agent was asked to write. Reading a dedicated file (not
 // scraping the agent's chatty stdout) is what keeps structured output reliable.
 // Missing/non-JSON are recoverable misses that drive a retry, not hard errors.
 async function readOutputFile(
@@ -217,17 +219,27 @@ async function readOutputFile(
   return { ok: true, value }
 }
 
-async function writeSystemPrompt(rt: ActionRuntime, dir: string, system: string): Promise<void> {
-  const hostFile = join(dir, 'system.md')
-  await writeFile(hostFile, system)
-  // docker cp only reaches MOUNTED paths in a sysbox container (/tmp, /project),
-  // not the image rootfs like /home/ddev (daemon/sandbox.ts). So stage into /tmp
-  // via copyIn, then move it into place with exec, which sees the whole fs. The
-  // baked opencode.json is what merges this file into opencode's instructions.
-  const staged = `/tmp/knecht-ai-system-${rt.runId}.md`
-  await rt.sandbox.copyIn(hostFile, staged)
-  const { code } = await rt.sandbox.stream(['sh', '-c', `mkdir -p ${OPENCODE_CONFIG_DIR} && cp ${staged} ${WORKFLOW_SYSTEM_PATH}`])
-  if (code !== 0) throw new ActionError(`failed to stage the system prompt into ${WORKFLOW_SYSTEM_PATH}`)
+// Seed the run's opencode config dir (host-side, it lives on the worktree):
+// the bundled AGENTS.md instructions, an opencode.json that merges workflow.md
+// into the agent's instructions, and workflow.md itself (a step's system
+// prompt). `system: null` keeps an existing workflow.md (the follow-up path:
+// the last ai step's system context stays valid for tweaks to that step's
+// work) and only creates an empty one when none exists (fresh rehydrated
+// worktree). The container path in opencode.json is fixed: ddev always mounts
+// the worktree at /var/www/html.
+const WORKFLOW_SYSTEM_PATH = '/var/www/html/.knecht/opencode/workflow.md'
+
+async function writeAgentConfig(rt: ActionRuntime, system: string | null): Promise<void> {
+  const dir = join(rt.checkoutDir, AGENT_CONFIG_SUBDIR)
+  await mkdir(dir, { recursive: true })
+  const agents = await useStorage('assets:sandbox').getItem('opencode/AGENTS.md')
+  if (agents) await writeFile(join(dir, 'AGENTS.md'), String(agents))
+  await writeFile(join(dir, 'opencode.json'), JSON.stringify({
+    $schema: 'https://opencode.ai/config.json',
+    instructions: [WORKFLOW_SYSTEM_PATH],
+  }, null, 2))
+  if (system !== null) await writeFile(join(dir, 'workflow.md'), system)
+  else if (!existsSync(join(dir, 'workflow.md'))) await writeFile(join(dir, 'workflow.md'), '')
 }
 
 // ── output spec ──────────────────────────────────────────────────────────────

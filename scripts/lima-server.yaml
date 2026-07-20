@@ -1,7 +1,7 @@
-# A production Knecht host on macOS (e.g. a Mac mini): Sysbox is Linux-only,
-# so Knecht runs inside this Ubuntu VM, the same substrate as a VPS. The VM is
-# created once by the operator, then scripts/install.sh runs inside it exactly
-# like on a fresh server:
+# A production Knecht host on macOS (e.g. a Mac mini): the run substrate
+# (host Docker + ddev) is Linux-only, so Knecht runs inside this Ubuntu VM,
+# the same substrate as a VPS. The VM is created once by the operator, then
+# scripts/install.sh runs inside it exactly like on a fresh server:
 #
 #   brew install lima
 #   limactl create --name=knecht https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/lima-server.yaml

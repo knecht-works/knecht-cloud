@@ -1,8 +1,8 @@
 # Knecht: the control plane.
-# Requires a Linux host with Sysbox installed and the `knecht-sandbox` image
-# built (see sandbox/Dockerfile + scripts/provision-host.sh): each run boots
-# its own unprivileged Docker-in-Docker sandbox via `--runtime=sysbox-runc`.
-# Architecture: internals/docs/run-isolation.md
+# Requires a Linux host with Docker and the ddev CLI (scripts/provision-host.sh):
+# each run boots as a uniquely-named ddev project on the HOST daemon, driven by
+# the ddev CLI inside this container through the mounted socket
+# (server/daemon/sandbox.ts). No Docker-in-Docker, no special runtime.
 
 services:
   knecht:
@@ -38,22 +38,27 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     volumes:
-      # Drive the HOST daemon through its socket: that's how the per-run
-      # sandboxes are launched (and the only reason this socket is here).
+      # Drive the HOST daemon through its socket: that's how the per-run ddev
+      # projects are launched (and the only reason this socket is here).
       - /var/run/docker.sock:/var/run/docker.sock
       # Fixed project path that MUST be byte-identical on both sides: the HOST
-      # daemon resolves the `-v worktree:/project` bind mount when a sandbox is
+      # daemon resolves ddev's worktree bind mounts when a run's stack is
       # launched, so the worktree path Knecht passes has to exist on the host.
       # A single variable is used on both sides so they can never drift.
       # Production convention: /data/knecht/projects.
       - ${KNECHT_PROJECTS:-/data/knecht/projects}:${KNECHT_PROJECTS:-/data/knecht/projects}
-      # Knecht's own state (SQLite DB, archives, dumps). Same-path convention
-      # as the projects dir. Without this mount the DB lives in the container's
+      # Knecht's own state (SQLite DB, archives, dumps, the agent tools that
+      # get bind-mounted into run web containers). Same-path convention as the
+      # projects dir. Without this mount the DB lives in the container's
       # ephemeral filesystem and dies on every recreate.
       - ${KNECHT_DATA_DIR:-/data/knecht/data}:${KNECHT_DATA_DIR:-/data/knecht/data}
-    # The preview proxy reaches each run's sandbox (its inner ddev-router) over
-    # the `knecht-ingress` docker network, which Knecht creates and joins at
-    # boot (server/daemon/sandbox.ts). No host ingress ports are needed or
+      # ddev's per-user state (global config + the registry of per-run
+      # projects). Must survive recreates: name-based `ddev stop/delete` of
+      # older runs' envs resolve against this registry.
+      - ${KNECHT_DATA_DIR:-/data/knecht/data}/.ddev:/home/node/.ddev
+    # The preview proxy reaches each run's web container over the
+    # `knecht-ingress` docker network, which Knecht creates and joins at boot
+    # (server/daemon/sandbox.ts). No host ingress ports are needed or
     # published here beyond the UI port above.
     restart: unless-stopped
 

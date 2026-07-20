@@ -3,14 +3,14 @@
 # ─── Knecht image (the control plane) ─────────────────────────────────────────
 # Stages:
 #   build    compiles the Nuxt app → .output (devDeps stay here, never shipped)
-#   tooling  shared runtime base: git, docker CLI, the node user
+#   tooling  shared runtime base: git, docker CLI, ddev CLI, the node user
 #   prod     tooling + built app; runs Nitro. The default/shipped image.
 # (Local dev doesn't use this image: it runs `npm run dev:vm` in the dev VM.)
 #
-# This image never runs ddev or the agent itself: it drives the HOST daemon
-# (mounted socket) to launch one Sysbox sandbox per run, and everything
-# project-facing happens inside those (sandbox/Dockerfile). See
-# internals/docs/run-isolation.md.
+# This image never runs the project stacks or the agent itself: the ddev CLI
+# in here drives the HOST daemon (mounted socket) to boot one uniquely-named
+# ddev project per run, and everything project-facing execs inside those runs'
+# web containers (server/daemon/sandbox.ts).
 # ──────────────────────────────────────────────────────────────────────────────
 
 ARG NPM_VERSION=11.9.0
@@ -32,14 +32,15 @@ RUN npm i -g npm@${NPM_VERSION} && npm ci && npm run build
 FROM node:22-bookworm-slim AS tooling
 ARG NPM_VERSION
 
-# 1) Base system dependencies + git (clone/fetch project repos)
+# 1) Base system dependencies + git (clone/fetch project repos); gnupg
+#    dearmors the ddev apt key below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git \
+      ca-certificates curl git gnupg \
  && install -m 0755 -d /etc/apt/keyrings \
  && rm -rf /var/lib/apt/lists/*
 
 # 2) Docker CLI (client only: there is no daemon in here; it talks to the
-#    mounted host socket to launch the per-run sandboxes). Verify the repo URL
+#    mounted host socket to boot the per-run envs). Verify the repo URL
 #    against current Docker docs.
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
  && chmod a+r /etc/apt/keyrings/docker.asc \
@@ -47,6 +48,17 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings
       > /etc/apt/sources.list.d/docker.list \
  && apt-get update && apt-get install -y --no-install-recommends \
       docker-ce-cli docker-buildx-plugin docker-compose-plugin \
+ && rm -rf /var/lib/apt/lists/*
+
+# 2b) ddev CLI, PINNED (runs are only as reproducible as this version; the
+#     provisioned host warm-up pulls the matching images, so keep
+#     DDEV_VERSION in step with scripts/provision-host.sh). It drives the
+#     host daemon through the same mounted socket.
+ARG DDEV_VERSION=1.25.2
+RUN curl -fsSL https://pkg.ddev.com/apt/gpg.key | gpg --dearmor -o /etc/apt/keyrings/ddev.gpg \
+ && echo "deb [signed-by=/etc/apt/keyrings/ddev.gpg] https://pkg.ddev.com/apt/ * *" \
+      > /etc/apt/sources.list.d/ddev.list \
+ && apt-get update && apt-get install -y --no-install-recommends "ddev=${DDEV_VERSION}" \
  && rm -rf /var/lib/apt/lists/*
 
 # 3) Pin npm (as root, before dropping privileges) so both dev and prod resolve
