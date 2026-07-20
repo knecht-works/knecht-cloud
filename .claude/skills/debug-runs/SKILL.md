@@ -1,6 +1,6 @@
 ---
 name: debug-runs
-description: Inspect what actually happened during a Knecht run or follow-up in dev. Use whenever a run/step/follow-up behaved unexpectedly (wrong result, "success" but nothing happened, SQLITE_ERROR, agent did nothing) and you need to read the live dev DB, step logs, sandbox containers, or the opencode session inside a sandbox.
+description: Inspect what actually happened during a Knecht run or follow-up in dev. Use whenever a run/step/follow-up behaved unexpectedly (wrong result, "success" but nothing happened, SQLITE_ERROR, agent did nothing) and you need to read the live dev DB, step logs, the run's ddev containers, or the opencode session state.
 ---
 
 # Debug a Knecht run (dev)
@@ -35,47 +35,57 @@ Useful queries:
 
 Timestamps are unix seconds: `datetime(started_at, 'unixepoch')`.
 
-## Layer 2: the run's sandbox container
+## Layer 2: the run's environment (a ddev project on the host daemon)
 
-One container per run, named `knecht-run-<runId>`, running under sysbox:
+Since the DooD rebuild there is NO per-run sandbox container and no inner
+Docker. Each run is a ddev project named `knecht-run-<runId>` directly on the
+VM's docker daemon: containers `ddev-knecht-run-<id>-web` and
+`ddev-knecht-run-<id>-db` (no router, no ssh-agent; they are omitted
+globally). Project-facing exec targets the web container as the dev user's
+uid; ddev CLI commands run host-side with the worktree as cwd.
 
 ```bash
 limactl shell knecht-dev -- docker ps
-limactl shell knecht-dev -- docker exec -u ddev knecht-run-<id> bash -c '<cmd>'
+limactl shell knecht-dev -- docker exec -u "$(limactl shell knecht-dev -- id -u)" ddev-knecht-run-<id>-web bash -c '<cmd>'
+limactl shell knecht-dev -- bash -c 'cd /data/knecht/projects/run-<id> && ddev describe'
 ```
 
-The checkout is `/project`. The ai step's prompt files are
-`/tmp/knecht-ai-<runId>-<timestamp>.txt` (one per invocation, BECAUSE of the
-`docker cp` gotcha below), structured output goes to
-`/tmp/knecht-ai-out-<runId>.json`.
+The checkout is mounted at `/var/www/html` in the web container and lives
+host-side at `/data/knecht/projects/run-<id>`, so most inspection works on
+the host path directly. The ai step's prompt files are
+`/tmp/knecht-ai-<runId>-<timestamp>.txt` inside the web container; structured
+output goes to `/tmp/knecht-ai-out-<runId>.json`. Both die with the container
+on `ddev stop`.
 
-Gotcha (sysbox): `docker cp` INTO the container reports exit 0 but does NOT
-overwrite an existing file, and cannot read files a process wrote into the
-container. Verify writes with `docker exec cat`, and prefer exec for both
-directions.
+The preview proxy targets the web container's IP on the `knecht-ingress`
+network with the project's real hostname in the Host header (the web nginx is
+a catch-all vhost).
 
 ## Layer 3: what the agent (opencode) actually did
 
-opencode state lives in the sandbox at `/home/ddev/.local/share/opencode/`:
-- `log/opencode.log`: one line per lifecycle event. "created id=ses_..." means
-  a NEW session (so `--continue` had nothing to continue). A `stream ...` line
-  with nothing after it means the LLM turn ended without activity.
-- `opencode.db` (sqlite): the conversation. No sqlite3 in the sandbox, so
-  export it first:
+opencode state lives ON THE WORKTREE (it survives `ddev stop`): the exec seam
+sets `XDG_CONFIG_HOME=/var/www/html/.knecht` and
+`XDG_DATA_HOME=/var/www/html/.knecht/data`, so host-side:
+
+- Config the run used: `/data/knecht/projects/run-<id>/.knecht/opencode/`
+  (AGENTS.md, opencode.json, workflow.md = the step's system prompt).
+- Session state: `/data/knecht/projects/run-<id>/.knecht/data/opencode/`:
+  - `log/opencode.log`: one line per lifecycle event. "created id=ses_..."
+    means a NEW session (so `--continue` had nothing to continue). A
+    `stream ...` line with nothing after it means the LLM turn ended without
+    activity.
+  - `opencode.db` (sqlite): the conversation, readable directly on the VM:
 
 ```bash
-limactl shell knecht-dev -- bash -c 'docker exec knecht-run-<id> cat /home/ddev/.local/share/opencode/opencode.db > /tmp/oc.db'
-limactl shell knecht-dev -- sqlite3 -json /tmp/oc.db 'SELECT id, data FROM message ORDER BY id;'
+limactl shell knecht-dev -- sqlite3 -json /data/knecht/projects/run-<id>/.knecht/data/opencode/opencode.db 'SELECT id, data FROM message ORDER BY id;'
 ```
 
 `message.data` (JSON) has `role`, `tokens`, `finish`; `part.data` has the
-actual text/tool calls per message. Diagnostic patterns:
+actual text/tool calls per message. Diagnostic pattern:
 - Assistant message with `tokens all 0` and `finish: "unknown"` plus a lone
   empty `step-finish` part: the provider returned an EMPTY stream. opencode
   still exits 0 and prints only its `> build · <model>` banner, so Knecht marks
   the step success. Check the provider (credits, model availability) first.
-- User message text repeating an OLDER prompt: the prompt file was not
-  overwritten (the sysbox `docker cp` gotcha above).
 
 ## Reading step logs
 

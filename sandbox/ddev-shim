@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# `ddev` inside a Knecht run's web container. Workflows written for plain ddev
+# say `ddev composer install`, `ddev npm run build`, `ddev exec …`: commands
+# here are ALREADY running inside the web container, so tool commands run
+# directly (the stock in-container shim only prints a warning and exits 0,
+# silently skipping the work). Environment-level commands are managed by
+# Knecht host-side and fail loudly instead of pretending.
+set -euo pipefail
+cd /var/www/html
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  exec)
+    [ $# -gt 0 ] || { echo "usage: ddev exec <command>" >&2; exit 2; }
+    if [ $# -eq 1 ]; then exec bash -lc "$1"; else exec "$@"; fi
+    ;;
+  composer|npm|npx|yarn|php|node)
+    exec "$cmd" "$@"
+    ;;
+  mysql)
+    exec mysql -udb -pdb -h db db "$@"
+    ;;
+  "")
+    echo "usage: ddev <command>" >&2
+    exit 2
+    ;;
+  *)
+    echo "'ddev $cmd' is not available inside a Knecht run environment: Knecht manages the environment itself (start/stop/import-db run on the host). Tool commands (composer, npm, php, …) run directly." >&2
+    exit 1
+    ;;
+esac

@@ -12,12 +12,12 @@
 #
 # What it does:
 #   1. Reserves uid 1000 (the `knecht` user): the control-plane container runs
-#      as uid 1000, the sandbox's inner user is baked to match, and both own
-#      the shared state dirs.
+#      as uid 1000, each run's web container gets a user baked to match (ddev
+#      does that itself), and both own the shared state dirs.
 #   2. Clones the repo to /opt/knecht at the newest release tag (compose file,
 #      Caddyfile, scripts live there; the app itself runs from the GHCR image).
-#   3. Provisions the host: pinned Docker, Sysbox, the knecht-sandbox image,
-#      the registry cache (scripts/provision-host.sh).
+#   3. Provisions the host: Docker, the pinned ddev CLI, the ddev global
+#      config + image warm-up (scripts/provision-host.sh).
 #   4. Writes /opt/knecht/.env (asks one question: your domain).
 #   5. Pulls and starts the app + the caddy TLS entry point.
 set -euo pipefail
@@ -50,9 +50,10 @@ apt-get update -qq
 apt-get install -y -qq git curl ca-certificates openssl >/dev/null
 
 # ── 1. uid 1000 ───────────────────────────────────────────────────────────────
-# The control-plane container's `node` user is uid 1000 and the sandbox image
-# is built to match (provision step below). The host-side `knecht` user exists
-# so uid 1000 is reserved and `ls -l` on the state dirs reads sensibly.
+# The control-plane container's `node` user is uid 1000 and ddev bakes the
+# same uid into each run's web image (it mirrors the invoking user). The
+# host-side `knecht` user exists so uid 1000 is reserved and `ls -l` on the
+# state dirs reads sensibly.
 if id -u knecht >/dev/null 2>&1; then
   [ "$(id -u knecht)" = 1000 ] || die "User 'knecht' exists but is not uid 1000"
   ok "User knecht (uid 1000) exists"
@@ -90,8 +91,8 @@ say "Checking out $TAG"
 git -C "$INSTALL_DIR" checkout -qf "$TAG"
 
 # ── 3. Provision the host ─────────────────────────────────────────────────────
-# Docker (pinned), Sysbox, daemon.json, the sandbox image (built for uid 1000),
-# the registry cache + warm-up. Idempotent; by far the longest step.
+# Docker, the pinned ddev CLI, the ddev global config and the image warm-up.
+# Idempotent; by far the longest step.
 KNECHT_UID=1000 KNECHT_GID=1000 KNECHT_PROJECTS="$PROJECTS_DIR" \
   bash "$INSTALL_DIR/scripts/provision-host.sh"
 

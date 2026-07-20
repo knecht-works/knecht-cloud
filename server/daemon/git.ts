@@ -185,19 +185,23 @@ export async function pushBranch(dir: string, branch: string, token: string): Pr
   }
 }
 
-// Knecht writes `.ddev/config.knecht.yaml` into the worktree to isolate the run
-// (unique ddev name) and inject the project's env vars, which include SECRETS.
-// The git blocks run `git add -A`, so without this that file (secrets and all)
-// would be committed and pushed in the opened PR. The ignore goes in the base
-// clone's shared `info/exclude` (honored by every worktree hanging off it), so
-// the generated override can never enter a commit. Idempotent.
+// Knecht writes generated files into the worktree: the ddev overrides
+// (`.ddev/config.knecht.yaml` carries the project's env vars, which include
+// SECRETS; `.ddev/docker-compose.knecht.yaml` the run's compose override) and
+// the agent's state dir (`.knecht/`: opencode config + session DB). The git
+// blocks run `git add -A`, so without this they would be committed and pushed
+// in the opened PR. The ignores go in the base clone's shared `info/exclude`
+// (honored by every worktree hanging off it), so the generated files can
+// never enter a commit. Idempotent.
 function shieldGeneratedFiles(base: string): void {
   const exclude = join(base, '.git', 'info', 'exclude')
-  const pattern = '/.ddev/config.knecht.yaml'
+  const patterns = ['/.ddev/config.knecht.yaml', '/.ddev/docker-compose.knecht.yaml', '/.knecht/']
   try {
     const current = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
-    if (current.split('\n').includes(pattern)) return
-    appendFileSync(exclude, `${current && !current.endsWith('\n') ? '\n' : ''}${pattern}\n`)
+    const lines = current.split('\n')
+    const missing = patterns.filter(p => !lines.includes(p))
+    if (!missing.length) return
+    appendFileSync(exclude, `${current && !current.endsWith('\n') ? '\n' : ''}${missing.join('\n')}\n`)
   }
   catch {
     // Best-effort; if it ever fails, a stray override is caught in PR review.

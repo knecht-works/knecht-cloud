@@ -15,13 +15,12 @@ import { copyIntoSandbox, execInSandbox } from './sandbox'
 import { ensureEnvUp } from './envs'
 
 // The in-process serial runner (tech-stack.md §4). Each run gets its OWN
-// sandbox (run-isolation.md): an isolated git worktree bind-mounted into a
-// per-run Sysbox container, whose inner daemon boots the project's full ddev
-// stack (router included) and a freshly-imported DB. Project-facing steps
-// (ddev, bash/agent) exec INSIDE the sandbox; git steps run host-side against
-// the worktree. The run row tracks both the run status and the environment
-// state (envState = the sandbox's state), which the preview proxy and the
-// idle-stopper read. SSE is deferred: the UI polls the row.
+// environment: an isolated git worktree that boots as a uniquely-named ddev
+// project on the host daemon, with a freshly-imported DB. Project-facing
+// steps (bash/agent) exec INSIDE the run's web container; ddev commands and
+// git steps run host-side (daemon/sandbox.ts). The run row tracks both the
+// run status and the environment state (envState), which the preview proxy
+// and the idle-stopper read. SSE is deferred: the UI polls the row.
 //
 // Execution is engine-generic (workflow-engine-plan.md D3–D5): the step
 // sequence is PINNED onto the run row at start; each step gets a run_steps row
@@ -164,8 +163,8 @@ async function execRun(runId: number, project: Project): Promise<void> {
       .where(eq(schema.runs.id, runId))
       .run()
 
-    const injected = writeDdevConfig(dir, project.envVars)
-    log(`Sandbox: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
+    const injected = writeDdevConfig(dir, project.envVars, runId)
+    log(`Environment: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
 
     const ctx = createContext(runId, project, run.inputs ?? {})
     replayOutputs(runId, ctx)

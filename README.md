@@ -40,7 +40,7 @@ The result can come back as a pull request, including a preview environment to l
 ## Features
 
 - **AI agent** - reproduces, fixes, and validates bugs on its own.
-- **Isolated sandboxes** - every project runs in its own container (Docker + Sysbox), fully separated from the others.
+- **Isolated environments** - every run boots its own ddev project with unique containers, network and database, separated from the others.
 - **Workflows** - configurable pipelines that define what happens during a run.
 - **GitHub integration** - connected as a GitHub App, delivers fixes straight as a pull request.
 - **Preview environments** - every run gets its own URL to inspect.
@@ -52,7 +52,7 @@ Knecht is self hosted on your own server. You own your data.
 
 ### Requirements
 
-- A Linux host used only for Knecht: Ubuntu 24.04, amd64 or arm64, at least 4 GB RAM and 40 GB disk (8 GB RAM and 80 GB disk are comfortable). A cheap KVM-based VPS is fine (e.g. a Hetzner CX23 or CX33); container-based virtualization (OpenVZ/LXC) won't work because Sysbox needs a real kernel. A Mac (e.g. a Mac mini) works too, via the Lima VM described below. Keep the host free of other Docker setups, since the installer pins Docker to a Sysbox-compatible version and rewrites `/etc/docker/daemon.json`.
+- A Linux host used only for Knecht: Ubuntu 24.04, amd64 or arm64, at least 4 GB RAM and 40 GB disk (8 GB RAM and 80 GB disk are comfortable). A cheap VPS is fine (e.g. a Hetzner CX23 or CX33). A Mac (e.g. a Mac mini) works too, via the Lima VM described below. Keep the host free of other Docker setups: Knecht boots ddev projects on the host daemon and expects ports 80/443 for its own entry point.
 - A domain (or subdomain) for the instance. You will point two DNS records at the server.
 
 ### Install
@@ -63,7 +63,7 @@ As root on the fresh server:
 curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | bash
 ```
 
-The installer asks for your domain and does the rest: pinned Docker + Sysbox, the sandbox image, a registry cache, the repo checkout at the latest release under `/opt/knecht`, a generated `.env`, and finally the app plus the Caddy TLS entry point via docker compose. Takes about ten minutes, safe to re-run.
+The installer asks for your domain and does the rest: Docker, the pinned ddev CLI, a one-time image warm-up, the repo checkout at the latest release under `/opt/knecht`, a generated `.env`, and finally the app plus the Caddy TLS entry point via docker compose. Takes a few minutes, safe to re-run.
 
 Then:
 
@@ -76,7 +76,7 @@ TLS is automatic: Caddy fetches the dashboard certificate on first start and per
 
 ### Install on MacOS (e.g. a Mac mini)
 
-Sysbox is Linux-only, so on a Mac the same setup runs inside a [Lima](https://lima-vm.io) VM. Create the VM from the checked-in template, then run the installer inside it:
+The run substrate (host Docker + ddev) is Linux-only, so on a Mac the same setup runs inside a [Lima](https://lima-vm.io) VM. Create the VM from the checked-in template, then run the installer inside it:
 
 ```bash
 brew install lima
@@ -130,7 +130,7 @@ sed -i 's/^KNECHT_VERSION=.*/KNECHT_VERSION=vX.Y.Z/' .env
 docker compose pull && docker compose up -d
 ```
 
-Host-level changes (Docker pin, Sysbox, the sandbox image) are not covered by the in-app update; release notes call it out when the provisioning script must be re-run:
+Host-level changes (Docker, the ddev CLI, the image warm-up) are not covered by the in-app update; release notes call it out when the provisioning script must be re-run:
 
 ```bash
 sudo KNECHT_UID=1000 KNECHT_GID=1000 /opt/knecht/scripts/provision-host.sh
@@ -158,7 +158,7 @@ All state lives in `/data/knecht/data` (SQLite database, run archives, uploaded 
 
 ## Development Setup
 
-Knecht needs a Linux host with [Sysbox](https://github.com/nestybox/sysbox).
+Knecht needs a Linux host with Docker and the [ddev](https://ddev.com) CLI.
 For local development there is a Lima VM that provides exactly that.
 
 ```bash
@@ -176,6 +176,7 @@ npm run dev
 ```
 
 > [!NOTE]
-> Running sandboxes requires a Linux host with Sysbox. Details on isolation and
-> host setup live in `.env.example` and the provisioning scripts under `scripts/`.
+> Running project environments requires a Linux host with Docker and ddev.
+> Details on host setup live in `.env.example` and the provisioning scripts
+> under `scripts/`.
 

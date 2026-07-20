@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run the Knecht dev server INSIDE the Linux dev VM, the only place it can
-# run, since the per-run sandboxes need Sysbox (run-isolation.md §9). From the
+# run, since the per-run envs need a Linux host Docker + ddev. From the
 # Mac, `npm run dev:vm` shells in here via Lima; edit on the Mac as usual, the
 # repo is shared into the VM at the identical path.
 #

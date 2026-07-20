@@ -6,8 +6,8 @@ import { execa, type Options } from 'execa'
 import type { Project } from '../../server/db/schema'
 
 // The fake run substrate for engine tests: commands execute directly on the
-// test host with the run's fake checkout as cwd, instead of inside a Sysbox
-// container. Everything above this seam (runner, actions, log/row plumbing)
+// test host with the run's fake checkout as cwd, instead of inside a run's
+// web container. Everything above this seam (runner, actions, log/row plumbing)
 // is the real code. Engine test files wire these in via vi.mock (see
 // test/engine/runner.test.ts).
 

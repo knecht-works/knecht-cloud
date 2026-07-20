@@ -1,9 +1,8 @@
 # The install smoke: run scripts/install.sh on a fresh Ubuntu 24.04 runner
 # exactly the way a new user does (curl | bash, no checkout), then assert the
-# full substrate: pinned Docker, Sysbox registered, sandbox image + registry
-# cache, the app answering unconfigured, and a Sysbox sandbox whose inner
-# Docker comes up. This doubles as the spike for whether GitHub-hosted
-# runners can carry the Sysbox boot e2e.
+# full substrate: Docker, the pinned ddev CLI, the warmed ddev images, the app
+# answering unconfigured, and a routerless ddev project booting with its web
+# container reachable by IP (what every run and preview depends on).
 #
 # Manual for now; once proven stable it should also gate release tags.
 #
@@ -32,9 +31,8 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      # The runner ships a newer Docker; a fresh VPS has none. Purge it so the
-      # installer's pinned install runs the real fresh-server path (apt would
-      # otherwise refuse the downgrade).
+      # The runner ships Docker preinstalled; a fresh VPS has none. Purge it so
+      # the installer runs the real fresh-server path.
       - name: Remove the preinstalled Docker (simulate a fresh server)
         run: |
           sudo systemctl stop docker.socket docker 2>/dev/null || true
@@ -51,10 +49,9 @@ jobs:
 
       - name: Assert the substrate
         run: |
-          docker --version | grep -F 27.5.1
-          sudo docker info --format '{{range $k, $v := .Runtimes}}{{$k}} {{end}}' | grep -qw sysbox-runc
-          sudo docker image inspect knecht-sandbox > /dev/null
-          sudo docker ps --format '{{.Names}}' | grep -qx knecht-registry
+          docker --version
+          ddev --version | grep -F 1.25.2
+          sudo docker image ls --format '{{.Repository}}' | grep -q 'ddev/ddev-webserver'
           echo "substrate ok"
 
       - name: Assert the app is up and awaiting setup
@@ -73,20 +70,18 @@ jobs:
           grep -q '"configured": *false' /tmp/status.json
           echo "app ok:" && head -c 200 /tmp/status.json && echo
 
-      # The core question of the spike: does a Sysbox sandbox boot on this
-      # kernel, with its inner dockerd reachable (what every run depends on)?
-      - name: Boot a Sysbox sandbox and reach its inner Docker
+      # The core question of the smoke: does a routerless ddev project boot on
+      # this host, with its web container serving any Host header by IP (what
+      # every run and preview depends on)?
+      - name: Boot a routerless ddev project and reach its web container
         run: |
-          sudo docker run -d --name spike --runtime=sysbox-runc knecht-sandbox > /dev/null
-          ok=""
-          for i in $(seq 1 90); do
-            sudo docker exec spike docker info > /dev/null 2>&1 && ok=1 && break
-            sleep 1
-          done
-          if [ "$ok" != "1" ]; then
-            echo "::error::Inner dockerd never came up"
-            sudo docker logs spike 2>&1 | tail -50
-            exit 1
-          fi
-          echo "inner docker ok after ~${i}s"
-          sudo docker rm -f spike > /dev/null
+          sudo mkdir -p /tmp/spike/public
+          echo '<?php echo "spike-ok";' | sudo tee /tmp/spike/public/index.php > /dev/null
+          sudo chown -R knecht /tmp/spike
+          cd /tmp/spike
+          sudo runuser -u knecht -- env HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev config --project-type=php --docroot=public --project-name=spike
+          sudo runuser -u knecht -- env HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev start -y
+          IP=$(sudo docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{if $v.IPAddress}}{{$v.IPAddress}} {{end}}{{end}}' ddev-spike-web | awk '{print $1}')
+          curl -fsS -m 10 -H 'Host: whatever.example.com' "http://$IP/" | grep -F spike-ok
+          echo "web container ok at $IP"
+          sudo runuser -u knecht -- env HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev delete --omit-snapshot -y spike

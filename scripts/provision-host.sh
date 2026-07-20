@@ -1,90 +1,65 @@
 #!/usr/bin/env bash
 # Provision a Linux host as a Knecht substrate: the production VPS and the
-# local dev VM run the SAME script (run-isolation.md §9: one substrate).
+# local dev VM run the SAME script.
 #
-#   1. Docker Engine, pinned (Docker 29 breaks under sysbox-runc, §11)
-#   2. Sysbox CE (the per-run sandbox runtime, §7)
-#   3. daemon.json: register sysbox-runc + widen the network pool (each run's
-#      sandbox takes a bridge network on the host side)
-#   4. the fixed projects dir + docker group for the invoking user
-#   5. the knecht-sandbox image (sandbox/Dockerfile)
+#   1. Docker Engine (any current version; no pin, no special runtime)
+#   2. the ddev CLI, pinned (it boots the per-run envs on the host daemon)
+#   3. the fixed projects dir + docker group for the invoking user
+#   4. ddev global config: router + ssh-agent omitted (the preview proxy
+#      targets each run's web container directly; a router would collide
+#      with Caddy on :80/:443)
+#   5. warm-up: a throwaway ddev project pulls the web/db images once per
+#      host (all runs share them) and seeds ddev's global cache volume, so
+#      parallel first starts never race on its initialization
 #
 # Idempotent, safe to re-run. Usage (from the repo, with sudo rights):
 #   ./scripts/provision-host.sh
 set -euo pipefail
 
-DOCKER_VERSION="27.5.1"
-SYSBOX_VERSION="0.7.0"
+DDEV_VERSION="1.25.2"
 PROJECTS_DIR="${KNECHT_PROJECTS:-/data/knecht/projects}"
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ARCH="$(dpkg --print-architecture)"
-# Owner of the projects dir and uid/gid baked into the sandbox image. Defaults
-# to the invoking user (the dev VM case). install.sh runs as root and passes
-# 1000/1000 explicitly: the control-plane container's `node` user is uid 1000,
-# and both sides must agree on the worktrees they share.
+# Owner of the projects dir. Defaults to the invoking user (the dev VM case).
+# install.sh runs as root and passes 1000/1000 explicitly: the control-plane
+# container's `node` user is uid 1000, and both sides must agree on the
+# worktrees they share (ddev bakes the same uid into each project's web image).
 KNECHT_UID="${KNECHT_UID:-$(id -u)}"
 KNECHT_GID="${KNECHT_GID:-$(id -g)}"
 
 [ "$(uname -s)" = "Linux" ] || { echo "This provisions a LINUX host (on macOS: run it inside the VM)"; exit 1; }
 
-# ── 1. Docker, pinned ─────────────────────────────────────────────────────────
-if docker --version 2>/dev/null | grep -q "$DOCKER_VERSION"; then
-  echo "✓ Docker $DOCKER_VERSION already installed"
+# ── 1. Docker ─────────────────────────────────────────────────────────────────
+if command -v docker >/dev/null; then
+  echo "✓ Docker already installed ($(docker --version))"
+  # Earlier installs pinned Docker for Sysbox; the pin is obsolete now.
+  sudo apt-mark unhold docker-ce docker-ce-cli >/dev/null 2>&1 || true
 else
-  echo "▶ Installing Docker $DOCKER_VERSION"
+  echo "▶ Installing Docker"
   sudo install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
-  echo "deb [arch=$ARCH signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
     | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
   sudo apt-get update -qq
-  # awk must read the full stream: an early exit SIGPIPEs apt-cache, and with
-  # pipefail + set -e that kills the script silently (exit 141).
-  PIN="$(apt-cache madison docker-ce | awk -v v="$DOCKER_VERSION" '$3 ~ v && !hit {print $3; hit=1}')"
-  [ -n "$PIN" ] || { echo "Docker $DOCKER_VERSION not in the apt repo for this distro"; exit 1; }
-  sudo apt-get install -y -qq "docker-ce=$PIN" "docker-ce-cli=$PIN" containerd.io
-  sudo apt-mark hold docker-ce docker-ce-cli
+  sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 
-# ── 2. Sysbox ─────────────────────────────────────────────────────────────────
-if command -v sysbox-runc >/dev/null; then
-  echo "✓ Sysbox already installed ($(sysbox-runc --version | head -1))"
+# ── 2. ddev CLI, pinned ───────────────────────────────────────────────────────
+# Runs are only as reproducible as this version, and the warmed image cache
+# must match it. Keep DDEV_VERSION in step with the Dockerfile; bump both
+# deliberately, then re-provision so the cache follows.
+if ddev --version 2>/dev/null | grep -q "$DDEV_VERSION"; then
+  echo "✓ ddev $DDEV_VERSION already installed"
 else
-  echo "▶ Installing Sysbox CE $SYSBOX_VERSION"
-  TMP="$(mktemp -d)"
-  curl -fsSL -o "$TMP/sysbox.deb" \
-    "https://downloads.nestybox.com/sysbox/releases/v${SYSBOX_VERSION}/sysbox-ce_${SYSBOX_VERSION}-0.linux_${ARCH}.deb"
-  sudo apt-get install -y -qq "$TMP/sysbox.deb"
-  rm -rf "$TMP"
+  echo "▶ Installing ddev $DDEV_VERSION"
+  sudo install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://pkg.ddev.com/apt/gpg.key | sudo gpg --dearmor --yes -o /etc/apt/keyrings/ddev.gpg
+  echo "deb [signed-by=/etc/apt/keyrings/ddev.gpg] https://pkg.ddev.com/apt/ * *" \
+    | sudo tee /etc/apt/sources.list.d/ddev.list >/dev/null
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq "ddev=${DDEV_VERSION}" || sudo apt-get install -y -qq --allow-downgrades "ddev=${DDEV_VERSION}"
+  sudo apt-mark hold ddev
 fi
 
-# ── 3. Register the runtime + network pool ────────────────────────────────────
-# bip/pools: the INNER dockerd (in every sandbox) uses Docker's stock 172.17/16
-# defaults. Keep the HOST's bridges out of that range so routing inside the
-# sandboxes never collides with the host side.
-if [ -f /etc/docker/daemon.json ] && grep -q sysbox-runc /etc/docker/daemon.json; then
-  echo "✓ sysbox-runc already registered with Docker"
-else
-  echo "▶ Writing /etc/docker/daemon.json + restarting Docker"
-  sudo tee /etc/docker/daemon.json >/dev/null <<'EOF'
-{
-    "runtimes": {
-        "sysbox-runc": {
-            "path": "/usr/bin/sysbox-runc"
-        }
-    },
-    "bip": "172.20.0.1/16",
-    "default-address-pools": [
-        {
-            "base": "172.25.0.0/16",
-            "size": 24
-        }
-    ]
-}
-EOF
-  sudo systemctl restart docker
-fi
-
-# ── 4. Projects dir + docker group ────────────────────────────────────────────
+# ── 3. Projects dir + docker group ────────────────────────────────────────────
 sudo mkdir -p "$PROJECTS_DIR"
 sudo chown "$KNECHT_UID:$KNECHT_GID" "$PROJECTS_DIR"
 if ! id -nG | grep -qw docker; then
@@ -92,41 +67,51 @@ if ! id -nG | grep -qw docker; then
   sudo usermod -aG docker "$(id -un)"
 fi
 
-# ── 5. The sandbox image ──────────────────────────────────────────────────────
-# Built with the invoking user's uid/gid: the sandbox's `ddev` user must own
-# the bind-mounted worktrees the Knecht process creates (see sandbox/Dockerfile).
-echo "▶ Building knecht-sandbox (sandbox/Dockerfile, uid $KNECHT_UID:$KNECHT_GID)"
-sudo docker build -t knecht-sandbox \
-  --build-arg "KNECHT_UID=$KNECHT_UID" --build-arg "KNECHT_GID=$KNECHT_GID" \
-  "$REPO_DIR/sandbox"
+# ── 4. ddev global config + warm-up ───────────────────────────────────────────
+# ddev refuses to run as root, and install.sh runs this script as root: the
+# ddev steps then run as the `knecht` user (uid 1000, created by install.sh).
+# On the dev VM the script runs as the invoking user directly.
+if [ "$(id -u)" = 0 ]; then
+  WARM_USER="knecht"
+  id -u "$WARM_USER" >/dev/null 2>&1 || { echo "User knecht missing (install.sh creates it)"; exit 1; }
+  usermod -aG docker "$WARM_USER"
+  as_warm_user() { runuser -u "$WARM_USER" -- env HOME="$(getent passwd "$WARM_USER" | cut -d: -f6)" DDEV_NONINTERACTIVE=true "$@"; }
+else
+  WARM_USER="$(id -un)"
+  # `sg docker` so a just-added group membership works without re-login.
+  as_warm_user() { sg docker -c "DDEV_NONINTERACTIVE=true $*" 2>/dev/null || env DDEV_NONINTERACTIVE=true "$@"; }
+fi
+WARM_HOME="$(getent passwd "$WARM_USER" | cut -d: -f6)"
 
-# ── 6. Local registry cache + warm-up ─────────────────────────────────────────
-# A fresh sandbox pulls ~1GB of ddev images on its first `ddev start`, minutes
-# per run from the internet. A pull-through cache on the host's bridge IP (the
-# `bip` pinned in step 3) serves them LAN-local instead; every sandbox's inner
-# daemon is configured to use it (sandbox/Dockerfile). The warm-up seed fills
-# the cache for the ddev version pinned into the image, once per provisioning.
-# (Baking the images INTO the sandbox image via docker commit corrupts inner
-# layer ownership without shiftfs, and kernels ≥6.8 don't ship it. Don't retry.)
-if ! sudo docker ps --format '{{.Names}}' | grep -qx knecht-registry; then
-  echo "▶ Starting the local registry cache"
-  sudo docker rm -f knecht-registry >/dev/null 2>&1 || true
-  sudo docker run -d --name knecht-registry --restart unless-stopped \
-    -e REGISTRY_PROXY_REMOTEURL=https://registry-1.docker.io \
-    -v knecht-registry:/var/lib/registry \
-    -p 172.20.0.1:5000:5000 registry:3 >/dev/null
+# The global config MUST omit the router before the first start: a router
+# would bind host ports 80/443, which belong to Caddy. The containerized app
+# writes the same config for its own user at boot (server/plugins/agent-tools.ts).
+sudo -u "$WARM_USER" mkdir -p "$WARM_HOME/.ddev" 2>/dev/null || mkdir -p "$WARM_HOME/.ddev"
+if ! grep -q ddev-router "$WARM_HOME/.ddev/global_config.yaml" 2>/dev/null; then
+  printf 'omit_containers: [ddev-router, ddev-ssh-agent]\nperformance_mode: none\ninstrumentation_opt_in: false\n' \
+    | sudo -u "$WARM_USER" tee -a "$WARM_HOME/.ddev/global_config.yaml" >/dev/null
 fi
 
-echo "▶ Warming the image cache (seed sandbox pulls ddev's images once)"
-sudo docker rm -f knecht-sandbox-seed >/dev/null 2>&1 || true
-sudo docker run -d --name knecht-sandbox-seed --runtime=sysbox-runc knecht-sandbox >/dev/null
-for i in $(seq 1 60); do
-  sudo docker exec knecht-sandbox-seed docker info >/dev/null 2>&1 && break
-  sleep 1
-done
-sudo docker exec -u ddev -e HOME=/home/ddev -e USER=ddev knecht-sandbox-seed \
-  ddev utility download-images
-sudo docker rm -f knecht-sandbox-seed >/dev/null
+# One throwaway project start pulls the ddev web/db images (shared by every
+# run on this host) and initializes the ddev-global-cache volume (mkcert CA
+# etc.), whose first-time setup is NOT safe under parallel project starts.
+echo "▶ Warming the ddev image cache (throwaway project)"
+WARMUP="$(mktemp -d)"
+mkdir -p "$WARMUP/public"
+echo '<?php echo "knecht-warmup";' > "$WARMUP/public/index.php"
+chown -R "$WARM_USER" "$WARMUP" 2>/dev/null || true
+(
+  cd "$WARMUP"
+  as_warm_user ddev config --project-type=php --docroot=public --project-name=knecht-warmup
+  as_warm_user ddev start -y
+  as_warm_user ddev delete --omit-snapshot -y knecht-warmup
+)
+rm -rf "$WARMUP"
+
+# Leftovers from pre-DooD installs (the per-run Sysbox substrate): the pinned
+# registry cache is dead weight now that images live once on the host daemon.
+sudo docker rm -f knecht-registry >/dev/null 2>&1 || true
 
 echo "✓ Host provisioned. Sanity check:"
-sudo docker info --format '  docker {{.ServerVersion}} · runtimes: {{range $k, $v := .Runtimes}}{{$k}} {{end}}'
+sudo docker info --format '  docker {{.ServerVersion}}'
+ddev --version | sed 's/^/  /'

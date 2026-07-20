@@ -5,8 +5,8 @@ import { z } from 'zod'
 import { defineAction, ActionError } from './types'
 
 // User JavaScript: NEVER in the control-plane process (workflow-engine-plan.md
-// D7): the script runs inside the run's Sysbox sandbox, the same kernel-level
-// trust boundary as the bash step. Contract: the code defines `main(input)`
+// D7): the script runs inside the run's web container, the same trust
+// boundary as the bash step. Contract: the code defines `main(input)`
 // (sync or async) and returns a JSON-serializable value, exposed to later steps
 // as steps.<id>.result. `input` comes from the templated param: a single
 // {{ ref }} passes the referenced value raw (rawParams).

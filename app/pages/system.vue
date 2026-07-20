@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // The host's engine room, reached through the sidebar's system card: docker
-// daemon, sysbox runtime and the knecht containers running on the host.
+// daemon, ddev CLI and the knecht containers running on the host.
 </script>
 
 <template>

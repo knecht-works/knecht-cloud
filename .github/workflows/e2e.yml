@@ -63,7 +63,7 @@ jobs:
       - name: Start a dev server
         run: bash scripts/ci-dev-server.sh
 
-      # The boot e2e needs the Sysbox substrate and runs in its own job below.
+      # The boot e2e needs the ddev substrate and runs in its own job below.
       - run: npm run test:e2e -- --exclude test/e2e/boot.test.ts
         env:
           KNECHT_E2E_BASE_URL: http://lvh.me:3333
@@ -77,8 +77,7 @@ jobs:
   # The boot e2e: provision the runner as a real Knecht substrate
   # (provision-host.sh, the same script the VPS and the dev VM run), start the
   # PR's code as a dev server and let the boot test connect the fixture repo,
-  # run boot-and-preview in a Sysbox sandbox and hit the preview origins.
-  # The install smoke proved GitHub-hosted runners carry Sysbox fine.
+  # run boot-and-preview as a real ddev project and hit the preview origins.
   boot:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
@@ -104,22 +103,12 @@ jobs:
             fi
           done
 
-      # The runner ships a newer Docker; provision-host.sh pins 27.5.1 (newer
-      # breaks under sysbox-runc) and apt refuses downgrades, so purge first.
-      - name: Remove the preinstalled Docker
-        run: |
-          sudo systemctl stop docker.socket docker 2>/dev/null || true
-          sudo apt-get purge -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
-          sudo rm -rf /etc/docker /var/lib/docker
-
-      # Pinned Docker, Sysbox, the sandbox image (built for this user's uid, so
-      # the dev server's worktrees are writable inside sandboxes), the registry
-      # cache + ddev image warm-up. Same path as the VPS and the dev VM.
-      - name: Provision the Sysbox substrate
+      # Docker (the runner's own works fine now: no pin, no special runtime),
+      # the pinned ddev CLI, the ddev global config (router omitted) and the
+      # image warm-up. Same path as the VPS and the dev VM.
+      - name: Provision the substrate
         run: |
           ./scripts/provision-host.sh
-          # The job's processes carry the group set from before the reinstall;
-          # open the socket so the dev server can drive Docker without sudo.
           sudo chmod 666 /var/run/docker.sock
           docker info > /dev/null
 

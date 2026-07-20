@@ -13,17 +13,16 @@ function checkout(configYaml?: string): string {
 }
 
 describe('writeDdevConfig', () => {
-  it('pins the router ports and injects env vars with one quote layer stripped', () => {
+  it('renames the project per run and injects env vars with one quote layer stripped', () => {
     const dir = checkout()
     const written = writeDdevConfig(dir, [
       { key: 'PRIMARY_SITE_URL', value: '"https://demo.ddev.site"' },
       { key: 'PLAIN', value: 'value' },
       { key: 'HALF', value: '"unbalanced' },
-    ])
+    ], 7)
     expect(written).toBe(3)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
-    expect(doc.router_http_port).toBe('80')
-    expect(doc.router_https_port).toBe('443')
+    expect(doc.name).toBe('knecht-run-7')
     expect(doc.web_environment).toEqual([
       'PRIMARY_SITE_URL=https://demo.ddev.site',
       'PLAIN=value',
@@ -33,9 +32,19 @@ describe('writeDdevConfig', () => {
 
   it('omits web_environment entirely without env vars', () => {
     const dir = checkout()
-    expect(writeDdevConfig(dir, [])).toBe(0)
+    expect(writeDdevConfig(dir, [], 7)).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
     expect(doc.web_environment).toBeUndefined()
+  })
+
+  it('writes the compose override: ingress network and resource caps', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, [], 7)
+    const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.knecht.yaml'), 'utf8'))
+    expect(compose.services.web.networks).toEqual({ 'knecht-ingress': {} })
+    expect(compose.services.web.mem_limit).toBeDefined()
+    expect(compose.services.db.mem_limit).toBeDefined()
+    expect(compose.networks['knecht-ingress']).toEqual({ external: true })
   })
 })
 

@@ -28,11 +28,20 @@ export function runWorktreeDir(runId: number): string {
   return join(projectsDir(), `run-${runId}`)
 }
 
-// The name of a run's sandbox container (the per-run Sysbox DinD box that the
-// project's whole ddev stack boots inside; run-isolation.md §3). Everything
-// about a run's environment is addressed through this one name.
+// The name of a run's environment: its ddev project name on the host daemon
+// (containers ddev-knecht-run-<id>-web/-db). Everything about a run's
+// environment is addressed through this one name. (Pre-DooD installs used the
+// same name for the per-run Sysbox container; the teardown still sweeps those.)
 export function runSandboxName(runId: number): string {
   return `knecht-run-${runId}`
+}
+
+// Host dir the agent tools (the opencode binary, the knecht-git bridge CLI)
+// are staged into (server/plugins/agent-tools.ts) and bind-mounted from into
+// every run's web container. Lives in the data dir, which follows the
+// same-path host/container convention, so the compose bind mounts resolve.
+export function toolsDir(): string {
+  return join(dataDir(), 'tools')
 }
 
 // A run's archive folder: the small artifacts (DB export, worktree patch) that
