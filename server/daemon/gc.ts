@@ -3,7 +3,7 @@ import { basename, join } from 'node:path'
 import { execa } from 'execa'
 import { db, schema } from '../db'
 import { dataDir, projectsDir } from '../utils/storage'
-import { removeSandbox } from './sandbox'
+import { removeEnvStack } from './sandbox'
 
 // The reconcile GC (companion to the retention reaper in envs.ts). The reaper
 // walks LIVE runs down their lifecycle ladder; this instead reclaims LEFTOVERS
@@ -48,23 +48,30 @@ export async function collectGarbage(): Promise<GcResult> {
   return result
 }
 
-// Sandbox containers are named knecht-run-<id> and labelled knecht.run. List by
-// the label (so we never touch a non-knecht container) and remove any whose run
-// row is gone.
+// A run's env containers carry ddev's site-name label with the per-run
+// project name knecht-run-<id> (legacy Sysbox sandboxes carried knecht.run
+// instead). List by both labels (so we never touch an unrelated container),
+// dedupe to run ids, and tear down any whose run row is gone.
 async function reapOrphanSandboxes(liveRuns: Set<number>): Promise<string[]> {
-  let names: string[]
+  const orphans = new Map<number, string>()
   try {
-    const { stdout } = await execa('docker', ['ps', '-a', '--filter', 'label=knecht.run', '--format', '{{.Names}}'])
-    names = stdout.split('\n').map(n => n.trim()).filter(Boolean)
+    for (const filter of ['label=com.ddev.site-name', 'label=knecht.run']) {
+      const { stdout } = await execa('docker', ['ps', '-a', '--filter', filter, '--format', '{{.Names}}\t{{.Label "com.ddev.site-name"}}'])
+      for (const line of stdout.split('\n')) {
+        const [name = '', site = ''] = line.trim().split('\t')
+        if (!name) continue
+        const runId = Number((site || name).match(/^knecht-run-(\d+)$/)?.[1])
+        if (!runId || liveRuns.has(runId)) continue
+        orphans.set(runId, `knecht-run-${runId}`)
+      }
+    }
   }
   catch {
     return [] // docker unreachable: try again next tick
   }
   const removed: string[] = []
-  for (const name of names) {
-    const runId = Number(name.match(/^knecht-run-(\d+)$/)?.[1])
-    if (!runId || liveRuns.has(runId)) continue
-    await removeSandbox(runId)
+  for (const [runId, name] of orphans) {
+    await removeEnvStack(runId)
     removed.push(name)
   }
   return removed

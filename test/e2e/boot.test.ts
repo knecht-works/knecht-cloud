@@ -3,10 +3,10 @@ import { previewLabel } from '../../shared/utils/preview-host'
 import type { E2eClient } from './client'
 import { expectJson, login, previewFetch } from './client'
 
-// The boot e2e: connect the real fixture repo, run boot-and-preview in a real
-// Sysbox sandbox and check the preview origins it serves. Talks HTTP only; the
-// substrate (Docker, Sysbox, sandbox image) lives on the instance side, so the
-// same test runs against the CI dev server and the dev VM.
+// The boot e2e: connect the real fixture repo, run boot-and-preview as a real
+// ddev project and check the preview origins it serves. Talks HTTP only; the
+// substrate (Docker, the ddev CLI) lives on the instance side, so the same
+// test runs against the CI dev server and the dev VM.
 //
 // The instance needs GitHub App credentials with the app installed on the
 // fixture repo. CI provides them via KNECHT_TEST_GITHUB_APP_ID and

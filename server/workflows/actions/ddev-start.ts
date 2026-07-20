@@ -47,8 +47,8 @@ async function runSetupCommands(rt: ActionRuntime, commands?: string): Promise<v
 
 // Import the project's DB dump into this run's fresh environment (projects.md
 // §6). Each run env is isolated, so the import happens per run (idle reboots
-// keep the sandbox and don't re-import). The dump lives in Knecht's data dir,
-// which the sandbox can't see, so copy it in, then import inside.
+// keep the run's db volume and don't re-import). The ddev CLI runs host-side
+// and reads the dump straight from the data dir.
 async function importDb(rt: ActionRuntime): Promise<void> {
   if (!rt.project.dbDumpPath) return
 
@@ -60,8 +60,6 @@ async function importDb(rt: ActionRuntime): Promise<void> {
   }
 
   rt.log(`\n▶ import-db (${basename(file)})\n`)
-  const inSandbox = `/tmp/${basename(file)}`
-  await rt.sandbox.copyIn(file, inSandbox)
-  const { code } = await rt.sandbox.stream(['ddev', 'import-db', `--file=${inSandbox}`])
+  const { code } = await rt.sandbox.stream(['ddev', 'import-db', `--file=${file}`])
   if (code !== 0) throw new Error(`ddev import-db exited with code ${code}`)
 }

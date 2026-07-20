@@ -118,11 +118,11 @@ async function runUpdate() {
             <span class="k-mono text-xs text-toned">{{ data.dockerVersion }}</span>
           </div>
           <div class="flex items-center justify-between">
-            <span class="k-mono text-xs text-dimmed">sysbox</span>
+            <span class="k-mono text-xs text-dimmed">ddev</span>
             <span
               class="k-mono text-xs"
-              :class="data.sysboxAvailable ? 'text-toned' : 'text-error'"
-            >{{ data.sysboxAvailable ? 'available' : 'missing' }}</span>
+              :class="data.ddevVersion ? 'text-toned' : 'text-error'"
+            >{{ data.ddevVersion ?? 'missing' }}</span>
           </div>
         </div>
       </div>

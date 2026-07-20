@@ -43,7 +43,7 @@ const { data: system, status: systemStatus } = useSystemInfo()
 const systemLine = computed(() => {
   if (systemStatus.value === 'pending') return { color: 'neutral' as const, text: 'Checking host…' }
   if (systemStatus.value === 'error') return { color: 'error' as const, text: 'Host unreachable' }
-  if (!system.value?.sysboxAvailable) return { color: 'error' as const, text: 'Sysbox missing' }
+  if (!system.value?.ddevVersion) return { color: 'error' as const, text: 'ddev missing' }
   const n = system.value.hostContainers.length
   return { color: 'primary' as const, text: `${n} container${n === 1 ? '' : 's'} up` }
 })
