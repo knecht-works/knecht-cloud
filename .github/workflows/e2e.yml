@@ -1,7 +1,10 @@
 # The slow suite: real HTTP scenarios against a running instance
 # (test/e2e/**, vitest.e2e.config.ts). Deliberately NOT on every push: it
-# runs for PRs targeting main and on manual dispatch, so the expensive checks
-# are an explicit gesture (open a PR) instead of a tax on every commit.
+# runs for PRs targeting main or a release branch, and on manual dispatch, so
+# the expensive checks are an explicit gesture (open a PR) instead of a tax on
+# every commit. Release branches are included because the repo ruleset for
+# releases/** requires the api/boot checks too; without this trigger those
+# checks never post and release PRs stay blocked forever.
 #
 # The repo is PUBLIC: nothing here may execute for fork PRs. The job-level
 # guard skips them (their pull_request runs get no secrets anyway, but the
@@ -11,7 +14,7 @@ name: e2e
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "releases/**"]
   workflow_dispatch:
 
 permissions:
