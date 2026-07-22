@@ -75,7 +75,11 @@ if [ "$(id -u)" = 0 ]; then
   WARM_USER="knecht"
   id -u "$WARM_USER" >/dev/null 2>&1 || { echo "User knecht missing (install.sh creates it)"; exit 1; }
   usermod -aG docker "$WARM_USER"
-  as_warm_user() { runuser -u "$WARM_USER" -- env HOME="$(getent passwd "$WARM_USER" | cut -d: -f6)" DDEV_NONINTERACTIVE=true "$@"; }
+  # env -u XDG_CONFIG_HOME: runuser goes through pam_env, which loads
+  # /etc/environment; GitHub runners point XDG_CONFIG_HOME at the runner
+  # user's home there, and ddev would prefer that (unreadable) path over
+  # ~/.ddev for its global config.
+  as_warm_user() { runuser -u "$WARM_USER" -- env -u XDG_CONFIG_HOME HOME="$(getent passwd "$WARM_USER" | cut -d: -f6)" DDEV_NONINTERACTIVE=true "$@"; }
 else
   WARM_USER="$(id -un)"
   # `sg docker` so a just-added group membership works without re-login.
