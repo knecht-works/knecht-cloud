@@ -25,6 +25,7 @@
   "dependencies": {
     "@comark/nuxt": "^0.5.0",
     "@nuxt/ui": "^4.8.2",
+    "adm-zip": "^0.6.0",
     "better-sqlite3": "^12.10.0",
     "drizzle-orm": "^0.45.2",
     "execa": "^9.6.1",
@@ -41,6 +42,7 @@
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.116",
     "@nuxt/eslint": "^1.16.0",
+    "@types/adm-zip": "^0.5.8",
     "@types/better-sqlite3": "^7.6.13",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.5.0",
