@@ -4,15 +4,15 @@
 # answering unconfigured, and a routerless ddev project booting with its web
 # container reachable by IP (what every run and preview depends on).
 #
-# Manual for now; once proven stable it should also gate release tags.
-#
 # Runs on amd64 AND arm64 (the two supported host architectures). Note: the
 # smoke installs with KNECHT_REF=<sha>, which pins the `latest` image, so the
-# arm64 leg can only pass once a stable release has published a multi-arch
-# `latest`. Until then it fails at `docker compose pull`, expected.
+# arm64 leg only passes once a stable release has published a multi-arch
+# `latest` (true since v0.3.0); before that it fails at `docker compose pull`.
 name: install
 
 on:
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
