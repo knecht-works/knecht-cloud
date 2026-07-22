@@ -1,10 +1,11 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
 import { previewHostname, previewLabel } from '../../shared/utils/preview-host'
 import { dashboardOrigin } from '../utils/origin'
-import { runSandboxName, toolsDir } from '../utils/storage'
+import { normalizeSharedFolder, projectSharedDir, runSandboxName, toolsDir } from '../utils/storage'
+import { WEB_PROJECT_DIR } from './sandbox'
 
 export type UrlMode = 'env' | 'rewrite'
 
@@ -33,13 +34,19 @@ const WEB_PIDS_LIMIT = 2048
 //     the comma-escaping of `ddev config --web-environment`.
 //   - compose override: the web container joins the `knecht-ingress` network
 //     (how the preview proxy reaches it), gets the agent tools (opencode +
-//     knecht-git) bind-mounted read-only from the host tools dir, and web/db
-//     get memory/pid caps.
+//     knecht-git) bind-mounted read-only from the host tools dir, the
+//     project's shared folders bind-mounted writable, and web/db get
+//     memory/pid caps.
 // The hostnames and the URLs in the env vars stay exactly as the repo ships
 // them; the preview proxy maps the project's own hostnames to per-run preview
 // origins instead of touching the project. Returns how many env vars were
 // written.
-export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], runId: number, urlMode: UrlMode = 'env'): number {
+export interface SharedFolderConfig {
+  projectId: number
+  folders: string[]
+}
+
+export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], runId: number, urlMode: UrlMode = 'env', shared?: SharedFolderConfig): number {
   const doc: {
     name: string
     web_environment?: string[]
@@ -57,8 +64,26 @@ export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], runId: n
   // warning, which would otherwise open every run log.
   const marker = '#ddev-silent-no-warn\n'
   writeFileSync(join(checkoutDir, '.ddev', 'config.knecht.yaml'), marker + stringify(doc))
-  writeFileSync(join(checkoutDir, '.ddev', 'docker-compose.knecht.yaml'), marker + stringify(composeOverride()))
+  writeFileSync(join(checkoutDir, '.ddev', 'docker-compose.knecht.yaml'), marker + stringify(composeOverride(shared ? sharedFolderMounts(shared) : [])))
   return envVars.length
+}
+
+// The writable bind mounts for the project's shared folders: one persistent
+// host dir per configured project-relative path, shared by ALL of the
+// project's runs (a CMS upload in one preview shows up in every other run).
+// The host dirs are created here, by the Knecht process: a missing bind
+// source would make docker create them root-owned, unwritable for the app.
+function sharedFolderMounts(shared: SharedFolderConfig): { host: string, dest: string }[] {
+  const root = projectSharedDir(shared.projectId)
+  const mounts: { host: string, dest: string }[] = []
+  for (const folder of shared.folders) {
+    const path = normalizeSharedFolder(folder)
+    if (!path) continue
+    const host = join(root, path)
+    mkdirSync(host, { recursive: true })
+    mounts.push({ host, dest: `${WEB_PROJECT_DIR}/${path}` })
+  }
+  return mounts
 }
 
 // The compose override ddev merges into the project's generated stack. Tool
@@ -66,7 +91,7 @@ export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], runId: n
 // same-path convention (mounted byte-identically into the Knecht container);
 // each mount is included only when the file actually exists: a missing bind
 // source would make docker create a root-owned DIRECTORY in its place.
-function composeOverride(): Record<string, unknown> {
+function composeOverride(sharedMounts: { host: string, dest: string }[] = []): Record<string, unknown> {
   const tools = toolsDir()
   const toolMounts = [
     { host: join(tools, 'opencode'), dest: '/usr/local/bin/opencode' },
@@ -75,6 +100,12 @@ function composeOverride(): Record<string, unknown> {
     // (`ddev composer install` would exit 0 without installing anything).
     { host: join(tools, 'ddev-shim'), dest: '/usr/local/bin/ddev' },
   ].filter(m => existsSync(m.host))
+  const volumes = [
+    ...toolMounts.map(m => `${m.host}:${m.dest}:ro`),
+    // Shared folders are writable: uploads made in a preview must land on the
+    // persistent host dir.
+    ...sharedMounts.map(m => `${m.host}:${m.dest}`),
+  ]
   return {
     services: {
       web: {
@@ -84,9 +115,7 @@ function composeOverride(): Record<string, unknown> {
         // service networks as a mapping, and compose refuses to merge the two
         // shapes.
         networks: { 'knecht-ingress': {} },
-        ...(toolMounts.length
-          ? { volumes: toolMounts.map(m => `${m.host}:${m.dest}:ro`) }
-          : {}),
+        ...(volumes.length ? { volumes } : {}),
       },
       db: { mem_limit: DB_MEM_LIMIT },
     },

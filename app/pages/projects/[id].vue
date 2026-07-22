@@ -166,6 +166,70 @@ async function setUrlMode(mode: 'env' | 'rewrite') {
 const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump, remove: removeDump } = useProjectDump(project)
 
+// ── Persistent folders ─────────────────────────────────────────────────────
+// Project-relative folders whose files persist across ALL runs and previews
+// (one shared host dir each, bind-mounted writable): the place for git-ignored
+// CMS uploads. Optionally seeded from a zip; removing a folder here stops the
+// mounting but keeps the data (re-adding the path brings the files back).
+const sharedFolders = computed(() => project.value?.sharedFolders ?? [])
+const newFolder = ref('')
+const savingFolders = ref(false)
+
+async function saveFolders(folders: string[]) {
+  savingFolders.value = true
+  try {
+    project.value = await $fetch(`/api/projects/${id}`, {
+      method: 'PATCH',
+      body: { sharedFolders: folders },
+    }) as typeof project.value
+  }
+  catch (e) {
+    toastError('Failed to save', e)
+  }
+  finally {
+    savingFolders.value = false
+  }
+}
+
+async function addFolder() {
+  const path = newFolder.value.trim()
+  if (!path) return
+  await saveFolders([...sharedFolders.value, path])
+  newFolder.value = ''
+}
+
+// Seed a folder from a zip: the hidden input is shared, `seedTarget` remembers
+// which folder's upload button opened it.
+const seedInput = ref<HTMLInputElement>()
+const seedTarget = ref('')
+const seeding = ref(false)
+
+function pickSeed(path: string) {
+  seedTarget.value = path
+  seedInput.value?.click()
+}
+
+async function uploadSeed(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !seedTarget.value) return
+  seeding.value = true
+  try {
+    const form = new FormData()
+    form.append('path', seedTarget.value)
+    form.append('file', file)
+    const { files } = await $fetch<{ files: number }>(`/api/projects/${id}/shared`, { method: 'POST', body: form })
+    toast.add({ title: `${files} file${files === 1 ? '' : 's'} added to ${seedTarget.value}`, color: 'success' })
+  }
+  catch (e) {
+    toastError('Upload failed', e)
+  }
+  finally {
+    seeding.value = false
+    input.value = ''
+  }
+}
+
 // ── Disconnect (delete project + its runs, envs and checkouts) ─────────────
 // Destructive, so it lives in the header's overflow menu behind a confirm.
 const confirmDisconnect = ref(false)
@@ -572,6 +636,74 @@ usePollWhile(() => isLive.value, refreshRuns)
                 :loading="uploadingDump"
                 @click="dumpInput?.click()"
               />
+            </div>
+
+            <div class="flex flex-col border-t border-muted pt-3.5">
+              <span class="k-label">Persistent folders</span>
+              <p class="mt-1.5 text-2xs leading-relaxed text-dimmed">
+                Folders that keep their files across all runs and previews, like a CMS uploads folder that is not in git.
+              </p>
+              <div
+                v-for="folder in sharedFolders"
+                :key="folder"
+                class="group mt-2.5 flex w-full items-center gap-2"
+              >
+                <UIcon
+                  name="i-lucide-folder-sync"
+                  class="size-4 flex-none text-dimmed"
+                />
+                <span class="k-mono flex-1 truncate text-2xs text-muted">{{ folder }}</span>
+                <UTooltip text="Fill this folder from a zip">
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="ghost"
+                    icon="i-lucide-upload"
+                    :aria-label="`Fill ${folder} from a zip`"
+                    :loading="seeding && seedTarget === folder"
+                    class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                    @click="pickSeed(folder)"
+                  />
+                </UTooltip>
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-trash-2"
+                  :aria-label="`Stop persisting ${folder}`"
+                  class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                  @click="saveFolders(sharedFolders.filter(f => f !== folder))"
+                />
+              </div>
+              <input
+                ref="seedInput"
+                type="file"
+                class="hidden"
+                accept=".zip"
+                @change="uploadSeed"
+              >
+              <form
+                class="mt-2.5 flex items-center gap-2"
+                @submit.prevent="addFolder"
+              >
+                <UInput
+                  v-model="newFolder"
+                  placeholder="web/uploads"
+                  size="sm"
+                  class="flex-1"
+                  :ui="{ base: 'k-mono text-xs' }"
+                />
+                <UButton
+                  type="submit"
+                  label="Add"
+                  icon="i-lucide-plus"
+                  variant="subtle"
+                  color="neutral"
+                  size="sm"
+                  :loading="savingFolders"
+                  :disabled="!newFolder.trim()"
+                />
+              </form>
             </div>
           </div>
         </KPanel>
