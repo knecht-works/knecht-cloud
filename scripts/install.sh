@@ -93,8 +93,11 @@ git -C "$INSTALL_DIR" checkout -qf "$TAG"
 # ── 3. Provision the host ─────────────────────────────────────────────────────
 # Docker, the pinned ddev CLI, the ddev global config and the image warm-up.
 # Idempotent; by far the longest step.
+# < /dev/null: this script arrives via `curl | bash`, so bash reads it from
+# stdin; a provisioning child (ddev) reading stdin would swallow the rest of
+# the script and the install would end silently right here.
 KNECHT_UID=1000 KNECHT_GID=1000 KNECHT_PROJECTS="$PROJECTS_DIR" \
-  bash "$INSTALL_DIR/scripts/provision-host.sh"
+  bash "$INSTALL_DIR/scripts/provision-host.sh" < /dev/null
 
 say "Creating $DATA_DIR"
 mkdir -p "$DATA_DIR"
