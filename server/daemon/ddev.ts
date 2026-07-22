@@ -16,10 +16,11 @@ const WEB_MEM_LIMIT = '2g'
 const DB_MEM_LIMIT = '1g'
 const WEB_PIDS_LIMIT = 2048
 
-// Write the per-run ddev overrides (`.ddev/config.knecht.yaml` plus
-// `.ddev/docker-compose.knecht.yaml`). ddev merges all `.ddev/config.*.yaml`
-// and `.ddev/docker-compose.*.yaml` files, so this injects everything
-// run-specific without touching the repo's tracked config:
+// Write the per-run ddev overrides (`.ddev/config.knecht.yaml`,
+// `.ddev/docker-compose.knecht.yaml` and `.ddev/mysql/00-knecht-lowmem.cnf`).
+// ddev merges all `.ddev/config.*.yaml` and `.ddev/docker-compose.*.yaml`
+// files, so this injects everything run-specific without touching the repo's
+// tracked config:
 //   - `name`: knecht-run-<id>. All runs share ONE docker daemon, so container/
 //     volume/network names must be unique per run; nothing routes by hostname
 //     (the router is omitted, the preview proxy targets the web container's IP
@@ -65,7 +66,31 @@ export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], runId: n
   const marker = '#ddev-silent-no-warn\n'
   writeFileSync(join(checkoutDir, '.ddev', 'config.knecht.yaml'), marker + stringify(doc))
   writeFileSync(join(checkoutDir, '.ddev', 'docker-compose.knecht.yaml'), marker + stringify(composeOverride(shared ? sharedFolderMounts(shared) : [])))
+  writeLowmemDbConfig(checkoutDir, marker)
   return envVars.length
+}
+
+// ddev's db image ships a my.cnf sized for ONE comfortable dev machine
+// (1 GB InnoDB buffer pool, performance_schema on, 100 connections): every db
+// container settles around 500 MB, which is what caps how many previews fit
+// on a host. Preview traffic is one person clicking through a CMS, so shrink
+// the caches via the `.ddev/mysql` includedir (applies to MySQL AND MariaDB;
+// a Postgres project never reads the dir, and Postgres is frugal by default).
+// The `00-` prefix makes this load FIRST, so a project that ships its own
+// deliberate `.ddev/mysql` tuning overrides ours, not the other way around.
+// 256M pool: barely-more RSS for small DBs (pool pages allocate on demand)
+// but keeps multi-GB dump imports and previews reasonable.
+function writeLowmemDbConfig(checkoutDir: string, marker: string): void {
+  const dir = join(checkoutDir, '.ddev', 'mysql')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(join(dir, '00-knecht-lowmem.cnf'), `${marker}[mysqld]
+innodb-buffer-pool-size = 256M
+performance_schema = OFF
+max-connections = 30
+tmp-table-size = 16M
+max-heap-table-size = 16M
+key-buffer-size = 8M
+`)
 }
 
 // The writable bind mounts for the project's shared folders: one persistent
