@@ -62,3 +62,23 @@ export function projectDumpDir(projectId: number): string {
 export function sanitizeFilename(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '') || 'dump'
 }
+
+// Per-project root for shared folders (projects.sharedFolders): each configured
+// project-relative path is backed by a subdir here and bind-mounted writable
+// into every run's web container. Lives in the data dir (same-path convention,
+// survives run teardown/GC); only the GC for DELETED projects removes it.
+export function projectSharedDir(projectId: number): string {
+  return join(dataDir(), 'shared', String(projectId))
+}
+
+// Normalize a project-relative shared folder path ('./web/uploads/' →
+// 'web/uploads'); null when it is empty, absolute, escapes the project root,
+// or targets git/ddev/agent internals (those must stay per-run).
+export function normalizeSharedFolder(path: string): string | null {
+  const trimmed = path.trim().replace(/\\/g, '/')
+  if (!trimmed || trimmed.startsWith('/') || /^[a-zA-Z]:/.test(trimmed)) return null
+  const parts = trimmed.split('/').filter(p => p && p !== '.')
+  if (!parts.length || parts.includes('..')) return null
+  if (['.git', '.ddev', '.knecht'].includes(parts[0]!)) return null
+  return parts.join('/')
+}

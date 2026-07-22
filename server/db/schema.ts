@@ -59,6 +59,14 @@ export const projects = sqliteTable('projects', {
   // The import is one-time (projects.md §6); reset to false when a new dump is
   // uploaded so it re-imports on the next boot.
   dbImported: integer('db_imported', { mode: 'boolean' }).notNull().default(false),
+  // Project-relative folders whose contents persist across runs (e.g. a
+  // git-ignored CMS uploads dir). Each is backed by one host dir per project
+  // (dataDir()/shared/<id>/<path>) bind-mounted writable into every run's web
+  // container, so all runs and previews of the project see the same files.
+  sharedFolders: text('shared_folders', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()

@@ -20,7 +20,7 @@ import { runSandboxName, runWorktreeDir } from '../utils/storage'
 // cannot reach each other.
 
 // Where ddev mounts the project (the run's worktree) inside the web container.
-const WEB_PROJECT_DIR = '/var/www/html'
+export const WEB_PROJECT_DIR = '/var/www/html'
 
 // Agent state lives under <worktree>/.knecht (host-visible, git-excluded):
 // XDG_CONFIG_HOME → .knecht/opencode holds the opencode config the ai step

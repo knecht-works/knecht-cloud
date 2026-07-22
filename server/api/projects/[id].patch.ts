@@ -13,6 +13,21 @@ const bodySchema = z.object({
   // How preview URLs reach the browser (see server/db/schema.ts). Applies to
   // runs started after the change; existing runs keep their pinned mode.
   urlMode: z.enum(['env', 'rewrite']).optional(),
+  // Project-relative folders whose contents persist across runs (see
+  // server/db/schema.ts). Normalized here; a path that escapes the project
+  // root or targets git/ddev internals rejects the whole request.
+  sharedFolders: z
+    .array(z.string())
+    .max(20)
+    .transform((folders, ctx) => {
+      const normalized = folders.map(normalizeSharedFolder)
+      if (normalized.includes(null)) {
+        ctx.addIssue({ code: 'custom', message: 'Invalid folder path' })
+        return z.NEVER
+      }
+      return [...new Set(normalized as string[])]
+    })
+    .optional(),
 })
 
 export default defineEventHandler(async (event) => {

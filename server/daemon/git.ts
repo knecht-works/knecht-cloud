@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import type { Project } from '../db/schema'
-import { projectCheckoutDir, runWorktreeDir } from '../utils/storage'
+import { normalizeSharedFolder, projectCheckoutDir, runWorktreeDir } from '../utils/storage'
 
 // Prepare an isolated working directory for a run (projects.md §9). We keep one
 // base clone per project and add a detached git worktree per run, so every run
@@ -59,7 +59,7 @@ async function doPrepareRunCheckout(
     // shared object store); a run on any other branch fetches that branch's tip
     // into an explicit remote-tracking ref so the worktree can be created at it.
     await ensureBaseClone(base, project, token, project.defaultBranch, onLog)
-    shieldGeneratedFiles(base)
+    shieldGeneratedFiles(base, project.sharedFolders)
 
     // With a pinned sha the branch tip is irrelevant, and the run's branch may
     // only ever have existed locally (a create-branch that never pushed), so
@@ -192,10 +192,17 @@ export async function pushBranch(dir: string, branch: string, token: string): Pr
 // blocks run `git add -A`, so without this they would be committed and pushed
 // in the opened PR. The ignores go in the base clone's shared `info/exclude`
 // (honored by every worktree hanging off it), so the generated files can
-// never enter a commit. Idempotent.
-function shieldGeneratedFiles(base: string): void {
+// never enter a commit. The project's shared folders join the list: their
+// contents (uploads) surface inside the worktree via the bind mount and must
+// never be committed even when the repo forgot to git-ignore them. Idempotent.
+function shieldGeneratedFiles(base: string, sharedFolders: string[]): void {
   const exclude = join(base, '.git', 'info', 'exclude')
-  const patterns = ['/.ddev/config.knecht.yaml', '/.ddev/docker-compose.knecht.yaml', '/.knecht/']
+  const patterns = [
+    '/.ddev/config.knecht.yaml',
+    '/.ddev/docker-compose.knecht.yaml',
+    '/.knecht/',
+    ...sharedFolders.map(normalizeSharedFolder).filter(p => p !== null).map(p => `/${p}/`),
+  ]
   try {
     const current = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
     const lines = current.split('\n')

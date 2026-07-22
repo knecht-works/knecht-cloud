@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `shared_folders` text DEFAULT '[]' NOT NULL;

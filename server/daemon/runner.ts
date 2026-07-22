@@ -165,7 +165,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
       .where(eq(schema.runs.id, runId))
       .run()
 
-    const injected = writeDdevConfig(dir, project.envVars, runId, project.urlMode)
+    const injected = writeDdevConfig(dir, project.envVars, runId, project.urlMode, { projectId: project.id, folders: project.sharedFolders })
     log(`Environment: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
 
     const ctx = createContext(runId, project, run.inputs ?? {})
