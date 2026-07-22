@@ -84,9 +84,12 @@ jobs:
           echo '<?php echo "spike-ok";' | sudo tee /tmp/spike/public/index.php > /dev/null
           sudo chown -R knecht /tmp/spike
           cd /tmp/spike
-          sudo runuser -u knecht -- env HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev config --project-type=php --docroot=public --project-name=spike
-          sudo runuser -u knecht -- env HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev start -y
+          # env -u XDG_CONFIG_HOME: the runner's /etc/environment (loaded by
+          # runuser via pam_env) points it at /home/runner/.config, which the
+          # knecht user cannot read; ddev must fall back to ~/.ddev.
+          sudo runuser -u knecht -- env -u XDG_CONFIG_HOME HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev config --project-type=php --docroot=public --project-name=spike
+          sudo runuser -u knecht -- env -u XDG_CONFIG_HOME HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev start -y
           IP=$(sudo docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{if $v.IPAddress}}{{$v.IPAddress}} {{end}}{{end}}' ddev-spike-web | awk '{print $1}')
           curl -fsS -m 10 -H 'Host: whatever.example.com' "http://$IP/" | grep -F spike-ok
           echo "web container ok at $IP"
-          sudo runuser -u knecht -- env HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev delete --omit-snapshot -y spike
+          sudo runuser -u knecht -- env -u XDG_CONFIG_HOME HOME=/home/knecht DDEV_NONINTERACTIVE=true ddev delete --omit-snapshot -y spike
