@@ -118,4 +118,4 @@ sudo docker rm -f knecht-registry >/dev/null 2>&1 || true
 
 echo "✓ Host provisioned. Sanity check:"
 sudo docker info --format '  docker {{.ServerVersion}}'
-ddev --version | sed 's/^/  /'
+as_warm_user ddev --version | sed 's/^/  /'
