@@ -135,6 +135,14 @@ export const runs = sqliteTable('runs', {
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
+  // Whether the run's ddev-start step finished (boot, DB import AND its setup
+  // commands): only then is the site actually browsable, so the UI shows the
+  // preview when this is set AND envState is 'up'. envState alone flips 'up'
+  // the moment the containers run, mid-boot. Stays set for the run's lifetime
+  // (stop/reboot/archive/restore don't rebuild the site).
+  previewReady: integer('preview_ready', { mode: 'boolean' })
+    .notNull()
+    .default(false),
   // The project's urlMode PINNED at checkout time: the env baked into this
   // run's environment either was or wasn't translated, and the proxy must
   // match that forever, whatever the project setting changes to later. Null

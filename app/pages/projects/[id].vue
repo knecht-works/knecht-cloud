@@ -42,7 +42,10 @@ const mascotLine = computed(() => {
 const reqUrl = useRequestURL()
 const previewUrl = computed(() =>
   latest.value ? `${reqUrl.protocol}//${previewHostname(latest.value.id, reqUrl.host)}/` : '')
-const previewOnline = computed(() => latest.value?.envState === 'up')
+// Browsable only once the boot step finished (previewReady), not the moment
+// the containers run.
+const previewOnline = computed(() =>
+  latest.value?.envState === 'up' && latest.value.previewReady)
 
 // ── Start a workflow (picked from the list, right at the project) ──────────
 const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
@@ -419,6 +422,7 @@ usePollWhile(() => isLive.value, refreshRuns)
           :run-id="latest?.id ?? 0"
           :hosts="latest?.previewHosts ?? []"
           :online="previewOnline"
+          :booting="isLive"
         >
           <img
             src="/mascot/mascotRight.png"

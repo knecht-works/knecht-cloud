@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import type { Step } from '../../../shared/utils/workflow'
+import { db, schema } from '../../db'
 import { projectDumpDir } from '../../utils/storage'
 import { previewOrigin } from '../../utils/origin'
 import { defineAction, type ActionRuntime } from './types'
@@ -26,6 +28,10 @@ export const ddevStartAction = defineAction({
     if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
     await importDb(rt)
     await runSetupCommands(rt, step.commands)
+    // Boot, DB import and the setup commands are through: the site is actually
+    // browsable now, so THIS is what makes the preview visible in the UI
+    // (envState 'up' alone only means the containers run).
+    db.update(schema.runs).set({ previewReady: true }).where(eq(schema.runs.id, rt.runId)).run()
     // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
     // per-run origin the preview proxy serves.
     const previewUrl = previewOrigin(rt.runId)

@@ -20,6 +20,7 @@ export default defineEventHandler((event) => {
       status: schema.runs.status,
       envState: schema.runs.envState,
       previewHosts: schema.runs.previewHosts,
+      previewReady: schema.runs.previewReady,
       trigger: schema.runs.trigger,
       triggerId: schema.runs.triggerId,
       startedAt: schema.runs.startedAt,

@@ -10,37 +10,22 @@ const props = withDefaults(defineProps<{
   runId: number
   /** All ddev hostnames the run serves, primary first (run.previewHosts). */
   hosts?: string[]
+  /** The preview is browsable: the env is up AND the boot step finished
+   *  (run.previewReady). Renders the iframe directly; no probing needed. */
   online?: boolean
+  /** The boot is still in progress; shows the starting state instead of the
+   *  offline slot. */
+  booting?: boolean
 }>(), {
   hosts: () => [],
   online: false,
+  booting: false,
 })
 
 const reqUrl = useRequestURL()
 const primaryHost = computed(() => props.hosts[0] ?? null)
 
-// The env flips to 'up' (props.online) the instant `ddev start` returns, but the
-// boot workflow keeps running (composer install, asset build), so the frame
-// would load a half-built site. Poll the health probe while up-but-unready and
-// only treat the preview as `live` (render the iframe) once the app answers.
-// Re-arms whenever `online` toggles, so a reboot re-probes from scratch.
-const ready = ref(false)
-async function checkHealth() {
-  if (!props.online || props.runId <= 0) return
-  try {
-    ready.value = (await $fetch(`/api/runs/${props.runId}/preview-health`)).ready
-  }
-  catch {
-    ready.value = false
-  }
-}
-watch(() => props.online, (on) => {
-  ready.value = false
-  if (on) checkHealth()
-}, { immediate: true })
-usePollWhile(() => props.online && !ready.value && props.runId > 0, checkHealth, 1500)
-
-const live = computed(() => props.online && ready.value)
+const live = computed(() => props.online)
 
 // The per-run preview origin for one of the project's ddev hostnames.
 function originFor(host: string | null): string {
@@ -258,7 +243,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           <span
             v-else
             class="k-mono flex-1 truncate text-xs text-dimmed"
-          >{{ online ? 'starting the preview…' : 'no live preview' }}</span>
+          >{{ booting ? 'starting the preview…' : 'no live preview' }}</span>
           <UDropdownMenu
             v-if="live && hostItems.length > 1"
             :items="hostItems"
@@ -280,12 +265,12 @@ const hostItems = computed(() => props.hosts.map(host => ({
 
       <span class="k-mono flex flex-none items-center gap-1.5 text-xs text-dimmed">
         <KStatusDot
-          :color="live ? 'primary' : online ? 'orange' : 'neutral'"
-          :pulse="online && !live"
+          :color="live ? 'primary' : booting ? 'orange' : 'neutral'"
+          :pulse="!live && booting"
           :glow="false"
           :size="6"
         />
-        {{ live ? 'live' : online ? 'starting' : 'offline' }}
+        {{ live ? 'live' : booting ? 'starting' : 'offline' }}
       </span>
       <UButton
         icon="i-lucide-external-link"
@@ -308,7 +293,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
         class="absolute inset-0 size-full"
       />
       <div
-        v-else-if="online"
+        v-else-if="booting"
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center"
       >
         <UIcon
@@ -316,7 +301,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           class="size-7 animate-spin text-dimmed"
         />
         <p class="max-w-70 text-2sm text-muted">
-          Booting the project, the preview opens once it responds.
+          Booting the project, the preview opens once the boot step finishes.
         </p>
       </div>
       <div
