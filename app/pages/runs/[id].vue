@@ -428,8 +428,13 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
           v-if="run.envState === 'up'"
           :run-id="run.id"
           :hosts="run.previewHosts ?? []"
-          online
-        />
+          :online="run.previewReady"
+          :booting="isLive"
+        >
+          <p class="max-w-70 text-2sm text-muted">
+            The boot step didn't finish, so this run has no preview. Retry the run to boot it.
+          </p>
+        </KPreviewBrowser>
 
         <div
           v-else
