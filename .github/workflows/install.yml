@@ -42,10 +42,15 @@ jobs:
           # installer reserves that uid for 'knecht' (free on fresh servers).
           sudo userdel packer 2>/dev/null || true
 
+      # On pull_request events GITHUB_SHA is the ephemeral merge commit
+      # (refs/pull/N/merge), which install.sh's plain clone cannot check out.
+      # Use the PR head SHA there; it lives on a pushed branch.
       - name: Run the installer like a user would
+        env:
+          REF: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
-          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/scripts/install.sh" \
-            | sudo env KNECHT_DOMAIN=knecht.invalid KNECHT_REF="$GITHUB_SHA" bash
+          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${REF}/scripts/install.sh" \
+            | sudo env KNECHT_DOMAIN=knecht.invalid KNECHT_REF="$REF" bash
 
       - name: Assert the substrate
         run: |
