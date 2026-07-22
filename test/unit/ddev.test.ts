@@ -71,6 +71,15 @@ describe('writeDdevConfig', () => {
     expect(compose.networks['knecht-ingress']).toEqual({ external: true })
   })
 
+  it('writes the low-memory db config into the mysql includedir', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, [], 7)
+    const cnf = readFileSync(join(dir, '.ddev', 'mysql', '00-knecht-lowmem.cnf'), 'utf8')
+    expect(cnf).toContain('#ddev-silent-no-warn')
+    expect(cnf).toContain('innodb-buffer-pool-size = 256M')
+    expect(cnf).toContain('performance_schema = OFF')
+  })
+
   it('bind-mounts shared folders writable and creates their host dirs', () => {
     const data = mkdtempSync(join(tmpdir(), 'knecht-data-'))
     vi.stubEnv('KNECHT_DATA_DIR', data)

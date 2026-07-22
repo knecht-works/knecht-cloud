@@ -200,6 +200,7 @@ function shieldGeneratedFiles(base: string, sharedFolders: string[]): void {
   const patterns = [
     '/.ddev/config.knecht.yaml',
     '/.ddev/docker-compose.knecht.yaml',
+    '/.ddev/mysql/00-knecht-lowmem.cnf',
     '/.knecht/',
     ...sharedFolders.map(normalizeSharedFolder).filter(p => p !== null).map(p => `/${p}/`),
   ]
