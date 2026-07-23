@@ -20,6 +20,7 @@ export default defineEventHandler((event) => {
       branch: schema.runs.branch,
       prUrl: schema.runs.prUrl,
       log: schema.runs.log,
+      steps: schema.runs.steps,
       startedAt: schema.runs.startedAt,
       finishedAt: schema.runs.finishedAt,
       createdAt: schema.runs.createdAt,
