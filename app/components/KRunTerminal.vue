@@ -20,9 +20,10 @@ let socket: WebSocket | undefined
 let observer: ResizeObserver | undefined
 
 onMounted(() => {
-  // The theme background must match the wrapper's, or the padding reads as a
-  // frame around the canvas.
-  term = new Terminal({ cursorBlink: true, fontSize: 13, scrollback: 4000, theme: { background: '#1e1e1e' } })
+  // The theme background must match the wrapper's (the app's --surface-inset,
+  // #09090b), or the padding reads as a frame around the canvas. xterm needs
+  // the literal color, it cannot resolve CSS variables.
+  term = new Terminal({ cursorBlink: true, fontSize: 13, scrollback: 4000, theme: { background: '#09090b' } })
   const fit = new FitAddon()
   term.loadAddon(fit)
   term.open(host.value!)
@@ -64,6 +65,6 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="host"
-    class="h-[60vh] rounded-md bg-[#1e1e1e] p-2"
+    class="h-[60vh] overflow-hidden rounded-md bg-(--surface-inset) p-2"
   />
 </template>

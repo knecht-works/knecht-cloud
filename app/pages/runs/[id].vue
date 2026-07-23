@@ -233,9 +233,8 @@ const aiConfigured = computed(() => !!settings.value?.aiKeyConfigured)
 // Remote access: the web terminal (any member, no setting needed) plus the
 // ssh command and VS Code link (need the sshTarget setting). The ssh endpoint
 // is fetched on click, not polled: it does one-shot docker calls.
-interface SshInfo { services: string[], sshCommands: Record<string, string> | null, vscodeUrl: string | null }
+interface SshInfo { services: string[], sshCommands: Record<string, string> | null }
 const toast = useToast()
-const sshTargetSet = computed(() => !!(settings.value?.sshTarget || settings.value?.sshTargetDefault))
 const terminalOpen = ref(false)
 const terminalService = ref('web')
 const sshInfo = ref<SshInfo | null>(null)
@@ -253,7 +252,7 @@ async function openTerminal() {
   }
   catch {
     // The terminal itself still works; only the picker/footer stay bare.
-    sshInfo.value = { services: ['web'], sshCommands: null, vscodeUrl: null }
+    sshInfo.value = { services: ['web'], sshCommands: null }
   }
 }
 
@@ -269,21 +268,21 @@ async function copySshCommand() {
   }
 }
 
-// VS Code opens the run's worktree on the server via Remote-SSH: works while
-// the env is up or stopped (the worktree survives stops).
-const canVscode = computed(() =>
-  (run.value?.envState === 'up' || run.value?.envState === 'stopped') && sshTargetSet.value)
-const vscodeHint = computed(() =>
-  !sshTargetSet.value ? 'Add your server\'s SSH address in Settings first' : 'Restore the environment first')
+// The web IDE: openvscode-server inside the run's web container, on its own
+// preview origin. The tab opens synchronously (popup blockers kill windows
+// opened after an await) and navigates once the server confirms it is up.
 const openingVscode = ref(false)
 async function openInVscode() {
   openingVscode.value = true
+  const tab = window.open('about:blank', '_blank')
   try {
-    const info = await $fetch<SshInfo>(`/api/runs/${id}/ssh`)
-    if (info.vscodeUrl) window.location.href = info.vscodeUrl
+    const { url } = await $fetch<{ url: string }>(`/api/runs/${id}/ide`, { method: 'POST' })
+    if (tab) tab.location.href = url
+    else window.open(url, '_blank')
   }
   catch (e) {
-    toastError('Could not open VS Code', e)
+    tab?.close()
+    toastError('Could not open the IDE', e)
   }
   finally {
     openingVscode.value = false
@@ -404,8 +403,8 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
         </UTooltip>
         <UTooltip
           v-if="run.envState !== 'down'"
-          :text="vscodeHint"
-          :disabled="canVscode"
+          :text="terminalHint"
+          :disabled="canTerminal"
         >
           <span>
             <UButton
@@ -413,7 +412,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
               variant="outline"
               icon="i-lucide-code"
               label="Open in VS Code"
-              :disabled="!canVscode"
+              :disabled="!canTerminal"
               :loading="openingVscode"
               @click="openInVscode"
             />

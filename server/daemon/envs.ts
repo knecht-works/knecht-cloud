@@ -39,6 +39,15 @@ export async function ensureEnvUp(runId: number): Promise<void> {
 // worktree survived the stop, so `ddev start` brings it back without
 // re-running the workflow.
 export async function rebootEnv(runId: number): Promise<void> {
+  // Refresh the knecht ddev config first: the compose override evolves with
+  // Knecht (tool mounts like the IDE server, resource limits), and a reboot
+  // must pick up its current shape, not the one from the run's original boot.
+  const run = getRun(runId)
+  const project = run && getProject(run.projectId)
+  const dir = runWorktreeDir(runId)
+  if (run && project && existsSync(dir)) {
+    writeDdevConfig(dir, project.envVars, runId, run.urlMode ?? 'rewrite', { projectId: project.id, folders: project.sharedFolders })
+  }
   await startEnvStack(runId)
   markUp(runId)
 }

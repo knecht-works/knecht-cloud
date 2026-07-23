@@ -124,6 +124,9 @@ function composeOverride(sharedMounts: { host: string, dest: string }[] = []): R
     // Shadows the stock in-container ddev shim, which silently no-ops
     // (`ddev composer install` would exit 0 without installing anything).
     { host: join(tools, 'ddev-shim'), dest: '/usr/local/bin/ddev' },
+    // The web IDE server (a directory, staged by daemon/ide.ts); started on
+    // demand from the run page, idle otherwise.
+    { host: join(tools, 'openvscode-server'), dest: '/usr/local/lib/openvscode-server' },
   ].filter(m => existsSync(m.host))
   const volumes = [
     ...toolMounts.map(m => `${m.host}:${m.dest}:ro`),

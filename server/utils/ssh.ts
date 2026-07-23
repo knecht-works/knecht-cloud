@@ -31,8 +31,3 @@ export function sshTerminalCommand(opts: {
     : `docker exec -it${opts.workdir ? ` -w ${opts.workdir}` : ''} ${opts.containerName} bash`
   return `ssh -t ${opts.sshTarget} ${exec}`
 }
-
-// A VS Code Remote-SSH deep link opening `path` on the host behind sshTarget.
-export function vscodeRemoteUrl(sshTarget: string, path: string): string {
-  return `vscode://vscode-remote/ssh-remote+${sshTarget}${encodeURI(path)}`
-}
