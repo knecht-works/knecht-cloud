@@ -546,8 +546,12 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
             @click="sendFollowup(PUBLISH_FOLLOWUP_PROMPT, true)"
           />
         </div>
+        <!-- No autofocus (Nuxt UI defaults it ON): the panel mounts the moment
+             the run finishes, and stealing focus scrolls the page away from
+             the freshly-loaded preview above. -->
         <UChatPrompt
           v-model="followupPrompt"
+          :autofocus="false"
           placeholder="e.g. The button label should say 'Save changes' instead"
           :disabled="followupLocked"
           @submit="sendFollowup(followupPrompt, followupPush)"
