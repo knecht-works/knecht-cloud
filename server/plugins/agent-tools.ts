@@ -6,6 +6,7 @@ import { execa } from 'execa'
 import { parse, stringify } from 'yaml'
 import { toolsDir } from '../utils/storage'
 import { readSandboxAsset } from '../utils/sandbox-assets'
+import { stageIde } from '../daemon/ide'
 
 // One-time substrate preparation at boot (idempotent, best-effort):
 //
@@ -28,6 +29,10 @@ export default defineNitroPlugin(() => {
   }
   void stageAgentTools().catch(e =>
     console.error('agent tools staging failed:', (e as Error).message))
+  // The web IDE server (~120MB download): best-effort like the tools; the
+  // first IDE click retries when this failed or hasn't finished yet.
+  void stageIde().catch(e =>
+    console.error('openvscode-server staging failed:', (e as Error).message))
 })
 
 const GLOBAL_CONFIG: Record<string, unknown> = {

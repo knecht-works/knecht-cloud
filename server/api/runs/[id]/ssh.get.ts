@@ -2,15 +2,13 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { listRunServices, resolveContainerUser, serviceContainerName, WEB_PROJECT_DIR } from '../../../daemon/sandbox'
 import { getSettings } from '../../../utils/settings'
-import { defaultSshTarget, sshTerminalCommand, vscodeRemoteUrl } from '../../../utils/ssh'
-import { runWorktreeDir } from '../../../utils/storage'
+import { defaultSshTarget, sshTerminalCommand } from '../../../utils/ssh'
 
-// GET /api/runs/:id/ssh → everything the run page's remote-access UI needs,
-// fetched on click (not polled: it does one-shot docker calls). `services`
-// feeds the web terminal's picker (works without any setting); the ssh
-// commands and the VS Code link additionally need the `sshTarget` setting and
-// come back null without it. Commands exist only while the stack is up; the
-// VS Code link also works on a stopped env (the worktree survives stops).
+// GET /api/runs/:id/ssh → what the terminal modal needs, fetched on click
+// (not polled: it does one-shot docker calls). `services` feeds the web
+// terminal's picker (works without any setting); the per-service ssh commands
+// additionally need an ssh target (the setting, or its derived default) and
+// come back null without one.
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
   const run = requireRun(id)
@@ -35,9 +33,5 @@ export default defineEventHandler(async (event) => {
   // The operator is about to work in this env: keep the idle-stopper away.
   db.update(schema.runs).set({ previewLastSeen: new Date() }).where(eq(schema.runs.id, id)).run()
 
-  return {
-    services,
-    sshCommands,
-    vscodeUrl: sshTarget ? vscodeRemoteUrl(sshTarget, runWorktreeDir(id)) : null,
-  }
+  return { services, sshCommands }
 })

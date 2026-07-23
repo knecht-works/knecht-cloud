@@ -641,9 +641,9 @@ async function runGc() {
           </span>
         </template>
         <p class="mb-5 text-2sm leading-relaxed text-muted">
-          How do you reach this server over SSH? The run page uses this address to build
-          the copy-pasteable SSH command and the Open in VS Code link. The web terminal
-          works without it.
+          How do you reach this server over SSH? The run page's terminal modal uses this
+          address to build the copy-pasteable SSH command. The web terminal and the IDE
+          work without it.
           <template v-if="settings?.sshTargetDefault">
             Leave it empty to use <span class="k-mono text-xs text-toned">{{ settings.sshTargetDefault }}</span>.
           </template>
