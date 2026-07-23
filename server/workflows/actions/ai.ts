@@ -9,6 +9,7 @@ import { getSettings } from '../../utils/settings'
 import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
 import { bridgeEnv } from '../../utils/agent-bridge'
+import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 
@@ -232,8 +233,8 @@ const WORKFLOW_SYSTEM_PATH = '/var/www/html/.knecht/opencode/workflow.md'
 async function writeAgentConfig(rt: ActionRuntime, system: string | null): Promise<void> {
   const dir = join(rt.checkoutDir, AGENT_CONFIG_SUBDIR)
   await mkdir(dir, { recursive: true })
-  const agents = await useStorage('assets:sandbox').getItem('opencode/AGENTS.md')
-  if (agents) await writeFile(join(dir, 'AGENTS.md'), String(agents))
+  const agents = await readSandboxAsset('opencode/AGENTS.md')
+  if (agents) await writeFile(join(dir, 'AGENTS.md'), agents)
   await writeFile(join(dir, 'opencode.json'), JSON.stringify({
     $schema: 'https://opencode.ai/config.json',
     instructions: [WORKFLOW_SYSTEM_PATH],

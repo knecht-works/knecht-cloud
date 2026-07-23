@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { execa } from 'execa'
 import { parse, stringify } from 'yaml'
 import { toolsDir } from '../utils/storage'
+import { readSandboxAsset } from '../utils/sandbox-assets'
 
 // One-time substrate preparation at boot (idempotent, best-effort):
 //
@@ -57,10 +58,15 @@ async function stageAgentTools(): Promise<void> {
   // (re)write them every boot so updates propagate. The mounted files must be
   // executable.
   for (const name of ['knecht-git', 'ddev-shim']) {
-    const content = await useStorage('assets:sandbox').getItem(name)
+    const content = await readSandboxAsset(name)
     if (!content) continue
+    // Both tools are bash scripts. A mangled asset mounted into runs surfaces
+    // as a baffling in-container failure; refuse it loudly at boot instead.
+    if (content.subarray(0, 2).toString() !== '#!') {
+      throw new Error(`sandbox asset ${name} is corrupted (missing #! header)`)
+    }
     const dest = join(tools, name)
-    writeFileSync(dest, String(content))
+    writeFileSync(dest, content)
     chmodSync(dest, 0o755)
   }
 
