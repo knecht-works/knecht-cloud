@@ -117,6 +117,14 @@ export function isCompositeType(type: Step['type']): type is CompositeStep['type
   return type in COMPOSITE_CHILD_KEYS
 }
 
+// Whether the sequence contains a step of `type`, looking inside composites.
+// The run page uses this to show the preview frame from the start of a run
+// whose pinned steps will boot an environment.
+export function stepsInclude(steps: Step[], type: Step['type']): boolean {
+  return steps.some(step => step.type === type
+    || stepChildren(step).some(children => stepsInclude(children, type)))
+}
+
 // A composite step's sub-step lists ([] for plain steps).
 export function stepChildren(step: Step): Step[][] {
   if (!isComposite(step)) return []

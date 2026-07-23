@@ -243,7 +243,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           <span
             v-else
             class="k-mono flex-1 truncate text-xs text-dimmed"
-          >{{ booting ? 'starting the preview…' : 'no live preview' }}</span>
+          >{{ booting ? 'Knecht is preparing the preview…' : 'no live preview' }}</span>
           <UDropdownMenu
             v-if="live && hostItems.length > 1"
             :items="hostItems"
@@ -296,12 +296,17 @@ const hostItems = computed(() => props.hosts.map(host => ({
         v-else-if="booting"
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center"
       >
-        <UIcon
-          name="i-lucide-loader-circle"
-          class="size-7 animate-spin text-dimmed"
-        />
-        <p class="max-w-70 text-2sm text-muted">
-          Booting the project, the preview opens once the boot step finishes.
+        <img
+          src="/mascot/mascotRight.png"
+          alt="Knecht"
+          class="h-24 w-auto drop-shadow-mascot"
+        >
+        <p class="flex items-center gap-2 text-2sm text-muted">
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-4 animate-spin text-dimmed"
+          />
+          Knecht is booting the project. The preview appears here as soon as it's ready.
         </p>
       </div>
       <div

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { PUBLISH_FOLLOWUP_PROMPT } from '#shared/utils/followup'
+import { stepsInclude, type Step } from '#shared/utils/workflow'
 
 const route = useRoute()
 const toastError = useToastError()
@@ -11,6 +12,12 @@ const { data: stepRows, refresh: refreshSteps } = await useFetch(`/api/runs/${id
 const { data: followups, refresh: refreshFollowups } = await useFetch(`/api/runs/${id}/followups`)
 
 const isLive = computed(() => isLiveStatus(run.value?.status))
+
+// A boot step in the pinned sequence means a preview is coming: the preview
+// frame is shown (in its booting state) from the start of the run, so the
+// layout doesn't jump when the env comes up mid-run.
+const hasBootStep = computed(() =>
+  stepsInclude((run.value?.steps ?? []) as Step[], 'ddev-start'))
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
 
 // The step timeline: one row per executed step (run_steps), styled via the
@@ -423,46 +430,47 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
         </div>
       </div>
 
-      <template v-if="run.envState !== 'down'">
-        <KPreviewBrowser
-          v-if="run.envState === 'up'"
-          :run-id="run.id"
-          :hosts="run.previewHosts ?? []"
-          :online="run.previewReady"
-          :booting="isLive"
-        >
-          <p class="max-w-70 text-2sm text-muted">
-            The boot step didn't finish, so this run has no preview. Retry the run to boot it.
-          </p>
-        </KPreviewBrowser>
+      <!-- The frame is present from the run's first render whenever a boot
+           step is coming, so nothing jumps into place when the env comes up:
+           it just fills in. -->
+      <KPreviewBrowser
+        v-if="run.envState === 'up' || (isLive && hasBootStep)"
+        :run-id="run.id"
+        :hosts="run.previewHosts ?? []"
+        :online="run.envState === 'up' && run.previewReady"
+        :booting="isLive"
+      >
+        <p class="max-w-70 text-2sm text-muted">
+          The boot step didn't finish, so this run has no preview. Retry the run to boot it.
+        </p>
+      </KPreviewBrowser>
 
-        <div
-          v-else
-          class="k-card flex flex-wrap items-center justify-between gap-4 p-5"
+      <div
+        v-else-if="run.envState === 'stopped' || run.envState === 'archived'"
+        class="k-card flex flex-wrap items-center justify-between gap-4 p-5"
+      >
+        <p
+          v-if="run.envState === 'archived'"
+          class="max-w-130 text-2sm text-muted"
         >
-          <p
-            v-if="run.envState === 'archived'"
-            class="max-w-130 text-2sm text-muted"
-          >
-            This environment was archived. Its exact code state and database are kept,
-            and restoring rebuilds it in a few minutes.
-          </p>
-          <p
-            v-else
-            class="max-w-130 text-2sm text-muted"
-          >
-            The environment was stopped after being idle. Reboot it to preview again;
-            the imported database and built files are kept.
-          </p>
-          <UButton
-            color="primary"
-            :label="run.envState === 'archived' ? 'Restore' : 'Reboot'"
-            :icon="run.envState === 'archived' ? 'i-lucide-archive-restore' : 'i-lucide-power'"
-            :loading="rebooting"
-            @click="reboot"
-          />
-        </div>
-      </template>
+          This environment was archived. Its exact code state and database are kept,
+          and restoring rebuilds it in a few minutes.
+        </p>
+        <p
+          v-else
+          class="max-w-130 text-2sm text-muted"
+        >
+          The environment was stopped after being idle. Reboot it to preview again;
+          the imported database and built files are kept.
+        </p>
+        <UButton
+          color="primary"
+          :label="run.envState === 'archived' ? 'Restore' : 'Reboot'"
+          :icon="run.envState === 'archived' ? 'i-lucide-archive-restore' : 'i-lucide-power'"
+          :loading="rebooting"
+          @click="reboot"
+        />
+      </div>
 
       <div
         v-else-if="!isLive"
