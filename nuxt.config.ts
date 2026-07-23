@@ -63,6 +63,10 @@ export default defineNuxtConfig({
     watchOptions: {
       usePolling: !!process.env.KNECHT_DEV_POLLING,
     },
+    // The run page's web terminal (server/api/runs/[id]/terminal.ts).
+    experimental: {
+      websocket: true,
+    },
     // The agent assets (knecht-git bridge CLI, opencode instruction
     // templates), bundled into the server build: plugins/agent-tools.ts
     // stages the CLI into the tools dir, actions/ai.ts seeds the per-run

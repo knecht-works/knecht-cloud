@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { decrypt } from './crypto'
+import { defaultSshTarget } from './ssh'
 import type { Settings } from '../db/schema'
 
 // Instance settings live in a single row (id = 1). Read through this helper so
@@ -32,6 +33,8 @@ export function publicSettings(settings: Settings) {
     ...rest,
     aiKeyConfigured: !!aiKeyEnc,
     aiKeyPreview: aiKeyEnc ? encKeyPreview(aiKeyEnc) : undefined,
+    // What an empty sshTarget falls back to, so the UI can say so.
+    sshTargetDefault: defaultSshTarget(),
   }
 }
 

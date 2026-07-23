@@ -16,6 +16,9 @@ const bodySchema = z.object({
   aiProvider: z.enum(AI_PROVIDERS.map(p => p.id) as [AiProviderId, ...AiProviderId[]]).optional(),
   aiKey: z.string().min(1).max(500).nullable().optional(),
   aiModel: z.string().min(1).max(200).optional(),
+  // The charset excludes whitespace/quotes so the value can be spliced
+  // verbatim into the ssh command line and the vscode:// URL.
+  sshTarget: z.string().trim().regex(/^[A-Za-z0-9._@-]+$/).max(200).nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {
