@@ -46,14 +46,8 @@ export default defineEventHandler((event) => {
     url: origin,
     description: 'Boot, fix and test your repos automatically with Knecht.',
     redirect_url: `${origin}/setup/callback`,
+    setup_url: `${origin}/login`,
     callback_urls: [`${origin}/auth/github`],
-    // Public so ANY GitHub user can complete the OAuth identity flow: a PRIVATE
-    // app 404s the authorize page for anyone but the owner (or owning-org
-    // members), which would make invited users unable to log in at all. Who may
-    // actually get a session is gated by Knecht's own allowlist (the `members`
-    // table, server/utils/members.ts), not by GitHub App visibility. Public only
-    // means others could *install* the app on their own repos, which is harmless, since
-    // Knecht only ever uses installations it's told about, and login stays gated.
     public: true,
     hook_attributes: {
       url: `${origin}/api/github/webhook`,
@@ -62,7 +56,6 @@ export default defineEventHandler((event) => {
       contents: 'write',
       pull_requests: 'write',
       metadata: 'read',
-      // Read-only: only needed to receive `issues` webhook events.
       issues: 'read',
     },
     default_events: ['push', 'pull_request', 'issues'],
