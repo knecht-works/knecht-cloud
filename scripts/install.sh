@@ -100,7 +100,7 @@ KNECHT_UID=1000 KNECHT_GID=1000 KNECHT_PROJECTS="$PROJECTS_DIR" \
   bash "$INSTALL_DIR/scripts/provision-host.sh" < /dev/null
 
 say "Creating $DATA_DIR"
-mkdir -p "$DATA_DIR"
+mkdir -p "$DATA_DIR/.ddev"
 chown -R 1000:1000 "$DATA_DIR"
 
 # ── 4. .env ───────────────────────────────────────────────────────────────────
