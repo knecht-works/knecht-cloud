@@ -313,6 +313,11 @@ export const settings = sqliteTable('settings', {
   // once on first boot; afterwards workflows are fully user-owned (deletions and
   // renames stick), so we never re-seed.
   workflowsSeeded: integer('workflows_seeded', { mode: 'boolean' }).notNull().default(false),
+
+  // How the operator reaches this server over SSH (`user@host`). Only used to
+  // BUILD the run page's copy-pasteable SSH command and the Open-in-VS-Code
+  // link; Knecht itself never connects anywhere with it and manages no keys.
+  sshTarget: text('ssh_target'),
 })
 
 export type Settings = typeof settings.$inferSelect

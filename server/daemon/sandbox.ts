@@ -36,6 +36,45 @@ export function webContainerName(runId: number): string {
   return `ddev-${runSandboxName(runId)}-web`
 }
 
+// Any of the run's service containers (web, db, extra ddev services).
+export function serviceContainerName(runId: number, service: string): string {
+  return `ddev-${runSandboxName(runId)}-${service}`
+}
+
+// The run's currently running ddev services, web first (it is the one every
+// consumer defaults to). Empty when the stack is stopped or gone.
+export async function listRunServices(runId: number): Promise<string[]> {
+  try {
+    const { stdout } = await execa('docker', [
+      'ps', '--filter', `label=com.ddev.site-name=${runSandboxName(runId)}`,
+      '--format', '{{.Label "com.docker.compose.service"}}',
+    ])
+    const services = [...new Set(stdout.split('\n').map(s => s.trim()).filter(Boolean))]
+    return services.sort((a, b) => (a === 'web' ? -1 : b === 'web' ? 1 : a.localeCompare(b)))
+  }
+  catch {
+    return []
+  }
+}
+
+// The identity project-facing execs run as inside the WEB container: this
+// process's uid, with HOME/USER resolved from the container's passwd (ddev
+// bakes a matching user into the web image). Same derivation as EXEC_WRAPPER,
+// but host-side, for callers that must splice the values into a command line
+// (the ssh command builder) or an exec config (the web terminal).
+export async function resolveContainerUser(runId: number): Promise<{ uid: number, gid: number, user: string, home: string }> {
+  const uid = process.getuid?.() ?? 1000
+  const gid = process.getgid?.() ?? 1000
+  try {
+    const { stdout } = await execa('docker', ['exec', webContainerName(runId), 'getent', 'passwd', String(uid)])
+    const fields = stdout.trim().split(':')
+    return { uid, gid, user: fields[0] || 'web', home: fields[5] || '/tmp' }
+  }
+  catch {
+    return { uid, gid, user: 'web', home: '/tmp' }
+  }
+}
+
 // Start (or resume) the run's ddev stack. `ddev start` is idempotent: a
 // stopped project (containers removed, volumes kept) comes back in seconds
 // with its DB intact; a running one is reconciled. The ingress network must

@@ -229,6 +229,66 @@ const followupHint = computed(() => {
 // composer is disabled instead of letting the follow-up fail at execution.
 const { data: settings } = await useFetch('/api/settings')
 const aiConfigured = computed(() => !!settings.value?.aiKeyConfigured)
+
+// Remote access: the web terminal (any member, no setting needed) plus the
+// ssh command and VS Code link (need the sshTarget setting). The ssh endpoint
+// is fetched on click, not polled: it does one-shot docker calls.
+interface SshInfo { services: string[], sshCommands: Record<string, string> | null, vscodeUrl: string | null }
+const toast = useToast()
+const sshTargetSet = computed(() => !!(settings.value?.sshTarget || settings.value?.sshTargetDefault))
+const terminalOpen = ref(false)
+const terminalService = ref('web')
+const sshInfo = ref<SshInfo | null>(null)
+const canTerminal = computed(() => run.value?.envState === 'up')
+const terminalHint = computed(() =>
+  run.value?.envState === 'archived' ? 'Restore the environment first' : 'Reboot the environment first')
+const terminalServices = computed(() => sshInfo.value?.services ?? [])
+
+async function openTerminal() {
+  terminalService.value = 'web'
+  sshInfo.value = null
+  terminalOpen.value = true
+  try {
+    sshInfo.value = await $fetch<SshInfo>(`/api/runs/${id}/ssh`)
+  }
+  catch {
+    // The terminal itself still works; only the picker/footer stay bare.
+    sshInfo.value = { services: ['web'], sshCommands: null, vscodeUrl: null }
+  }
+}
+
+async function copySshCommand() {
+  const command = sshInfo.value?.sshCommands?.[terminalService.value]
+  if (!command) return
+  try {
+    await copyText(command)
+    toast.add({ title: 'Command copied', color: 'success' })
+  }
+  catch (e) {
+    toastError('Could not copy', e)
+  }
+}
+
+// VS Code opens the run's worktree on the server via Remote-SSH: works while
+// the env is up or stopped (the worktree survives stops).
+const canVscode = computed(() =>
+  (run.value?.envState === 'up' || run.value?.envState === 'stopped') && sshTargetSet.value)
+const vscodeHint = computed(() =>
+  !sshTargetSet.value ? 'Add your server\'s SSH address in Settings first' : 'Restore the environment first')
+const openingVscode = ref(false)
+async function openInVscode() {
+  openingVscode.value = true
+  try {
+    const info = await $fetch<SshInfo>(`/api/runs/${id}/ssh`)
+    if (info.vscodeUrl) window.location.href = info.vscodeUrl
+  }
+  catch (e) {
+    toastError('Could not open VS Code', e)
+  }
+  finally {
+    openingVscode.value = false
+  }
+}
 const followupPrompt = ref('')
 const followupPush = ref(true)
 const sendingFollowup = ref(false)
@@ -325,6 +385,40 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
 
     <KTopBar :title="`Run #${run.id}`">
       <template #actions>
+        <UTooltip
+          v-if="run.envState !== 'down'"
+          :text="terminalHint"
+          :disabled="canTerminal"
+        >
+          <!-- The span keeps the tooltip hoverable while the button is disabled. -->
+          <span>
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-square-terminal"
+              label="Terminal"
+              :disabled="!canTerminal"
+              @click="openTerminal"
+            />
+          </span>
+        </UTooltip>
+        <UTooltip
+          v-if="run.envState !== 'down'"
+          :text="vscodeHint"
+          :disabled="canVscode"
+        >
+          <span>
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-code"
+              label="Open in VS Code"
+              :disabled="!canVscode"
+              :loading="openingVscode"
+              @click="openInVscode"
+            />
+          </span>
+        </UTooltip>
         <UButton
           v-if="run.prUrl"
           color="primary"
@@ -720,5 +814,58 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
       :loading="deleting"
       @confirm="remove"
     />
+
+    <UModal
+      v-model:open="terminalOpen"
+      :title="`Terminal · Run #${run.id}`"
+      description="A shell inside the run's environment. Files and databases you touch here are the preview's."
+      :ui="{ content: 'max-w-4xl' }"
+    >
+      <template #body>
+        <div class="space-y-4">
+          <!-- Same pill pattern as the trigger modal's cron presets. -->
+          <div v-if="terminalServices.length > 1">
+            <span class="k-label">Container</span>
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              <button
+                v-for="s in terminalServices"
+                :key="s"
+                type="button"
+                class="k-mono cursor-pointer rounded-full border px-2.5 py-1 text-2xs transition-colors"
+                :class="terminalService === s
+                  ? 'border-(--primary-border) bg-(--lime-950) text-primary'
+                  : 'border-default text-dimmed hover:text-muted'"
+                @click="terminalService = s"
+              >
+                {{ s }}
+              </button>
+            </div>
+          </div>
+          <!-- Keyed per service: switching pills opens a fresh shell in that container. -->
+          <KRunTerminal
+            v-if="terminalOpen"
+            :key="terminalService"
+            :run-id="run.id"
+            :service="terminalService"
+          />
+        </div>
+      </template>
+      <template
+        v-if="sshInfo?.sshCommands"
+        #footer
+      >
+        <div class="flex w-full items-center justify-between gap-2">
+          <span class="text-2xs text-dimmed">Prefer your own terminal?</span>
+          <UButton
+            color="neutral"
+            variant="outline"
+            size="xs"
+            icon="i-lucide-copy"
+            label="Copy SSH command"
+            @click="copySshCommand"
+          />
+        </div>
+      </template>
+    </UModal>
   </div>
 </template>

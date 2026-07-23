@@ -73,6 +73,9 @@ interface Settings {
   aiKeyConfigured?: boolean
   /** Masked recognition preview of the stored key (first 8 + last 4 visible). */
   aiKeyPreview?: string
+  sshTarget?: string | null
+  /** What an empty sshTarget falls back to (root@<base domain> on servers). */
+  sshTargetDefault?: string | null
 }
 const { data: settings } = useFetch<Settings>('/api/settings', { lazy: true })
 
@@ -83,6 +86,8 @@ type EnvSettings = Pick<Settings, 'idleStopMinutes' | 'previewRetentionDays' | '
 const form = reactive<EnvSettings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30, maxConcurrentRuns: 2 })
 const aiProvider = ref<AiProviderId>('anthropic')
 const aiModel = ref('anthropic/claude-sonnet-4-5')
+// Declared before load(): the immediate settings watcher writes into it.
+const sshTarget = ref('')
 const original = ref('')
 function load() {
   if (!settings.value) return
@@ -90,6 +95,7 @@ function load() {
   Object.assign(form, { idleStopMinutes, previewRetentionDays, archiveRetentionDays, maxConcurrentRuns })
   aiProvider.value = settings.value.aiProvider as AiProviderId
   aiModel.value = settings.value.aiModel
+  sshTarget.value = settings.value.sshTarget ?? ''
   original.value = JSON.stringify({ ...form })
 }
 watch(settings, load, { immediate: true })
@@ -194,6 +200,31 @@ async function save() {
   }
   catch {
     saveState.value = 'error'
+  }
+}
+
+// ── Remote access: the operator's SSH address for the run page ───────────────
+// Autosaves like the env fields, into its own indicator. Saved trimmed, an
+// emptied field clears the setting (sshTarget: null). The ref itself lives up
+// with the other settings refs (load() needs it).
+const sshSaveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
+let sshSaveTimer: ReturnType<typeof setTimeout> | undefined
+watch(sshTarget, () => {
+  if (sshTarget.value === (settings.value?.sshTarget ?? '')) return
+  sshSaveState.value = 'saving'
+  clearTimeout(sshSaveTimer)
+  sshSaveTimer = setTimeout(saveSshTarget, 800)
+})
+async function saveSshTarget() {
+  try {
+    settings.value = await $fetch<Settings>('/api/settings', {
+      method: 'PATCH',
+      body: { sshTarget: sshTarget.value.trim() || null },
+    })
+    sshSaveState.value = 'saved'
+  }
+  catch {
+    sshSaveState.value = 'error'
   }
 }
 
@@ -458,7 +489,7 @@ async function runGc() {
           <span
             v-if="agentSaveState !== 'idle'"
             class="k-mono text-2xs"
-            :class="agentSaveState === 'error' ? 'text-error' : 'text-dimmed'"
+            :class="agentSaveState === 'error' ? 'text-error' : 'text-primary'"
           >
             {{ agentSaveState === 'saving' ? 'Saving…' : agentSaveState === 'saved' ? 'Saved' : 'Not saved, check the value' }}
           </span>
@@ -565,7 +596,7 @@ async function runGc() {
           <span
             v-if="saveState !== 'idle'"
             class="k-mono text-2xs"
-            :class="saveState === 'error' ? 'text-error' : 'text-dimmed'"
+            :class="saveState === 'error' ? 'text-error' : 'text-primary'"
           >
             {{ saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : 'Not saved, check the values' }}
           </span>
@@ -594,6 +625,34 @@ async function runGc() {
             </p>
           </div>
         </div>
+      </KPanel>
+
+      <KPanel
+        title="Remote access"
+        icon="i-lucide-terminal"
+      >
+        <template #action>
+          <span
+            v-if="sshSaveState !== 'idle'"
+            class="k-mono text-2xs"
+            :class="sshSaveState === 'error' ? 'text-error' : 'text-primary'"
+          >
+            {{ sshSaveState === 'saving' ? 'Saving…' : sshSaveState === 'saved' ? 'Saved' : 'Not saved, check the value' }}
+          </span>
+        </template>
+        <p class="mb-5 text-2sm leading-relaxed text-muted">
+          How do you reach this server over SSH? The run page uses this address to build
+          the copy-pasteable SSH command and the Open in VS Code link. The web terminal
+          works without it.
+          <template v-if="settings?.sshTargetDefault">
+            Leave it empty to use <span class="k-mono text-xs text-toned">{{ settings.sshTargetDefault }}</span>.
+          </template>
+        </p>
+        <UInput
+          v-model="sshTarget"
+          :placeholder="settings?.sshTargetDefault ?? 'knecht@my-server.com'"
+          class="k-mono w-full max-w-sm"
+        />
       </KPanel>
 
       <KPanel
