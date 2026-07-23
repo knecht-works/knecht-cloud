@@ -2,7 +2,7 @@ import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
-import { IDE_PORT } from '../daemon/ide'
+import { IDE_DEFAULT_SETTINGS, IDE_PORT } from '../daemon/ide'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
 
@@ -68,16 +68,37 @@ export async function proxyRunIde(event: H3Event, runId: number): Promise<void> 
   const url = getRequestURL(event)
   const req = event.node.req
   const res = event.node.res
+  // The workbench DOCUMENT gets buffered so the IDE defaults can be injected
+  // into its embedded configuration; everything else streams as-is.
+  const wantsHtml = String(getRequestHeader(event, 'accept') ?? '').includes('text/html')
+  const headers = { ...req.headers }
+  if (wantsHtml) headers['accept-encoding'] = 'identity'
   await new Promise<void>((resolve, reject) => {
     const upstream = httpRequest(
-      { host: ip, port: IDE_PORT, method: req.method, path: `${url.pathname}${url.search}`, headers: req.headers },
+      { host: ip, port: IDE_PORT, method: req.method, path: `${url.pathname}${url.search}`, headers },
       (up) => {
+        const isHtml = /text\/html/i.test(String(up.headers['content-type'] ?? ''))
+        const buffer = wantsHtml && isHtml && !up.headers['content-encoding']
         res.statusCode = up.statusCode ?? 502
         for (const [key, value] of Object.entries(up.headers)) {
-          if (value !== undefined) res.setHeader(key, value)
+          if (value === undefined) continue
+          if (buffer && (key.toLowerCase() === 'content-length' || key.toLowerCase() === 'transfer-encoding')) continue
+          res.setHeader(key, value)
         }
-        up.pipe(res)
-        up.on('end', () => resolve())
+        if (!buffer) {
+          up.pipe(res)
+          up.on('end', () => resolve())
+          up.on('error', reject)
+          return
+        }
+        const chunks: Buffer[] = []
+        up.on('data', (c: Buffer) => chunks.push(c))
+        up.on('end', () => {
+          const body = Buffer.from(injectIdeDefaults(Buffer.concat(chunks).toString('utf8')), 'utf8')
+          res.setHeader('content-length', String(body.byteLength))
+          res.end(body)
+          resolve()
+        })
         up.on('error', reject)
       },
     )
@@ -92,6 +113,38 @@ export async function proxyRunIde(event: H3Event, runId: number): Promise<void> 
     }
     throw e
   })
+}
+
+// The workbench HTML carries its whole boot configuration in one meta tag
+// (`vscode-workbench-web-configuration`, attribute-escaped JSON). The web
+// workbench registers default overrides ONLY from the TOP-LEVEL
+// `configurationDefaults` key of these construction options
+// (vs/workbench/services/configuration/browser/configuration.ts); a
+// `productConfiguration.configurationDefaults` reaches the product service but
+// nothing in the web client reads it. So: decode, merge the IDE defaults into
+// the top-level key (defaults only: the user's own browser-side settings still
+// win), re-encode.
+const decodeAttr = (v: string): string => v.replaceAll('&quot;', '"').replaceAll('&amp;', '&')
+const encodeAttr = (v: string): string => v.replaceAll('&', '&amp;').replaceAll('"', '&quot;')
+
+function injectIdeDefaults(html: string): string {
+  return html.replace(
+    /(id="vscode-workbench-web-configuration"[^>]*data-settings=")([^"]*)(")/,
+    (match, pre: string, encoded: string, post: string) => {
+      try {
+        const cfg = JSON.parse(decodeAttr(encoded)) as { configurationDefaults?: Record<string, unknown> }
+        cfg.configurationDefaults = {
+          ...cfg.configurationDefaults,
+          ...IDE_DEFAULT_SETTINGS,
+        }
+        return pre + encodeAttr(JSON.stringify(cfg)) + post
+      }
+      catch {
+        // Not the JSON we expected: serve it untouched rather than break the IDE.
+        return match
+      }
+    },
+  )
 }
 
 // ── WebSocket leg ─────────────────────────────────────────────────────────────

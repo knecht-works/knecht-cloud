@@ -50,6 +50,25 @@ async function doStageIde(): Promise<void> {
   console.log('openvscode-server staged into', dir)
 }
 
+// The defaults every IDE starts with, injected by the IDE proxy into the
+// workbench HTML's embedded configuration (ide-proxy.ts). That is the ONLY
+// channel that reaches VS Code WEB: user settings live in the browser
+// (IndexedDB, not the server's User dir), and the web workbench only registers
+// default overrides from the top-level `configurationDefaults` construction
+// option, not from product.json or productConfiguration. These arrive as
+// DEFAULT values: whatever the user changes inside the IDE still overrides
+// them.
+export const IDE_DEFAULT_SETTINGS = {
+  'workbench.colorTheme': 'Default Dark Modern',
+  'workbench.startupEditor': 'none',
+  'telemetry.telemetryLevel': 'off',
+  // Hides the Copilot chat panel that otherwise opens on first load; there is
+  // no way to sign in from this IDE, so it is dead weight.
+  'chat.disableAIFeatures': true,
+  // Without the chat panel the secondary side bar would open empty.
+  'workbench.secondarySideBar.defaultVisibility': 'hidden',
+}
+
 // Probe whether the run's IDE server answers. The IDE lives and dies with the
 // web container, so there is no bookkeeping to get stale.
 export async function ideRunning(runId: number): Promise<boolean> {
