@@ -18,8 +18,8 @@ description: Boot the project, install dependencies, import the DB, and preview 
 steps:
   - ddev-start:
       commands: |
-        ddev composer install
-        ddev npm install && ddev npm run build
+        if [ -f composer.json ]; then ddev composer install; fi
+        if [ -f package.json ]; then ddev npm install && ddev npm run build --if-present; fi
 `
 
 // A self-contained demo of the git blocks + variable passing: it makes a small
