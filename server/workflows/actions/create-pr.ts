@@ -4,6 +4,7 @@ import type { Step } from '../../../shared/utils/workflow'
 import { db, schema } from '../../db'
 import { pushBranch } from '../../daemon/git'
 import { createPullRequest, getInstallationToken } from '../../utils/github-app'
+import { withPreviewFooter } from '../../utils/origin'
 import { defineAction } from './types'
 
 export const createPrAction = defineAction({
@@ -26,7 +27,7 @@ export const createPrAction = defineAction({
     try {
       pr = await createPullRequest(rt.project.owner, rt.project.name, {
         title: step.title,
-        body: step.body,
+        body: withPreviewFooter(step.body, rt.runId),
         head: branch,
         base: rt.project.defaultBranch,
       })
