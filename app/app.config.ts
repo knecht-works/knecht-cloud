@@ -2,6 +2,13 @@
 // outline rule in main.css. They would otherwise ALSO swap their
 // inset hairline to a 2px primary ring; keep the resting one.
 const keepRestingRing = {
+  slots: {
+    // Same intent as the button base: pointer cursor on the trigger and
+    // on each option; disabled states still get cursor-not-allowed from
+    // the base theme's data-disabled variants.
+    base: 'cursor-pointer',
+    item: 'cursor-pointer',
+  },
   compoundVariants: [
     {
       color: 'primary' as const,

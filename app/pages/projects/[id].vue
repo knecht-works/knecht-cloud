@@ -371,7 +371,7 @@ usePollWhile(() => isLive.value, refreshRuns)
                   v-for="w in workflowList"
                   :key="w.name"
                   type="button"
-                  class="flex items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass)"
+                  class="flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass) disabled:cursor-default"
                   :disabled="starting"
                   @click="startWorkflow(w.name)"
                 >
