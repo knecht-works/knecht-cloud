@@ -6,9 +6,9 @@ import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
 import { getProject, getRun } from '../utils/entities'
 import { getBotIdentity, getInstallationToken } from '../utils/github-app'
-import { runWorktreeDir } from '../utils/storage'
+import { runCheckoutDir } from '../utils/storage'
 import { tryParseJson } from '../utils/json'
-import { commitAll, hasUncommittedChanges, pushBranch, type CommitIdentity } from './git'
+import { commitAll, currentBranch, hasUncommittedChanges, pushBranch, type CommitIdentity } from './git'
 import { appendLog, streamInSandbox } from './runner'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
 import { ensureEnvUp, rebootEnv, rehydrateEnv } from './envs'
@@ -17,9 +17,9 @@ import { ensureEnvUp, rebootEnv, rehydrateEnv } from './envs'
 // docs/plans/run-follow-ups.md). The run's EXISTING sandbox is reused, never
 // recreated: 'up' runs immediately, 'stopped' restarts the same container,
 // only 'archived' needs a real restore. The agent continues the run's
-// opencode session (--continue), commits/pushes itself through its knecht-git
-// tools, and the epilogue here is the deterministic fallback for changes it
-// left uncommitted. Everything is recorded as a run_steps row with
+// opencode session (--continue), commits/pushes itself with plain git, and
+// the epilogue here is the deterministic fallback for changes it left
+// uncommitted. Everything is recorded as a run_steps row with
 // origin 'followup', so the run timeline shows the whole conversation.
 
 // A follow-up's step-row log keeps at most this much (mirrors the runner's cap).
@@ -115,7 +115,7 @@ async function execFollowup(followup: Followup, run: Run, project: Project): Pro
   const rt: ActionRuntime = {
     runId: run.id,
     project,
-    checkoutDir: runWorktreeDir(run.id),
+    checkoutDir: runCheckoutDir(run.id),
     ctx: createContext(run.id, project, run.inputs ?? {}),
     log,
     signal: controller.signal,
@@ -176,7 +176,7 @@ async function readAgentReply(runId: number, since: Date): Promise<string | null
 // publishing, so the agent can commit/push itself through its git tools.
 function followupMessage(followup: Followup): string {
   const publish = followup.push
-    ? 'When you are done, commit your changes with knecht-git (in logical chunks with proper messages) and push. Do not open a new PR if one already exists for this run.'
+    ? 'When you are done, commit your changes with git (in logical chunks with proper messages) and push. Do not open a new PR if one already exists for this run.'
     : 'Do NOT push in this follow-up: leave your changes in the working tree for review in the preview.'
   return `A user sent this follow-up request to the finished run. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}\n\n${publish}`
 }
@@ -186,10 +186,10 @@ function followupMessage(followup: Followup): string {
 // host-side so the tweak always reaches the PR.
 async function publishEpilogue(followup: Followup, rt: ActionRuntime, log: (text: string) => void): Promise<void> {
   if (!followup.push) return
-  // Reload: the agent may have created a branch or opened a PR via the bridge.
-  const run = getRun(followup.runId)
-  if (!run) return
-  if (!run.branch || run.branch === rt.project.defaultBranch) {
+  // The checkout is the source of truth for the branch (the agent creates
+  // branches with plain git, so the DB may lag).
+  const branch = await currentBranch(rt.checkoutDir)
+  if (branch === rt.project.defaultBranch) {
     if (await hasUncommittedChanges(rt.checkoutDir)) {
       log(`\nChanges are not published: the run has no work branch. Use "Open a PR" to publish them.\n`)
     }
@@ -203,8 +203,9 @@ async function publishEpilogue(followup: Followup, rt: ActionRuntime, log: (text
     if (sha) log(`\nCommitted leftover changes as ${sha.slice(0, 8)}\n`)
   }
   const token = await getInstallationToken(rt.project.owner, rt.project.name)
-  await pushBranch(rt.checkoutDir, run.branch, token)
-  log(`Pushed ${run.branch}\n`)
+  await pushBranch(rt.checkoutDir, branch, token)
+  db.update(schema.runs).set({ branch }).where(eq(schema.runs.id, followup.runId)).run()
+  log(`Pushed ${branch}\n`)
 }
 
 // First line of the follow-up prompt as the fallback commit's subject, so
