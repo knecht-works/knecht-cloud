@@ -57,5 +57,10 @@ export default defineAppConfig({
     },
     select: keepRestingRing,
     selectMenu: keepRestingRing,
+    dropdownMenu: {
+      slots: {
+        item: 'cursor-pointer',
+      },
+    },
   },
 })
