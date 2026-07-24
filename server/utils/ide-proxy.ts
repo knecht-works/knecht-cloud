@@ -165,7 +165,9 @@ function ideRunRef(source: { headers?: unknown, request?: { headers?: unknown } 
 }
 
 interface Pipe {
-  backend: WebSocket
+  // Null until resolvePreview + the backend connection are set up; client
+  // frames that arrive in that window queue below.
+  backend: WebSocket | null
   // Client frames arriving before the backend socket opens are queued.
   queue: (string | Uint8Array<ArrayBuffer>)[]
   runId: number
@@ -195,8 +197,18 @@ const ideWsHooks = {
 
   async open(peer: { id: string, request?: { url?: string, headers?: unknown }, send: (data: unknown) => void, close: (code?: number, reason?: string) => void }) {
     const runId = ideRunRef(peer.request ?? {})
-    const ip = runId === null ? null : await resolvePreview(runId)
-    if (runId === null || !ip) return peer.close(1011, 'Environment is not running')
+    if (runId === null) return peer.close(1011, 'Environment is not running')
+    // Register the pipe BEFORE the awaited resolvePreview: crossws does not
+    // await this hook, so the workbench's earliest frames (a reconnect after a
+    // Knecht restart, cold ipCache) can arrive mid-await. With the pipe present
+    // they queue instead of hitting message() with no pipe and being dropped.
+    const pipe: Pipe = { backend: null, queue: [], runId, lastBump: 0 }
+    pipes.set(peer.id, pipe)
+    const ip = await resolvePreview(runId)
+    if (!ip) {
+      pipes.delete(peer.id)
+      return peer.close(1011, 'Environment is not running')
+    }
     const path = (() => {
       try {
         const url = new URL(peer.request?.url ?? '/', 'http://localhost')
@@ -208,8 +220,7 @@ const ideWsHooks = {
     })()
     const backend = new WebSocket(`ws://${ip}:${IDE_PORT}${path}`)
     backend.binaryType = 'arraybuffer'
-    const pipe: Pipe = { backend, queue: [], runId, lastBump: 0 }
-    pipes.set(peer.id, pipe)
+    pipe.backend = backend
     backend.onopen = () => {
       for (const frame of pipe.queue) backend.send(frame)
       pipe.queue = []
@@ -225,7 +236,7 @@ const ideWsHooks = {
     const pipe = pipes.get(peer.id)
     if (!pipe) return
     const data = message.uint8Array() as Uint8Array<ArrayBuffer>
-    if (pipe.backend.readyState === WebSocket.OPEN) pipe.backend.send(data)
+    if (pipe.backend?.readyState === WebSocket.OPEN) pipe.backend.send(data)
     else pipe.queue.push(data)
     const now = Date.now()
     if (now - pipe.lastBump > 30_000) {
@@ -237,7 +248,7 @@ const ideWsHooks = {
   close(peer: { id: string }) {
     const pipe = pipes.get(peer.id)
     pipes.delete(peer.id)
-    if (pipe && pipe.backend.readyState <= WebSocket.OPEN) pipe.backend.close()
+    if (pipe?.backend && pipe.backend.readyState <= WebSocket.OPEN) pipe.backend.close()
   },
 }
 
