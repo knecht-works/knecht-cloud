@@ -71,6 +71,9 @@ export default defineEventHandler(async (event) => {
       }
       case 'open-pr': {
         const branch = await currentBranch(dir)
+        if (branch === 'HEAD') {
+          throw new BridgeError('refusing to open a PR from a detached HEAD: check out a work branch first (git checkout -b <name>)')
+        }
         if (branch === project.defaultBranch) {
           throw new BridgeError(`refusing to open a PR from the default branch '${project.defaultBranch}': create a work branch first (git checkout -b <name>)`)
         }

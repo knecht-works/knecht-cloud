@@ -186,7 +186,8 @@ function followupMessage(followup: Followup): string {
 async function syncRunBranch(runId: number, rt: ActionRuntime): Promise<void> {
   try {
     const branch = await currentBranch(rt.checkoutDir)
-    if (branch !== rt.project.defaultBranch) {
+    // 'HEAD' is a detached checkout, not a real branch name: never record it.
+    if (branch !== rt.project.defaultBranch && branch !== 'HEAD') {
       db.update(schema.runs).set({ branch }).where(eq(schema.runs.id, runId)).run()
     }
   }
