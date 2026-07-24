@@ -1,21 +1,20 @@
 #!/usr/bin/env bash
-# The agent's git tools inside a Knecht sandbox. Real git is not available in
-# here (the checkout is a worktree whose .git points at an unmounted host
-# path, and no repo credential ever enters the sandbox), so this CLI forwards
-# git actions to the Knecht host over the agent bridge, which executes them
-# against this run's checkout with proper credentials and guardrails.
+# The bridge CLI inside a Knecht sandbox, for the two things plain git cannot
+# do on its own (the run's checkout is a self-contained clone, so everything
+# else is just git):
+#   - `credential` is the git credential helper wired into the clone's config
+#     (server/daemon/git.ts): it fetches a short-lived repo-scoped token from
+#     the Knecht host so plain git can push and fetch.
+#   - `open-pr` pushes the current branch and opens a pull request host-side
+#     (a GitHub API call the sandbox has no other path to).
 # See server/routes/agent-bridge.post.ts and sandbox/opencode/AGENTS.md.
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
 usage:
-  knecht-git status                          show working tree status
-  knecht-git diff [path ...]                 diff against HEAD
-  knecht-git branch <name>                   create + switch to a work branch
-  knecht-git commit -m <message> [path ...]  commit (all changes, or only the given paths)
-  knecht-git push                            push the work branch to origin
-  knecht-git open-pr -t <title> [-b <body>]  push and open a pull request
+  knecht-git open-pr -t <title> [-b <body>]  push the current branch and open a pull request
+  knecht-git credential <get|store|erase>    git credential helper (wired into the clone's git config)
 EOF
   exit 2
 }
@@ -25,39 +24,49 @@ EOF
   exit 1
 }
 
-# JSON-encode a string / a list of strings (node is in the image for the js
-# workflow step, so it doubles as the JSON encoder here).
+# JSON-encode a string (node is in the image for the js workflow step, so it
+# doubles as the JSON encoder here).
 json_escape() {
   node -e 'console.log(JSON.stringify(process.argv[1] ?? ""))' "$1"
 }
 
-json_paths() {
-  node -e 'console.log(JSON.stringify(process.argv.slice(1)))' "$@"
+bridge_post() {
+  curl -sS -o "$response" -w '%{http_code}' \
+    -X POST "$KNECHT_BRIDGE_URL" \
+    -H 'content-type: application/json' \
+    -H "x-knecht-run-id: $KNECHT_RUN_ID" \
+    -H "x-knecht-token: $KNECHT_BRIDGE_TOKEN" \
+    --data "$1"
 }
 
 op="${1:-}"
 shift || true
+response="$(mktemp)"
+trap 'rm -f "$response"' EXIT
+
 case "$op" in
-  status)
-    payload='{"op":"status"}'
-    ;;
-  diff)
-    if [ "$#" -gt 0 ]; then payload="{\"op\":\"diff\",\"paths\":$(json_paths "$@")}"
-    else payload='{"op":"diff"}'; fi
-    ;;
-  branch)
-    [ "$#" -eq 1 ] || usage
-    payload="{\"op\":\"branch\",\"name\":$(json_escape "$1")}"
-    ;;
-  commit)
-    [ "${1:-}" = "-m" ] && [ -n "${2:-}" ] || usage
-    message="$2"
-    shift 2
-    if [ "$#" -gt 0 ]; then payload="{\"op\":\"commit\",\"message\":$(json_escape "$message"),\"paths\":$(json_paths "$@")}"
-    else payload="{\"op\":\"commit\",\"message\":$(json_escape "$message")}"; fi
-    ;;
-  push)
-    payload='{"op":"push"}'
+  credential)
+    # git credential helper protocol: git pipes a key=value description on
+    # stdin and, for `get`, expects username/password lines back. `store` and
+    # `erase` are no-ops (tokens are short-lived, nothing to remember).
+    action="${1:-}"
+    desc="$(cat)"
+    [ "$action" = "get" ] || exit 0
+    case "$desc" in
+      *host=github.com*) ;;
+      *) exit 0 ;;
+    esac
+    code="$(bridge_post '{"op":"credential"}')"
+    case "$code" in
+      2*)
+        printf 'username=x-access-token\npassword=%s\n' "$(cat "$response")"
+        exit 0
+        ;;
+      *)
+        cat "$response" >&2
+        exit 1
+        ;;
+    esac
     ;;
   open-pr)
     title="" body=""
@@ -69,24 +78,14 @@ case "$op" in
       esac
     done
     [ -n "$title" ] || usage
-    payload="{\"op\":\"open-pr\",\"title\":$(json_escape "$title"),\"body\":$(json_escape "$body")}"
+    code="$(bridge_post "{\"op\":\"open-pr\",\"title\":$(json_escape "$title"),\"body\":$(json_escape "$body")}")"
+    cat "$response"
+    case "$code" in
+      2*) exit 0 ;;
+      *) exit 1 ;;
+    esac
     ;;
   *)
     usage
     ;;
-esac
-
-response="$(mktemp)"
-trap 'rm -f "$response"' EXIT
-code="$(curl -sS -o "$response" -w '%{http_code}' \
-  -X POST "$KNECHT_BRIDGE_URL" \
-  -H 'content-type: application/json' \
-  -H "x-knecht-run-id: $KNECHT_RUN_ID" \
-  -H "x-knecht-token: $KNECHT_BRIDGE_TOKEN" \
-  --data "$payload")"
-
-cat "$response"
-case "$code" in
-  2*) exit 0 ;;
-  *) exit 1 ;;
 esac

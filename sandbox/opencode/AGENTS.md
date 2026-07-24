@@ -12,22 +12,18 @@ may add its own on top of them.
 
 ## Git
 
-Plain `git` does not work in this sandbox. Use the `knecht-git` CLI instead,
-which performs real git operations on the run's checkout with proper
-credentials and guardrails:
+Plain `git` is fully available in this sandbox: status, diff, branch, commit,
+push and fetch all work (credentials and the commit identity are injected
+automatically). Work like you would in any repo, and commit in logical chunks
+with focused messages.
 
-- `knecht-git status` shows the working tree status.
-- `knecht-git diff [path ...]` diffs against HEAD (new files only show in status).
-- `knecht-git branch <name>` creates and switches to a work branch.
-- `knecht-git commit -m "<message>" [path ...]` commits everything, or only the
-  given paths: use paths to commit in logical chunks with focused messages.
-- `knecht-git push` pushes the work branch to origin.
-- `knecht-git open-pr -t "<title>" [-b "<body>"]` pushes and opens a pull
-  request against the project's default branch.
+The one extra tool is `knecht-git open-pr -t "<title>" [-b "<body>"]`: it
+pushes the current branch and opens a pull request against the project's
+default branch. Use it whenever a step asks for a PR.
 
-Pushing to the project's default branch is impossible by design: create a work
-branch first if the run is not already on one. Only commit, push, or open a PR
-when the step or a follow-up asks you to publish your work.
+Never work on the project's default branch: create a work branch first
+(`git checkout -b <name>`) if the run is not already on one. Only commit,
+push, or open a PR when the step or a follow-up asks you to publish your work.
 
 ## Output contracts
 

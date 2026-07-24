@@ -2,14 +2,14 @@ import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
 import { hostname } from 'node:os'
 import { execa } from 'execa'
 
-// The agent git bridge: how the agent INSIDE a run's sandbox performs git
-// actions (commit, push, open a PR) without any repo credential ever entering
-// the sandbox. The sandbox gets two env vars (KNECHT_BRIDGE_URL + a per-run
-// token); the `knecht-git` CLI baked into the sandbox image (sandbox/knecht-git)
-// POSTs to /agent-bridge, which executes the op host-side against that run's
-// worktree only (server/routes/agent-bridge.post.ts). The blast radius of a
-// prompt-injected agent stays "this run's branch": the token is scoped to one
-// run and the route enforces what each op may touch.
+// The agent bridge: how in-sandbox git gets its push/fetch credentials and
+// how a PR is opened from inside a run's sandbox. The sandbox holds only the
+// bridge env vars (KNECHT_BRIDGE_URL + a per-run token, also baked into the
+// clone's credential.helper config); the `knecht-git` CLI (sandbox/knecht-git)
+// POSTs to /agent-bridge (server/routes/agent-bridge.post.ts), which mints a
+// short-lived installation token scoped to the run's ONE repo. The blast
+// radius of a prompt-injected agent is that repo for about an hour; branch
+// protection on the repo guards its default branch.
 
 // Per-run bearer token, derived (not stored): HMAC over the run id with a key
 // stretched from NUXT_SESSION_PASSWORD (same secret crypto.ts derives from,
