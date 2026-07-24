@@ -319,8 +319,8 @@ async function disconnectJira() {
 }
 
 // ── Cleanup: on-demand reconcile GC ──────────────────────────────────────────
-// Reclaims leftovers whose DB row is gone (orphaned sandboxes, worktrees,
-// archives, base clones, dump folders) plus superseded DB dumps. It also runs
+// Reclaims leftovers whose DB row is gone (orphaned sandboxes, checkouts,
+// archives, dump folders) plus superseded DB dumps. It also runs
 // hourly on its own; this button is the "do it now" path.
 interface GcResult { total: number }
 const runningGc = ref(false)
@@ -806,8 +806,8 @@ async function runGc() {
       >
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p class="max-w-2xl text-2sm leading-relaxed text-muted">
-            Reclaims leftovers whose run or project is already gone: orphaned sandboxes, worktrees,
-            archives, base clones and dump folders, plus superseded database dumps. This runs
+            Reclaims leftovers whose run or project is already gone: orphaned sandboxes, checkouts,
+            archives and dump folders, plus superseded database dumps. This runs
             automatically every hour; use the button to run it now.
           </p>
           <UButton

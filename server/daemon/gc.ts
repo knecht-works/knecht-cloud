@@ -7,8 +7,8 @@ import { removeEnvStack } from './sandbox'
 
 // The reconcile GC (companion to the retention reaper in envs.ts). The reaper
 // walks LIVE runs down their lifecycle ladder; this instead reclaims LEFTOVERS
-// whose owning DB row is already gone: sandboxes, worktrees, archives and base
-// clones a crash or a half-done delete left behind, plus stale DB dumps and
+// whose owning DB row is already gone: sandboxes, checkouts and archives a
+// crash or a half-done delete left behind, plus stale DB dumps and
 // host-side docker leftovers (dangling images, build cache). It is
 // safe to run any time because it only ever touches state the database no
 // longer references, so an in-flight run (whose row is present the whole time)
@@ -17,9 +17,8 @@ import { removeEnvStack } from './sandbox'
 
 export interface GcResult {
   sandboxes: string[] // orphaned run sandbox containers removed
-  worktrees: string[] // orphaned run worktree dirs removed
+  checkouts: string[] // orphaned run checkout dirs removed
   archives: string[] // orphaned run archive dirs removed
-  baseClones: string[] // base clones of deleted projects removed
   dumpDirs: string[] // dump folders of deleted projects removed
   dumpFiles: string[] // superseded DB dumps of live projects removed
   sharedDirs: string[] // shared-folder roots of deleted projects removed
@@ -33,19 +32,14 @@ export async function collectGarbage(): Promise<GcResult> {
   const projects = db.select({ id: schema.projects.id, dbDumpPath: schema.projects.dbDumpPath }).from(schema.projects).all()
   const liveProjects = new Set(projects.map(p => p.id))
 
-  const result: GcResult = { sandboxes: [], worktrees: [], archives: [], baseClones: [], dumpDirs: [], dumpFiles: [], sharedDirs: [], dockerPruned: [] }
+  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], sharedDirs: [], dockerPruned: [] }
   result.sandboxes = await reapOrphanSandboxes(liveRuns)
-  result.worktrees = reapOrphanWorktrees(liveRuns)
+  result.checkouts = reapOrphanCheckouts(liveRuns)
   result.archives = reapOrphanArchives(liveRuns)
-  result.baseClones = reapOrphanBaseClones(liveProjects)
   result.dumpDirs = reapOrphanDumpDirs(liveProjects)
   result.dumpFiles = reapStaleDumpFiles(projects)
   result.sharedDirs = reapOrphanSharedDirs(liveProjects)
   result.dockerPruned = await pruneHostDocker()
-
-  // Removing worktree dirs by rmSync leaves a stale admin entry in each base
-  // clone's .git/worktrees; prune them so `git worktree` stays consistent.
-  if (result.worktrees.length) pruneWorktrees()
 
   return result
 }
@@ -79,14 +73,9 @@ async function reapOrphanSandboxes(liveRuns: Set<number>): Promise<string[]> {
   return removed
 }
 
-// Run worktrees are projectsDir()/run-<id>.
-function reapOrphanWorktrees(liveRuns: Set<number>): string[] {
+// Run checkouts are projectsDir()/run-<id>.
+function reapOrphanCheckouts(liveRuns: Set<number>): string[] {
   return removeMatching(projectsDir(), /^run-(\d+)$/, id => !liveRuns.has(id))
-}
-
-// Base clones are projectsDir()/<id>-<slug>; a deleted project's is a leftover.
-function reapOrphanBaseClones(liveProjects: Set<number>): string[] {
-  return removeMatching(projectsDir(), /^(\d+)-/, id => !liveProjects.has(id))
 }
 
 // Run archives are dataDir()/archives/run-<id>.
@@ -163,15 +152,4 @@ async function pruneHostDocker(): Promise<string[]> {
     }
   }
   return pruned
-}
-
-// Drop stale worktree admin entries from every base clone after their dirs were
-// rm'd. Best-effort: a dir that isn't a git repo just fails and is skipped.
-function pruneWorktrees(): void {
-  const dir = projectsDir()
-  if (!existsSync(dir)) return
-  for (const name of readdirSync(dir)) {
-    if (!/^\d+-/.test(name)) continue
-    execa('git', ['-C', join(dir, name), 'worktree', 'prune']).catch(() => {})
-  }
 }
