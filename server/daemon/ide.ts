@@ -6,7 +6,7 @@ import { resolveContainerUser, resolvePreview, webContainerName, WEB_PROJECT_DIR
 import { toolsDir } from '../utils/storage'
 
 // The web IDE: openvscode-server (the MIT-licensed VS Code web build) running
-// INSIDE a run's web container against the mounted worktree. The server
+// INSIDE a run's web container against the mounted checkout. The server
 // tarball is staged once per host into the tools dir (like opencode) and
 // bind-mounted read-only into every run's web container (daemon/ddev.ts);
 // starting the IDE is one detached exec. Reachable only through the ide
@@ -100,7 +100,7 @@ export async function ideMountMissing(runId: number): Promise<boolean> {
 
 // Start the IDE in the run's web container (idempotent) and wait until it
 // answers. Runs as the same identity every Knecht exec uses; its state lives
-// under the worktree's .knecht dir so settings survive container recreates.
+// under the checkout's .knecht dir so settings survive container recreates.
 export async function startRunIde(runId: number): Promise<void> {
   if (await ideRunning(runId)) return
   if (!ideStaged()) {

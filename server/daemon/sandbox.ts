@@ -1,6 +1,6 @@
 import { hostname } from 'node:os'
 import { execa, type Options } from 'execa'
-import { runSandboxName, runWorktreeDir } from '../utils/storage'
+import { runSandboxName, runCheckoutDir } from '../utils/storage'
 
 // The env substrate seam: every run is a ddev project on the HOST docker
 // daemon (project name knecht-run-<id>, containers ddev-knecht-run-<id>-web
@@ -19,14 +19,14 @@ import { runSandboxName, runWorktreeDir } from '../utils/storage'
 // The shared `ddev_default` network is detached after start so parallel runs
 // cannot reach each other.
 
-// Where ddev mounts the project (the run's worktree) inside the web container.
+// Where ddev mounts the project (the run's checkout) inside the web container.
 export const WEB_PROJECT_DIR = '/var/www/html'
 
-// Agent state lives under <worktree>/.knecht (host-visible, git-excluded):
+// Agent state lives under <checkout>/.knecht (host-visible, git-excluded):
 // XDG_CONFIG_HOME → .knecht/opencode holds the opencode config the ai step
 // writes host-side; XDG_DATA_HOME → .knecht/data keeps the opencode session DB
-// on the worktree, so it survives `ddev stop` (containers are removed, the
-// worktree is not) and follow-ups can continue the session after a reboot.
+// on the checkout, so it survives `ddev stop` (containers are removed, the
+// checkout is not) and follow-ups can continue the session after a reboot.
 const KNECHT_STATE_DIR = `${WEB_PROJECT_DIR}/.knecht`
 
 const INGRESS_NETWORK = 'knecht-ingress'
@@ -98,8 +98,8 @@ export async function envStackRunning(runId: number): Promise<boolean> {
 }
 
 // Stop the run's stack: containers are removed, the project's volumes (the
-// imported DB) and the worktree survive, so a reboot is quick. Name-based, so
-// it works even when the worktree is already gone; when ddev doesn't know the
+// imported DB) and the checkout survive, so a reboot is quick. Name-based, so
+// it works even when the checkout is already gone; when ddev doesn't know the
 // project (its registry lives in ~/.ddev, which can lag reality), removing
 // the labelled containers by hand is equivalent (volumes stay).
 export async function stopEnvStack(runId: number): Promise<void> {
@@ -155,12 +155,12 @@ async function removeLabelledContainers(runId: number): Promise<void> {
 }
 
 // ddev commands run HOST-side (the CLI drives the host daemon), from the run's
-// worktree so ddev resolves the right project.
+// checkout so ddev resolves the right project.
 const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true' }
 
 function execDdev(runId: number, args: string[], options?: Options) {
   return execa('ddev', args, {
-    cwd: runWorktreeDir(runId),
+    cwd: runCheckoutDir(runId),
     ...options,
     env: { ...DDEV_ENV, ...(options?.env as Record<string, string> | undefined) },
   })
@@ -176,7 +176,7 @@ const EXEC_WRAPPER = 'HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"; [ -n "$H
 // Run a command in the run's environment. Commands starting with `ddev` are
 // project-level (start, import-db, export-db) and run host-side via the ddev
 // CLI, with host paths; everything else execs inside the web container as this
-// process's uid (which owns the mounted worktree), in the project dir. execa
+// process's uid (which owns the mounted checkout), in the project dir. execa
 // options pass through (the runner streams with `buffer: false`); `env`
 // becomes `docker exec -e` vars: how a secret reaches the agent process
 // without appearing in the command line (the ai step's provider key).

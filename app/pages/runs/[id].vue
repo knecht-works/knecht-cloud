@@ -140,7 +140,7 @@ async function remove() {
 }
 
 // Start the same workflow on the same project as a NEW run. A torn-down env
-// ('down') can't be rebooted (its sandbox and worktree are gone), so re-running
+// ('down') can't be rebooted (its sandbox and checkout are gone), so re-running
 // is the way to get a fresh preview. Deliberately does not reuse run.branch:
 // a create-branch step overwrote it with the run's own work branch.
 const restarting = ref(false)
