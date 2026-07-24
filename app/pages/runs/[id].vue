@@ -243,10 +243,12 @@ const terminalHint = computed(() =>
   run.value?.envState === 'archived' ? 'Restore the environment first' : 'Reboot the environment first')
 const terminalServices = computed(() => sshInfo.value?.services ?? [])
 
+// Fetched before the modal opens so the picker and footer don't pop in
+// after the fact; the button shows a spinner meanwhile.
+const openingTerminal = ref(false)
 async function openTerminal() {
   terminalService.value = 'web'
-  sshInfo.value = null
-  terminalOpen.value = true
+  openingTerminal.value = true
   try {
     sshInfo.value = await $fetch<SshInfo>(`/api/runs/${id}/ssh`)
   }
@@ -254,6 +256,10 @@ async function openTerminal() {
     // The terminal itself still works; only the picker/footer stay bare.
     sshInfo.value = { services: ['web'], sshCommands: null }
   }
+  finally {
+    openingTerminal.value = false
+  }
+  terminalOpen.value = true
 }
 
 async function copySshCommand() {
@@ -397,6 +403,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
               icon="i-lucide-square-terminal"
               label="Terminal"
               :disabled="!canTerminal"
+              :loading="openingTerminal"
               @click="openTerminal"
             />
           </span>
