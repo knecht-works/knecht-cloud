@@ -69,13 +69,18 @@ export async function rehydrateEnv(runId: number): Promise<void> {
 
   const dir = runCheckoutDir(runId)
   const gitArchive = join(runArchiveDir(runId), 'git.tar.gz')
-  if (existsSync(join(dir, '.git'))) {
-    // A half-done restore left the checkout in place; continue with it.
-  }
-  else if (existsSync(gitArchive)) {
+  if (existsSync(gitArchive)) {
+    // The archived .git is the exact object store. (Re)unpack and reset the
+    // working tree from it on every attempt, so a crash between the extract and
+    // the reset can't strand the checkout with an empty tree that a later
+    // attempt mistakes for a finished restore. Idempotent: the reset --hard
+    // below re-materializes HEAD, and the patch is re-applied onto it.
     mkdirSync(dir, { recursive: true })
     await execa('tar', ['-xzf', gitArchive, '-C', dir])
     await execa('git', ['-C', dir, 'reset', '--hard'])
+  }
+  else if (existsSync(join(dir, '.git'))) {
+    // No .git snapshot (best-effort miss): a prior fallback clone is here, keep it.
   }
   else {
     const token = await getInstallationToken(project.owner, project.name)
@@ -194,14 +199,18 @@ async function snapshotCheckout(runId: number): Promise<void> {
     const { stdout: sha } = await execa('git', ['-C', dir, 'rev-parse', 'HEAD'])
     db.update(schema.runs).set({ commitSha: sha.trim() }).where(eq(schema.runs.id, runId)).run()
     await execa('git', ['-C', dir, 'add', '-A'])
+    mkdirSync(runArchiveDir(runId), { recursive: true })
+    // Snapshot the object store FIRST: it carries every commit the run made and
+    // is what makes the restore exact. Taken before the (maxBuffer-capped) diff
+    // so an oversized uncommitted diff that throws still leaves a restorable
+    // .git rather than falling back to a branch-tip clone that loses commits.
+    await execa('tar', ['-czf', join(runArchiveDir(runId), 'git.tar.gz'), '-C', dir, '.git'])
     // Keep the final newline: execa strips it by default, and `git apply`
     // rejects a patch whose last hunk line lost it ("corrupt patch").
     const { stdout: patch } = await execa('git', ['-C', dir, 'diff', '--cached', '--binary'], { maxBuffer: 256 * 1024 * 1024, stripFinalNewline: false })
-    mkdirSync(runArchiveDir(runId), { recursive: true })
     if (patch.trim()) {
       writeFileSync(join(runArchiveDir(runId), 'checkout.patch'), patch)
     }
-    await execa('tar', ['-czf', join(runArchiveDir(runId), 'git.tar.gz'), '-C', dir, '.git'])
   }
   catch {
     // Best-effort: the restore then falls back to the branch tip, no patch.
