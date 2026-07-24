@@ -218,12 +218,7 @@ export const followups = sqliteTable('followups', {
     .notNull()
     .references(() => runs.id, { onDelete: 'cascade' }),
   prompt: text('prompt').notNull(),
-  // Whether the executor should publish after the agent is done: commit any
-  // changes the agent left uncommitted and push the run's branch. The agent is
-  // also told about it in the prompt, so it can commit/push itself through its
-  // git tools; the epilogue is the deterministic fallback.
-  push: integer('push', { mode: 'boolean' }).notNull().default(true),
-  // Login of the member who sent it, for the commit's Co-authored-by trailer.
+  // Login of the member who sent it.
   requestedBy: text('requested_by'),
   status: text('status', { enum: ['queued', 'running', 'success', 'failed'] })
     .notNull()

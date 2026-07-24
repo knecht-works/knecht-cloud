@@ -1,0 +1,1 @@
+ALTER TABLE `followups` DROP COLUMN `push`;

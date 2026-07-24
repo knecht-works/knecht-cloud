@@ -5,10 +5,9 @@ import { runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
 import { getProject, getRun } from '../utils/entities'
-import { getBotIdentity, getInstallationToken } from '../utils/github-app'
 import { runCheckoutDir } from '../utils/storage'
 import { tryParseJson } from '../utils/json'
-import { commitAll, currentBranch, hasUncommittedChanges, pushBranch, type CommitIdentity } from './git'
+import { currentBranch } from './git'
 import { appendLog, streamInSandbox } from './runner'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
 import { ensureEnvUp, rebootEnv, rehydrateEnv } from './envs'
@@ -95,7 +94,7 @@ async function execFollowup(followup: Followup, run: Run, project: Project): Pro
     stepId: `followup-${followup.id}`,
     type: 'ai',
     origin: 'followup',
-    params: { prompt: followup.prompt, push: followup.push },
+    params: { prompt: followup.prompt },
     startedAt: new Date(),
   }).returning({ id: schema.runSteps.id }).get()
 
@@ -129,7 +128,7 @@ async function execFollowup(followup: Followup, run: Run, project: Project): Pro
   try {
     const tail = await runFollowupPrompt(rt, followupMessage(followup))
     const reply = await readAgentReply(run.id, followup.startedAt ?? followup.createdAt) ?? tail
-    await publishEpilogue(followup, rt, log)
+    await syncRunBranch(run.id, rt)
     finalizeRow({ status: 'success', outputs: { text: reply.slice(0, 8 * 1024) } })
     log(`\n✓ Follow-up done\n`)
   }
@@ -172,56 +171,28 @@ async function readAgentReply(runId: number, since: Date): Promise<string | null
 // The prompt as the agent sees it: a header marking it as a NEW instruction
 // (the session may have ended in an output-contract exchange, where the agent
 // was told finished work needs no redoing; without the header it reads a
-// follow-up as that and does nothing), the user's text, and what to do about
-// publishing, so the agent can commit/push itself through its git tools.
+// follow-up as that and does nothing), the user's text, and the publishing
+// default: whether to publish is up to the prompt, with one exception, a run
+// that already has an open PR stays current so the PR never silently diverges
+// from the preview.
 function followupMessage(followup: Followup): string {
-  const publish = followup.push
-    ? 'When you are done, commit your changes with git (in logical chunks with proper messages) and push. Do not open a new PR if one already exists for this run.'
-    : 'Do NOT push in this follow-up: leave your changes in the working tree for review in the preview.'
+  const publish = 'Publishing: if this run already has an open pull request, commit your changes (in logical chunks with proper messages) and push when you are done; never open a second PR. Otherwise leave your changes in the working tree for review in the preview, unless the request above asks you to commit, push or open a PR.'
   return `A user sent this follow-up request to the finished run. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}\n\n${publish}`
 }
 
-// The deterministic fallback after the agent: if publishing was requested and
-// the agent left uncommitted changes on a work branch, commit and push them
-// host-side so the tweak always reaches the PR.
-async function publishEpilogue(followup: Followup, rt: ActionRuntime, log: (text: string) => void): Promise<void> {
-  if (!followup.push) return
-  // The checkout is the source of truth for the branch (the agent creates
-  // branches with plain git, so the DB may lag).
-  const branch = await currentBranch(rt.checkoutDir)
-  if (branch === rt.project.defaultBranch) {
-    if (await hasUncommittedChanges(rt.checkoutDir)) {
-      log(`\nChanges are not published: the run has no work branch. Use "Open a PR" to publish them.\n`)
+// Keep runs.branch honest after the agent worked with plain git: the checkout
+// is the source of truth, the DB copy only feeds the dashboard's branch chip.
+// Best-effort; the checkout may be mid-teardown.
+async function syncRunBranch(runId: number, rt: ActionRuntime): Promise<void> {
+  try {
+    const branch = await currentBranch(rt.checkoutDir)
+    if (branch !== rt.project.defaultBranch) {
+      db.update(schema.runs).set({ branch }).where(eq(schema.runs.id, runId)).run()
     }
-    return
   }
-  if (await hasUncommittedChanges(rt.checkoutDir)) {
-    const sha = await commitAll(rt.checkoutDir, commitMessage(followup.prompt), {
-      identity: await getBotIdentity(),
-      coauthor: coauthorIdentity(followup.requestedBy),
-    })
-    if (sha) log(`\nCommitted leftover changes as ${sha.slice(0, 8)}\n`)
+  catch {
+    // No checkout, no sync.
   }
-  const token = await getInstallationToken(rt.project.owner, rt.project.name)
-  await pushBranch(rt.checkoutDir, branch, token)
-  db.update(schema.runs).set({ branch }).where(eq(schema.runs.id, followup.runId)).run()
-  log(`Pushed ${branch}\n`)
-}
-
-// First line of the follow-up prompt as the fallback commit's subject, so
-// `git log` on the PR reads like the conversation.
-function commitMessage(prompt: string): string {
-  const first = (prompt.split('\n', 1)[0] ?? prompt).trim()
-  return first.length > 72 ? `${first.slice(0, 71)}…` : first
-}
-
-// The member who sent the follow-up, as a Co-authored-by trailer: records
-// which human instructed the change. GitHub links login-based noreply
-// addresses to the account.
-function coauthorIdentity(login: string | null): CommitIdentity | undefined {
-  if (!login) return undefined
-  const member = db.select().from(schema.members).where(eq(schema.members.login, login)).get()
-  return { name: member?.name ?? login, email: `${login}@users.noreply.github.com` }
 }
 
 function finishFollowup(id: number, status: 'success' | 'failed', error?: string): void {

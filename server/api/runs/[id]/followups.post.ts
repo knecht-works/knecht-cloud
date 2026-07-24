@@ -5,16 +5,15 @@ import { dispatchRuns } from '../../../daemon/dispatcher'
 
 // POST /api/runs/:id/followups → send a follow-up prompt to a finished run:
 // the agent continues the run's opencode session inside the run's existing
-// sandbox (docs/plans/run-follow-ups.md). `push` asks the agent to publish
-// its changes (with a deterministic host-side fallback); off, the changes
-// stay in the checkout for preview-first iteration.
+// sandbox (docs/plans/run-follow-ups.md). Whether to publish is part of the
+// prompt itself: the agent commits/pushes when asked and keeps an existing PR
+// current; otherwise changes stay in the checkout for preview-first iteration.
 //
 // Fast lane vs queue: an 'up' env costs no new RAM, so its follow-up starts
 // immediately; a stopped/archived env must be revived, which takes a
 // dispatcher slot like a run does.
 const bodySchema = z.object({
   prompt: z.string().trim().min(1),
-  push: z.boolean().default(true),
 })
 
 export default defineEventHandler(async (event) => {
@@ -40,7 +39,6 @@ export default defineEventHandler(async (event) => {
   const followup = db.insert(schema.followups).values({
     runId: id,
     prompt: result.data.prompt,
-    push: result.data.push,
     requestedBy: user.login,
   }).returning().get()
 

@@ -295,16 +295,15 @@ async function openInVscode() {
   }
 }
 const followupPrompt = ref('')
-const followupPush = ref(true)
 const sendingFollowup = ref(false)
 // One flag for everything the composer disables on.
 const followupLocked = computed(() => !aiConfigured.value || followupActive.value || sendingFollowup.value)
-async function sendFollowup(prompt: string, push: boolean) {
+async function sendFollowup(prompt: string) {
   const text = prompt.trim()
   if (!text || sendingFollowup.value) return
   sendingFollowup.value = true
   try {
-    await $fetch(`/api/runs/${id}/followups`, { method: 'POST', body: { prompt: text, push } })
+    await $fetch(`/api/runs/${id}/followups`, { method: 'POST', body: { prompt: text } })
     followupPrompt.value = ''
     await Promise.all([refresh(), refreshSteps(), refreshFollowups()])
   }
@@ -643,7 +642,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
             icon="i-lucide-git-pull-request"
             label="Open a PR"
             :disabled="followupLocked"
-            @click="sendFollowup(PUBLISH_FOLLOWUP_PROMPT, true)"
+            @click="sendFollowup(PUBLISH_FOLLOWUP_PROMPT)"
           />
         </div>
         <!-- No autofocus (Nuxt UI defaults it ON): the panel mounts the moment
@@ -654,23 +653,12 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
           :autofocus="false"
           placeholder="e.g. The button label should say 'Save changes' instead"
           :disabled="followupLocked"
-          @submit="sendFollowup(followupPrompt, followupPush)"
+          @submit="sendFollowup(followupPrompt)"
         >
           <UChatPromptSubmit
             color="primary"
             :disabled="followupLocked || !followupPrompt.trim()"
           />
-          <template #footer>
-            <label class="flex items-center gap-2">
-              <KToggle
-                :active="followupPush"
-                :disabled="followupLocked"
-                aria-label="Push changes after the follow-up"
-                @toggle="followupPush = !followupPush"
-              />
-              <span class="text-xs text-muted">Push changes</span>
-            </label>
-          </template>
         </UChatPrompt>
       </KPanel>
 
