@@ -6,14 +6,18 @@ export async function copyText(text: string): Promise<void> {
   if (navigator.clipboard) {
     return navigator.clipboard.writeText(text)
   }
+  // When triggered from inside a modal, the dialog's focus trap yanks focus
+  // back the moment an element outside it is focused, destroying the selection
+  // before execCommand runs. Mount the textarea inside the dialog instead.
+  const host = document.activeElement?.closest('[role="dialog"]') ?? document.body
   const el = document.createElement('textarea')
   el.value = text
   el.style.position = 'fixed'
   el.style.opacity = '0'
-  document.body.appendChild(el)
+  host.appendChild(el)
   el.select()
   try {
-    document.execCommand('copy')
+    if (!document.execCommand('copy')) throw new Error('execCommand("copy") returned false')
   }
   finally {
     el.remove()
