@@ -2,90 +2,47 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import type { Project } from '../db/schema'
-import { normalizeSharedFolder, projectCheckoutDir, runWorktreeDir } from '../utils/storage'
+import { bridgeBaseUrl, bridgeToken } from '../utils/agent-bridge'
+import { getBotIdentity } from '../utils/github-app'
+import { normalizeSharedFolder, runCheckoutDir } from '../utils/storage'
 
-// Prepare an isolated working directory for a run (projects.md §9). We keep one
-// base clone per project and add a detached git worktree per run, so every run
-// gets its own checkout while sharing the object store, lighter than a full
-// clone each time. Detached (not a branch) avoids git's "a branch can only be
-// checked out in one worktree" rule when several runs share the default branch.
+// Prepare an isolated working directory for a run (projects.md §9): a
+// self-contained shallow clone per run. Self-contained matters: the checkout
+// is bind-mounted into the run's web container, and only a real clone (not a
+// worktree, whose .git pointer would dangle at an unmounted host path) lets
+// plain git work inside the sandbox: the web IDE's source control, the
+// terminal, the agent. The clone's local git config wires that up
+// (configureCheckout): bot identity for commits, and a credential helper that
+// fetches short-lived repo-scoped tokens through the agent bridge for
+// push/fetch.
 //
-// Auth: a short-lived (1h) GitHub App installation token, passed per network
-// operation as an HTTP header: NEVER stored in the remote URL (it would go
-// stale) and NEVER streamed to the run log; git output is captured quietly
-// here and any error is redacted before it surfaces.
-// `sha` pins the worktree to an exact commit instead of the branch tip:
-// restoring an archived run (daemon/envs.ts) passes the HEAD recorded at
-// archive time.
-// Concurrent runs of the same project share the base clone, and git can't
-// take two fetch/worktree operations on it at once: the shallow file gets
-// rewritten mid-read ("fatal: shallow file has changed since we read it").
-// Serialize checkout preparation per project; different projects stay parallel.
-const checkoutLocks = new Map<number, Promise<unknown>>()
-
-function withCheckoutLock<T>(projectId: number, fn: () => Promise<T>): Promise<T> {
-  const prev = checkoutLocks.get(projectId) ?? Promise.resolve()
-  const next = prev.then(fn, fn)
-  // The stored chain link swallows the error; `next` still rejects for THIS
-  // caller, but the next run in line proceeds instead of inheriting it.
-  checkoutLocks.set(projectId, next.catch(() => {}))
-  return next
-}
-
+// Auth for HOST-side network operations: a short-lived (1h) GitHub App
+// installation token, passed per operation as an HTTP header: NEVER stored in
+// the remote URL (it would go stale) and NEVER streamed to the run log; git
+// output is captured quietly here and any error is redacted before it
+// surfaces.
 export async function prepareRunCheckout(
   project: Project,
   runId: number,
   token: string,
   onLog: (line: string) => void,
   branch: string = project.defaultBranch,
-  sha?: string | null,
 ): Promise<string> {
-  return withCheckoutLock(project.id, () => doPrepareRunCheckout(project, runId, token, onLog, branch, sha))
-}
-
-async function doPrepareRunCheckout(
-  project: Project,
-  runId: number,
-  token: string,
-  onLog: (line: string) => void,
-  branch: string,
-  sha?: string | null,
-): Promise<string> {
-  const base = projectCheckoutDir(project)
-  const runDir = runWorktreeDir(runId)
+  const dir = runCheckoutDir(runId)
+  const url = `https://github.com/${project.fullName}.git`
 
   try {
-    // The base stays a single-branch shallow clone of the default branch (the
-    // shared object store); a run on any other branch fetches that branch's tip
-    // into an explicit remote-tracking ref so the worktree can be created at it.
-    await ensureBaseClone(base, project, token, project.defaultBranch, onLog)
-    shieldGeneratedFiles(base, project.sharedFolders)
-
-    // With a pinned sha the branch tip is irrelevant, and the run's branch may
-    // only ever have existed locally (a create-branch that never pushed), so
-    // fetching it would fail.
-    if (!sha && branch !== project.defaultBranch) {
-      onLog(`Fetching ${branch}…\n`)
-      await git(['-C', base, ...authFlags(token), 'fetch', '--depth', '1', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`])
-    }
-
-    if (existsSync(join(runDir, '.git'))) {
-      onLog(`Reusing worktree at ${runDir}\n`)
+    if (existsSync(join(dir, '.git'))) {
+      onLog(`Reusing checkout at ${dir}\n`)
     }
     else {
-      onLog(`Creating isolated worktree for run ${runId}…\n`)
-      try {
-        await git(['-C', base, 'worktree', 'add', '--detach', '--force', runDir, sha ?? `origin/${branch}`])
-      }
-      catch (e) {
-        if (!sha) throw e
-        // The pinned commit isn't in the shallow store (anymore): GitHub
-        // serves arbitrary-SHA fetches, so pull exactly it and retry.
-        await git(['-C', base, ...authFlags(token), 'fetch', '--depth', '1', 'origin', sha])
-        await git(['-C', base, 'worktree', 'add', '--detach', '--force', runDir, sha])
-      }
+      onLog(`Cloning ${project.fullName} (${branch})…\n`)
+      await git([...authFlags(token), 'clone', '--depth', '1', '--branch', branch, url, dir])
     }
-    return runDir
+
+    shieldGeneratedFiles(dir, project.sharedFolders)
+    await configureCheckout(dir, runId)
+    return dir
   }
   catch (e) {
     // Redact the token so it can never reach the (UI-visible) run log.
@@ -93,27 +50,23 @@ async function doPrepareRunCheckout(
   }
 }
 
-async function ensureBaseClone(
-  base: string,
-  project: Project,
-  token: string,
-  branch: string,
-  onLog: (line: string) => void,
-): Promise<void> {
-  const cleanUrl = `https://github.com/${project.fullName}.git`
-  if (existsSync(join(base, '.git'))) {
-    // Heal clones from the old scheme that still carry a token in the URL.
-    await git(['-C', base, 'remote', 'set-url', 'origin', cleanUrl])
-    onLog(`Fetching ${branch}…\n`)
-    // Explicit refspec: the base clone is single-branch, so a plain fetch of a
-    // DIFFERENT branch (project branch changed since the clone) would land in
-    // FETCH_HEAD only and never create the origin/<branch> the worktree add needs.
-    await git(['-C', base, ...authFlags(token), 'fetch', '--depth', '1', 'origin', `+refs/heads/${branch}:refs/remotes/origin/${branch}`])
-  }
-  else {
-    onLog(`Cloning ${project.fullName} (${branch})…\n`)
-    await git([...authFlags(token), 'clone', '--no-checkout', '--depth', '1', '--branch', branch, cleanUrl, base])
-  }
+// Wire the clone so plain git works INSIDE the sandbox (the web IDE, the
+// terminal, the agent): commits carry the bot identity, push/fetch get a
+// short-lived repo-scoped token from the agent bridge (the `knecht-git
+// credential` helper, mounted into every web container), and a branch created
+// in the IDE pushes without upstream ceremony. All local config in the run's
+// own .git, so it survives container recreates and never enters a commit.
+async function configureCheckout(dir: string, runId: number): Promise<void> {
+  const identity = (await getBotIdentity()) ?? FALLBACK_IDENTITY
+  await git(['-C', dir, 'config', 'user.name', identity.name])
+  await git(['-C', dir, 'config', 'user.email', identity.email])
+  await git(['-C', dir, 'config', 'push.autoSetupRemote', 'true'])
+  const base = await bridgeBaseUrl()
+  // No resolvable bridge (docker-less dev): local git still works, push/fetch
+  // from inside the sandbox just has no credentials.
+  if (!base) return
+  const env = `KNECHT_BRIDGE_URL=${base}/agent-bridge KNECHT_BRIDGE_TOKEN=${bridgeToken(runId)} KNECHT_RUN_ID=${runId}`
+  await git(['-C', dir, 'config', 'credential.helper', `!${env} knecht-git credential`])
 }
 
 // Per-invocation auth for git network ops (the actions/checkout pattern): the
@@ -124,9 +77,17 @@ function authFlags(token: string): string[] {
   return ['-c', `http.https://github.com/.extraheader=Authorization: Basic ${basic}`]
 }
 
-// Create a new branch at the worktree's current HEAD (the `create-branch` block).
+// Create a new branch at the checkout's current HEAD (the `create-branch` block).
 export async function createBranch(dir: string, name: string): Promise<void> {
   await git(['-C', dir, 'checkout', '-b', name])
+}
+
+// The branch the checkout is currently on. The checkout is the source of
+// truth (the agent creates branches with plain git, so a DB-tracked branch
+// would go stale); runs.branch is only synced back at publish moments.
+export async function currentBranch(dir: string): Promise<string> {
+  const { stdout } = await git(['-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD'])
+  return stdout.trim()
 }
 
 // A commit's author identity. Callers pass the GitHub App's bot identity
@@ -185,18 +146,18 @@ export async function pushBranch(dir: string, branch: string, token: string): Pr
   }
 }
 
-// Knecht writes generated files into the worktree: the ddev overrides
+// Knecht writes generated files into the checkout: the ddev overrides
 // (`.ddev/config.knecht.yaml` carries the project's env vars, which include
 // SECRETS; `.ddev/docker-compose.knecht.yaml` the run's compose override) and
 // the agent's state dir (`.knecht/`: opencode config + session DB). The git
 // blocks run `git add -A`, so without this they would be committed and pushed
-// in the opened PR. The ignores go in the base clone's shared `info/exclude`
-// (honored by every worktree hanging off it), so the generated files can
-// never enter a commit. The project's shared folders join the list: their
-// contents (uploads) surface inside the worktree via the bind mount and must
-// never be committed even when the repo forgot to git-ignore them. Idempotent.
-function shieldGeneratedFiles(base: string, sharedFolders: string[]): void {
-  const exclude = join(base, '.git', 'info', 'exclude')
+// in the opened PR. The ignores go in the clone's `info/exclude`, so the
+// generated files can never enter a commit. The project's shared folders join
+// the list: their contents (uploads) surface inside the checkout via the bind
+// mount and must never be committed even when the repo forgot to git-ignore
+// them. Idempotent.
+function shieldGeneratedFiles(dir: string, sharedFolders: string[]): void {
+  const exclude = join(dir, '.git', 'info', 'exclude')
   const patterns = [
     '/.ddev/config.knecht.yaml',
     '/.ddev/docker-compose.knecht.yaml',

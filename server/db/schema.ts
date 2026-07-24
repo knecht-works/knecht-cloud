@@ -106,7 +106,7 @@ export const runs = sqliteTable('runs', {
   // The branch the run works on: the project's default branch at checkout,
   // replaced by the branch a `create-branch` step creates.
   branch: text('branch'),
-  // The worktree's HEAD, captured when the env is archived (includes commits
+  // The checkout's HEAD, captured when the env is archived (includes commits
   // the run itself made). Restoring an archived env checks out exactly this.
   commitSha: text('commit_sha'),
   // The pull request a `create-pr` step opened, if the run opened one.
@@ -123,7 +123,7 @@ export const runs = sqliteTable('runs', {
   log: text('log').notNull().default(''),
   // The run's isolated ddev environment: 'down' (not booted / expired), 'up'
   // (running, previewable), 'stopped' (idle-stopped, volumes kept, rebootable),
-  // 'archived' (sandbox + worktree deleted, but the run's DB export + worktree
+  // 'archived' (sandbox + checkout deleted, but the run's DB export + checkout
   // patch are kept so it can be restored exactly; see daemon/envs.ts).
   envState: text('env_state', { enum: ENV_STATES })
     .notNull()
@@ -286,7 +286,7 @@ export const settings = sqliteTable('settings', {
   idleStopMinutes: integer('idle_stop_minutes').notNull().default(1440),
 
   // Archive a 'stopped' env once untouched this many days: its sandbox +
-  // worktree (the GBs) are deleted, keeping only the DB export + worktree patch
+  // checkout (the GBs) are deleted, keeping only the DB export + checkout patch
   // (MBs) so it can still be restored exactly. 0 keeps stopped envs forever.
   previewRetentionDays: integer('preview_retention_days').notNull().default(7),
 

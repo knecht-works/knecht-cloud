@@ -7,7 +7,7 @@ import { dispatchRuns } from '../../../daemon/dispatcher'
 // the agent continues the run's opencode session inside the run's existing
 // sandbox (docs/plans/run-follow-ups.md). `push` asks the agent to publish
 // its changes (with a deterministic host-side fallback); off, the changes
-// stay in the worktree for preview-first iteration.
+// stay in the checkout for preview-first iteration.
 //
 // Fast lane vs queue: an 'up' env costs no new RAM, so its follow-up starts
 // immediately; a stopped/archived env must be revived, which takes a

@@ -9,22 +9,15 @@ export function dataDir(): string {
 
 // The fixed project path. When Knecht runs as a container it MUST be mounted
 // byte-identically inside and out (KNECHT_PROJECTS in compose): the HOST
-// daemon resolves the worktree bind mount when a sandbox is launched, so the
+// daemon resolves the checkout bind mount when a sandbox is launched, so the
 // path Knecht passes has to exist on the host. Default: /data/knecht/projects.
 export function projectsDir(): string {
   return process.env.KNECHT_PROJECTS || '/data/knecht/projects'
 }
 
-// The per-project base clone. Each run gets its own git worktree off this, so
-// the clone's object store is shared but every run has an isolated working dir.
-export function projectCheckoutDir(project: { id: number, name: string }): string {
-  const slug = project.name.toLowerCase().replace(/[^a-z0-9-]/g, '-')
-  return join(projectsDir(), `${project.id}-${slug}`)
-}
-
-// A run's isolated working directory (a detached git worktree off the project's
-// base clone): its own ddev environment boots here.
-export function runWorktreeDir(runId: number): string {
+// A run's isolated working directory (a self-contained shallow clone): its own
+// ddev environment boots here.
+export function runCheckoutDir(runId: number): string {
   return join(projectsDir(), `run-${runId}`)
 }
 
@@ -44,7 +37,7 @@ export function toolsDir(): string {
   return join(dataDir(), 'tools')
 }
 
-// A run's archive folder: the small artifacts (DB export, worktree patch) that
+// A run's archive folder: the small artifacts (DB export, checkout patch) that
 // survive the env teardown so an archived run can be restored exactly. NOT
 // created here: writers mkdir, readers probe.
 export function runArchiveDir(runId: number): string {

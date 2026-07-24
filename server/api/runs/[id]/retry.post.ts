@@ -5,12 +5,12 @@ import { db, schema } from '../../../db'
 import { resumePoint } from '../../../daemon/runner'
 import { dispatchRuns } from '../../../daemon/dispatcher'
 import { hasActiveFollowup } from '../../../daemon/followups'
-import { runWorktreeDir } from '../../../utils/storage'
+import { runCheckoutDir } from '../../../utils/storage'
 
 // POST /api/runs/:id/retry → re-queue a failed (or cancelled) run without
 // re-executing what already completed: the runner resumes from the step that
 // stopped it, replaying the completed steps' outputs (daemon/runner.ts).
-// Resuming past a completed prefix needs the run's worktree (the completed
+// Resuming past a completed prefix needs the run's checkout (the completed
 // steps' file state); a run that failed before its first step re-executes
 // fully and can do so on a fresh checkout.
 export default defineEventHandler((event) => {
@@ -31,7 +31,7 @@ export default defineEventHandler((event) => {
     if (run.envState === 'archived') {
       throw createError({ statusCode: 409, statusMessage: 'The environment is archived. Restore it first, then retry.' })
     }
-    if (!existsSync(join(runWorktreeDir(id), '.git'))) {
+    if (!existsSync(join(runCheckoutDir(id), '.git'))) {
       throw createError({ statusCode: 409, statusMessage: 'The run\'s checkout is gone, so it cannot resume. Run the workflow again.' })
     }
   }

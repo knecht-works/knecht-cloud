@@ -36,8 +36,8 @@ const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
 // the bash command line below.
 const MODEL_RE = /^[\w.-]+(\/[\w.:-]+)+$/
 
-// opencode runs with XDG_CONFIG_HOME pointed at the worktree's .knecht dir
-// (daemon/sandbox.ts), so its config lives at <worktree>/.knecht/opencode:
+// opencode runs with XDG_CONFIG_HOME pointed at the checkout's .knecht dir
+// (daemon/sandbox.ts), so its config lives at <checkout>/.knecht/opencode:
 // host-visible (this module writes it directly, no copy into the container)
 // and git-excluded (daemon/git.ts). AGENTS.md + opencode.json are seeded from
 // the bundled templates; the per-step `system` prompt is dropped into
@@ -220,14 +220,14 @@ async function readOutputFile(
   return { ok: true, value }
 }
 
-// Seed the run's opencode config dir (host-side, it lives on the worktree):
+// Seed the run's opencode config dir (host-side, it lives on the checkout):
 // the bundled AGENTS.md instructions, an opencode.json that merges workflow.md
 // into the agent's instructions, and workflow.md itself (a step's system
 // prompt). `system: null` keeps an existing workflow.md (the follow-up path:
 // the last ai step's system context stays valid for tweaks to that step's
 // work) and only creates an empty one when none exists (fresh rehydrated
-// worktree). The container path in opencode.json is fixed: ddev always mounts
-// the worktree at /var/www/html.
+// checkout). The container path in opencode.json is fixed: ddev always mounts
+// the checkout at /var/www/html.
 const WORKFLOW_SYSTEM_PATH = '/var/www/html/.knecht/opencode/workflow.md'
 
 async function writeAgentConfig(rt: ActionRuntime, system: string | null): Promise<void> {

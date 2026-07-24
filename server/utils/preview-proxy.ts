@@ -5,7 +5,7 @@ import { db, schema } from '../db'
 import { readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
-import { runWorktreeDir } from './storage'
+import { runCheckoutDir } from './storage'
 
 // Reverse-proxy a whole request to a RUN's isolated environment (projects.md
 // §8). Called from the preview-host middleware for requests to
@@ -283,14 +283,14 @@ function rewriteUrls(
   return text
 }
 
-// The project's ddev host set, read from the run's worktree once and cached:
+// The project's ddev host set, read from the run's checkout once and cached:
 // it is fixed for the run's lifetime.
 const hostsCache = new Map<number, DdevHosts>()
 
 function runHosts(runId: number): DdevHosts {
   let hosts = hostsCache.get(runId)
   if (!hosts || !hosts.all.length) {
-    hosts = readDdevHosts(runWorktreeDir(runId))
+    hosts = readDdevHosts(runCheckoutDir(runId))
     hostsCache.set(runId, hosts)
   }
   return hosts

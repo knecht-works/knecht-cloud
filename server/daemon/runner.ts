@@ -15,7 +15,7 @@ import { copyIntoSandbox, execInSandbox } from './sandbox'
 import { ensureEnvUp } from './envs'
 
 // The in-process serial runner (tech-stack.md §4). Each run gets its OWN
-// environment: an isolated git worktree that boots as a uniquely-named ddev
+// environment: an isolated git checkout that boots as a uniquely-named ddev
 // project on the host daemon, with a freshly-imported DB. Project-facing
 // steps (bash/agent) exec INSIDE the run's web container; ddev commands and
 // git steps run host-side (daemon/sandbox.ts). The run row tracks both the
