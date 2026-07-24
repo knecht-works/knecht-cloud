@@ -16,6 +16,9 @@ import { isMember, memberCount } from '../../../utils/members'
 // supports ws upgrade requests), mirroring preview-proxy.ts.
 
 const terminals = new Map<string, RunTerminal>()
+// Peers whose socket closed while open() was still awaiting the exec: open()
+// checks this once it resolves and discards the late terminal.
+const closedEarly = new Set<string>()
 
 // Typing in a terminal counts as using the env: bump the idle clock, at most
 // once per 30s per run (unlike an external SSH session, this traffic flows
@@ -68,6 +71,13 @@ export default defineWebSocketHandler({
     if (!target) return peer.close(1008, 'Bad terminal target')
     try {
       const terminal = await openRunTerminal(target.runId, target.service, target)
+      // The socket may have closed while the exec was being set up (close()
+      // ran before this terminal existed). Discard it, or it leaks the
+      // container-side shell and its stream forever.
+      if (closedEarly.delete(peer.id)) {
+        terminal.close()
+        return
+      }
       terminals.set(peer.id, terminal)
       terminal.stream.on('data', (chunk: Buffer) => peer.send(chunk))
       terminal.stream.on('close', () => peer.close(1000, 'Session ended'))
@@ -75,6 +85,7 @@ export default defineWebSocketHandler({
       bumpPreviewSeen(target.runId)
     }
     catch {
+      closedEarly.delete(peer.id)
       peer.close(1011, 'Could not open a shell in the container')
     }
   },
@@ -99,7 +110,15 @@ export default defineWebSocketHandler({
   },
 
   close(peer) {
-    terminals.get(peer.id)?.close()
-    terminals.delete(peer.id)
+    const terminal = terminals.get(peer.id)
+    if (terminal) {
+      terminal.close()
+      terminals.delete(peer.id)
+    }
+    else {
+      // open() is still awaiting the exec: mark it so it discards the terminal
+      // once it resolves instead of storing an orphan nothing will close.
+      closedEarly.add(peer.id)
+    }
   },
 })
