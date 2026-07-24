@@ -98,30 +98,25 @@ export async function currentBranch(dir: string): Promise<string> {
 export interface CommitIdentity { name: string, email: string }
 const FALLBACK_IDENTITY: CommitIdentity = { name: 'Knecht', email: 'noreply@knecht.works' }
 
-// Stage and commit (the `create-commit` block and the agent bridge's commit
-// op). Stages the whole working tree, or only `paths` when given (how the
-// agent commits in logical chunks). Returns the new commit SHA, or null when
+// Stage and commit (the `create-commit` block). Stages the whole working
+// tree, or only `paths` when given. Returns the new commit SHA, or null when
 // nothing was staged (e.g. the agent changed nothing): a no-op, not a failure.
-// The identity is set inline since the run container has none configured; a
-// `coauthor` (the member who sent a follow-up) lands as a trailer.
+// The identity is set inline since the host has none configured for the run.
 export async function commitAll(
   dir: string,
   message: string,
-  opts?: { identity?: CommitIdentity | null, paths?: string[], coauthor?: CommitIdentity },
+  opts?: { identity?: CommitIdentity | null, paths?: string[] },
 ): Promise<string | null> {
   if (opts?.paths?.length) await git(['-C', dir, 'add', '--', ...opts.paths])
   else await git(['-C', dir, 'add', '-A'])
   const { stdout: staged } = await git(['-C', dir, 'diff', '--cached', '--name-only'])
   if (!staged.trim()) return null
   const identity = opts?.identity ?? FALLBACK_IDENTITY
-  const body = opts?.coauthor
-    ? `${message}\n\nCo-authored-by: ${opts.coauthor.name} <${opts.coauthor.email}>`
-    : message
   await git([
     '-C', dir,
     '-c', `user.name=${identity.name}`,
     '-c', `user.email=${identity.email}`,
-    'commit', '-m', body,
+    'commit', '-m', message,
   ])
   const { stdout } = await git(['-C', dir, 'rev-parse', 'HEAD'])
   return stdout.trim()

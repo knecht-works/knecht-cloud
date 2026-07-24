@@ -12,7 +12,6 @@ export default defineEventHandler((event) => {
     .select({
       id: schema.followups.id,
       prompt: schema.followups.prompt,
-      push: schema.followups.push,
       requestedBy: schema.followups.requestedBy,
       status: schema.followups.status,
       error: schema.followups.error,
