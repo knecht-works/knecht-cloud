@@ -9,6 +9,7 @@ import { appendLog } from '../daemon/runner'
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { getProject, getRun } from '../utils/entities'
 import { createPullRequest, getInstallationToken } from '../utils/github-app'
+import { withPreviewFooter } from '../utils/origin'
 import { runCheckoutDir } from '../utils/storage'
 
 // POST /agent-bridge → what in-sandbox git can NOT do on its own. Plain git
@@ -77,7 +78,7 @@ export default defineEventHandler(async (event) => {
         await pushBranch(dir, branch, ghToken)
         const pr = await createPullRequest(project.owner, project.name, {
           title: body.title,
-          body: body.body ?? '',
+          body: withPreviewFooter(body.body ?? '', runId),
           head: branch,
           base: project.defaultBranch,
         })

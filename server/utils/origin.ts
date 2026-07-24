@@ -17,3 +17,13 @@ export function previewOrigin(runId: number): string | null {
   const url = new URL(origin)
   return `${url.protocol}//${previewHostname(runId, url.host)}`
 }
+
+// Append the run's preview link to a PR body: every PR Knecht opens carries
+// it, so reviewers get the live environment next to the diff. Appended
+// host-side (never left to the agent), so it is always present and correct.
+export function withPreviewFooter(body: string, runId: number): string {
+  const origin = previewOrigin(runId)
+  if (!origin) return body
+  const footer = `**Preview:** ${origin}`
+  return body.trim() ? `${body.trim()}\n\n---\n${footer}` : footer
+}
