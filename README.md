@@ -94,7 +94,7 @@ The VM template exposes ports 80 and 443 on all interfaces of the Mac, so the po
 
 After a macOS reboot, run `limactl start knecht`; the containers inside come back up on their own. Updating and backups work exactly as below, with `/opt/knecht` and `/data/knecht` living inside the VM (`limactl shell knecht`).
 
-#### Local Setup on MacOS
+#### Temporary Local Domain Setup on MacOS
 
 To just try Knecht on a Mac, follow the macOS install above and use `lvh.me` as the domain. It resolves to 127.0.0.1, so the dashboard and all preview subdomains work without any DNS setup. Ports 80 and 443 on the Mac must be free.
 
