@@ -217,10 +217,14 @@ watch(sshTarget, () => {
 })
 async function saveSshTarget() {
   try {
-    settings.value = await $fetch<Settings>('/api/settings', {
+    const updated = await $fetch<Settings>('/api/settings', {
       method: 'PATCH',
       body: { sshTarget: sshTarget.value.trim() || null },
     })
+    // Update the field in place, not settings.value = updated: reassigning
+    // re-fires watch(settings, load), and load() would reset every field the
+    // user is still editing (including sshTarget itself) to this server echo.
+    if (settings.value) settings.value.sshTarget = updated.sshTarget
     sshSaveState.value = 'saved'
   }
   catch {

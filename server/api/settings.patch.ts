@@ -17,7 +17,7 @@ const bodySchema = z.object({
   aiKey: z.string().min(1).max(500).nullable().optional(),
   aiModel: z.string().min(1).max(200).optional(),
   // The charset excludes whitespace/quotes so the value can be spliced
-  // verbatim into the ssh command line and the vscode:// URL.
+  // verbatim into the ssh command line (utils/ssh.ts sshTerminalCommand).
   sshTarget: z.string().trim().regex(/^[A-Za-z0-9._@-]+$/).max(200).nullable().optional(),
 })
 
