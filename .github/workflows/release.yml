@@ -101,6 +101,6 @@ jobs:
       - run: |
           PRERELEASE=""
           case "$GITHUB_REF_NAME" in *-*) PRERELEASE="--prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" $PRERELEASE --notes-file /tmp/notes.md
+          gh release create "$GITHUB_REF_NAME" $PRERELEASE --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
