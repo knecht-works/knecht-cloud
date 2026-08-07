@@ -180,3 +180,14 @@ npm run dev
 > Details on host setup live in `.env.example` and the provisioning scripts
 > under `scripts/`.
 
+## License
+
+Knecht is licensed under the [Functional Source License, Version 1.1, ALv2
+Future License](LICENSE.md) (FSL-1.1-ALv2). In short: you can use, modify, and
+self-host it, including for commercial internal use. What you may not do is
+offer it to others in a commercial product or service that provides the same or
+substantially similar functionality (a "Competing Use" as defined in the
+license). Each version becomes available under the Apache License 2.0 two years
+after its release. This summary is for orientation only; the [license
+text](LICENSE.md) is what governs.
+
