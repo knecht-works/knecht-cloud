@@ -191,6 +191,15 @@ body {
   color: var(--text-dimmed);
 }
 
+/* Scrollable area without a visible scrollbar (log viewports: the content
+   scrolls, but a bar inside a panel reads as clutter). */
+@utility k-scrollbar-none {
+  scrollbar-width: none;
+}
+.k-scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
 /* ============================================================
    Background field: faint grid + two soft glows, fixed behind
    every dashboard screen. Drop <KBgField /> as the first child.

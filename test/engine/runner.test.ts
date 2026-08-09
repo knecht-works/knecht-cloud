@@ -111,6 +111,30 @@ describe('runner', () => {
     expect(getSteps(run.id)[0]!.error).toBe('Cancelled')
   })
 
+  it('records each step row\'s byte offset into the run log', async () => {
+    // The umlauts force byte and character offsets apart across the step
+    // boundary (the prelude's own '▶' banners already do before it), so the
+    // assertions below fail if offsets were counted in characters.
+    const { run, steps } = await execute([
+      { type: 'bash', id: 'one', command: 'echo grüß gott' },
+      { type: 'bash', id: 'two', command: 'echo servus' },
+    ])
+    expect(run.status).toBe('success')
+    const [a, b] = steps
+    expect(a!.logStart).toBeGreaterThan(0)
+    expect(b!.logStart!).toBeGreaterThan(a!.logStart!)
+    // The byte-level contract the dashboard's segmentation relies on: every
+    // offset points at the step's own '\n▶ ' banner, and the slice between
+    // two offsets is exactly the earlier step's output.
+    const bytes = Buffer.from(run.log, 'utf8')
+    for (const row of steps) {
+      expect(bytes.subarray(row.logStart!).toString('utf8').startsWith('\n▶ ')).toBe(true)
+    }
+    const slice = bytes.subarray(a!.logStart!, b!.logStart!).toString('utf8')
+    expect(slice).toContain('grüß gott')
+    expect(slice).not.toContain('servus')
+  })
+
   it('resumes a retried run after the failing step, replaying earlier outputs', async () => {
     const project = makeProject()
     const run = makeRun(project, [

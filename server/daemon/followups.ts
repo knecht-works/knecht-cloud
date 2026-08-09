@@ -8,7 +8,7 @@ import { getProject, getRun } from '../utils/entities'
 import { runCheckoutDir } from '../utils/storage'
 import { tryParseJson } from '../utils/json'
 import { currentBranch } from './git'
-import { appendLog, streamInSandbox } from './runner'
+import { appendLog, runLogBytes, streamInSandbox } from './runner'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
 import { ensureEnvUp, rebootEnv, rehydrateEnv } from './envs'
 
@@ -73,6 +73,9 @@ export async function startFollowup(followupId: number): Promise<void> {
 }
 
 async function execFollowup(followup: Followup, run: Run, project: Project): Promise<void> {
+  // Offset BEFORE the banner: the banner and the env-revive output below
+  // belong to this follow-up's log segment on the dashboard.
+  const logStart = runLogBytes(run.id)
   appendLog(run.id, `\n▶ Follow-up${followup.requestedBy ? ` (by ${followup.requestedBy})` : ''}\n`)
 
   // Revive the run's environment the same way POST /api/runs/:id/reboot does;
@@ -95,6 +98,7 @@ async function execFollowup(followup: Followup, run: Run, project: Project): Pro
     type: 'ai',
     origin: 'followup',
     params: { prompt: followup.prompt },
+    logStart,
     startedAt: new Date(),
   }).returning({ id: schema.runSteps.id }).get()
 

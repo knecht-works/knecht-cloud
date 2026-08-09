@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { PUBLISH_FOLLOWUP_PROMPT } from '#shared/utils/followup'
 import { stepsInclude, type Step } from '#shared/utils/workflow'
+import type { WorkflowStep } from '~/utils/dashboard'
+import type { StepMeta } from '~/utils/workflow-steps'
 
-// One run's full workspace: preview, follow-up chat, step timeline, log and
-// the run-level actions (terminal, IDE, PR, cancel/retry, delete). Rendered
-// inside the project page for the selected run; the parent keys this
-// component by runId so switching runs remounts everything (preview history,
-// terminal, expanded steps, fetches) from scratch.
+// One run's full workspace: preview, follow-up chat, the run log as one
+// continuous stream with a step index rail beside it (KRunLog: clicking a
+// step scrolls the log to that step's byte offset) and the run-level actions
+// (terminal, IDE, PR, cancel/retry, delete). Rendered inside the project
+// page for the selected run; the parent keys this component by runId so
+// switching runs remounts everything (preview history, terminal, fetches)
+// from scratch.
 const props = defineProps<{ runId: number }>()
 
 const emit = defineEmits<{
@@ -33,8 +37,8 @@ const { data: followups, refresh: refreshFollowups } = useFetch(`/api/runs/${id}
 const isLive = computed(() => isLiveStatus(run.value?.status))
 
 // A boot step in the pinned sequence means a preview is coming; without one
-// (a workflow that never boots an env) the offline frame says so instead of
-// offering a pointless reboot.
+// (a workflow that never boots an env) the preview frame isn't rendered at
+// all.
 const hasBootStep = computed(() =>
   stepsInclude((run.value?.steps ?? []) as Step[], 'ddev-start'))
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
@@ -44,9 +48,13 @@ const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] 
 const previewOnline = computed(() =>
   run.value?.envState === 'up' && run.value.previewReady)
 
-// The step timeline: one row per executed step (run_steps), styled via the
-// step registry. Unknown step types (e.g. removed ones) render generically;
-// nested rows indent by their ancestor count (parentStepId chains).
+// The step timeline: one row per executed step (run_steps), presented via
+// the step registry exactly like the workflow editor's rail (per-type label
+// and icon, derived from the row's RENDERED params, so e.g. a bash step is
+// titled by what its command does). What a step executed stays in its log
+// slice: every slice begins with the '▶' banner line. Unknown step types
+// (e.g. removed ones) render generically; nested rows indent by their
+// ancestor count (parentStepId chains).
 const timeline = computed(() => {
   const rows = stepRows.value ?? []
   const byStepId = new Map(rows.map(r => [r.stepId, r]))
@@ -57,64 +65,26 @@ const timeline = computed(() => {
   }
   return rows.map((s) => {
     const def = stepDefFor(s.type)
-    const prompt = typeof s.params?.prompt === 'string' ? s.params.prompt : null
+    let meta: StepMeta | null = null
+    if (def) {
+      try {
+        meta = workflowStepMeta({ type: s.type, ...(s.params ?? {}) } as unknown as WorkflowStep)
+      }
+      catch {
+        // Params from an older schema can miss a field a meta() reads; the
+        // def's own identity still renders below.
+      }
+    }
     return {
       ...s,
       depth: depthOf(s),
-      icon: s.origin === 'followup' ? 'i-lucide-message-circle-reply' : (def?.icon ?? 'i-lucide-square'),
-      label: s.origin === 'followup' ? 'Follow-up' : (def?.label ?? s.type),
-      snippet: prompt === PUBLISH_FOLLOWUP_PROMPT ? 'Open a PR' : prompt,
-      color: STEP_KIND_COLOR[def?.kind ?? 'det'],
+      icon: s.origin === 'followup' ? 'i-lucide-message-circle-reply' : (meta?.icon ?? def?.icon ?? 'i-lucide-square'),
+      label: s.origin === 'followup' ? 'Follow-up' : (meta?.label ?? def?.label ?? s.type),
+      color: STEP_KIND_COLOR[meta?.kind ?? def?.kind ?? 'det'],
       statusMeta: RUN_STATUS_META[s.status],
     }
   })
 })
-
-// Step details (prompt, output, log) are heavier than the polled list, so they
-// load lazily when a timeline row is expanded; while the run or a follow-up is
-// live, the poll re-fetches expanded rows so an open step's log streams.
-type StepDetail = {
-  id: number
-  params: Record<string, unknown> | null
-  outputs: Record<string, unknown> | null
-  log: string
-  error: string | null
-}
-const expandedSteps = ref(new Set<number>())
-const stepDetails = ref(new Map<number, StepDetail>())
-async function toggleStep(rowId: number) {
-  if (expandedSteps.value.has(rowId)) {
-    expandedSteps.value.delete(rowId)
-    return
-  }
-  expandedSteps.value.add(rowId)
-  if (!stepDetails.value.has(rowId)) await refreshStepDetail(rowId)
-}
-async function refreshStepDetail(rowId: number) {
-  try {
-    stepDetails.value.set(rowId, await $fetch<StepDetail>(`/api/runs/${id}/steps/${rowId}`))
-  }
-  catch {
-    // The row can vanish under us (e.g. a retry reset the tail); the poll's
-    // refreshSteps removes it from the timeline anyway.
-  }
-}
-
-// What an expanded row shows, as labeled text blocks: the prompt (ai and
-// follow-up steps) gets its own block, the remaining params render as JSON,
-// the output as text when the step produced text and as JSON otherwise. The
-// log is separate (KLogView).
-function detailSections(detail: StepDetail): { label: string, text: string, mono?: boolean, error?: boolean }[] {
-  const sections = []
-  const { prompt, ...params } = detail.params ?? {}
-  if (typeof prompt === 'string') sections.push({ label: 'Prompt', text: prompt })
-  if (Object.keys(params).length) sections.push({ label: 'Params', text: JSON.stringify(params, null, 2), mono: true })
-  const outputs = detail.outputs ?? {}
-  if (typeof outputs.text === 'string') sections.push({ label: 'Output', text: outputs.text })
-  else if (Object.keys(outputs).length) sections.push({ label: 'Output', text: JSON.stringify(outputs, null, 2), mono: true })
-  if (detail.error) sections.push({ label: 'Error', text: detail.error, error: true })
-  return sections
-}
 
 // The step behind the failure card: rows are in execution order, so the last
 // row carrying an error is the most specific one (a composite is finalized
@@ -126,8 +96,9 @@ const failedStep = computed(() => {
 })
 
 // The run's meta facts (the workflow it executes, how it was triggered, the
-// branch it works on, timing, the PR it opened). Chips are skipped when a run
-// predates the recorded field. The workflow chip links to the editor.
+// branch it works on, timing). Chips are skipped when a run predates the
+// recorded field. The workflow chip links to the editor. The PR gets no chip:
+// the header's "Open Pull Request" button already covers it.
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
@@ -138,18 +109,10 @@ const meta = computed(() => {
     r.branch && { icon: 'i-lucide-git-branch', text: r.branch },
     r.startedAt && { icon: 'i-lucide-timer', text: runDuration(r.startedAt, r.finishedAt) },
     r.createdAt && { icon: 'i-lucide-calendar', text: timeAgo(r.createdAt) },
-    r.prUrl && { icon: 'i-lucide-git-pull-request', text: 'Pull request', href: r.prUrl },
   ].filter(Boolean) as { icon: string, text: string, href?: string }[]
 })
 
-// Destructive, so it lives in the header's overflow menu behind a confirm.
 const confirmDelete = ref(false)
-const menuItems = [{
-  label: 'Delete run',
-  icon: 'i-lucide-trash-2',
-  color: 'error' as const,
-  onSelect: () => { confirmDelete.value = true },
-}]
 const deleting = ref(false)
 async function remove() {
   deleting.value = true
@@ -266,25 +229,18 @@ const terminalOpen = ref(false)
 const terminalService = ref('web')
 const sshInfo = ref<SshInfo | null>(null)
 const canTerminal = computed(() => run.value?.envState === 'up')
-const terminalHint = computed(() =>
-  run.value?.envState === 'archived' ? 'Restore the environment first' : 'Reboot the environment first')
 const terminalServices = computed(() => sshInfo.value?.services ?? [])
 
 // Fetched before the modal opens so the picker and footer don't pop in
-// after the fact; the button shows a spinner meanwhile.
-const openingTerminal = ref(false)
+// after the fact.
 async function openTerminal() {
   terminalService.value = 'web'
-  openingTerminal.value = true
   try {
     sshInfo.value = await $fetch<SshInfo>(`/api/runs/${id}/ssh`)
   }
   catch {
     // The terminal itself still works; only the picker/footer stay bare.
     sshInfo.value = { services: ['web'], sshCommands: null }
-  }
-  finally {
-    openingTerminal.value = false
   }
   terminalOpen.value = true
 }
@@ -304,9 +260,7 @@ async function copySshCommand() {
 // The web IDE: openvscode-server inside the run's web container, on its own
 // preview origin. The tab opens synchronously (popup blockers kill windows
 // opened after an await) and navigates once the server confirms it is up.
-const openingVscode = ref(false)
 async function openInVscode() {
-  openingVscode.value = true
   const tab = window.open('about:blank', '_blank')
   try {
     const { url } = await $fetch<{ url: string }>(`/api/runs/${id}/ide`, { method: 'POST' })
@@ -317,10 +271,32 @@ async function openInVscode() {
     tab?.close()
     toastError('Could not open the IDE', e)
   }
-  finally {
-    openingVscode.value = false
-  }
 }
+
+// The header's overflow menu: remote access (terminal + web IDE) while the
+// env still exists, disabled until it is up again; delete stays separate as
+// the destructive tail.
+const menuItems = computed(() => {
+  const remote = run.value?.envState !== 'down'
+    ? [{
+        label: 'Terminal',
+        icon: 'i-lucide-square-terminal',
+        disabled: !canTerminal.value,
+        onSelect: openTerminal,
+      }, {
+        label: 'Open in VS Code',
+        icon: 'i-lucide-code',
+        disabled: !canTerminal.value,
+        onSelect: openInVscode,
+      }]
+    : []
+  return [remote, [{
+    label: 'Delete run',
+    icon: 'i-lucide-trash-2',
+    color: 'error' as const,
+    onSelect: () => { confirmDelete.value = true },
+  }]]
+})
 const followupPrompt = ref('')
 const sendingFollowup = ref(false)
 // One flag for everything the composer disables on.
@@ -384,7 +360,6 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
   refresh(),
   refreshSteps(),
   refreshFollowups(),
-  ...[...expandedSteps.value].map(rowId => refreshStepDetail(rowId)),
 ]))
 </script>
 
@@ -433,41 +408,6 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
         </div>
       </div>
       <div class="flex flex-none items-center gap-2">
-        <UTooltip
-          v-if="run.envState !== 'down'"
-          :text="terminalHint"
-          :disabled="canTerminal"
-        >
-          <!-- The span keeps the tooltip hoverable while the button is disabled. -->
-          <span>
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-square-terminal"
-              label="Terminal"
-              :disabled="!canTerminal"
-              :loading="openingTerminal"
-              @click="openTerminal"
-            />
-          </span>
-        </UTooltip>
-        <UTooltip
-          v-if="run.envState !== 'down'"
-          :text="terminalHint"
-          :disabled="canTerminal"
-        >
-          <span>
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-code"
-              label="Open in VS Code"
-              :disabled="!canTerminal"
-              :loading="openingVscode"
-              @click="openInVscode"
-            />
-          </span>
-        </UTooltip>
         <UButton
           v-if="run.prUrl"
           color="primary"
@@ -506,10 +446,12 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
       </div>
     </div>
 
-    <!-- The preview anchors the workspace and is always present; while it is
-         offline, the env's lifecycle state (stopped/archived/gone) renders
+    <!-- The preview anchors the workspace whenever the workflow boots an env;
+         a workflow without a boot step gets no preview frame at all. While it
+         is offline, the env's lifecycle state (stopped/archived/gone) renders
          inside the frame with its revival action instead of a separate card. -->
     <KPreviewBrowser
+      v-if="hasBootStep"
       :run-id="run.id"
       :hosts="run.previewHosts ?? []"
       :online="previewOnline"
@@ -517,8 +459,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
     >
       <template v-if="run.envState === 'stopped'">
         <p class="max-w-100 text-2sm text-muted">
-          The environment was stopped after being idle. Reboot it to preview again;
-          the imported database and built files are kept.
+          The environment was stopped after being idle. Reboot it to preview again.
         </p>
         <UButton
           color="primary"
@@ -541,7 +482,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
           @click="reboot"
         />
       </template>
-      <template v-else-if="run.envState === 'down' && hasBootStep">
+      <template v-else-if="run.envState === 'down'">
         <p class="max-w-100 text-2sm text-muted">
           This run's environment and its archive are gone, so there is nothing left to
           restore. Run the workflow again to get a fresh environment.
@@ -553,11 +494,6 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
           :loading="restarting"
           @click="runAgain"
         />
-      </template>
-      <template v-else-if="run.envState === 'down'">
-        <p class="max-w-100 text-2sm text-muted">
-          This workflow has no boot step, so the run has no preview environment.
-        </p>
       </template>
       <template v-else>
         <p class="max-w-70 text-2sm text-muted">
@@ -685,126 +621,14 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
       </UChatPrompt>
     </KPanel>
 
-    <KPanel
-      v-if="timeline.length"
-      title="Steps"
-      icon="i-lucide-list-checks"
-      :pad="0"
-    >
-      <ul class="divide-y divide-muted">
-        <li
-          v-for="s in timeline"
-          :key="s.id"
-        >
-          <button
-            type="button"
-            class="flex w-full items-center gap-3 px-4.5 py-3 text-left transition-colors hover:bg-elevated/50"
-            :style="s.depth ? { paddingLeft: `${18 + s.depth * 26}px` } : undefined"
-            :aria-expanded="expandedSteps.has(s.id)"
-            @click="toggleStep(s.id)"
-          >
-            <KStepIcon
-              :icon="s.icon"
-              :size="30"
-              :radius="7"
-              :color="s.color"
-            />
-            <div class="min-w-0 flex-1">
-              <div class="flex items-baseline gap-2">
-                <span class="truncate text-2sm text-highlighted">{{ s.label }}</span>
-                <span class="k-mono text-3xs text-dimmed">{{ s.stepId }}</span>
-                <span
-                  v-if="s.iteration !== null"
-                  class="k-mono text-3xs text-dimmed"
-                >#{{ s.iteration + 1 }}</span>
-                <span
-                  v-if="s.attempt > 1"
-                  class="k-mono text-3xs text-accent-orange"
-                >{{ s.attempt }} attempts</span>
-              </div>
-              <p
-                v-if="s.snippet"
-                class="truncate text-xs text-muted"
-              >
-                {{ s.snippet }}
-              </p>
-              <p
-                v-if="s.error"
-                class="truncate text-xs"
-                style="color: var(--status-error)"
-              >
-                {{ s.error }}
-              </p>
-            </div>
-            <span class="k-mono text-2xs text-dimmed">{{ runDuration(s.startedAt, s.finishedAt) }}</span>
-            <KStatusDot
-              :color="s.statusMeta.dot"
-              :pulse="s.statusMeta.pulse"
-              :size="6"
-            />
-            <UIcon
-              name="i-lucide-chevron-down"
-              class="size-3.5 shrink-0 text-dimmed transition-transform"
-              :class="expandedSteps.has(s.id) ? 'rotate-180' : ''"
-            />
-          </button>
-          <div
-            v-if="expandedSteps.has(s.id)"
-            class="border-t border-muted px-4.5 py-4"
-            :style="s.depth ? { paddingLeft: `${18 + s.depth * 26}px` } : undefined"
-          >
-            <div
-              v-if="stepDetails.get(s.id)"
-              class="flex flex-col gap-4"
-            >
-              <div
-                v-for="section in detailSections(stepDetails.get(s.id)!)"
-                :key="section.label"
-              >
-                <p class="k-mono mb-1.5 text-3xs uppercase tracking-wide text-dimmed">
-                  {{ section.label }}
-                </p>
-                <p
-                  class="whitespace-pre-wrap text-xs"
-                  :class="[section.mono ? 'k-mono' : '', section.error ? '' : 'text-muted']"
-                  :style="section.error ? 'color: var(--status-error)' : undefined"
-                >
-                  {{ section.text }}
-                </p>
-              </div>
-              <div v-if="stepDetails.get(s.id)!.log">
-                <p class="k-mono mb-1.5 text-3xs uppercase tracking-wide text-dimmed">
-                  Log
-                </p>
-                <KLogView
-                  :log="stepDetails.get(s.id)!.log"
-                  :max-height="260"
-                  class="text-xs leading-loose"
-                />
-              </div>
-              <p
-                v-if="!stepDetails.get(s.id)!.log && !detailSections(stepDetails.get(s.id)!).length"
-                class="text-xs text-dimmed"
-              >
-                This step recorded no details.
-              </p>
-            </div>
-            <p
-              v-else
-              class="text-xs text-dimmed"
-            >
-              Loading…
-            </p>
-          </div>
-        </li>
-      </ul>
-    </KPanel>
-
+    <!-- The full run log, continuous, with a step index rail: clicking a
+         step scrolls the log to that step's recorded byte offset. Nothing is
+         hidden: retry banners, agent-git lines and the closing ✓/✗ sit in
+         the segment they chronologically belong to. -->
     <KPanel
       title="Log"
-      icon="i-lucide-terminal"
+      icon="i-lucide-list-checks"
       :pad="0"
-      collapsible
     >
       <template #action>
         <span class="flex items-center gap-2">
@@ -816,9 +640,13 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
           <span class="k-mono text-2xs text-muted">{{ run.workflow }} · {{ run.project }}</span>
         </span>
       </template>
-      <KLogView
+      <KRunLog
         :log="run.log"
-        class="px-4.5 py-4 text-xs leading-loose"
+        :rows="timeline"
+        :live="isLive || followupActive"
+        :run-status="run.status"
+        :run-started-at="run.startedAt"
+        :run-finished-at="run.finishedAt"
       />
     </KPanel>
 

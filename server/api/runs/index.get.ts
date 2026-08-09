@@ -1,4 +1,5 @@
 import { desc, eq } from 'drizzle-orm'
+import { stepsInclude } from '../../../shared/utils/workflow'
 import { db, schema } from '../../db'
 
 // The list/poll endpoints only ever show recent history; the cap keeps the
@@ -19,6 +20,7 @@ export default defineEventHandler((event) => {
       workflow: schema.runs.workflow,
       status: schema.runs.status,
       envState: schema.runs.envState,
+      steps: schema.runs.steps,
       previewHosts: schema.runs.previewHosts,
       previewReady: schema.runs.previewReady,
       trigger: schema.runs.trigger,
@@ -35,5 +37,8 @@ export default defineEventHandler((event) => {
     query = query.where(eq(schema.runs.projectId, projectId))
   }
 
+  // The steps blob stays server-side; the list only says whether the run's
+  // workflow boots a preview environment (drives the preview/mascot UI).
   return query.orderBy(desc(schema.runs.id)).limit(LIST_LIMIT).all()
+    .map(({ steps, ...r }) => ({ ...r, hasBootStep: stepsInclude(steps ?? [], 'ddev-start') }))
 })

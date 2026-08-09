@@ -19,6 +19,7 @@ export default defineEventHandler((event) => {
       attempt: schema.runSteps.attempt,
       parentStepId: schema.runSteps.parentStepId,
       iteration: schema.runSteps.iteration,
+      logStart: schema.runSteps.logStart,
       startedAt: schema.runSteps.startedAt,
       finishedAt: schema.runSteps.finishedAt,
     })
