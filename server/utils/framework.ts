@@ -2,18 +2,21 @@ import type { Octokit } from 'octokit'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { DdevEnv, Project } from '../db/schema'
-import { fetchDdevConfig, fetchFrameworkVersion, fetchPackageManager } from './github'
+import { fetchDdevConfig, fetchFavicon, fetchFrameworkVersion, fetchPackageManager } from './github'
 import { getInstallationClient } from './github-app'
 
 export interface ProjectMeta {
   framework: string | null
   frameworkVersion: string | null
   ddevEnv: DdevEnv
+  favicon: string
 }
 
-// Resolve a project's framework + version + DDEV environment spec from its repo
-// (`.ddev/config.yaml`, `composer.lock`, `package.json`). Best-effort: every
-// field falls back to null when the repo/files can't be read.
+// Resolve a project's framework + version + DDEV environment spec + favicon
+// from its repo (`.ddev/config.yaml`, `composer.lock`, `package.json`, the
+// tree). Best-effort: every field falls back to null when the repo/files
+// can't be read; the favicon to '' ("looked, none found"), which the preview
+// fallback (utils/favicon.ts) may fill later.
 export async function resolveProjectMeta(
   octokit: Octokit,
   owner: string,
@@ -21,13 +24,15 @@ export async function resolveProjectMeta(
   ref?: string,
 ): Promise<ProjectMeta> {
   const cfg = await fetchDdevConfig(octokit, owner, name, ref)
-  const [frameworkVersion, packageManager] = await Promise.all([
+  const [frameworkVersion, packageManager, favicon] = await Promise.all([
     cfg.type ? fetchFrameworkVersion(octokit, owner, name, cfg.type, ref) : Promise.resolve(null),
     fetchPackageManager(octokit, owner, name, ref),
+    fetchFavicon(octokit, owner, name, ref),
   ])
   return {
     framework: cfg.type,
     frameworkVersion,
+    favicon: favicon ?? '',
     ddevEnv: {
       webserver: cfg.webserver,
       phpVersion: cfg.phpVersion,
@@ -53,7 +58,7 @@ const RETRY_MS = 10 * 60_000
 export async function backfillFrameworks(projects: Project[]): Promise<void> {
   const now = Date.now()
   const missing = projects.filter(p =>
-    (p.framework == null || p.ddevEnv == null)
+    (p.framework == null || p.ddevEnv == null || p.favicon == null)
     && now - (attemptedAt.get(p.id) ?? 0) > RETRY_MS)
   if (!missing.length) return
 

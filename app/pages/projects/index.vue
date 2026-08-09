@@ -104,6 +104,7 @@ const open = ref(false)
         :private="p.private"
         :framework="p.framework"
         :framework-version="p.frameworkVersion"
+        :favicon="p.favicon"
         :latest="runsByProject.latest.get(p.id) ?? null"
         :runs-count="runsByProject.counts.get(p.id) ?? 0"
       />

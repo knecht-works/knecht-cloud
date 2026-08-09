@@ -92,6 +92,53 @@ export async function fetchPackageManager(
   }
 }
 
+// The repo's favicon as a data URI. One recursive tree listing finds any
+// favicon.svg/png/ico wherever it lives (docroot, public/, a theme folder),
+// so the lookup doesn't depend on knowing the docroot. Best-effort: null when
+// the repo has no such file, the tree can't be read (or is truncated past the
+// file), or every candidate is oversized.
+const FAVICON_MIME: Record<string, string> = {
+  svg: 'image/svg+xml',
+  png: 'image/png',
+  ico: 'image/x-icon',
+}
+const FAVICON_MAX_BYTES = 100_000
+
+export async function fetchFavicon(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  ref?: string,
+): Promise<string | null> {
+  try {
+    const { data } = await octokit.rest.git.getTree({
+      owner,
+      repo,
+      tree_sha: ref ?? 'HEAD',
+      recursive: 'true',
+    })
+    const candidates = (data.tree ?? [])
+      .map(e => ({ ...e, match: /(?:^|\/)favicon\.(svg|png|ico)$/i.exec(e.path ?? '') }))
+      .filter(e => e.type === 'blob' && e.sha && e.match
+        && !/(?:^|\/)(?:node_modules|vendor)\//.test(e.path!))
+    // Shallower beats deeper (the site's own icon over some sub-package's);
+    // at equal depth svg > png > ico (renders sharpest).
+    const order = ['svg', 'png', 'ico']
+    candidates.sort((a, b) =>
+      (a.path!.split('/').length - b.path!.split('/').length)
+      || (order.indexOf(a.match![1]!.toLowerCase()) - order.indexOf(b.match![1]!.toLowerCase())))
+    const best = candidates.find(c => (c.size ?? 0) <= FAVICON_MAX_BYTES)
+    if (!best) return null
+    const blob = await octokit.rest.git.getBlob({ owner, repo, file_sha: best.sha! })
+    if (!blob.data.content) return null
+    const mime = FAVICON_MIME[best.match![1]!.toLowerCase()]!
+    return `data:${mime};base64,${blob.data.content.replace(/\s/g, '')}`
+  }
+  catch {
+    return null
+  }
+}
+
 // The composer package that carries the framework's version, per DDEV type.
 const COMPOSER_PACKAGE: Record<string, string> = {
   typo3: 'typo3/cms-core',
