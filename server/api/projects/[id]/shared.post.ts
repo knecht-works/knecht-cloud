@@ -1,6 +1,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import AdmZip from 'adm-zip'
+import { and, eq } from 'drizzle-orm'
+import { db, schema } from '../../../db'
+import { rebootEnv } from '../../../daemon/envs'
+import { hasActiveFollowup } from '../../../daemon/followups'
+import { WEB_PROJECT_DIR, webMountPresent } from '../../../daemon/sandbox'
 
 // POST /api/projects/:id/shared → seed one of the project's shared folders
 // from an uploaded zip (multipart: `path` = the configured folder, `file` =
@@ -50,6 +55,23 @@ export default defineEventHandler(async (event) => {
     writeFileSync(dest, f.data)
     written++
   }
+
+  // The folder's bind mount is declared at env boot, so an env that was
+  // already up when the folder was configured is missing it and would only
+  // show the seeded files on its next boot. Heal in place like the IDE mount
+  // (runs/[id]/ide.post.ts): reboot every running env that lacks the mount,
+  // except ones mid-workflow or mid-follow-up (recreating the web container
+  // would kill them). Envs with the mount see the files live already.
+  const upRuns = db
+    .select({ id: schema.runs.id, status: schema.runs.status })
+    .from(schema.runs)
+    .where(and(eq(schema.runs.projectId, id), eq(schema.runs.envState, 'up')))
+    .all()
+  await Promise.all(upRuns.map(async (run) => {
+    if (run.status === 'queued' || run.status === 'running' || hasActiveFollowup(run.id)) return
+    if (await webMountPresent(run.id, `${WEB_PROJECT_DIR}/${target}`)) return
+    await rebootEnv(run.id).catch(() => {})
+  }))
 
   return { folder: target, files: written }
 })
