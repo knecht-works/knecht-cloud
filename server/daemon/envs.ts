@@ -205,11 +205,15 @@ export async function archiveStaleEnvs(): Promise<void> {
     .from(schema.runs)
     .where(and(eq(schema.runs.envState, 'stopped'), lt(schema.runs.previewLastSeen, cutoff)))
     .all()
-  for (const run of stale) {
-    await snapshotCheckout(run.id)
-    await teardownRun(run.id)
-    db.update(schema.runs).set({ envState: 'archived' }).where(eq(schema.runs.id, run.id)).run()
-  }
+  for (const run of stale) await archiveEnv(run.id)
+}
+
+// Archive one stopped env: snapshot, teardown, mark archived. Shared by the
+// retention reaper above and the run page's "archive now" action.
+export async function archiveEnv(runId: number): Promise<void> {
+  await snapshotCheckout(runId)
+  await teardownRun(runId)
+  db.update(schema.runs).set({ envState: 'archived' }).where(eq(schema.runs.id, runId)).run()
 }
 
 // Record what the teardown is about to delete from the checkout: its HEAD

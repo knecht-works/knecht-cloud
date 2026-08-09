@@ -118,14 +118,46 @@ const meta = computed(() => {
   ].filter(Boolean) as { icon: string, text: string, href?: string }[]
 })
 
-// Destructive, so it lives in the header's overflow menu behind a confirm.
+// The overflow menu: the manual env lifecycle steps (stop/archive, the
+// counterparts of the reboot/restore button) plus delete behind a confirm.
+// Stop and archive are what the reapers do on their timers, just on demand:
+// free the RAM/disk now, or walk an env through its states to test them.
 const confirmDelete = ref(false)
-const menuItems = [{
-  label: 'Delete run',
-  icon: 'i-lucide-trash-2',
-  color: 'error' as const,
-  onSelect: () => { confirmDelete.value = true },
-}]
+const menuItems = computed(() => [
+  ...(run.value?.envState === 'up' && !isLive.value
+    ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', onSelect: stopEnvNow }]
+    : []),
+  ...(run.value?.envState === 'stopped'
+    ? [{ label: 'Archive environment', icon: 'i-lucide-archive', onSelect: archiveEnvNow }]
+    : []),
+  {
+    label: 'Delete run',
+    icon: 'i-lucide-trash-2',
+    color: 'error' as const,
+    onSelect: () => { confirmDelete.value = true },
+  },
+])
+
+// Stopping exports the database first, so it takes a moment; the toast
+// bridges the gap until the preview card flips to the stopped state.
+async function stopEnvNow() {
+  toast.add({ title: 'Stopping the environment…', description: 'The database is exported first.' })
+  try {
+    run.value = await $fetch(`/api/runs/${id}/stop`, { method: 'POST' })
+  }
+  catch (e) {
+    toastError('Stop failed', e)
+  }
+}
+
+async function archiveEnvNow() {
+  try {
+    run.value = await $fetch(`/api/runs/${id}/archive`, { method: 'POST' })
+  }
+  catch (e) {
+    toastError('Archive failed', e)
+  }
+}
 const deleting = ref(false)
 async function remove() {
   deleting.value = true
