@@ -37,7 +37,7 @@ const statusText = computed(() =>
 <template>
   <NuxtLink
     :to="`/projects/${id}`"
-    class="k-card k-lift flex h-full flex-col overflow-hidden"
+    class="k-card k-lift flex h-full min-h-45 flex-col overflow-hidden"
   >
     <div class="px-5 pb-4 pt-4.5">
       <div class="flex items-start gap-2.5">
@@ -49,7 +49,7 @@ const statusText = computed(() =>
             :radius="8"
           />
           <div class="min-w-0">
-            <div class="k-mono flex items-center gap-1.5 truncate text-xs leading-tight text-default">
+            <div class="k-mono flex items-center gap-1.5 truncate text-sm font-medium leading-tight text-highlighted">
               <UIcon
                 v-if="private"
                 name="i-lucide-lock"
