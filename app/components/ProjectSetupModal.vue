@@ -36,11 +36,17 @@ const { data: repos, status: reposStatus, execute: loadRepos } = useFetch('/api/
 
 const selected = ref()
 const connecting = ref(false)
+// Connect failures (no .ddev config, repo already connected, ...) render
+// inline in the repo step, where the user is looking, instead of a toast.
+const connectError = ref<string | null>(null)
 
 // The branch the project will work on (checkout + PR base). Defaults to the
 // repo's default branch; the full list loads once a repo is picked.
 const branch = ref<string>()
-watch(selected, repo => branch.value = repo?.defaultBranch)
+watch(selected, (repo) => {
+  branch.value = repo?.defaultBranch
+  connectError.value = null
+})
 const { items: branches, loading: loadingBranches } = useBranchPicker(
   () => selected.value ? `/api/github/repos/${selected.value.owner}/${selected.value.name}/branches` : null,
   () => selected.value?.defaultBranch,
@@ -49,6 +55,7 @@ const { items: branches, loading: loadingBranches } = useBranchPicker(
 async function connect() {
   if (!selected.value) return
   connecting.value = true
+  connectError.value = null
   try {
     project.value = await $fetch('/api/projects', {
       method: 'POST',
@@ -66,7 +73,7 @@ async function connect() {
     step.value = 'env'
   }
   catch (e) {
-    toastError('Failed to connect', e)
+    connectError.value = errMsg(e, 'Failed to connect. Please try again.')
   }
   finally {
     connecting.value = false
@@ -142,6 +149,7 @@ watch(open, (isOpen) => {
   project.value = null
   selected.value = undefined
   branch.value = undefined
+  connectError.value = null
   envText.value = ''
 })
 </script>
@@ -214,6 +222,17 @@ watch(open, (isOpen) => {
           The repo must contain a <span class="k-mono">.ddev/config.yaml</span>. Framework, PHP and
           database are read from it automatically. Runs check out the selected branch and open PRs
           against it.
+        </p>
+        <p
+          v-if="connectError"
+          class="flex items-start gap-2 rounded-md border px-3 py-2.5 text-xs"
+          style="border-color: color-mix(in oklab, var(--status-error) 45%, transparent); background: color-mix(in oklab, var(--status-error) 10%, transparent); color: var(--status-error)"
+        >
+          <UIcon
+            name="i-lucide-triangle-alert"
+            class="mt-0.5 size-3.5 flex-none"
+          />
+          <span>{{ connectError }}</span>
         </p>
         <div class="flex justify-end gap-2">
           <UButton

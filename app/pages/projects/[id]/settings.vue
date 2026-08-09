@@ -16,7 +16,7 @@ const envSpec = computed(() => {
   return [
     { label: 'Web', value: e.webserver?.replace(/-fpm$/, '') ?? null },
     { label: 'PHP', value: e.phpVersion },
-    { label: 'Database', value: e.noDb ? 'none' : (e.dbType ? `${e.dbType}${e.dbVersion ? ` ${e.dbVersion}` : ''}` : null) },
+    { label: 'Database', value: e.dbType ? `${e.dbType}${e.dbVersion ? ` ${e.dbVersion}` : ''}` : null },
     { label: 'Node', value: e.nodeVersion },
     { label: 'Package manager', value: e.packageManager?.replace('@', ' ') ?? null },
   ].filter(r => r.value)
@@ -325,10 +325,7 @@ async function uploadSeed(event: Event) {
           </p>
         </KPanel>
 
-        <!-- A project whose ddev config omits the db container has nothing to
-             import a dump into. -->
         <KPanel
-          v-if="!project.ddevEnv?.noDb"
           title="Database dump"
           icon="i-lucide-hard-drive-download"
         >
