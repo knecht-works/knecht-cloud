@@ -73,6 +73,26 @@ export async function fetchDdevConfig(
   }
 }
 
+// Whether the repo carries a `.ddev/config.yaml` on the ref. A 404 is a
+// definite "no"; every other failure (App not installed, rate limit, network)
+// bubbles up so the caller can stay best-effort instead of mistaking
+// "couldn't look" for "missing".
+export async function hasDdevConfig(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  ref?: string,
+): Promise<boolean> {
+  try {
+    await octokit.rest.repos.getContent({ owner, repo, path: '.ddev/config.yaml', ref })
+    return true
+  }
+  catch (e) {
+    if ((e as { status?: number }).status === 404) return false
+    throw e
+  }
+}
+
 // The Corepack `packageManager` field from a repo's `package.json` (e.g.
 // 'pnpm@9.1.0'). Best-effort: null when there's no package.json or no field.
 export async function fetchPackageManager(
