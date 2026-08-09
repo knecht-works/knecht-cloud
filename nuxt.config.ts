@@ -1,7 +1,5 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-
-  // @comark/nuxt renders the agent's markdown replies in the follow-up chat.
   modules: ['@nuxt/ui', '@nuxt/eslint', 'nuxt-auth-utils', '@comark/nuxt'],
 
   devtools: { enabled: true },
@@ -87,8 +85,19 @@ export default defineNuxtConfig({
     },
     optimizeDeps: {
       include: [
+        '@comark/vue',
         '@vue/devtools-core',
         '@vue/devtools-kit',
+        '@xterm/addon-fit',
+        '@xterm/xterm',
+        'prism-code-editor',
+        'prism-code-editor/commands',
+        'prism-code-editor/languages/bash',
+        'prism-code-editor/languages/clike',
+        'prism-code-editor/match-brackets',
+        'prism-code-editor/prism/languages/bash',
+        'prism-code-editor/prism/languages/javascript',
+        'prism-code-editor/utils',
       ],
     },
   },

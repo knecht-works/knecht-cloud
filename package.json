@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@iconify-json/lucide": "^1.2.116",
+    "@iconify-json/simple-icons": "^1.2.93",
     "@nuxt/eslint": "^1.16.0",
     "@types/adm-zip": "^0.5.8",
     "@types/better-sqlite3": "^7.6.13",
