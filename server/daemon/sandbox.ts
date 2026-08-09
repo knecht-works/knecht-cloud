@@ -87,6 +87,21 @@ export async function startEnvStack(runId: number): Promise<void> {
   await wireNetworks(runId)
 }
 
+// Whether the run's web container has a bind mount at the given in-container
+// destination. Spots envs booted before a mount was configured (e.g. a shared
+// folder added while the env was already up); false when the container is gone.
+export async function webMountPresent(runId: number, dest: string): Promise<boolean> {
+  try {
+    const { stdout } = await execa('docker', [
+      'inspect', '-f', '{{range .Mounts}}{{.Destination}}{{"\\n"}}{{end}}', webContainerName(runId),
+    ])
+    return stdout.split('\n').includes(dest)
+  }
+  catch {
+    return false
+  }
+}
+
 export async function envStackRunning(runId: number): Promise<boolean> {
   try {
     const { stdout } = await execa('docker', ['inspect', '-f', '{{.State.Running}}', webContainerName(runId)])
