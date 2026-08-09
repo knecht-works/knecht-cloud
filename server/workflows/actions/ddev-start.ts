@@ -6,6 +6,7 @@ import type { Step } from '../../../shared/utils/workflow'
 import { db, schema } from '../../db'
 import { projectDumpDir } from '../../utils/storage'
 import { previewOrigin } from '../../utils/origin'
+import { detectPreviewFavicon } from '../../utils/favicon'
 import { defineAction, type ActionRuntime } from './types'
 
 export const ddevStartAction = defineAction({
@@ -32,6 +33,10 @@ export const ddevStartAction = defineAction({
     // browsable now, so THIS is what makes the preview visible in the UI
     // (envState 'up' alone only means the containers run).
     db.update(schema.runs).set({ previewReady: true }).where(eq(schema.runs.id, rt.runId)).run()
+    // The repo scan found no favicon for this project: the running site is
+    // the second chance (icons generated at build time or served by the CMS).
+    // Fire-and-forget; failures just keep the generic project icon.
+    if (!rt.project.favicon) void detectPreviewFavicon(rt.runId, rt.project)
     // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
     // per-run origin the preview proxy serves.
     const previewUrl = previewOrigin(rt.runId)

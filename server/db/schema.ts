@@ -39,6 +39,13 @@ export const projects = sqliteTable('projects', {
   // The DDEV environment spec (web/php/db/node/package manager). Null until
   // resolved from the repo; resolved alongside `framework`.
   ddevEnv: text('ddev_env', { mode: 'json' }).$type<DdevEnv>(),
+  // The project's favicon as a data URI, shown instead of the generic project
+  // icon. Resolved alongside `framework` from any favicon.svg/png/ico in the
+  // repo tree; when the repo carries none, the first browsable preview's
+  // <head> is the fallback source (utils/favicon.ts). Null until resolved,
+  // '' when the repo scan found nothing (keeps the backfill from re-hitting
+  // GitHub on every load).
+  favicon: text('favicon'),
 
   // Per-project config (maintained on the project detail page, increment 2)
   envVars: text('env_vars', { mode: 'json' })

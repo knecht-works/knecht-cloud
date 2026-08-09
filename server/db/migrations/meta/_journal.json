@@ -127,6 +127,13 @@
       "when": 1786292125229,
       "tag": "0017_dark_hellcat",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1786292600814,
+      "tag": "0018_project-favicon",
+      "breakpoints": true
     }
   ]
 }

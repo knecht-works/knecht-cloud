@@ -16,6 +16,7 @@ const props = defineProps<{
   private: boolean
   framework?: string | null
   frameworkVersion?: string | null
+  favicon?: string | null
   latest?: RunSummary | null
   runsCount: number
 }>()
@@ -42,7 +43,20 @@ const statusText = computed(() =>
     <div class="px-5 pb-4 pt-4.5">
       <div class="flex items-start gap-2.5">
         <div class="flex min-w-0 items-center gap-3">
+          <!-- The site's favicon when one was resolved, in the same chip
+               frame; the generic box otherwise. -->
+          <span
+            v-if="favicon"
+            class="grid size-[34px] flex-none place-items-center rounded-lg border border-default bg-(--surface-accented)"
+          >
+            <img
+              :src="favicon"
+              alt=""
+              class="size-5 object-contain"
+            >
+          </span>
           <KStepIcon
+            v-else
             icon="i-lucide-box"
             :color="fw.color"
             :size="34"

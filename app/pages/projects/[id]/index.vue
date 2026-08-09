@@ -201,7 +201,20 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
 
     <div class="mb-5.5 flex flex-wrap items-start justify-between gap-4">
       <div class="flex gap-3.5">
+        <!-- The site's favicon when one was resolved, in the same chip frame
+             as the project cards; the generic box otherwise. -->
+        <span
+          v-if="project.favicon"
+          class="grid size-12 flex-none place-items-center rounded-lg border border-default bg-(--surface-accented)"
+        >
+          <img
+            :src="project.favicon"
+            alt=""
+            class="size-7 object-contain"
+          >
+        </span>
         <KStepIcon
+          v-else
           icon="i-lucide-box"
           :color="fw.color"
           :size="46"
