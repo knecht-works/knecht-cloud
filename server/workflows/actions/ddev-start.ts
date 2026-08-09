@@ -27,7 +27,7 @@ export const ddevStartAction = defineAction({
     const { code } = await rt.sandbox.stream(['ddev', 'start'])
     if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
     await importDb(rt)
-    await runSetupCommands(rt, step.commands)
+    await runSetupCommands(step.commands, async c => (await rt.sandbox.stream(['bash', '-lc', c])).code, rt.log)
     // Boot, DB import and the setup commands are through: the site is actually
     // browsable now, so THIS is what makes the preview visible in the UI
     // (envState 'up' alone only means the containers run).
@@ -41,12 +41,18 @@ export const ddevStartAction = defineAction({
 
 // The step's optional setup commands (one per line), run after boot + DB
 // import like dedicated bash steps would be: sequentially, first failure
-// fails the step.
-async function runSetupCommands(rt: ActionRuntime, commands?: string): Promise<void> {
+// fails the step. `exec` runs one command and returns its exit code; exported
+// so the archive restore (daemon/envs.ts) re-runs the commands with its own
+// exec to rebuild what the archive doesn't carry (vendor/ and friends).
+export async function runSetupCommands(
+  commands: string | undefined,
+  exec: (command: string) => Promise<number>,
+  log: (text: string) => void = () => {},
+): Promise<void> {
   const lines = (commands ?? '').split('\n').map(l => l.trim()).filter(Boolean)
   for (const command of lines) {
-    rt.log(`\n▶ ${command}\n`)
-    const { code } = await rt.sandbox.stream(['bash', '-lc', command])
+    log(`\n▶ ${command}\n`)
+    const code = await exec(command)
     if (code !== 0) throw new Error(`'${command}' exited with code ${code}`)
   }
 }
