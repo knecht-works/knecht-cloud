@@ -1,13 +1,14 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
-import { and, eq, lt } from 'drizzle-orm'
+import { and, desc, eq, lt } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { getSettings } from '../utils/settings'
 import { getProject, getRun } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
 import { projectDumpDir, runArchiveDir, runCheckoutDir } from '../utils/storage'
+import { runSetupCommands } from '../workflows/actions/ddev-start'
 import { writeDdevConfig } from './ddev'
 import { prepareRunCheckout } from './git'
 import { envStackRunning, execInSandbox, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
@@ -57,8 +58,10 @@ export async function rebootEnv(runId: number): Promise<void> {
 // Restore an archived env exactly: unpack the archived .git and reset the
 // working tree from it (offline, and it carries the run's branch, config and
 // every commit the run made, pushed or not), re-apply the uncommitted diff,
-// start a fresh stack and import the run's own DB export (falling back to the
-// project dump for archives without one). An archive whose .git snapshot is
+// start a fresh stack, import the run's own DB export (falling back to the
+// project dump for archives without one) and re-run the boot step's setup
+// commands, which rebuild what the archive doesn't carry (vendor/ and other
+// gitignored artifacts). An archive whose .git snapshot is
 // missing (the best-effort snapshot failed) falls back to a fresh clone at
 // the branch tip. Takes minutes, the price of archives costing MBs instead
 // of GBs.
@@ -98,7 +101,32 @@ export async function rehydrateEnv(runId: number): Promise<void> {
 
   await startEnvStack(runId)
   await importArchivedDb(runId, project)
+  await rerunBootSetup(runId)
   markUp(runId)
+}
+
+// Re-run the boot step's setup commands (composer install and friends) after a
+// restore: the archive keeps only git-visible state plus the DB export, so
+// everything gitignored (vendor/, node_modules/, a generated .env) died with
+// the teardown and must be rebuilt the way the original boot built it. The
+// commands come from the run's executed ddev-start row, already rendered.
+// A run without a successful boot step never had a preview: nothing to redo.
+async function rerunBootSetup(runId: number): Promise<void> {
+  const row = db
+    .select({ params: schema.runSteps.params })
+    .from(schema.runSteps)
+    .where(and(
+      eq(schema.runSteps.runId, runId),
+      eq(schema.runSteps.type, 'ddev-start'),
+      eq(schema.runSteps.status, 'success'),
+    ))
+    .orderBy(desc(schema.runSteps.id))
+    .get()
+  const { commands } = (row?.params ?? {}) as { commands?: string }
+  await runSetupCommands(commands, async (command) => {
+    const { exitCode } = await execInSandbox(runId, ['bash', '-lc', command], { reject: false })
+    return exitCode ?? 1
+  })
 }
 
 // The env is up and previewable now, even if later steps fail. Also resets
