@@ -198,6 +198,12 @@ export const runSteps = sqliteTable('run_steps', {
   attempt: integer('attempt').notNull().default(1),
   // This step's slice of the run log (the run's `log` stays the full stream).
   log: text('log').notNull().default(''),
+  // Byte offset into runs.log where this row's slice begins, captured just
+  // before the row is inserted (so the step's '\n▶ <label>' banner is the
+  // first thing at the offset). The dashboard cuts the full run log into
+  // per-step segments here. Null on rows from before the column existed;
+  // those runs render as one unsegmented log.
+  logStart: integer('log_start'),
   parentStepId: text('parent_step_id'),
   iteration: integer('iteration'),
   startedAt: integer('started_at', { mode: 'timestamp' }),

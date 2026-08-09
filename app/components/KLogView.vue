@@ -35,7 +35,7 @@ watch(() => props.log, async () => {
 <template>
   <div
     ref="el"
-    class="k-mono overflow-auto whitespace-pre-wrap text-muted"
+    class="k-mono k-scrollbar-none overflow-auto whitespace-pre-wrap text-muted"
     :style="{ maxHeight: `${maxHeight}px` }"
     @scroll="onScroll"
   >

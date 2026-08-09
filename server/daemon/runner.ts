@@ -324,6 +324,9 @@ async function execStep(
   // against the LIVE context as the body executes.
   const action = isComposite(step) ? null : actionFor(step.type)
   const rendered = action ? renderStepParams(step, ctx, action.rawParams) : step
+  // Read the offset BEFORE inserting: nothing logs between here and the
+  // action's '\n▶ <label>' banner, so the banner is the first bytes at it.
+  const logStart = runLogBytes(runId)
   const row = db.insert(schema.runSteps).values({
     runId,
     stepIndex: index,
@@ -332,6 +335,7 @@ async function execStep(
     params: stepParams(rendered),
     parentStepId: scope.parentStepId,
     iteration: scope.iteration,
+    logStart,
     startedAt: new Date(),
   }).returning({ id: schema.runSteps.id }).get()
   const prevRow = rowLog.current
@@ -479,6 +483,21 @@ export function appendLog(runId: number, text: string): void {
     .set({ log: sql`${schema.runs.log} || ${text}` })
     .where(eq(schema.runs.id, runId))
     .run()
+}
+
+// Current byte length of a run's log, i.e. the offset where the next append
+// lands: what run_steps.logStart records at row insert. Read from the DB
+// (not tracked as a counter) because the agent bridge and the follow-up
+// banners append outside the runner's log closure, and cast to blob because
+// sqlite's length() on TEXT counts characters while the dashboard cuts the
+// log with TextEncoder (bytes). Synchronous sqlite plus the single-writer
+// runner make the value exact for the row about to be inserted.
+export function runLogBytes(runId: number): number {
+  return db
+    .select({ bytes: sql<number>`length(cast(${schema.runs.log} as blob))` })
+    .from(schema.runs)
+    .where(eq(schema.runs.id, runId))
+    .get()?.bytes ?? 0
 }
 
 function finish(runId: number, status: 'success' | 'failed' | 'cancelled'): void {
