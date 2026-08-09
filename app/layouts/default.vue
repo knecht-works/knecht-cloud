@@ -8,7 +8,8 @@ const route = useRoute()
 const collapsed = useCookie<boolean>('knecht-sidebar-collapsed', { default: () => false })
 
 // Triggers aren't a top-level concept: they're configured inside each workflow.
-// Runs get their own history; run detail pages highlight the Runs tab.
+// Runs keep a global history page, but a run itself opens inside its project's
+// workspace (which highlights Projects).
 const NAV = [
   { label: 'Projects', icon: 'i-lucide-box', to: '/projects', match: ['/', '/projects'] },
   { label: 'Workflows', icon: 'i-lucide-workflow', to: '/workflows', match: ['/workflows'] },

@@ -83,7 +83,7 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
       <NuxtLink
         v-for="(r, i) in runs"
         :key="r.id"
-        :to="`/runs/${r.id}`"
+        :to="`/projects/${r.projectId}?run=${r.id}`"
         class="flex items-center gap-3 px-4.5 py-3 transition-colors hover:bg-(--surface-glass)"
         :class="i ? 'border-t border-muted' : ''"
       >

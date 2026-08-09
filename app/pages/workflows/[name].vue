@@ -678,7 +678,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               color="neutral"
               variant="ghost"
               label="View log"
-              @click="() => { navigateTo(`/runs/${activeRun!.id}`) }"
+              @click="() => { navigateTo(`/projects/${activeRun!.projectId}?run=${activeRun!.id}`) }"
             />
             <UTooltip text="Closes the test result and opens the failed step for editing. The failed run stays on the runs page.">
               <UButton

@@ -123,7 +123,7 @@ async function bootAndPreview() {
       body: { projectId: project.value.id, workflow: 'boot-and-preview' },
     })
     open.value = false
-    await navigateTo(`/runs/${run.id}`)
+    await navigateTo(`/projects/${run.projectId}?run=${run.id}`)
   }
   catch (e) {
     booting.value = false
