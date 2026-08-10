@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
+
 // The project's configuration, split off the workspace page: everything here
 // is set up once (env, database dump, persistent folders) and rarely touched
 // again, so it lives one step away instead of crowding the run workspace.
@@ -55,6 +57,21 @@ onUnmounted(() => {
     clearTimeout(envSaveTimer)
     persistEnv()
   }
+})
+
+// ── Agent instructions (project layer, auto-saved) ─────────────────────────
+// Rules for this project only, layered on top of the instance instructions
+// from Settings → Agent (docs/adr/0002).
+const agentInstructions = ref(project.value?.agentInstructions ?? '')
+const { state: instructionsState, error: instructionsError, schedule: scheduleInstructions } = useAutosave(async () => {
+  await $fetch(`/api/projects/${id}`, {
+    method: 'PATCH',
+    body: { agentInstructions: agentInstructions.value },
+  })
+})
+watch(agentInstructions, () => {
+  if (agentInstructions.value === (project.value?.agentInstructions ?? '')) return
+  scheduleInstructions()
 })
 
 // ── Preview URL mode ───────────────────────────────────────────────────────
@@ -210,89 +227,120 @@ async function uploadSeed(event: Event) {
          the wide column; the read-only DDEV facts and the rarer upload
          panels sit in the sidebar. -->
     <div class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
-      <KPanel
-        title="Env variables"
-        icon="i-lucide-key-round"
-        accent="var(--text-primary)"
-      >
-        <template #action>
-          <span
-            v-if="envSaveState !== 'idle'"
-            class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
-          >
-            <UIcon
-              :name="envSaveState === 'saving' ? 'i-lucide-loader-circle' : 'i-lucide-check'"
-              class="size-3.5"
-              :class="envSaveState === 'saving' ? 'animate-spin' : 'text-primary'"
-            />
-            {{ envSaveState === 'saving' ? 'Saving…' : 'Saved' }}
-          </span>
-        </template>
-
-        <div>
-          <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
-            One KEY=value per line. Paste a .env. Changes are saved automatically.
-          </p>
-          <UTextarea
-            v-model="envText"
-            :rows="10"
-            autoresize
-            :maxrows="22"
-            spellcheck="false"
-            :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
-            class="w-full"
-            :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
-          />
-
-          <!-- Deliberately tucked away: the default (env) is right for strictly
-               env-based projects and should never need touching. The escape
-               hatch exists for projects with hard-coded/DB-stored URLs. -->
-          <div class="mt-4">
-            <button
-              type="button"
-              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed transition-colors hover:text-muted"
-              @click="urlModeAdvancedOpen = !urlModeAdvancedOpen"
+      <div class="flex flex-col gap-4.5">
+        <KPanel
+          title="Env variables"
+          icon="i-lucide-key-round"
+          accent="var(--text-primary)"
+        >
+          <template #action>
+            <span
+              v-if="envSaveState !== 'idle'"
+              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
             >
               <UIcon
-                :name="urlModeAdvancedOpen ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                :name="envSaveState === 'saving' ? 'i-lucide-loader-circle' : 'i-lucide-check'"
                 class="size-3.5"
+                :class="envSaveState === 'saving' ? 'animate-spin' : 'text-primary'"
               />
-              Advanced: where do the site's base URLs live?
-            </button>
-            <div
-              v-if="urlModeAdvancedOpen"
-              class="mt-2.5 flex flex-col gap-2"
-            >
+              {{ envSaveState === 'saving' ? 'Saving…' : 'Saved' }}
+            </span>
+          </template>
+
+          <div>
+            <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
+              One KEY=value per line. Paste a .env. Changes are saved automatically.
+            </p>
+            <UTextarea
+              v-model="envText"
+              :rows="10"
+              autoresize
+              :maxrows="22"
+              spellcheck="false"
+              :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
+              class="w-full"
+              :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
+            />
+
+            <!-- Deliberately tucked away: the default (env) is right for strictly
+               env-based projects and should never need touching. The escape
+               hatch exists for projects with hard-coded/DB-stored URLs. -->
+            <div class="mt-4">
               <button
-                v-for="option in urlModeOptions"
-                :key="option.value"
                 type="button"
-                class="rounded border p-2.5 text-left transition-colors"
-                :class="urlMode === option.value ? 'border-accented' : 'border-muted hover:border-accented/50'"
-                :aria-pressed="urlMode === option.value"
-                @click="setUrlMode(option.value)"
+                class="k-mono flex items-center gap-1.5 text-2xs text-dimmed transition-colors hover:text-muted"
+                @click="urlModeAdvancedOpen = !urlModeAdvancedOpen"
               >
-                <span class="flex items-center gap-2">
-                  <KStatusDot
-                    :color="urlMode === option.value ? 'primary' : 'neutral'"
-                    :size="5"
-                  />
-                  <span
-                    class="k-mono text-xs"
-                    :class="urlMode === option.value ? 'text-toned' : 'text-muted'"
-                  >{{ option.title }}</span>
-                </span>
-                <span class="k-mono mt-1.5 block text-2xs leading-relaxed text-dimmed">
-                  {{ option.description }}
-                </span>
+                <UIcon
+                  :name="urlModeAdvancedOpen ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                  class="size-3.5"
+                />
+                Advanced: where do the site's base URLs live?
               </button>
-              <p class="k-mono text-2xs text-dimmed">
-                Applies to new runs; already-running previews keep the mode they booted with.
-              </p>
+              <div
+                v-if="urlModeAdvancedOpen"
+                class="mt-2.5 flex flex-col gap-2"
+              >
+                <button
+                  v-for="option in urlModeOptions"
+                  :key="option.value"
+                  type="button"
+                  class="rounded border p-2.5 text-left transition-colors"
+                  :class="urlMode === option.value ? 'border-accented' : 'border-muted hover:border-accented/50'"
+                  :aria-pressed="urlMode === option.value"
+                  @click="setUrlMode(option.value)"
+                >
+                  <span class="flex items-center gap-2">
+                    <KStatusDot
+                      :color="urlMode === option.value ? 'primary' : 'neutral'"
+                      :size="5"
+                    />
+                    <span
+                      class="k-mono text-xs"
+                      :class="urlMode === option.value ? 'text-toned' : 'text-muted'"
+                    >{{ option.title }}</span>
+                  </span>
+                  <span class="k-mono mt-1.5 block text-2xs leading-relaxed text-dimmed">
+                    {{ option.description }}
+                  </span>
+                </button>
+                <p class="k-mono text-2xs text-dimmed">
+                  Applies to new runs; already-running previews keep the mode they booted with.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-      </KPanel>
+        </KPanel>
+
+        <KPanel
+          title="Agent instructions"
+          icon="i-lucide-list-checks"
+          accent="var(--accent-orange)"
+        >
+          <template #action>
+            <KSaveStatus
+              v-if="instructionsState !== 'idle'"
+              :state="instructionsState"
+              :error-text="instructionsError"
+            />
+          </template>
+          <div>
+            <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
+              Rules the agent follows in this project only, on top of the
+              instance-wide instructions from Settings → Agent. Saved automatically.
+            </p>
+            <UTextarea
+              v-model="agentInstructions"
+              :rows="4"
+              autoresize
+              :maxrows="16"
+              :maxlength="AGENT_INSTRUCTIONS_MAX"
+              placeholder="Styles live in src/css. Use the existing design tokens, never raw hex values."
+              class="w-full"
+            />
+          </div>
+        </KPanel>
+      </div>
 
       <div class="flex flex-col gap-4.5">
         <!-- Read-only: what the repo's .ddev config resolves to. -->

@@ -12,6 +12,8 @@ export interface DashboardSettings {
   /** Langdock region (eu/us); present for every provider, used by langdock. */
   aiRegion: string
   aiModel: string
+  /** Instance-level agent instructions, layered into every agent run. */
+  agentInstructions: string
   /** Whether a provider API key is stored (the key itself never leaves the server). */
   aiKeyConfigured?: boolean
   /** Masked recognition preview of the stored key (first 8 + last 4 visible). */

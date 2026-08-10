@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { AI_PROVIDERS, type AiProviderId, LANGDOCK_REGIONS, MODEL_NAME_RE } from '#shared/utils/ai'
-import { SETTINGS_LIMITS, SSH_TARGET_RE } from '#shared/utils/settings-limits'
+import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS, SSH_TARGET_RE } from '#shared/utils/settings-limits'
 import { getSettings, publicSettings, type SettingsPatch, updateSettings } from '../utils/settings'
 import { loadModelCatalog } from '../utils/ai-catalog'
 import { encrypt } from '../utils/crypto'
@@ -21,6 +21,8 @@ const bodySchema = z.object({
   aiKey: z.string().min(1).max(500).nullable().optional(),
   // Bare model name (docs/adr/0003), no provider prefix.
   aiModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).optional(),
+  // Instance-level agent instructions (docs/adr/0002).
+  agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
   sshTarget: z.string().trim().regex(SSH_TARGET_RE).max(200).nullable().optional(),
 })
 

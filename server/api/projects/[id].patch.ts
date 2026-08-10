@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 import { db, schema } from '../../db'
 
 // PATCH /api/projects/:id → update the editable per-project config.
@@ -28,6 +29,9 @@ const bodySchema = z.object({
       return [...new Set(normalized as string[])]
     })
     .optional(),
+  // Project-level agent instructions, layered on top of the instance ones
+  // (docs/adr/0002, materialized by server/workflows/actions/ai.ts).
+  agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
 })
 
 export default defineEventHandler(async (event) => {
