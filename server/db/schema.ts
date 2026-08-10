@@ -203,8 +203,6 @@ export const runSteps = sqliteTable('run_steps', {
   outputs: text('outputs', { mode: 'json' }).$type<Record<string, unknown>>(),
   error: text('error'),
   attempt: integer('attempt').notNull().default(1),
-  // This step's slice of the run log (the run's `log` stays the full stream).
-  log: text('log').notNull().default(''),
   // Byte offset into runs.log where this row's slice begins, captured just
   // before the row is inserted (so the step's '\n▶ <label>' banner is the
   // first thing at the offset). The dashboard cuts the full run log into

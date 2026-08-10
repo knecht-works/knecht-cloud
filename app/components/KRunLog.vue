@@ -49,10 +49,10 @@ const logBytes = computed(() => new TextEncoder().encode(props.log))
 // Cut points as a value-stable string: the poll replaces the rows array
 // every tick with identical content, and Vue only invalidates a computed's
 // dependents when its VALUE changes, so segmentation below re-runs only
-// when a row appeared, not on every poll.
+// when a row appeared, not on every poll. Every row records its offset at
+// insert (runner/followups); `?? 0` only guards the type's nullability.
 const cutsKey = computed(() => props.rows
-  .filter(r => r.logStart !== null)
-  .map(r => ({ id: r.id, start: r.logStart! }))
+  .map(r => ({ id: r.id, start: r.logStart ?? 0 }))
   .sort((a, b) => a.start - b.start || a.id - b.id)
   .map(c => `${c.id}:${c.start}`)
   .join('|'))
@@ -77,9 +77,8 @@ interface LogSection {
 // clamped: the steps poll can deliver a row inserted after the (slightly
 // older) log was read, so its offset may point past the end; the empty
 // segment heals on the next tick. Boundaries always fall between complete
-// appends, so decoding never splits a code point. Without any cuts (a run
-// from before logStart existed) the whole log renders as one headerless
-// stream: its steps are baked in, labeling it "Preparation" would be wrong.
+// appends, so decoding never splits a code point. Without rows yet (a run
+// still preparing) the whole log is the prelude.
 const sections = computed<LogSection[]>(() => {
   const bytes = logBytes.value
   if (!hasCuts.value) return [{ key: 'prelude', row: null, text: props.log }]
@@ -103,10 +102,6 @@ const sections = computed<LogSection[]>(() => {
   return out
 })
 
-// Section headers (and the Preparation rail entry) only exist while the log
-// is actually segmented, or when the run has no steps at all yet.
-const showHeaders = computed(() => hasCuts.value || props.rows.length === 0)
-
 // ── The synthetic Preparation entry (checkout + boot, no run_steps row) ────
 const preludeStatusMeta = computed(() => {
   if (props.rows.length) return RUN_STATUS_META.success
@@ -116,27 +111,9 @@ const preludeStatusMeta = computed(() => {
 const preludeDuration = computed(() =>
   runDuration(props.runStartedAt, props.rows[0]?.startedAt ?? props.runFinishedAt))
 
-// ── Scroll handling (stick-to-bottom latch, adapted from KLogView) ─────────
+// ── Scroll handling (stick-to-bottom latch, shared with KLogView) ──────────
 const container = ref<HTMLElement | null>(null)
-const stick = ref(true)
-
-// Within a few px of the bottom counts as "at the bottom": scrollTop can be
-// off by a subpixel, and without the slack the flag never latches.
-function onScroll() {
-  const node = container.value
-  if (!node) return
-  stick.value = node.scrollTop + node.clientHeight >= node.scrollHeight - 8
-}
-
-// nextTick so the new text is in the DOM before scrollHeight is read;
-// immediate so the view starts at the tail (the ✓/✗ closing line). Instant
-// scrolling on purpose: a smooth animation fires scroll events at positions
-// that are "not at the bottom" and would unlatch the flag mid-flight.
-watch(() => props.log, async () => {
-  if (!stick.value) return
-  await nextTick()
-  container.value?.scrollTo({ top: container.value.scrollHeight })
-}, { immediate: true })
+const { stick, onScroll } = useStickToBottom(container, () => props.log)
 
 // Segment anchors keyed by row id ('prelude' for the synthetic entry).
 // Function refs, so v-for cleanup nulls stale entries.
@@ -162,11 +139,10 @@ function jumpTo(key: number | 'prelude') {
   <div class="flex flex-col lg:flex-row">
     <!-- The step index: right of the log on lg+, a compact block ABOVE it on
          small screens (order utilities; below the log it couldn't be seen
-         while reading). Rows without a recorded offset (pre-logStart runs)
-         are plain labels, nothing to jump to. -->
+         while reading). -->
     <nav class="k-scrollbar-none order-1 max-h-40 flex-none overflow-y-auto border-b border-muted lg:order-2 lg:max-h-150 lg:w-60 lg:border-b-0 lg:border-l">
       <ul class="py-1.5">
-        <li v-if="showHeaders">
+        <li>
           <button
             type="button"
             class="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left transition-colors hover:bg-elevated/50"
@@ -189,16 +165,12 @@ function jumpTo(key: number | 'prelude') {
           v-for="r in rows"
           :key="r.id"
         >
-          <component
-            :is="r.logStart !== null ? 'button' : 'div'"
-            :type="r.logStart !== null ? 'button' : undefined"
-            class="flex w-full items-center gap-2 px-3.5 py-1.5 text-left"
-            :class="[
-              r.logStart !== null ? 'cursor-pointer transition-colors hover:bg-elevated/50' : '',
-              r.status === 'running' ? 'bg-elevated/50' : '',
-            ]"
+          <button
+            type="button"
+            class="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left transition-colors hover:bg-elevated/50"
+            :class="r.status === 'running' ? 'bg-elevated/50' : ''"
             :style="r.depth ? { paddingLeft: `${14 + r.depth * 14}px` } : undefined"
-            @click="r.logStart !== null && jumpTo(r.id)"
+            @click="jumpTo(r.id)"
           >
             <UIcon
               :name="r.icon"
@@ -216,7 +188,7 @@ function jumpTo(key: number | 'prelude') {
               :pulse="r.statusMeta.pulse"
               :size="5"
             />
-          </component>
+          </button>
         </li>
       </ul>
     </nav>
@@ -238,7 +210,6 @@ function jumpTo(key: number | 'prelude') {
              label + snippet, duration, status dot); sticky within the
              container so a long segment stays labeled while it scrolls. -->
         <header
-          v-if="showHeaders"
           class="sticky top-0 z-10 flex items-center gap-3 px-4.5 py-3"
           style="background: var(--surface-muted)"
         >
@@ -287,7 +258,6 @@ function jumpTo(key: number | 'prelude') {
         <pre
           v-if="seg.text"
           class="k-mono whitespace-pre-wrap break-words px-4.5 pb-3.5 text-xs leading-loose text-muted"
-          :class="showHeaders ? '' : 'pt-3.5'"
         >{{ seg.text }}</pre>
         <p
           v-else-if="seg.row?.status === 'running'"
