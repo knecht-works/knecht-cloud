@@ -22,6 +22,7 @@ export interface GcResult {
   dumpDirs: string[] // dump folders of deleted projects removed
   dumpFiles: string[] // superseded DB dumps of live projects removed
   sharedDirs: string[] // shared-folder roots of deleted projects removed
+  memoryDirs: string[] // agent memory stores of deleted projects removed
   dockerPruned: string[] // host-side docker leftovers pruned (with reclaimed size)
 }
 
@@ -32,13 +33,14 @@ export async function collectGarbage(): Promise<GcResult> {
   const projects = db.select({ id: schema.projects.id, dbDumpPath: schema.projects.dbDumpPath }).from(schema.projects).all()
   const liveProjects = new Set(projects.map(p => p.id))
 
-  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], sharedDirs: [], dockerPruned: [] }
+  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], sharedDirs: [], memoryDirs: [], dockerPruned: [] }
   result.sandboxes = await reapOrphanSandboxes(liveRuns)
   result.checkouts = reapOrphanCheckouts(liveRuns)
   result.archives = reapOrphanArchives(liveRuns)
   result.dumpDirs = reapOrphanDumpDirs(liveProjects)
   result.dumpFiles = reapStaleDumpFiles(projects)
   result.sharedDirs = reapOrphanSharedDirs(liveProjects)
+  result.memoryDirs = reapOrphanMemoryDirs(liveProjects)
   result.dockerPruned = await pruneHostDocker()
 
   return result
@@ -94,6 +96,12 @@ function reapOrphanDumpDirs(liveProjects: Set<number>): string[] {
 // keeps its data, so re-adding the path brings the files back).
 function reapOrphanSharedDirs(liveProjects: Set<number>): string[] {
   return removeMatching(join(dataDir(), 'shared'), /^(\d+)$/, id => !liveProjects.has(id))
+}
+
+// Agent memory stores live under dataDir()/memory/<projectId>; only a DELETED
+// project's store goes (utils/agent-memory.ts owns the layout).
+function reapOrphanMemoryDirs(liveProjects: Set<number>): string[] {
+  return removeMatching(join(dataDir(), 'memory'), /^(\d+)$/, id => !liveProjects.has(id))
 }
 
 // Within a LIVE project's dump folder, remove every dump that isn't the one it
