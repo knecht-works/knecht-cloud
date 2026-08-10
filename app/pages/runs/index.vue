@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { runWorkspacePath } from '#shared/utils/routes'
+
 // Global run history: every execution across all projects, newest first.
 // A run drills into /runs/:id; the list itself polls while anything is live.
 const { data: runs, refresh } = await useFetch('/api/runs', { default: () => [] })
@@ -83,7 +85,7 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
       <NuxtLink
         v-for="(r, i) in runs"
         :key="r.id"
-        :to="`/projects/${r.projectId}?run=${r.id}`"
+        :to="runWorkspacePath(r.projectId, r.id)"
         class="flex items-center gap-3 px-4.5 py-3 transition-colors hover:bg-(--surface-glass)"
         :class="i ? 'border-t border-muted' : ''"
       >

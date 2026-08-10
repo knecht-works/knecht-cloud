@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { runWorkspacePath } from '#shared/utils/routes'
 import { stepChildren } from '#shared/utils/workflow'
 import type { TestRunRow } from '~/composables/useWorkflowTestRun'
 
@@ -678,7 +679,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               color="neutral"
               variant="ghost"
               label="View log"
-              @click="() => { navigateTo(`/projects/${activeRun!.projectId}?run=${activeRun!.id}`) }"
+              @click="() => { navigateTo(runWorkspacePath(activeRun!.projectId, activeRun!.id)) }"
             />
             <UTooltip text="Closes the test result and opens the failed step for editing. The failed run stays on the runs page.">
               <UButton

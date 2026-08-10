@@ -1,4 +1,5 @@
 import type { Project } from '../db/schema'
+import { runWorkspacePath } from '../../shared/utils/routes'
 import { STEP_META_KEYS, type Condition, type Step } from '../../shared/utils/workflow'
 import { tryParseJson } from '../utils/json'
 import { dashboardOrigin } from '../utils/origin'
@@ -30,7 +31,7 @@ export function createContext(
 ): RunContext {
   return {
     // url stays a relative path when no public origin is configured.
-    run: { id: runId, url: `${dashboardOrigin()}/runs/${runId}` },
+    run: { id: runId, url: `${dashboardOrigin()}${runWorkspacePath(project.id, runId)}` },
     project: {
       name: project.name,
       owner: project.owner,
