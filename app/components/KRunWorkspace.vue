@@ -378,9 +378,12 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
 </script>
 
 <template>
+  <!-- min-w-0: as a grid item in the project page's [1fr|sidebar] grid, the
+       default min-width:auto would let one long unbroken log line widen the
+       1fr track past the viewport and push the sidebar off-screen. -->
   <div
     v-if="run"
-    class="flex flex-col gap-4.5"
+    class="flex min-w-0 flex-col gap-4.5"
   >
     <!-- Compact run header: identity + meta left, run-level actions right.
          The page-level chrome (breadcrumbs, project title) is the parent's. -->
