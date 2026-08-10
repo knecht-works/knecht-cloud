@@ -21,9 +21,6 @@ import { ensureEnvUp, rebootEnv, rehydrateEnv } from './envs'
 // uncommitted. Everything is recorded as a run_steps row with
 // origin 'followup', so the run timeline shows the whole conversation.
 
-// A follow-up's step-row log keeps at most this much (mirrors the runner's cap).
-const STEP_LOG_CAP = 256 * 1024
-
 // Whether a run has a follow-up waiting or executing (the API refuses a second
 // one; follow-ups per run are strictly sequential).
 export function hasActiveFollowup(runId: number): boolean {
@@ -102,14 +99,10 @@ async function execFollowup(followup: Followup, run: Run, project: Project): Pro
     startedAt: new Date(),
   }).returning({ id: schema.runSteps.id }).get()
 
-  let rowLog = ''
-  const log = (text: string) => {
-    appendLog(run.id, text)
-    rowLog = (rowLog + text).slice(-STEP_LOG_CAP)
-  }
+  const log = (text: string) => appendLog(run.id, text)
   const finalizeRow = (patch: { status: 'success' | 'failed', outputs?: Record<string, unknown>, error?: string }) => {
     db.update(schema.runSteps)
-      .set({ ...patch, log: rowLog, finishedAt: new Date() })
+      .set({ ...patch, finishedAt: new Date() })
       .where(eq(schema.runSteps.id, row.id))
       .run()
   }

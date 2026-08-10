@@ -113,20 +113,9 @@ async function execRun(runId: number, project: Project): Promise<void> {
   const controller = new AbortController()
   controllers.set(runId, controller)
 
-  // Log routing: everything lands in runs.log (the UI's live stream); while a
-  // step is executing, its slice is ALSO buffered for that step's run_steps
-  // row and written once when the row is finalized: per-chunk SQL appends on
-  // this hot path would rewrite the growing blob for every stdout event.
-  // Nested steps (if/loop) re-point `current` to their own row and restore the
-  // parent's when done.
-  const rowLog: RowLog = { current: null, buffers: new Map() }
-  const log = (text: string) => {
-    appendLog(runId, text)
-    if (rowLog.current !== null) {
-      const buffered = (rowLog.buffers.get(rowLog.current) ?? '') + text
-      rowLog.buffers.set(rowLog.current, buffered.length > STEP_LOG_CAP ? buffered.slice(-STEP_LOG_CAP) : buffered)
-    }
-  }
+  // Everything logs into runs.log, the ONE stream: each step's slice is
+  // recovered from it via the byte offset its row records (logStart).
+  const log = (text: string) => appendLog(runId, text)
 
   try {
     // A retry resumes instead of restarting: the step that stopped the run
@@ -183,13 +172,12 @@ async function execRun(runId: number, project: Project): Promise<void> {
         copyIn: (hostPath, sandboxPath) => copyIntoSandbox(runId, hostPath, sandboxPath),
       },
     }
-    await execSteps(runId, steps, ctx, rt, rowLog, {}, resume.fromIndex)
+    await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
     finish(runId, 'success')
     await handBackToJira(runId, run.trigger, run.inputs, log)
   }
   catch (e) {
-    rowLog.current = null
     const cancelled = controller.signal.aborted
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
     finish(runId, cancelled ? 'cancelled' : 'failed')
@@ -219,18 +207,6 @@ function replayOutputs(runId: number, ctx: RunContext): void {
   }
 }
 
-// Where step-scoped log slices go (see execRun): `current` is pushed/restored
-// like a stack around nested execution; `buffers` holds each open row's slice
-// until the row is finalized.
-interface RowLog {
-  current: number | null
-  buffers: Map<number, string>
-}
-
-// A step row keeps at most this much of its log slice (the run log has the
-// full stream).
-const STEP_LOG_CAP = 256 * 1024
-
 // Position of a nested step list: which composite step owns it and, inside a
 // loop, which iteration; `collect` gathers the iteration's outputs.
 interface StepScope {
@@ -247,14 +223,13 @@ async function execSteps(
   steps: Step[],
   ctx: RunContext,
   rt: ActionRuntime,
-  rowLog: RowLog,
   scope: StepScope = {},
   startIndex = 0,
 ): Promise<void> {
   for (const [index, step] of steps.entries()) {
     if (index < startIndex) continue
     rt.signal.throwIfAborted()
-    const outputs = await execStep(runId, index, step, ctx, rt, rowLog, scope)
+    const outputs = await execStep(runId, index, step, ctx, rt, scope)
     if (outputs && step.id) {
       // steps.<id> is the collision-free reference; the legacy top-level key
       // keeps pre-id templates ({{ branch.name }}, {{ pr.url }}) rendering.
@@ -274,7 +249,6 @@ async function runComposite(
   step: CompositeStep,
   ctx: RunContext,
   rt: ActionRuntime,
-  rowLog: RowLog,
   scope: StepScope,
 ): Promise<Record<string, unknown>> {
   if (step.type === 'if') {
@@ -283,7 +257,7 @@ async function runComposite(
     const branch = matched ? step.then : step.else
     // An if is transparent to an enclosing loop: its sub-steps keep the
     // iteration tag and contribute to the iteration's collected outputs.
-    await execSteps(runId, branch, ctx, rt, rowLog, { parentStepId: step.id, iteration: scope.iteration, collect: scope.collect })
+    await execSteps(runId, branch, ctx, rt, { parentStepId: step.id, iteration: scope.iteration, collect: scope.collect })
     return { matched }
   }
 
@@ -297,7 +271,7 @@ async function runComposite(
     for (const [index, item] of items.entries()) {
       ctx.loop = { item, index }
       const collect: Record<string, unknown> = {}
-      await execSteps(runId, step.steps, ctx, rt, rowLog, { parentStepId: step.id, iteration: index, collect })
+      await execSteps(runId, step.steps, ctx, rt, { parentStepId: step.id, iteration: index, collect })
       results.push(collect)
     }
   }
@@ -317,7 +291,6 @@ async function execStep(
   step: Step,
   ctx: RunContext,
   rt: ActionRuntime,
-  rowLog: RowLog,
   scope: StepScope,
 ): Promise<Record<string, unknown> | undefined> {
   // Composites render nothing up front: conditions/loop items are evaluated
@@ -338,56 +311,45 @@ async function execStep(
     logStart,
     startedAt: new Date(),
   }).returning({ id: schema.runSteps.id }).get()
-  const prevRow = rowLog.current
-  rowLog.current = row.id
-  rowLog.buffers.set(row.id, '')
 
-  const finalize = (patch: StepRowPatch) => {
-    const log = rowLog.buffers.get(row.id) ?? ''
-    rowLog.buffers.delete(row.id)
-    updateStepRow(row.id, { ...patch, log, finishedAt: new Date() })
-  }
+  const finalize = (patch: StepRowPatch) =>
+    updateStepRow(row.id, { ...patch, finishedAt: new Date() })
 
-  try {
-    const maxAttempts = Math.max(1, step.retry?.attempts ?? 1)
-    for (let attempt = 1; ; attempt++) {
-      try {
-        const outputs = capOutputs(action
-          ? await runActionTimed(action, rendered, rt, step.timeoutSeconds ?? defaultStepTimeout(step.type))
-          : await runComposite(runId, step as CompositeStep, ctx, rt, rowLog, scope))
-        finalize({ status: 'success', outputs, attempt })
-        return outputs
-      }
-      catch (e) {
-        const error = (e as Error).message
-        // A cancel kills the in-flight command; close the row out instead of
-        // burning retries on an aborted run.
-        if (rt.signal.aborted) {
-          finalize({ status: 'failed', error: 'Cancelled', attempt })
-          throw e
-        }
-        if (attempt < maxAttempts) {
-          const delay = (step.retry?.backoffSeconds ?? 0) * 2 ** (attempt - 1)
-          rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error}. Retrying in ${delay}s\n`)
-          updateStepRow(row.id, { error, attempt })
-          await sleep(delay * 1000)
-          continue
-        }
-        // An ActionError carries the failure's outputs (bash exit code + output
-        // tail, an HTTP error response), recorded, and still referencable by
-        // later steps when the run continues.
-        const failOutputs = capOutputs((e as ActionError).outputs)
-        finalize({ status: 'failed', error, attempt, outputs: failOutputs })
-        if (step.continueOnError) {
-          rt.log(`\nStep failed: ${error}. Continuing (continue on error)\n`)
-          return failOutputs
-        }
+  const maxAttempts = Math.max(1, step.retry?.attempts ?? 1)
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const outputs = capOutputs(action
+        ? await runActionTimed(action, rendered, rt, step.timeoutSeconds ?? defaultStepTimeout(step.type))
+        : await runComposite(runId, step as CompositeStep, ctx, rt, scope))
+      finalize({ status: 'success', outputs, attempt })
+      return outputs
+    }
+    catch (e) {
+      const error = (e as Error).message
+      // A cancel kills the in-flight command; close the row out instead of
+      // burning retries on an aborted run.
+      if (rt.signal.aborted) {
+        finalize({ status: 'failed', error: 'Cancelled', attempt })
         throw e
       }
+      if (attempt < maxAttempts) {
+        const delay = (step.retry?.backoffSeconds ?? 0) * 2 ** (attempt - 1)
+        rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error}. Retrying in ${delay}s\n`)
+        updateStepRow(row.id, { error, attempt })
+        await sleep(delay * 1000)
+        continue
+      }
+      // An ActionError carries the failure's outputs (bash exit code + output
+      // tail, an HTTP error response), recorded, and still referencable by
+      // later steps when the run continues.
+      const failOutputs = capOutputs((e as ActionError).outputs)
+      finalize({ status: 'failed', error, attempt, outputs: failOutputs })
+      if (step.continueOnError) {
+        rt.log(`\nStep failed: ${error}. Continuing (continue on error)\n`)
+        return failOutputs
+      }
+      throw e
     }
-  }
-  finally {
-    rowLog.current = prevRow
   }
 }
 

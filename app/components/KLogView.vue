@@ -11,25 +11,7 @@ const props = withDefaults(defineProps<{
 })
 
 const el = ref<HTMLElement | null>(null)
-const stickToBottom = ref(true)
-
-// Within a few px of the bottom counts as "at the bottom": scrollTop can be
-// off by a subpixel, and without the slack the flag never latches.
-function onScroll() {
-  const node = el.value
-  if (!node) return
-  stickToBottom.value = node.scrollTop + node.clientHeight >= node.scrollHeight - 8
-}
-
-// nextTick so the new text is in the DOM before scrollHeight is read;
-// immediate so the view starts at the end when it first renders. Instant
-// scrolling on purpose: a smooth animation fires scroll events at positions
-// that are "not at the bottom" and would unlatch the flag mid-flight.
-watch(() => props.log, async () => {
-  if (!stickToBottom.value) return
-  await nextTick()
-  el.value?.scrollTo({ top: el.value.scrollHeight })
-}, { immediate: true })
+const { onScroll } = useStickToBottom(el, () => props.log)
 </script>
 
 <template>
