@@ -100,8 +100,18 @@ export async function rehydrateEnv(runId: number): Promise<void> {
   writeDdevConfig(dir, project.envVars, runId, run.urlMode ?? 'rewrite', { projectId: project.id, folders: project.sharedFolders })
 
   await startEnvStack(runId)
-  await importArchivedDb(runId, project)
-  await rerunBootSetup(runId)
+  try {
+    await importArchivedDb(runId, project)
+    await rerunBootSetup(runId)
+  }
+  catch (e) {
+    // A half-restored stack must not keep running under envState 'archived':
+    // no reaper reclaims that state, and the next restore would boot a second
+    // stack on top. Stop the containers again (the unpacked checkout and the
+    // archive stay for the retry) and surface the failure.
+    await stopEnvStack(runId)
+    throw e
+  }
   markUp(runId)
 }
 
@@ -142,6 +152,8 @@ function markUp(runId: number): void {
 // is still up, then stop it (containers removed, volumes and checkout kept, so
 // it can be rebooted quickly). Guarded: the export makes a stop take a while,
 // and the reaper tick must not pile a second stop onto a run mid-export.
+// Failures propagate (envState stays 'up'): the stop endpoint reports them,
+// the idle reaper catches per run and retries on its next tick.
 const stopping = new Set<number>()
 export async function stopEnv(runId: number): Promise<void> {
   if (stopping.has(runId)) return
@@ -152,9 +164,6 @@ export async function stopEnv(runId: number): Promise<void> {
     // unregistered project would fail and wedge the env in 'up' forever.
     if (await envStackRunning(runId)) await stopEnvStack(runId)
     db.update(schema.runs).set({ envState: 'stopped' }).where(eq(schema.runs.id, runId)).run()
-  }
-  catch {
-    // Leave envState as-is; the idle reaper retries on its next tick.
   }
   finally {
     stopping.delete(runId)
@@ -188,7 +197,14 @@ export async function reapIdleEnvs(): Promise<void> {
     .from(schema.runs)
     .where(and(eq(schema.runs.envState, 'up'), lt(schema.runs.previewLastSeen, cutoff)))
     .all()
-  for (const { id } of idle) await stopEnv(id)
+  for (const { id } of idle) {
+    try {
+      await stopEnv(id)
+    }
+    catch {
+      // Leave envState as-is; retried on the next tick.
+    }
+  }
 }
 
 // Archive envs that have been 'stopped' (untouched) longer than the preview
