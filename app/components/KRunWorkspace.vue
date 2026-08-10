@@ -286,10 +286,10 @@ async function openInVscode() {
   }
 }
 
-// The header's overflow menu: remote access (terminal + web IDE) while the
-// env still exists, disabled until it is up again; the on-demand lifecycle
-// steps down (stop, archive) for whichever one applies; delete stays separate
-// as the destructive tail.
+// The header's overflow menu: the terminal while the env still exists
+// (disabled until it is up again; the web IDE sits in the header as its own
+// button); the on-demand lifecycle steps down (stop, archive) for whichever
+// one applies; delete stays separate as the destructive tail.
 const menuItems = computed(() => {
   const remote = run.value?.envState !== 'down'
     ? [{
@@ -297,11 +297,6 @@ const menuItems = computed(() => {
         icon: 'i-lucide-square-terminal',
         disabled: !canTerminal.value,
         onSelect: openTerminal,
-      }, {
-        label: 'Open in VS Code',
-        icon: 'i-lucide-code',
-        disabled: !canTerminal.value,
-        onSelect: openInVscode,
       }]
     : []
   const lifecycle = run.value?.envState === 'up' && !isLive.value
@@ -427,18 +422,18 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
         </div>
       </div>
       <div class="flex flex-none items-center gap-2">
-        <!-- Always available on a finished run, whatever its workflow shape:
-             a workflow without a boot step has no preview frame (and so no
-             run-again inside one), and a fresh run is the only way forward
-             once an env is gone. -->
+        <!-- Jump into the run's code. Starting runs is the project header's
+             job ("Start workflow" and the Automation panel), so the run
+             header offers no run-again; a torn-down env keeps its run-again
+             inside the preview frame. -->
         <UButton
-          v-if="!isLive"
+          v-if="!isLive && run.envState !== 'down'"
           color="neutral"
           variant="outline"
-          icon="i-lucide-rotate-ccw"
-          label="Run again"
-          :loading="restarting"
-          @click="runAgain"
+          icon="i-lucide-code"
+          label="Open in IDE"
+          :disabled="!canTerminal"
+          @click="openInVscode"
         />
         <UButton
           v-if="run.prUrl"
