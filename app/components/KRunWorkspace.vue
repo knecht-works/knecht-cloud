@@ -184,6 +184,19 @@ async function retry() {
   }
 }
 
+// Walk the env DOWN its lifecycle on demand (stop exports the database and
+// frees the containers, archive snapshots and deletes the heavy sandbox);
+// the reverse steps (reboot/restore) live inside the preview frame.
+async function envAction(action: 'stop' | 'archive') {
+  try {
+    run.value = await $fetch(`/api/runs/${id}/${action}`, { method: 'POST' })
+    emit('changed')
+  }
+  catch (e) {
+    toastError(action === 'stop' ? 'Stop failed' : 'Archive failed', e)
+  }
+}
+
 const rebooting = ref(false)
 async function reboot() {
   rebooting.value = true
@@ -217,7 +230,7 @@ const followupHint = computed(() => {
 
 // Follow-ups run the agent, so without a provider key (Settings → Agent) the
 // composer is disabled instead of letting the follow-up fail at execution.
-const { data: settings } = useFetch('/api/settings', { lazy: true })
+const { data: settings } = useSettings()
 const aiConfigured = computed(() => !!settings.value?.aiKeyConfigured)
 
 // Remote access: the web terminal (any member, no setting needed) plus the
@@ -274,8 +287,9 @@ async function openInVscode() {
 }
 
 // The header's overflow menu: remote access (terminal + web IDE) while the
-// env still exists, disabled until it is up again; delete stays separate as
-// the destructive tail.
+// env still exists, disabled until it is up again; the on-demand lifecycle
+// steps down (stop, archive) for whichever one applies; delete stays separate
+// as the destructive tail.
 const menuItems = computed(() => {
   const remote = run.value?.envState !== 'down'
     ? [{
@@ -290,7 +304,12 @@ const menuItems = computed(() => {
         onSelect: openInVscode,
       }]
     : []
-  return [remote, [{
+  const lifecycle = run.value?.envState === 'up' && !isLive.value
+    ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', onSelect: () => envAction('stop') }]
+    : run.value?.envState === 'stopped'
+      ? [{ label: 'Archive environment', icon: 'i-lucide-archive', onSelect: () => envAction('archive') }]
+      : []
+  return [remote, lifecycle, [{
     label: 'Delete run',
     icon: 'i-lucide-trash-2',
     color: 'error' as const,
@@ -408,6 +427,19 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
         </div>
       </div>
       <div class="flex flex-none items-center gap-2">
+        <!-- Always available on a finished run, whatever its workflow shape:
+             a workflow without a boot step has no preview frame (and so no
+             run-again inside one), and a fresh run is the only way forward
+             once an env is gone. -->
+        <UButton
+          v-if="!isLive"
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-rotate-ccw"
+          label="Run again"
+          :loading="restarting"
+          @click="runAgain"
+        />
         <UButton
           v-if="run.prUrl"
           color="primary"
@@ -558,7 +590,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
         <span v-if="!aiConfigured">
           Add your AI provider key under
           <NuxtLink
-            to="/settings"
+            to="/settings/agent"
             class="text-toned underline underline-offset-2"
           >Settings → Agent</NuxtLink>
           first.
