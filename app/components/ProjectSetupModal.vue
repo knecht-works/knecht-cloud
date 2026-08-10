@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { runWorkspacePath } from '#shared/utils/routes'
+
 // Guided project setup: connect a repo, then immediately add the env variables
 // and database dump it needs to boot, so a freshly connected project is ready
 // to preview. The project is created at the first step (its id is needed for the
@@ -130,7 +132,7 @@ async function bootAndPreview() {
       body: { projectId: project.value.id, workflow: 'boot-and-preview' },
     })
     open.value = false
-    await navigateTo(`/projects/${run.projectId}?run=${run.id}`)
+    await navigateTo(runWorkspacePath(run.projectId, run.id))
   }
   catch (e) {
     booting.value = false

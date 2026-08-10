@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { stepsInclude, type Step } from '#shared/utils/workflow'
+
 const route = useRoute()
 const toast = useToast()
 const toastError = useToastError()
@@ -32,15 +34,31 @@ function runFromQuery(): number | null {
   const q = Number(route.query.run)
   return projectRuns.value.some(r => r.id === q) ? q : null
 }
-const selectedRunId = ref<number | null>(runFromQuery() ?? latest.value?.id ?? null)
+
+// A ?run older than the runs list's cap (200) is still a valid deep link
+// (run URLs sit in PR bodies and Jira comments): resolve it directly instead
+// of silently falling back to the newest run. The sidebar list won't contain
+// it, but the workspace renders by id.
+const offListRun = ref<(typeof projectRuns.value)[number] | null>(null)
+const queryRun = Number(route.query.run)
+if (Number.isInteger(queryRun) && !projectRuns.value.some(r => r.id === queryRun)) {
+  const fetched = await $fetch(`/api/runs/${queryRun}`).catch(() => null)
+  if (fetched && fetched.projectId === id) {
+    const { log, steps, ...row } = fetched
+    offListRun.value = { ...row, hasBootStep: stepsInclude((steps ?? []) as Step[], 'ddev-start') }
+  }
+}
+
+const selectedRunId = ref<number | null>(runFromQuery() ?? offListRun.value?.id ?? latest.value?.id ?? null)
 const selectedRun = computed(() =>
-  projectRuns.value.find(r => r.id === selectedRunId.value) ?? null)
+  projectRuns.value.find(r => r.id === selectedRunId.value)
+  ?? (offListRun.value?.id === selectedRunId.value ? offListRun.value : null))
 
 // A ?run pointing at another project's run (or a deleted one) fell back to
 // the newest above; drop the stale param from the URL (client-side, same
 // pattern as the ?step deep link in workflows/[name].vue).
 onMounted(() => {
-  if (route.query.run && !runFromQuery())
+  if (route.query.run && !runFromQuery() && Number(route.query.run) !== offListRun.value?.id)
     navigateTo({ query: { ...route.query, run: undefined } }, { replace: true })
 })
 
@@ -69,8 +87,10 @@ const newRun = computed(() =>
 
 // If the selected run vanished from the list (deleted, here or in another
 // tab), fall back to the newest run instead of showing the empty state next
-// to a non-empty list.
+// to a non-empty list. An off-list deep-link selection is exempt: it is
+// never in the list.
 watch(runs, () => {
+  if (selectedRunId.value === offListRun.value?.id) return
   if (selectedRunId.value !== null && !projectRuns.value.some(r => r.id === selectedRunId.value)) {
     selectedRunId.value = latest.value?.id ?? null
     lastSeenLatestId.value = latest.value?.id ?? null
@@ -132,8 +152,10 @@ async function onRunStarted(runId: number) {
 }
 
 // The workspace deleted its run; the runs watcher above moves the selection
-// to the newest remaining run once the refreshed list lands.
+// to the newest remaining run once the refreshed list lands. A deleted
+// off-list run loses its exemption first, so the watcher picks it up.
 async function onRunDeleted() {
+  if (offListRun.value?.id === selectedRunId.value) offListRun.value = null
   await refreshRuns()
 }
 
