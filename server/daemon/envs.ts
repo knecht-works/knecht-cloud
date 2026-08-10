@@ -188,7 +188,11 @@ async function exportRunDb(runId: number): Promise<void> {
 
 // Stop envs that have been idle (no preview access) longer than the configured
 // timeout. This is the RAM guard: each 'up' env keeps a web + db container
-// running.
+// running. A run with a step still executing (workflow or follow-up) is not
+// idle no matter how stale its preview timestamp: stopping would SIGKILL the
+// agent working inside (exit 137). Its idle clock is bumped instead, so the
+// env stays up a full window after the step finishes. Stale 'running' rows
+// cannot pin an env forever: plugins/runs-recover.ts closes them at boot.
 export async function reapIdleEnvs(): Promise<void> {
   const { idleStopMinutes } = getSettings()
   const cutoff = new Date(Date.now() - idleStopMinutes * 60_000)
@@ -197,8 +201,19 @@ export async function reapIdleEnvs(): Promise<void> {
     .from(schema.runs)
     .where(and(eq(schema.runs.envState, 'up'), lt(schema.runs.previewLastSeen, cutoff)))
     .all()
+  if (!idle.length) return
+  const busy = new Set(db
+    .select({ runId: schema.runSteps.runId })
+    .from(schema.runSteps)
+    .where(eq(schema.runSteps.status, 'running'))
+    .all()
+    .map(r => r.runId))
   for (const { id } of idle) {
     try {
+      if (busy.has(id)) {
+        db.update(schema.runs).set({ previewLastSeen: new Date() }).where(eq(schema.runs.id, id)).run()
+        continue
+      }
       await stopEnv(id)
     }
     catch {
