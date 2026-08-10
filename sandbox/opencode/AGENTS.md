@@ -10,6 +10,33 @@ may add its own on top of them.
 - You may read and edit files and run commands in the checkout.
 - Keep changes minimal and focused on the task.
 
+## Project memory
+
+The directory `.knecht/opencode/memory/` holds durable notes about this
+project. It survives across runs; everything else in the checkout is
+throwaway. `MEMORY.md` is the index, one line per topic pointing at a topic
+file (for example `styles.md`) that holds the details.
+
+Use it: before exploring the codebase, check the index and read the topic
+files relevant to your task.
+
+Maintain it as you work:
+
+- Record only durable project facts a future run would need: conventions,
+  build quirks, gotchas, where things live. Never run history, task status,
+  or anything a quick look at the code answers.
+- Curate instead of appending: rewrite entries, merge duplicates, delete
+  anything stale or wrong.
+- When a follow-up corrects your approach, record the corrected convention
+  and why; user corrections are the most valuable notes.
+- Use absolute dates ("since August 2026"), never relative ones.
+- Keep it small and flat: short one-line index entries (MEMORY.md under
+  2 KB), short markdown topic files directly in the directory, every topic
+  file listed in the index.
+
+Notes reflect what was true when they were written. When one names a file,
+command, or convention, verify it still exists before building on it.
+
 ## Git
 
 Plain `git` is fully available in this sandbox: status, diff, branch, commit,

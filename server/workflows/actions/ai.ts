@@ -9,6 +9,7 @@ import { getSettings } from '../../utils/settings'
 import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
 import { bridgeEnv } from '../../utils/agent-bridge'
+import { persistAgentMemory, seedAgentMemory } from '../../utils/agent-memory'
 import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
@@ -84,6 +85,7 @@ export const aiAction = defineAction({
       return await runWithOutput(rt, dir, model, env, step.prompt, step.output)
     }
     finally {
+      await persistAgentMemory(rt.project.id, rt.checkoutDir, rt.log)
       await rm(dir, { recursive: true, force: true })
     }
   },
@@ -137,6 +139,7 @@ export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Prom
     return await runOpencode(rt, dir, model, env, prompt, true)
   }
   finally {
+    await persistAgentMemory(rt.project.id, rt.checkoutDir, rt.log)
     await rm(dir, { recursive: true, force: true })
   }
 }
@@ -222,13 +225,15 @@ async function readOutputFile(
 
 // Seed the run's opencode config dir (host-side, it lives on the checkout):
 // the bundled AGENTS.md instructions, an opencode.json that merges workflow.md
-// into the agent's instructions, and workflow.md itself (a step's system
-// prompt). `system: null` keeps an existing workflow.md (the follow-up path:
+// and the project memory index into the agent's instructions, workflow.md
+// itself (a step's system prompt), and the project's memory notes
+// (utils/agent-memory.ts). `system: null` keeps an existing workflow.md (the follow-up path:
 // the last ai step's system context stays valid for tweaks to that step's
 // work) and only creates an empty one when none exists (fresh rehydrated
 // checkout). The container path in opencode.json is fixed: ddev always mounts
 // the checkout at /var/www/html.
 const WORKFLOW_SYSTEM_PATH = '/var/www/html/.knecht/opencode/workflow.md'
+const MEMORY_INDEX_PATH = '/var/www/html/.knecht/opencode/memory/MEMORY.md'
 
 async function writeAgentConfig(rt: ActionRuntime, system: string | null): Promise<void> {
   const dir = join(rt.checkoutDir, AGENT_CONFIG_SUBDIR)
@@ -237,10 +242,11 @@ async function writeAgentConfig(rt: ActionRuntime, system: string | null): Promi
   if (agents) await writeFile(join(dir, 'AGENTS.md'), agents)
   await writeFile(join(dir, 'opencode.json'), JSON.stringify({
     $schema: 'https://opencode.ai/config.json',
-    instructions: [WORKFLOW_SYSTEM_PATH],
+    instructions: [WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
   }, null, 2))
   if (system !== null) await writeFile(join(dir, 'workflow.md'), system)
   else if (!existsSync(join(dir, 'workflow.md'))) await writeFile(join(dir, 'workflow.md'), '')
+  await seedAgentMemory(rt.project.id, rt.checkoutDir)
 }
 
 // ── output spec ──────────────────────────────────────────────────────────────
