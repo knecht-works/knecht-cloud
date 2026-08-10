@@ -14,8 +14,11 @@ import { runCheckoutDir } from './storage'
 // fire-and-forget: any failure just keeps the generic project icon.
 
 const MAX_HTML_BYTES = 512_000
-const MAX_ICON_BYTES = 200_000
-const MIME_BY_EXT: Record<string, string> = {
+
+// Shared with the repo-scan favicon lookup (utils/github.ts): one icon size
+// cap and one extension-to-MIME map, wherever the icon comes from.
+export const FAVICON_MAX_BYTES = 200_000
+export const FAVICON_MIME_BY_EXT: Record<string, string> = {
   svg: 'image/svg+xml',
   png: 'image/png',
   ico: 'image/x-icon',
@@ -38,14 +41,16 @@ export async function detectPreviewFavicon(runId: number, project: Project): Pro
     // A head that inlines its icon as a data URI is already what we store.
     if (href?.startsWith('data:image/')) return save(project.id, href)
 
-    // Resolve the href (relative or absolute) against the site; icons on a
-    // host the project doesn't serve (a CDN) are out of reach of the sandbox.
+    // Resolve the href (relative or absolute) against the site. Whatever host
+    // it names, the fetch stays inside the run's web container (fetchFrom
+    // connects to its address, the hostname only becomes the Host header): a
+    // canonical domain the site serves in rewrite mode works, and a CDN host
+    // the container doesn't serve just fails the fetch or the image check.
     const iconUrl = new URL(href ?? '/favicon.ico', `http://${hosts.primary}/`)
-    if (!hosts.all.includes(iconUrl.hostname)) return
-    const icon = await fetchFrom(addr, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, MAX_ICON_BYTES)
+    const icon = await fetchFrom(addr, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
     if (!icon?.body.byteLength) return
     const mime = icon.contentType?.split(';')[0]?.trim()
-      || MIME_BY_EXT[iconUrl.pathname.split('.').pop()?.toLowerCase() ?? '']
+      || FAVICON_MIME_BY_EXT[iconUrl.pathname.split('.').pop()?.toLowerCase() ?? '']
     if (!mime?.startsWith('image/')) return
     save(project.id, `data:${mime};base64,${icon.body.toString('base64')}`)
   }
