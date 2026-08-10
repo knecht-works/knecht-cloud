@@ -14,16 +14,19 @@ export interface ProjectMeta {
 
 // Resolve a project's framework + version + DDEV environment spec + favicon
 // from its repo (`.ddev/config.yaml`, `composer.lock`, `package.json`, the
-// tree). Best-effort: every field falls back to null when the repo/files
-// can't be read; the favicon to '' ("looked, none found"), which the preview
+// tree). Returns null when the repo definitely has no `.ddev/config.yaml` on
+// the ref (the project can never boot); throws when the repo can't be read at
+// all. Within a readable repo every field is best-effort: nulls when a file
+// is missing, the favicon '' ("looked, none found"), which the preview
 // fallback (utils/favicon.ts) may fill later.
 export async function resolveProjectMeta(
   octokit: Octokit,
   owner: string,
   name: string,
   ref?: string,
-): Promise<ProjectMeta> {
+): Promise<ProjectMeta | null> {
   const cfg = await fetchDdevConfig(octokit, owner, name, ref)
+  if (!cfg) return null
   const [frameworkVersion, packageManager, favicon] = await Promise.all([
     cfg.type ? fetchFrameworkVersion(octokit, owner, name, cfg.type, ref) : Promise.resolve(null),
     fetchPackageManager(octokit, owner, name, ref),
@@ -67,11 +70,18 @@ export async function backfillFrameworks(projects: Project[]): Promise<void> {
     try {
       const octokit = await getInstallationClient(p.owner, p.name)
       const meta = await resolveProjectMeta(octokit, p.owner, p.name, p.defaultBranch)
+      // No `.ddev/config.yaml` (anymore): nothing to resolve from; the next
+      // attempt happens after the retry window.
+      if (!meta) return
+      // A favicon already on the row wins: the preview fallback
+      // (utils/favicon.ts) may have stored one the repo scan can't find, and
+      // a re-resolve must not revert it to ''.
+      const patch = { ...meta, favicon: p.favicon || meta.favicon }
       db.update(schema.projects)
-        .set(meta)
+        .set(patch)
         .where(eq(schema.projects.id, p.id))
         .run()
-      Object.assign(p, meta)
+      Object.assign(p, patch)
       if (meta.framework != null) attemptedAt.delete(p.id)
     }
     catch {

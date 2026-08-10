@@ -1,5 +1,6 @@
 import type { Octokit } from 'octokit'
 import { parse } from 'yaml'
+import { FAVICON_MAX_BYTES, FAVICON_MIME_BY_EXT } from './favicon'
 
 // The DDEV project type + environment spec parsed from a repo's
 // `.ddev/config.yaml` (https://docs.ddev.com/en/stable/users/configuration/config/).
@@ -42,15 +43,26 @@ async function readRepoFile(
   return Buffer.from(data.content, 'base64').toString('utf8')
 }
 
+// The parsed config, or null when the repo has no usable `.ddev/config.yaml`
+// on the ref (a definite 404, or the path isn't a readable file): the project
+// can never boot. Every other failure (App not installed, rate limit, network)
+// throws, so callers can tell "couldn't look" from "missing".
 export async function fetchDdevConfig(
   octokit: Octokit,
   owner: string,
   repo: string,
   ref?: string,
-): Promise<DdevConfig> {
+): Promise<DdevConfig | null> {
+  let content: string | null
   try {
-    const content = await readRepoFile(octokit, owner, repo, '.ddev/config.yaml', ref)
-    if (content === null) return EMPTY_DDEV_CONFIG
+    content = await readRepoFile(octokit, owner, repo, '.ddev/config.yaml', ref)
+  }
+  catch (e) {
+    if ((e as { status?: number }).status === 404) return null
+    throw e
+  }
+  if (content === null) return null
+  try {
     const cfg = parse(content) as {
       type?: string
       webserver_type?: string
@@ -69,27 +81,9 @@ export async function fetchDdevConfig(
     }
   }
   catch {
+    // The file exists but doesn't parse: the project can still boot (ddev may
+    // be more lenient), just without resolved metadata.
     return EMPTY_DDEV_CONFIG
-  }
-}
-
-// Whether the repo carries a `.ddev/config.yaml` on the ref. A 404 is a
-// definite "no"; every other failure (App not installed, rate limit, network)
-// bubbles up so the caller can stay best-effort instead of mistaking
-// "couldn't look" for "missing".
-export async function hasDdevConfig(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  ref?: string,
-): Promise<boolean> {
-  try {
-    await octokit.rest.repos.getContent({ owner, repo, path: '.ddev/config.yaml', ref })
-    return true
-  }
-  catch (e) {
-    if ((e as { status?: number }).status === 404) return false
-    throw e
   }
 }
 
@@ -116,14 +110,8 @@ export async function fetchPackageManager(
 // favicon.svg/png/ico wherever it lives (docroot, public/, a theme folder),
 // so the lookup doesn't depend on knowing the docroot. Best-effort: null when
 // the repo has no such file, the tree can't be read (or is truncated past the
-// file), or every candidate is oversized.
-const FAVICON_MIME: Record<string, string> = {
-  svg: 'image/svg+xml',
-  png: 'image/png',
-  ico: 'image/x-icon',
-}
-const FAVICON_MAX_BYTES = 100_000
-
+// file), or every candidate is oversized (FAVICON_MAX_BYTES, shared with the
+// preview fallback in utils/favicon.ts).
 export async function fetchFavicon(
   octokit: Octokit,
   owner: string,
@@ -151,7 +139,7 @@ export async function fetchFavicon(
     if (!best) return null
     const blob = await octokit.rest.git.getBlob({ owner, repo, file_sha: best.sha! })
     if (!blob.data.content) return null
-    const mime = FAVICON_MIME[best.match![1]!.toLowerCase()]!
+    const mime = FAVICON_MIME_BY_EXT[best.match![1]!.toLowerCase()]!
     return `data:${mime};base64,${blob.data.content.replace(/\s/g, '')}`
   }
   catch {
