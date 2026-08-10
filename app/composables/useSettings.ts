@@ -12,6 +12,8 @@ export interface DashboardSettings {
   /** Langdock region (eu/us); present for every provider, used by langdock. */
   aiRegion: string
   aiModel: string
+  /** Optional faster model for the agent's internal small tasks; null = main model. */
+  aiSubtaskModel?: string | null
   /** Instance-level agent instructions, layered into every agent run. */
   agentInstructions: string
   /** Whether a provider API key is stored (the key itself never leaves the server). */

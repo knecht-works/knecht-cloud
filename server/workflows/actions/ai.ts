@@ -253,6 +253,7 @@ async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareMo
     provider: settings.aiProvider as AiProviderId,
     region: settings.aiRegion,
     model: bareModel,
+    subtaskModel: settings.aiSubtaskModel,
   }), null, 2))
   if (system !== null) await writeFile(join(dir, 'workflow.md'), system)
   else if (!existsSync(join(dir, 'workflow.md'))) await writeFile(join(dir, 'workflow.md'), '')
