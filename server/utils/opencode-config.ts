@@ -22,12 +22,15 @@ export interface OpencodeConfigInput {
   region: LangdockRegion
   /** Bare model name this invocation runs (step override already applied). */
   model: string
+  /** Optional bare model for opencode's internal small tasks; null = unset. */
+  subtaskModel: string | null
 }
 
 // The subset of opencode's config schema Knecht generates.
 export interface OpencodeConfig {
   $schema: string
   instructions: string[]
+  small_model?: string
   provider?: {
     langdock: {
       npm: string
@@ -52,6 +55,11 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
     $schema: 'https://opencode.ai/config.json',
     instructions: [RULES_PATH, WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
   }
+  const models = [input.model, ...(input.subtaskModel ? [input.subtaskModel] : [])]
+    .map(stripLegacyModelPrefix)
+  // opencode's official lever for internal small tasks (title generation,
+  // exploration subagents): a faster model than the main one.
+  if (input.subtaskModel) config.small_model = `${input.provider}/${models[1]}`
   // Langdock is not in models.dev, so opencode needs the provider declared:
   // the OpenAI-compatible SDK against the region's endpoint, the key via env
   // interpolation (resolveAgentEnv hands LANGDOCK_API_KEY to the process),
@@ -65,7 +73,7 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
           baseURL: langdockBaseUrl(input.region),
           apiKey: '{env:LANGDOCK_API_KEY}',
         },
-        models: { [stripLegacyModelPrefix(input.model)]: {} },
+        models: Object.fromEntries(models.map(m => [m, {}])),
       },
     }
   }

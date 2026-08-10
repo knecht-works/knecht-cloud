@@ -6,21 +6,31 @@ import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 const toastError = useToastError()
 const { data: settings } = useSettings()
 
+// Reka reserves '' as the clear value, so the subtask picker's "None" entry
+// needs a sentinel (same trick as the builder's ModelSelect).
+const NO_SUBTASK_MODEL = '__none__'
+
 const aiProvider = ref<AiProviderId>('anthropic')
 const aiRegion = ref<LangdockRegion>('eu')
 const aiModel = ref('claude-sonnet-4-5')
+const aiSubtaskModel = ref(NO_SUBTASK_MODEL)
 const agentInstructions = ref('')
 watch(settings, (s) => {
   if (!s) return
   aiProvider.value = s.aiProvider as AiProviderId
   aiRegion.value = s.aiRegion as LangdockRegion
   aiModel.value = s.aiModel
+  aiSubtaskModel.value = s.aiSubtaskModel ?? NO_SUBTASK_MODEL
   agentInstructions.value = s.agentInstructions
 }, { immediate: true })
 
 const { data: aiModels, status: aiModelsStatus, error: aiModelsError } = useAiModels()
 const modelItems = computed(() =>
   aiModels.value.map(m => ({ label: m.id, description: `${m.name} · ${m.provider}`, id: m.id })))
+const subtaskItems = computed(() => [
+  { label: 'None', description: 'The main model handles everything', id: NO_SUBTASK_MODEL },
+  ...modelItems.value,
+])
 
 const PROVIDER_ITEMS = AI_PROVIDERS.map(p => ({ label: p.label, id: p.id }))
 // Langdock serves per-region deployments; the region scopes every request and
@@ -34,14 +44,20 @@ const REGION_ITEMS = [
 // state, flush on unmount). A provider, region or key change refetches the
 // (provider-scoped) model catalog.
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
-  await patchSettings(settings, { aiProvider: aiProvider.value, aiRegion: aiRegion.value, aiModel: aiModel.value })
+  await patchSettings(settings, {
+    aiProvider: aiProvider.value,
+    aiRegion: aiRegion.value,
+    aiModel: aiModel.value,
+    aiSubtaskModel: aiSubtaskModel.value === NO_SUBTASK_MODEL ? null : aiSubtaskModel.value,
+  })
   await refreshNuxtData('ai-models')
 })
-watch([aiProvider, aiRegion, aiModel], () => {
+watch([aiProvider, aiRegion, aiModel, aiSubtaskModel], () => {
   if (
     aiProvider.value === settings.value?.aiProvider
     && aiRegion.value === settings.value?.aiRegion
     && aiModel.value === settings.value?.aiModel
+    && aiSubtaskModel.value === (settings.value?.aiSubtaskModel ?? NO_SUBTASK_MODEL)
   ) return
   if (!aiModel.value.trim()) return invalid('Pick a default model')
   schedule()
@@ -214,6 +230,33 @@ async function removeAiKey() {
               <p class="mt-2 text-xs leading-normal text-muted">
                 Only the selected provider's models are offered. For OpenCode the list comes
                 from your workspace, so models disabled there don't show up.
+              </p>
+            </div>
+            <div class="sm:col-span-2">
+              <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Subtask model</span>
+              <div class="mt-2">
+                <UInput
+                  v-if="aiModelsError"
+                  :model-value="aiSubtaskModel === NO_SUBTASK_MODEL ? '' : aiSubtaskModel"
+                  placeholder="None, the main model handles everything"
+                  class="w-full sm:max-w-md"
+                  @update:model-value="aiSubtaskModel = ($event as string).trim() || NO_SUBTASK_MODEL"
+                />
+                <USelectMenu
+                  v-else
+                  v-model="aiSubtaskModel"
+                  :items="subtaskItems"
+                  value-key="id"
+                  :filter-fields="['label', 'description']"
+                  :loading="aiModelsStatus === 'pending'"
+                  placeholder="None"
+                  class="w-full sm:max-w-md"
+                />
+              </div>
+              <p class="mt-2 text-xs leading-normal text-muted">
+                A faster model the agent uses for its internal small tasks and
+                exploration subagents. Runs get quicker and cheaper; the main
+                model still does the actual work.
               </p>
             </div>
           </div>

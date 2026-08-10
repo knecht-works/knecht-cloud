@@ -19,8 +19,10 @@ const bodySchema = z.object({
   aiProvider: z.enum(AI_PROVIDERS.map(p => p.id) as [AiProviderId, ...AiProviderId[]]).optional(),
   aiRegion: z.enum(LANGDOCK_REGIONS).optional(),
   aiKey: z.string().min(1).max(500).nullable().optional(),
-  // Bare model name (docs/adr/0003), no provider prefix.
+  // Bare model names (docs/adr/0003), no provider prefix. The subtask model
+  // becomes opencode's small_model; null clears it (main model does it all).
   aiModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).optional(),
+  aiSubtaskModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).nullable().optional(),
   // Instance-level agent instructions (docs/adr/0002).
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
   sshTarget: z.string().trim().regex(SSH_TARGET_RE).max(200).nullable().optional(),
@@ -46,7 +48,7 @@ export default defineEventHandler(async (event) => {
 // effort by design: when the catalog itself cannot be loaded the save goes
 // through, because a catalog outage must never lock the settings page.
 async function assertModelInCatalog(patch: SettingsPatch): Promise<void> {
-  if (!['aiProvider', 'aiRegion', 'aiModel', 'aiKeyEnc'].some(f => f in patch)) return
+  if (!['aiProvider', 'aiRegion', 'aiModel', 'aiSubtaskModel', 'aiKeyEnc'].some(f => f in patch)) return
   const effective = { ...getSettings(), ...patch }
   let ids: Set<string>
   try {
@@ -59,6 +61,12 @@ async function assertModelInCatalog(patch: SettingsPatch): Promise<void> {
     throw createError({
       statusCode: 400,
       statusMessage: `The model '${effective.aiModel}' is not available at ${effective.aiProvider}. Pick a model from its catalog first.`,
+    })
+  }
+  if (effective.aiSubtaskModel && !ids.has(effective.aiSubtaskModel)) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: `The subtask model '${effective.aiSubtaskModel}' is not available at ${effective.aiProvider}. Clear or change it first.`,
     })
   }
 }

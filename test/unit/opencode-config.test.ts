@@ -13,7 +13,7 @@ import {
 
 describe('buildOpencodeConfig', () => {
   it('emits the static instructions array and no provider block for registry providers', () => {
-    const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5' })
+    const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })
     expect(config).toEqual({
       $schema: 'https://opencode.ai/config.json',
       // Exactly three entries: opencode adds a prompt-cache breakpoint per
@@ -23,7 +23,7 @@ describe('buildOpencodeConfig', () => {
   })
 
   it('declares langdock as a custom provider with the region endpoint and env key', () => {
-    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'claude-sonnet-4-5' })
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })
     expect(config.provider!.langdock).toEqual({
       npm: '@ai-sdk/openai-compatible',
       name: 'Langdock',
@@ -36,13 +36,30 @@ describe('buildOpencodeConfig', () => {
   })
 
   it('switches the endpoint with the region', () => {
-    const config = buildOpencodeConfig({ provider: 'langdock', region: 'us', model: 'gpt-4o' })
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'us', model: 'gpt-4o', subtaskModel: null })
     expect(config.provider!.langdock.options.baseURL).toBe('https://api.langdock.com/openai/us/v1')
   })
 
   it('registers a legacy-prefixed model under its bare name', () => {
-    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'anthropic/claude-sonnet-4-5' })
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'anthropic/claude-sonnet-4-5', subtaskModel: null })
     expect(config.provider!.langdock.models).toEqual({ 'claude-sonnet-4-5': {} })
+  })
+
+  it('emits small_model prefixed with the provider and registers it at langdock', () => {
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: 'claude-haiku-4-5' })
+    expect(config.small_model).toBe('langdock/claude-haiku-4-5')
+    expect(config.provider!.langdock.models).toEqual({ 'claude-sonnet-4-5': {}, 'claude-haiku-4-5': {} })
+  })
+
+  it('emits small_model for registry providers and strips a legacy prefix from it', () => {
+    const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: 'anthropic/claude-haiku-4-5' })
+    expect(config.small_model).toBe('anthropic/claude-haiku-4-5')
+    expect(config.provider).toBeUndefined()
+  })
+
+  it('dedupes the langdock models map when main and subtask model match', () => {
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'gpt-4o', subtaskModel: 'gpt-4o' })
+    expect(config.provider!.langdock.models).toEqual({ 'gpt-4o': {} })
   })
 })
 
