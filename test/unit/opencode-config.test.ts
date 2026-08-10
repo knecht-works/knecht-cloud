@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildOpencodeConfig, MEMORY_INDEX_PATH, WORKFLOW_SYSTEM_PATH } from '../../server/utils/opencode-config'
+import {
+  buildAgentRules,
+  buildOpencodeConfig,
+  MEMORY_INDEX_PATH,
+  RULES_PATH,
+  WORKFLOW_SYSTEM_PATH,
+} from '../../server/utils/opencode-config'
 
 // The generated opencode.json, asserted structurally: the instructions the
 // agent always receives, and the custom provider block a gateway provider
@@ -10,7 +16,9 @@ describe('buildOpencodeConfig', () => {
     const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5' })
     expect(config).toEqual({
       $schema: 'https://opencode.ai/config.json',
-      instructions: [WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
+      // Exactly three entries: opencode adds a prompt-cache breakpoint per
+      // file and Anthropic caps cache_control blocks at 4 per request.
+      instructions: [RULES_PATH, WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
     })
   })
 
@@ -35,5 +43,21 @@ describe('buildOpencodeConfig', () => {
   it('registers a legacy-prefixed model under its bare name', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'anthropic/claude-sonnet-4-5' })
     expect(config.provider!.langdock.models).toEqual({ 'claude-sonnet-4-5': {} })
+  })
+})
+
+describe('buildAgentRules', () => {
+  it('renders both layers with the project section last', () => {
+    const rules = buildAgentRules('Instance rule.', 'Project rule.')
+    expect(rules).toBe(
+      '# Instance rules\n\nInstance rule.\n\n'
+      + '# Project rules\n\nOn conflict these override the instance rules.\n\nProject rule.\n',
+    )
+  })
+
+  it('omits empty layers entirely', () => {
+    expect(buildAgentRules('Only instance.', '  ')).toBe('# Instance rules\n\nOnly instance.\n')
+    expect(buildAgentRules('', 'Only project.')).toContain('# Project rules')
+    expect(buildAgentRules('', '')).toBe('')
   })
 })

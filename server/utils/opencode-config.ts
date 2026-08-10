@@ -5,10 +5,15 @@ import { type AiProviderId, type LangdockRegion, langdockBaseUrl, stripLegacyMod
 // side lives in server/workflows/actions/ai.ts. The container paths are fixed:
 // ddev always mounts the checkout at /var/www/html.
 
-// The `instructions` layers, in order: the step's workflow.md prompt and the
-// project memory index. Both files are written on every invocation (empty
-// when unset), so the array can stay static and every reference always
-// resolves.
+// The `instructions` layers, in order (docs/adr/0002): the human-written
+// rules (instance + project sections in ONE file), the step's workflow.md
+// prompt, the project memory index. All files are written on every invocation
+// (empty when unset), so the array can stay static and every reference always
+// resolves. The two human layers deliberately share one file: opencode
+// attaches a prompt-cache breakpoint per instructions entry and Anthropic
+// caps cache_control blocks at 4 per request, so a 4-entry array made the
+// gateway reject every completion (verified against OpenCode Zen, Aug 2026).
+export const RULES_PATH = '/var/www/html/.knecht/opencode/rules.md'
 export const WORKFLOW_SYSTEM_PATH = '/var/www/html/.knecht/opencode/workflow.md'
 export const MEMORY_INDEX_PATH = '/var/www/html/.knecht/opencode/memory/MEMORY.md'
 
@@ -33,10 +38,19 @@ export interface OpencodeConfig {
   }
 }
 
+// The rules.md content: instance rules first, project rules after (the more
+// specific layer wins on conflict, docs/adr/0002). Empty when neither is set.
+export function buildAgentRules(instance: string, project: string): string {
+  const sections: string[] = []
+  if (instance.trim()) sections.push(`# Instance rules\n\n${instance.trim()}`)
+  if (project.trim()) sections.push(`# Project rules\n\nOn conflict these override the instance rules.\n\n${project.trim()}`)
+  return sections.length ? `${sections.join('\n\n')}\n` : ''
+}
+
 export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig {
   const config: OpencodeConfig = {
     $schema: 'https://opencode.ai/config.json',
-    instructions: [WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
+    instructions: [RULES_PATH, WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
   }
   // Langdock is not in models.dev, so opencode needs the provider declared:
   // the OpenAI-compatible SDK against the region's endpoint, the key via env

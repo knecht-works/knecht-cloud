@@ -10,7 +10,7 @@ import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
 import { bridgeEnv } from '../../utils/agent-bridge'
 import { persistAgentMemory, seedAgentMemory } from '../../utils/agent-memory'
-import { buildOpencodeConfig } from '../../utils/opencode-config'
+import { buildAgentRules, buildOpencodeConfig } from '../../utils/opencode-config'
 import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
@@ -246,6 +246,9 @@ async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareMo
   await mkdir(dir, { recursive: true })
   const agents = await readSandboxAsset('opencode/AGENTS.md')
   if (agents) await writeFile(join(dir, 'AGENTS.md'), agents)
+  // The human rules layers (docs/adr/0002): always written, empty when
+  // unset, so the static path in the generated config always resolves.
+  await writeFile(join(dir, 'rules.md'), buildAgentRules(settings.agentInstructions, rt.project.agentInstructions))
   await writeFile(join(dir, 'opencode.json'), JSON.stringify(buildOpencodeConfig({
     provider: settings.aiProvider as AiProviderId,
     region: settings.aiRegion,

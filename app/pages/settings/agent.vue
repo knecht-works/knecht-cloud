@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { AI_PROVIDERS, type AiProviderId, type LangdockRegion } from '#shared/utils/ai'
+import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 
 // Agent: the opencode provider, its (write-only) API key and the default model.
 const toastError = useToastError()
@@ -8,11 +9,13 @@ const { data: settings } = useSettings()
 const aiProvider = ref<AiProviderId>('anthropic')
 const aiRegion = ref<LangdockRegion>('eu')
 const aiModel = ref('claude-sonnet-4-5')
+const agentInstructions = ref('')
 watch(settings, (s) => {
   if (!s) return
   aiProvider.value = s.aiProvider as AiProviderId
   aiRegion.value = s.aiRegion as LangdockRegion
   aiModel.value = s.aiModel
+  agentInstructions.value = s.agentInstructions
 }, { immediate: true })
 
 const { data: aiModels, status: aiModelsStatus, error: aiModelsError } = useAiModels()
@@ -42,6 +45,16 @@ watch([aiProvider, aiRegion, aiModel], () => {
   ) return
   if (!aiModel.value.trim()) return invalid('Pick a default model')
   schedule()
+})
+
+// Instance instructions: own autosave so a typo-fix in the textarea never
+// races the provider/model save above.
+const { state: instructionsState, error: instructionsError, schedule: scheduleInstructions } = useAutosave(async () => {
+  await patchSettings(settings, { agentInstructions: agentInstructions.value })
+})
+watch(agentInstructions, () => {
+  if (agentInstructions.value === settings.value?.agentInstructions) return
+  scheduleInstructions()
 })
 
 const aiKey = ref('')
@@ -82,133 +95,168 @@ async function removeAiKey() {
 </script>
 
 <template>
-  <KPanel
-    title="Agent"
-    icon="i-lucide-sparkles"
-    accent="var(--accent-orange)"
-  >
-    <template #action>
-      <KSaveStatus
-        v-if="saveState !== 'idle'"
-        :state="saveState"
-        :error-text="saveError"
-      />
-      <span
-        v-else
-        class="k-mono text-2xs"
-        :class="settings?.aiKeyConfigured ? 'text-primary' : 'text-dimmed'"
-      >
-        {{ settings?.aiKeyConfigured ? 'Ready' : 'Not configured' }}
-      </span>
-    </template>
-    <div class="flex gap-10">
-      <div class="min-w-0 max-w-4xl flex-1">
-        <p class="mb-5 text-2sm leading-relaxed text-muted">
-          The <span class="k-mono text-xs text-toned">ai</span> workflow step
-          runs opencode inside the run's sandbox, authenticated against the selected
-          provider with this key. The key is stored encrypted, and each step can override
-          the default model.
-        </p>
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-[13rem_1fr]">
-          <div>
-            <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Provider</span>
-            <div class="mt-2 flex gap-2">
-              <USelect
-                v-model="aiProvider"
-                :items="PROVIDER_ITEMS"
-                value-key="id"
-                class="flex-1"
-              />
-              <USelect
+  <div class="flex flex-col gap-4.5">
+    <KPanel
+      title="Agent"
+      icon="i-lucide-sparkles"
+      accent="var(--accent-orange)"
+    >
+      <template #action>
+        <KSaveStatus
+          v-if="saveState !== 'idle'"
+          :state="saveState"
+          :error-text="saveError"
+        />
+        <span
+          v-else
+          class="k-mono text-2xs"
+          :class="settings?.aiKeyConfigured ? 'text-primary' : 'text-dimmed'"
+        >
+          {{ settings?.aiKeyConfigured ? 'Ready' : 'Not configured' }}
+        </span>
+      </template>
+      <div class="flex gap-10">
+        <div class="min-w-0 max-w-4xl flex-1">
+          <p class="mb-5 text-2sm leading-relaxed text-muted">
+            The <span class="k-mono text-xs text-toned">ai</span> workflow step
+            runs opencode inside the run's sandbox, authenticated against the selected
+            provider with this key. The key is stored encrypted, and each step can override
+            the default model.
+          </p>
+          <div class="grid grid-cols-1 gap-5 sm:grid-cols-[13rem_1fr]">
+            <div>
+              <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Provider</span>
+              <div class="mt-2 flex gap-2">
+                <USelect
+                  v-model="aiProvider"
+                  :items="PROVIDER_ITEMS"
+                  value-key="id"
+                  class="flex-1"
+                />
+                <USelect
+                  v-if="aiProvider === 'langdock'"
+                  v-model="aiRegion"
+                  :items="REGION_ITEMS"
+                  value-key="id"
+                  aria-label="Langdock region"
+                  class="w-20"
+                />
+              </div>
+              <p
                 v-if="aiProvider === 'langdock'"
-                v-model="aiRegion"
-                :items="REGION_ITEMS"
-                value-key="id"
-                aria-label="Langdock region"
-                class="w-20"
-              />
+                class="mt-2 text-xs leading-normal text-muted"
+              >
+                Langdock keeps all requests in the selected region. The model list
+                loads once an API key is saved.
+              </p>
             </div>
-            <p
-              v-if="aiProvider === 'langdock'"
-              class="mt-2 text-xs leading-normal text-muted"
-            >
-              Langdock keeps all requests in the selected region. The model list
-              loads once an API key is saved.
-            </p>
-          </div>
-          <div>
-            <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">API key</span>
-            <form
-              class="mt-2 flex items-center gap-2"
-              @submit.prevent="saveAiKey"
-            >
-              <UInput
-                v-model="aiKey"
-                type="password"
-                :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
-                class="flex-1"
-              />
-              <UButton
-                type="submit"
-                color="primary"
-                size="xs"
-                label="Save"
-                :loading="savingAiKey"
-                :disabled="!aiKey.trim()"
-              />
-              <UButton
-                v-if="settings?.aiKeyConfigured"
-                type="button"
-                color="error"
-                variant="ghost"
-                size="xs"
-                icon="i-lucide-trash-2"
-                aria-label="Remove the stored API key"
-                :loading="removingAiKey"
-                @click="removeAiKey"
-              />
-            </form>
-          </div>
-          <div class="sm:col-span-2">
-            <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Default model</span>
-            <div class="mt-2">
-              <UInput
-                v-if="aiModelsError"
-                v-model="aiModel"
-                placeholder="claude-sonnet-4-5"
-                :color="saveError ? 'error' : undefined"
-                :highlight="!!saveError"
-                class="w-full sm:max-w-md"
-              />
-              <USelectMenu
-                v-else
-                v-model="aiModel"
-                :items="modelItems"
-                value-key="id"
-                :filter-fields="['label', 'description']"
-                :loading="aiModelsStatus === 'pending'"
-                placeholder="claude-sonnet-4-5"
-                class="w-full sm:max-w-md"
-              />
+            <div>
+              <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">API key</span>
+              <form
+                class="mt-2 flex items-center gap-2"
+                @submit.prevent="saveAiKey"
+              >
+                <UInput
+                  v-model="aiKey"
+                  type="password"
+                  :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
+                  class="flex-1"
+                />
+                <UButton
+                  type="submit"
+                  color="primary"
+                  size="xs"
+                  label="Save"
+                  :loading="savingAiKey"
+                  :disabled="!aiKey.trim()"
+                />
+                <UButton
+                  v-if="settings?.aiKeyConfigured"
+                  type="button"
+                  color="error"
+                  variant="ghost"
+                  size="xs"
+                  icon="i-lucide-trash-2"
+                  aria-label="Remove the stored API key"
+                  :loading="removingAiKey"
+                  @click="removeAiKey"
+                />
+              </form>
             </div>
-            <p
-              v-if="saveError"
-              class="mt-2 text-xs leading-normal text-error"
-            >
-              {{ saveError }}
-            </p>
-            <p class="mt-2 text-xs leading-normal text-muted">
-              Only the selected provider's models are offered. For OpenCode the list comes
-              from your workspace, so models disabled there don't show up.
-            </p>
+            <div class="sm:col-span-2">
+              <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Default model</span>
+              <div class="mt-2">
+                <UInput
+                  v-if="aiModelsError"
+                  v-model="aiModel"
+                  placeholder="claude-sonnet-4-5"
+                  :color="saveError ? 'error' : undefined"
+                  :highlight="!!saveError"
+                  class="w-full sm:max-w-md"
+                />
+                <USelectMenu
+                  v-else
+                  v-model="aiModel"
+                  :items="modelItems"
+                  value-key="id"
+                  :filter-fields="['label', 'description']"
+                  :loading="aiModelsStatus === 'pending'"
+                  placeholder="claude-sonnet-4-5"
+                  class="w-full sm:max-w-md"
+                />
+              </div>
+              <p
+                v-if="saveError"
+                class="mt-2 text-xs leading-normal text-error"
+              >
+                {{ saveError }}
+              </p>
+              <p class="mt-2 text-xs leading-normal text-muted">
+                Only the selected provider's models are offered. For OpenCode the list comes
+                from your workspace, so models disabled there don't show up.
+              </p>
+            </div>
           </div>
         </div>
+        <img
+          src="/mascot/looking-right-knecht.svg"
+          alt=""
+          class="pointer-events-none ml-auto hidden h-52 w-auto shrink-0 self-center -scale-x-100 xl:mr-6 xl:block"
+        >
       </div>
-      <img
-        src="/mascot/looking-right-knecht.svg"
-        alt=""
-        class="pointer-events-none ml-auto hidden h-52 w-auto shrink-0 self-center -scale-x-100 xl:mr-6 xl:block"
-      >
-    </div>
-  </KPanel>
+    </KPanel>
+
+    <KPanel
+      title="Instructions"
+      icon="i-lucide-list-checks"
+      accent="var(--accent-orange)"
+    >
+      <template #action>
+        <KSaveStatus
+          v-if="instructionsState !== 'idle'"
+          :state="instructionsState"
+          :error-text="instructionsError"
+        />
+      </template>
+      <div class="max-w-4xl">
+        <p class="mb-5 text-2sm leading-relaxed text-muted">
+          What should the agent know or follow in every project? These rules are
+          added on top of Knecht's built-in behavior rules; each project can add
+          its own rules in its settings.
+        </p>
+        <UTextarea
+          v-model="agentInstructions"
+          :rows="4"
+          autoresize
+          :maxrows="16"
+          :maxlength="AGENT_INSTRUCTIONS_MAX"
+          placeholder="Always answer in German. Never touch anything under legacy/."
+          class="w-full"
+        />
+        <p class="mt-2 text-xs leading-normal text-muted">
+          Saved automatically and given to the agent on every run.
+        </p>
+      </div>
+    </KPanel>
+  </div>
 </template>
