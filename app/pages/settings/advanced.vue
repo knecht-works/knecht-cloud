@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { SSH_TARGET_RE } from '#shared/utils/settings-limits'
-import type { DashboardSettings } from '~/composables/useSettings'
 
 // Advanced: rarely-touched settings. Currently just remote access, the
 // operator's SSH address for the run page's terminal modal.
@@ -30,39 +29,16 @@ function validate(): boolean {
   return true
 }
 
-const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
-const saveError = ref('')
-let saveTimer: ReturnType<typeof setTimeout> | undefined
+// Autosave (useAutosave: debounce, save state, flush on unmount).
+// patchSettings merges the echo in place, so the settings watcher above
+// doesn't re-fire and reset the field mid-edit.
+const { state: saveState, error: saveError, schedule, invalid } = useAutosave(() =>
+  patchSettings(settings, { sshTarget: sshTarget.value.trim() || null }))
 watch(sshTarget, () => {
   if (sshTarget.value === (settings.value?.sshTarget ?? '')) return
-  saveError.value = ''
-  clearTimeout(saveTimer)
-  if (!validate()) {
-    saveState.value = 'error'
-    saveError.value = 'Not saved, check the value'
-    return
-  }
-  saveState.value = 'saving'
-  saveTimer = setTimeout(save, 800)
+  if (!validate()) return invalid('Not saved, check the value')
+  schedule()
 })
-async function save() {
-  if (!validate()) return
-  try {
-    const updated = await $fetch<DashboardSettings>('/api/settings', {
-      method: 'PATCH',
-      body: { sshTarget: sshTarget.value.trim() || null },
-    })
-    // Update the field in place, not settings.value = updated: reassigning
-    // re-fires the settings watcher, which would reset the field the user is
-    // still editing to this server echo.
-    if (settings.value) settings.value.sshTarget = updated.sshTarget
-    saveState.value = 'saved'
-  }
-  catch (e) {
-    saveState.value = 'error'
-    saveError.value = errMsg(e, 'Not saved, check the value')
-  }
-}
 </script>
 
 <template>

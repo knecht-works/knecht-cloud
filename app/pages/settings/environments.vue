@@ -45,36 +45,18 @@ function validate(): boolean {
   return ok
 }
 
-// Autosave, debounced so a keystroke doesn't fire a request. Invalid values
-// never leave the browser: the request is held until every field passes.
-// `load()` refreshing `original` is what stops the save loop.
-const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
-const saveError = ref('')
-let saveTimer: ReturnType<typeof setTimeout> | undefined
+// Autosave (useAutosave: debounce, save state, flush on unmount). Invalid
+// values never leave the browser: only a form that passes every field check
+// schedules a request. Refreshing `original` is what stops the save loop.
+const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
+  await patchSettings(settings, { ...form })
+  original.value = JSON.stringify({ ...form })
+})
 watch(form, () => {
   if (JSON.stringify({ ...form }) === original.value) return
-  saveError.value = ''
-  clearTimeout(saveTimer)
-  if (!validate()) {
-    saveState.value = 'error'
-    saveError.value = 'Not saved, check the values'
-    return
-  }
-  saveState.value = 'saving'
-  saveTimer = setTimeout(save, 800)
+  if (!validate()) return invalid('Not saved, check the values')
+  schedule()
 })
-async function save() {
-  if (!validate()) return
-  try {
-    settings.value = await $fetch<DashboardSettings>('/api/settings', { method: 'PATCH', body: { ...form } })
-    load()
-    saveState.value = 'saved'
-  }
-  catch (e) {
-    saveState.value = 'error'
-    saveError.value = errMsg(e, 'Not saved, check the values')
-  }
-}
 </script>
 
 <template>
