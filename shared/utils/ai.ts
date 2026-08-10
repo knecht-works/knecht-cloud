@@ -12,8 +12,24 @@ export const AI_PROVIDERS = [
   { id: 'anthropic', label: 'Anthropic' },
   { id: 'openai', label: 'OpenAI' },
   { id: 'google', label: 'Google' },
+  // Gateway provider (docs/adr/0001): one endpoint in front of several model
+  // vendors, chosen for its data residency. Not in models.dev, so the ai step
+  // declares it to opencode as a custom provider (server/utils/opencode-config.ts).
+  { id: 'langdock', label: 'Langdock' },
 ] as const
 export type AiProviderId = typeof AI_PROVIDERS[number]['id']
+
+// Langdock serves per-region deployments; the region is an instance setting
+// (its whole point is residency, so it applies to every request).
+export const LANGDOCK_REGIONS = ['eu', 'us'] as const
+export type LangdockRegion = typeof LANGDOCK_REGIONS[number]
+
+// The OpenAI-compatible route. Langdock also has an Anthropic-compatible one;
+// this one carries the full catalog and caches prompts automatically, so it is
+// the only route Knecht uses.
+export function langdockBaseUrl(region: LangdockRegion): string {
+  return `https://api.langdock.com/openai/${region}/v1`
+}
 
 // Stored model names are bare, without a provider prefix (docs/adr/0003): the
 // instance provider is prepended only at invocation. The charset is shell-safe

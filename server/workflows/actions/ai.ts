@@ -10,6 +10,7 @@ import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
 import { bridgeEnv } from '../../utils/agent-bridge'
 import { persistAgentMemory, seedAgentMemory } from '../../utils/agent-memory'
+import { buildOpencodeConfig } from '../../utils/opencode-config'
 import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
@@ -30,6 +31,9 @@ const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
   'anthropic': ['ANTHROPIC_API_KEY'],
   'openai': ['OPENAI_API_KEY'],
   'google': ['GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
+  // Resolved by the {env:...} interpolation in the generated provider block
+  // (utils/opencode-config.ts), not by models.dev.
+  'langdock': ['LANGDOCK_API_KEY'],
 }
 
 // The final provider/model string handed to opencode (the model part may
@@ -67,14 +71,14 @@ export const aiAction = defineAction({
     ),
   },
   async run(step, rt) {
-    const { model, env } = await resolveAgentEnv(rt.runId, step.model)
+    const { model, bareModel, env } = await resolveAgentEnv(rt.runId, step.model)
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
 
     const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
     try {
       // Reset the merged-in system prompt for THIS step (empty when unset).
-      await writeAgentConfig(rt, step.system ?? '')
+      await writeAgentConfig(rt, step.system ?? '', bareModel)
 
       if (!step.output) {
         const text = await runOpencode(rt, dir, model, env, step.prompt, false)
@@ -99,7 +103,7 @@ export const aiAction = defineAction({
 async function resolveAgentEnv(
   runId: number,
   stepModel?: string,
-): Promise<{ model: string, env: Record<string, string> }> {
+): Promise<{ model: string, bareModel: string, env: Record<string, string> }> {
   const settings = getSettings()
   if (!settings.aiKeyEnc) {
     throw new Error('AI provider API key not configured, add it under Settings → Agent')
@@ -123,6 +127,7 @@ async function resolveAgentEnv(
   const key = decrypt(settings.aiKeyEnc)
   return {
     model,
+    bareModel: bare,
     env: { ...Object.fromEntries(envNames.map(name => [name, key])), ...await bridgeEnv(runId) },
   }
 }
@@ -133,10 +138,10 @@ async function resolveAgentEnv(
 // The step's workflow.md system prompt is deliberately left as-is: the last
 // ai step's system context stays valid for tweaks to that step's work.
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Promise<string> {
-  const { model, env } = await resolveAgentEnv(rt.runId)
+  const { model, bareModel, env } = await resolveAgentEnv(rt.runId)
   rt.log(`\n▶ follow-up (${model}): ${oneLine(prompt, 100)}\n`)
   await rt.sandbox.ensureUp()
-  await writeAgentConfig(rt, null)
+  await writeAgentConfig(rt, null, bareModel)
   const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
   try {
     return await runOpencode(rt, dir, model, env, prompt, true)
@@ -233,20 +238,19 @@ async function readOutputFile(
 // (utils/agent-memory.ts). `system: null` keeps an existing workflow.md (the follow-up path:
 // the last ai step's system context stays valid for tweaks to that step's
 // work) and only creates an empty one when none exists (fresh rehydrated
-// checkout). The container path in opencode.json is fixed: ddev always mounts
-// the checkout at /var/www/html.
-const WORKFLOW_SYSTEM_PATH = '/var/www/html/.knecht/opencode/workflow.md'
-const MEMORY_INDEX_PATH = '/var/www/html/.knecht/opencode/memory/MEMORY.md'
-
-async function writeAgentConfig(rt: ActionRuntime, system: string | null): Promise<void> {
+// checkout). The opencode.json itself comes from utils/opencode-config.ts,
+// which also declares Langdock as a custom provider when configured.
+async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareModel: string): Promise<void> {
+  const settings = getSettings()
   const dir = join(rt.checkoutDir, AGENT_CONFIG_SUBDIR)
   await mkdir(dir, { recursive: true })
   const agents = await readSandboxAsset('opencode/AGENTS.md')
   if (agents) await writeFile(join(dir, 'AGENTS.md'), agents)
-  await writeFile(join(dir, 'opencode.json'), JSON.stringify({
-    $schema: 'https://opencode.ai/config.json',
-    instructions: [WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
-  }, null, 2))
+  await writeFile(join(dir, 'opencode.json'), JSON.stringify(buildOpencodeConfig({
+    provider: settings.aiProvider as AiProviderId,
+    region: settings.aiRegion,
+    model: bareModel,
+  }), null, 2))
   if (system !== null) await writeFile(join(dir, 'workflow.md'), system)
   else if (!existsSync(join(dir, 'workflow.md'))) await writeFile(join(dir, 'workflow.md'), '')
   await seedAgentMemory(rt.project.id, rt.checkoutDir)

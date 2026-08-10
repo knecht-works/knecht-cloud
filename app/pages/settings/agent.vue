@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { AI_PROVIDERS, type AiProviderId } from '#shared/utils/ai'
+import { AI_PROVIDERS, type AiProviderId, type LangdockRegion } from '#shared/utils/ai'
 
 // Agent: the opencode provider, its (write-only) API key and the default model.
 const toastError = useToastError()
 const { data: settings } = useSettings()
 
 const aiProvider = ref<AiProviderId>('anthropic')
+const aiRegion = ref<LangdockRegion>('eu')
 const aiModel = ref('claude-sonnet-4-5')
 watch(settings, (s) => {
   if (!s) return
   aiProvider.value = s.aiProvider as AiProviderId
+  aiRegion.value = s.aiRegion as LangdockRegion
   aiModel.value = s.aiModel
 }, { immediate: true })
 
@@ -18,16 +20,26 @@ const modelItems = computed(() =>
   aiModels.value.map(m => ({ label: m.id, description: `${m.name} · ${m.provider}`, id: m.id })))
 
 const PROVIDER_ITEMS = AI_PROVIDERS.map(p => ({ label: p.label, id: p.id }))
+// Langdock serves per-region deployments; the region scopes every request and
+// the model catalog, so it sits next to the provider and only shows for it.
+const REGION_ITEMS = [
+  { label: 'EU', id: 'eu' },
+  { label: 'US', id: 'us' },
+]
 
-// Provider and default model autosave (useAutosave: debounce, save state,
-// flush on unmount). A provider or key change refetches the (provider-scoped)
-// model catalog.
+// Provider, region and default model autosave (useAutosave: debounce, save
+// state, flush on unmount). A provider, region or key change refetches the
+// (provider-scoped) model catalog.
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
-  await patchSettings(settings, { aiProvider: aiProvider.value, aiModel: aiModel.value })
+  await patchSettings(settings, { aiProvider: aiProvider.value, aiRegion: aiRegion.value, aiModel: aiModel.value })
   await refreshNuxtData('ai-models')
 })
-watch([aiProvider, aiModel], () => {
-  if (aiProvider.value === settings.value?.aiProvider && aiModel.value === settings.value?.aiModel) return
+watch([aiProvider, aiRegion, aiModel], () => {
+  if (
+    aiProvider.value === settings.value?.aiProvider
+    && aiRegion.value === settings.value?.aiRegion
+    && aiModel.value === settings.value?.aiModel
+  ) return
   if (!aiModel.value.trim()) return invalid('Pick a default model')
   schedule()
 })
@@ -100,12 +112,29 @@ async function removeAiKey() {
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-[13rem_1fr]">
           <div>
             <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Provider</span>
-            <USelect
-              v-model="aiProvider"
-              :items="PROVIDER_ITEMS"
-              value-key="id"
-              class="mt-2 w-full"
-            />
+            <div class="mt-2 flex gap-2">
+              <USelect
+                v-model="aiProvider"
+                :items="PROVIDER_ITEMS"
+                value-key="id"
+                class="flex-1"
+              />
+              <USelect
+                v-if="aiProvider === 'langdock'"
+                v-model="aiRegion"
+                :items="REGION_ITEMS"
+                value-key="id"
+                aria-label="Langdock region"
+                class="w-20"
+              />
+            </div>
+            <p
+              v-if="aiProvider === 'langdock'"
+              class="mt-2 text-xs leading-normal text-muted"
+            >
+              Langdock keeps all requests in the selected region. The model list
+              loads once an API key is saved.
+            </p>
           </div>
           <div>
             <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">API key</span>

@@ -9,6 +9,8 @@ export interface DashboardSettings {
   archiveRetentionDays: number
   maxConcurrentRuns: number
   aiProvider: string
+  /** Langdock region (eu/us); present for every provider, used by langdock. */
+  aiRegion: string
   aiModel: string
   /** Whether a provider API key is stored (the key itself never leaves the server). */
   aiKeyConfigured?: boolean
