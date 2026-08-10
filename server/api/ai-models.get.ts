@@ -52,7 +52,9 @@ async function opencodeModels(provider: AiProviderId, key: string): Promise<AiMo
   if (!data.data?.length) throw new Error(`${plan.label} returned no models`)
   return data.data
     .map(m => ({
-      id: m.id.startsWith(`${provider}/`) ? m.id : `${provider}/${m.id}`,
+      // Catalog ids are bare model names (docs/adr/0003); the plan endpoint
+      // may return them prefixed with the provider id.
+      id: m.id.startsWith(`${provider}/`) ? m.id.slice(provider.length + 1) : m.id,
       name: m.name ?? m.id,
       provider: plan.label,
     }))
@@ -71,6 +73,6 @@ async function registryModels(provider: AiProviderId): Promise<AiModel[]> {
   const entry = registry[provider]
   const label = entry?.name ?? AI_PROVIDERS.find(p => p.id === provider)?.label ?? provider
   return Object.entries(entry?.models ?? {})
-    .map(([id, m]) => ({ id: `${provider}/${id}`, name: m.name ?? id, provider: label }))
+    .map(([id, m]) => ({ id, name: m.name ?? id, provider: label }))
     .sort((a, b) => a.id.localeCompare(b.id))
 }

@@ -15,10 +15,27 @@ export const AI_PROVIDERS = [
 ] as const
 export type AiProviderId = typeof AI_PROVIDERS[number]['id']
 
-// One entry of the `ai` step's model catalog (GET /api/ai-models): an opencode
-// model ref plus the display info the pickers show.
+// Stored model names are bare, without a provider prefix (docs/adr/0003): the
+// instance provider is prepended only at invocation. The charset is shell-safe
+// (the ai action splices the final string into a bash command line); a slash
+// stays allowed because some catalogs ship slashed ids like 'meta-llama/...'.
+export const MODEL_NAME_RE = /^[\w.:-]+(\/[\w.:-]+)*$/
+
+// Strip one leading '<provider>/' from a model stored in the legacy prefixed
+// form. Only known provider ids are stripped, so a genuinely slashed model id
+// is never mangled. Covers pre-migration values still reaching the runtime
+// (old run snapshots get retried, step JSON edited outside the migration).
+export function stripLegacyModelPrefix(model: string): string {
+  const slash = model.indexOf('/')
+  if (slash < 1) return model
+  const prefix = model.slice(0, slash)
+  return AI_PROVIDERS.some(p => p.id === prefix) ? model.slice(slash + 1) : model
+}
+
+// One entry of the `ai` step's model catalog (GET /api/ai-models): a bare
+// model name plus the display info the pickers show.
 export interface AiModel {
-  /** opencode's provider/model form, e.g. 'anthropic/claude-sonnet-4-5'. */
+  /** Bare model name, e.g. 'claude-sonnet-4-5' (no provider prefix). */
   id: string
   /** Model display name from the registry, e.g. 'Claude Sonnet 4.5'. */
   name: string

@@ -141,6 +141,13 @@
       "when": 1786372367018,
       "tag": "0019_drop-step-log",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1786398539575,
+      "tag": "0020_langdock-agent-config",
+      "breakpoints": true
     }
   ]
 }

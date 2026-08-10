@@ -6,7 +6,7 @@ const toastError = useToastError()
 const { data: settings } = useSettings()
 
 const aiProvider = ref<AiProviderId>('anthropic')
-const aiModel = ref('anthropic/claude-sonnet-4-5')
+const aiModel = ref('claude-sonnet-4-5')
 watch(settings, (s) => {
   if (!s) return
   aiProvider.value = s.aiProvider as AiProviderId
@@ -146,7 +146,7 @@ async function removeAiKey() {
               <UInput
                 v-if="aiModelsError"
                 v-model="aiModel"
-                placeholder="anthropic/claude-sonnet-4-5"
+                placeholder="claude-sonnet-4-5"
                 :color="saveError ? 'error' : undefined"
                 :highlight="!!saveError"
                 class="w-full sm:max-w-md"
@@ -158,7 +158,7 @@ async function removeAiKey() {
                 value-key="id"
                 :filter-fields="['label', 'description']"
                 :loading="aiModelsStatus === 'pending'"
-                placeholder="anthropic/claude-sonnet-4-5"
+                placeholder="claude-sonnet-4-5"
                 class="w-full sm:max-w-md"
               />
             </div>

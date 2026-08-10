@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '../../../shared/utils/workflow'
-import type { AiProviderId } from '../../../shared/utils/ai'
+import { type AiProviderId, MODEL_NAME_RE, stripLegacyModelPrefix } from '../../../shared/utils/ai'
 import { getSettings } from '../../utils/settings'
 import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
@@ -32,9 +32,10 @@ const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
   'google': ['GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
 }
 
-// provider/model (the model part may itself contain slashes), every segment
-// shell-safe: doubles as the guard that lets the model string be embedded in
-// the bash command line below.
+// The final provider/model string handed to opencode (the model part may
+// itself contain slashes), every segment shell-safe: the guard that lets the
+// model string be embedded in the bash command line below. Stored values are
+// validated as bare names (MODEL_NAME_RE) before the provider is prepended.
 const MODEL_RE = /^[\w.-]+(\/[\w.:-]+)+$/
 
 // opencode runs with XDG_CONFIG_HOME pointed at the checkout's .knecht dir
@@ -103,19 +104,21 @@ async function resolveAgentEnv(
   if (!settings.aiKeyEnc) {
     throw new Error('AI provider API key not configured, add it under Settings → Agent')
   }
-  const model = stepModel?.trim() || settings.aiModel
-  if (!MODEL_RE.test(model)) {
-    throw new Error(`Invalid model '${model}': expected opencode's provider/model form, e.g. anthropic/claude-sonnet-4-5`)
+  // Stored model names are bare (docs/adr/0003); the configured provider is
+  // prepended here. The legacy strip covers pre-migration values that still
+  // reach the runtime (retried runs pinned old snapshots).
+  const bare = stripLegacyModelPrefix(stepModel?.trim() || settings.aiModel)
+  if (!MODEL_NAME_RE.test(bare)) {
+    throw new Error(`Invalid model '${bare}': expected a bare model name, e.g. claude-sonnet-4-5`)
   }
-  // The key belongs to the CONFIGURED provider; a model from another one
-  // would run against credentials that can't serve it.
   const provider = settings.aiProvider as AiProviderId
   const envNames = PROVIDER_KEY_ENV[provider]
   if (!envNames) {
     throw new Error(`Unsupported provider '${provider}'. Supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
   }
-  if (model.split('/')[0] !== provider) {
-    throw new Error(`Model '${model}' does not match the configured provider '${provider}' (Settings → Agent)`)
+  const model = `${provider}/${bare}`
+  if (!MODEL_RE.test(model)) {
+    throw new Error(`Invalid model '${model}': not shell-safe`)
   }
   const key = decrypt(settings.aiKeyEnc)
   return {
