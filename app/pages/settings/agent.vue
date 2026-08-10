@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { AI_PROVIDERS, type AiProviderId } from '#shared/utils/ai'
-import type { DashboardSettings } from '~/composables/useSettings'
 
 // Agent: the opencode provider, its (write-only) API key and the default model.
 const toastError = useToastError()
@@ -20,39 +19,18 @@ const modelItems = computed(() =>
 
 const PROVIDER_ITEMS = AI_PROVIDERS.map(p => ({ label: p.label, id: p.id }))
 
-// Provider and default model autosave, debounced so a keystroke doesn't fire
-// a request; the settings watcher writing server values back is a no-op here.
-// A provider or key change refetches the (provider-scoped) model catalog.
-const saveState = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
-const saveError = ref('')
-let saveTimer: ReturnType<typeof setTimeout> | undefined
+// Provider and default model autosave (useAutosave: debounce, save state,
+// flush on unmount). A provider or key change refetches the (provider-scoped)
+// model catalog.
+const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
+  await patchSettings(settings, { aiProvider: aiProvider.value, aiModel: aiModel.value })
+  await refreshNuxtData('ai-models')
+})
 watch([aiProvider, aiModel], () => {
   if (aiProvider.value === settings.value?.aiProvider && aiModel.value === settings.value?.aiModel) return
-  saveError.value = ''
-  if (!aiModel.value.trim()) {
-    saveState.value = 'error'
-    saveError.value = 'Pick a default model'
-    clearTimeout(saveTimer)
-    return
-  }
-  saveState.value = 'saving'
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(save, 800)
+  if (!aiModel.value.trim()) return invalid('Pick a default model')
+  schedule()
 })
-async function save() {
-  try {
-    settings.value = await $fetch<DashboardSettings>('/api/settings', {
-      method: 'PATCH',
-      body: { aiProvider: aiProvider.value, aiModel: aiModel.value },
-    })
-    saveState.value = 'saved'
-    await refreshNuxtData('ai-models')
-  }
-  catch (e) {
-    saveState.value = 'error'
-    saveError.value = errMsg(e, 'Not saved')
-  }
-}
 
 const aiKey = ref('')
 const savingAiKey = ref(false)
@@ -60,7 +38,7 @@ async function saveAiKey() {
   if (!aiKey.value.trim()) return
   savingAiKey.value = true
   try {
-    settings.value = await $fetch<DashboardSettings>('/api/settings', { method: 'PATCH', body: { aiKey: aiKey.value.trim() } })
+    await patchSettings(settings, { aiKey: aiKey.value.trim() })
     aiKey.value = ''
     await refreshNuxtData('ai-models')
   }
@@ -78,7 +56,7 @@ const removingAiKey = ref(false)
 async function removeAiKey() {
   removingAiKey.value = true
   try {
-    settings.value = await $fetch<DashboardSettings>('/api/settings', { method: 'PATCH', body: { aiKey: null } })
+    await patchSettings(settings, { aiKey: null })
     aiKey.value = ''
     await refreshNuxtData('ai-models')
   }

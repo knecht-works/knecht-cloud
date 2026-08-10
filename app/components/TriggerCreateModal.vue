@@ -408,9 +408,9 @@ watch(open, (isOpen) => {
           >
             Jira is not connected yet. Connect it in
             <NuxtLink
-              to="/settings"
+              to="/settings/jira"
               class="text-toned underline underline-offset-2"
-            >Settings</NuxtLink>
+            >Settings → Jira</NuxtLink>
             first (site URL, email, API token), then pick a project here.
           </p>
 
