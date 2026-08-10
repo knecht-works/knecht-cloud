@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { AI_PROVIDERS, type AiProviderId } from '#shared/utils/ai'
+import { AI_PROVIDERS, type AiProviderId, MODEL_NAME_RE } from '#shared/utils/ai'
 import { SETTINGS_LIMITS, SSH_TARGET_RE } from '#shared/utils/settings-limits'
 import { publicSettings, updateSettings } from '../utils/settings'
 import { encrypt } from '../utils/crypto'
@@ -17,7 +17,8 @@ const bodySchema = z.object({
   maxConcurrentRuns: z.number().int().min(L.maxConcurrentRuns.min).max(L.maxConcurrentRuns.max).optional(),
   aiProvider: z.enum(AI_PROVIDERS.map(p => p.id) as [AiProviderId, ...AiProviderId[]]).optional(),
   aiKey: z.string().min(1).max(500).nullable().optional(),
-  aiModel: z.string().min(1).max(200).optional(),
+  // Bare model name (docs/adr/0003), no provider prefix.
+  aiModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).optional(),
   sshTarget: z.string().trim().regex(SSH_TARGET_RE).max(200).nullable().optional(),
 })
 

@@ -16,7 +16,7 @@ steps:
       continue-on-error: true
   - ai:
       prompt: Summarize the change on {{ project.name }}
-      model: anthropic/claude-sonnet-4-5
+      model: claude-sonnet-4-5
       output: |
         summary: string
         score: number

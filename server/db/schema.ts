@@ -74,6 +74,9 @@ export const projects = sqliteTable('projects', {
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
+  // Project-level agent instructions: human-written rules for this project
+  // only, layered on top of the instance instructions (docs/adr/0002).
+  agentInstructions: text('agent_instructions').notNull().default(''),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
@@ -308,12 +311,23 @@ export const settings = sqliteTable('settings', {
 
   // The `ai` step (opencode in the run's sandbox): the provider the key belongs
   // to (AI_PROVIDERS id: picks which env var the key is handed to opencode as,
-  // and filters the model pickers), the API key (encrypted at rest via
-  // crypto.ts, never returned by the API) and the default model as
-  // opencode's `provider/model` (a step can override it).
+  // and filters the model pickers), the region a gateway provider serves from
+  // (only meaningful for langdock, harmless otherwise), the API key (encrypted
+  // at rest via crypto.ts, never returned by the API) and the default model.
+  // Model names are stored BARE, without a provider prefix (docs/adr/0003);
+  // the provider is prepended at invocation, so switching providers keeps
+  // workflows intact. A step can override the default model; the optional
+  // subtask model becomes opencode's small_model for internal small tasks.
   aiProvider: text('ai_provider').notNull().default('anthropic'),
+  aiRegion: text('ai_region', { enum: ['eu', 'us'] }).notNull().default('eu'),
   aiKeyEnc: text('ai_key_enc'),
-  aiModel: text('ai_model').notNull().default('anthropic/claude-sonnet-4-5'),
+  aiModel: text('ai_model').notNull().default('claude-sonnet-4-5'),
+  aiSubtaskModel: text('ai_subtask_model'),
+
+  // Instance-level agent instructions: human-written rules layered into every
+  // agent invocation, on top of the bundled behavior rules and below the
+  // project's own instructions (docs/adr/0002).
+  agentInstructions: text('agent_instructions').notNull().default(''),
 
   // Whether the bundled starter workflows have been seeded into the table. Seeded
   // once on first boot; afterwards workflows are fully user-owned (deletions and
