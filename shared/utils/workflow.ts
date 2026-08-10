@@ -76,7 +76,7 @@ export type Step = StepMeta & (
   // every boot needs (composer install, asset build).
   | { type: 'ddev-start', commands?: string }
   | { type: 'bash', command: string }
-  // `system` is a per-step system prompt, merged with the sandbox's baked-in
+  // `system` is the step prompt, merged with the sandbox's baked-in
   // instructions. `output` is a field spec (`name: type` per line) that turns
   // the agent's answer into a validated steps.<id>.json (see actions/ai.ts).
   | { type: 'ai', prompt: string, model?: string, system?: string, output?: string }

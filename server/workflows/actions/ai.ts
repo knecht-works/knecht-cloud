@@ -48,7 +48,7 @@ const MODEL_RE = /^[\w.-]+(\/[\w.:-]+)+$/
 // and git-excluded (daemon/git.ts). AGENTS.md + opencode.json are seeded from
 // the bundled templates; the per-step `system` prompt is dropped into
 // workflow.md each run, which opencode.json merges into the instructions.
-// Always (over)written, empty when unset, so one ai step's system prompt
+// Always (over)written, empty when unset, so one ai step's step prompt
 // never leaks into a later ai step sharing the same environment.
 const AGENT_CONFIG_SUBDIR = join('.knecht', 'opencode')
 
@@ -77,7 +77,7 @@ export const aiAction = defineAction({
 
     const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
     try {
-      // Reset the merged-in system prompt for THIS step (empty when unset).
+      // Reset the merged-in step prompt for THIS step (empty when unset).
       await writeAgentConfig(rt, step.system ?? '', bareModel)
 
       if (!step.output) {
@@ -135,7 +135,7 @@ async function resolveAgentEnv(
 // Run one prompt against the run's EXISTING opencode session (the follow-up
 // executor's entry): same settings resolution as the ai step, but always
 // `--continue`, so the agent keeps the context of what it did during the run.
-// The step's workflow.md system prompt is deliberately left as-is: the last
+// The step's workflow.md step prompt is deliberately left as-is: the last
 // ai step's system context stays valid for tweaks to that step's work.
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Promise<string> {
   const { model, bareModel, env } = await resolveAgentEnv(rt.runId)
@@ -234,7 +234,7 @@ async function readOutputFile(
 // Seed the run's opencode config dir (host-side, it lives on the checkout):
 // the bundled AGENTS.md instructions, an opencode.json that merges workflow.md
 // and the project memory index into the agent's instructions, workflow.md
-// itself (a step's system prompt), and the project's memory notes
+// itself (a step's step prompt), and the project's memory notes
 // (utils/agent-memory.ts). `system: null` keeps an existing workflow.md (the follow-up path:
 // the last ai step's system context stays valid for tweaks to that step's
 // work) and only creates an empty one when none exists (fresh rehydrated
