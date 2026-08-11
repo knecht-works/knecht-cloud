@@ -11,7 +11,7 @@ export const SETTINGS_LIMITS = {
 // verbatim into the ssh command line (utils/ssh.ts sshTerminalCommand).
 export const SSH_TARGET_RE = /^[A-Za-z0-9._@-]+$/
 
-// Cap for the instance and project agent instructions (docs/adr/0002): they
+// Cap for the instance and project agent instructions: they
 // ride in the agent's context on every invocation, so they stay small.
 // Enforced by both PATCH endpoints and shown by the textareas.
 export const AGENT_INSTRUCTIONS_MAX = 8000

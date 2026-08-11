@@ -5,7 +5,7 @@ import { type AiProviderId, type LangdockRegion, langdockBaseUrl, stripLegacyMod
 // side lives in server/workflows/actions/ai.ts. The container paths are fixed:
 // ddev always mounts the checkout at /var/www/html.
 
-// The `instructions` layers, in order (docs/adr/0002): the human-written
+// The `instructions` layers, in order: the human-written
 // rules (instance + project sections in ONE file), the step's workflow.md
 // prompt, the project memory index. All files are written on every invocation
 // (empty when unset), so the array can stay static and every reference always
@@ -42,7 +42,7 @@ export interface OpencodeConfig {
 }
 
 // The rules.md content: instance rules first, project rules after (the more
-// specific layer wins on conflict, docs/adr/0002). Empty when neither is set.
+// specific layer wins on conflict). Empty when neither is set.
 export function buildAgentRules(instance: string, project: string): string {
   const sections: string[] = []
   if (instance.trim()) sections.push(`# Instance rules\n\n${instance.trim()}`)

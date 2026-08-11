@@ -30,7 +30,7 @@ const bodySchema = z.object({
     })
     .optional(),
   // Project-level agent instructions, layered on top of the instance ones
-  // (docs/adr/0002, materialized by server/workflows/actions/ai.ts).
+  // (materialized by server/workflows/actions/ai.ts).
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
 })
 

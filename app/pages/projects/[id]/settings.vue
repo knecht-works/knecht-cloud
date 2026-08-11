@@ -61,7 +61,7 @@ onUnmounted(() => {
 
 // ── Agent instructions (project layer, auto-saved) ─────────────────────────
 // Rules for this project only, layered on top of the instance instructions
-// from Settings → Agent (docs/adr/0002).
+// from Settings → Agent.
 const agentInstructions = ref(project.value?.agentInstructions ?? '')
 const { state: instructionsState, error: instructionsError, schedule: scheduleInstructions } = useAutosave(async () => {
   await $fetch(`/api/projects/${id}`, {

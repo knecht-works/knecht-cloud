@@ -108,7 +108,7 @@ async function resolveAgentEnv(
   if (!settings.aiKeyEnc) {
     throw new Error('AI provider API key not configured, add it under Settings → Agent')
   }
-  // Stored model names are bare (docs/adr/0003); the configured provider is
+  // Stored model names are bare; the configured provider is
   // prepended here. The legacy strip covers pre-migration values that still
   // reach the runtime (retried runs pinned old snapshots).
   const bare = stripLegacyModelPrefix(stepModel?.trim() || settings.aiModel)
@@ -246,7 +246,7 @@ async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareMo
   await mkdir(dir, { recursive: true })
   const agents = await readSandboxAsset('opencode/AGENTS.md')
   if (agents) await writeFile(join(dir, 'AGENTS.md'), agents)
-  // The human rules layers (docs/adr/0002): always written, empty when
+  // The human rules layers: always written, empty when
   // unset, so the static path in the generated config always resolves.
   await writeFile(join(dir, 'rules.md'), buildAgentRules(settings.agentInstructions, rt.project.agentInstructions))
   await writeFile(join(dir, 'opencode.json'), JSON.stringify(buildOpencodeConfig({

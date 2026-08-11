@@ -75,7 +75,7 @@ export const projects = sqliteTable('projects', {
     .notNull()
     .default(sql`'[]'`),
   // Project-level agent instructions: human-written rules for this project
-  // only, layered on top of the instance instructions (docs/adr/0002).
+  // only, layered on top of the instance instructions.
   agentInstructions: text('agent_instructions').notNull().default(''),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -314,7 +314,7 @@ export const settings = sqliteTable('settings', {
   // and filters the model pickers), the region a gateway provider serves from
   // (only meaningful for langdock, harmless otherwise), the API key (encrypted
   // at rest via crypto.ts, never returned by the API) and the default model.
-  // Model names are stored BARE, without a provider prefix (docs/adr/0003);
+  // Model names are stored BARE, without a provider prefix;
   // the provider is prepended at invocation, so switching providers keeps
   // workflows intact. A step can override the default model; the optional
   // subtask model becomes opencode's small_model for internal small tasks.
@@ -326,7 +326,7 @@ export const settings = sqliteTable('settings', {
 
   // Instance-level agent instructions: human-written rules layered into every
   // agent invocation, on top of the bundled behavior rules and below the
-  // project's own instructions (docs/adr/0002).
+  // project's own instructions.
   agentInstructions: text('agent_instructions').notNull().default(''),
 
   // Whether the bundled starter workflows have been seeded into the table. Seeded
