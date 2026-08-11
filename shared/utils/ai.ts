@@ -12,7 +12,7 @@ export const AI_PROVIDERS = [
   { id: 'anthropic', label: 'Anthropic' },
   { id: 'openai', label: 'OpenAI' },
   { id: 'google', label: 'Google' },
-  // Gateway provider (docs/adr/0001): one endpoint in front of several model
+  // Gateway provider: one endpoint in front of several model
   // vendors, chosen for its data residency. Not in models.dev, so the ai step
   // declares it to opencode as a custom provider (server/utils/opencode-config.ts).
   { id: 'langdock', label: 'Langdock' },
@@ -31,7 +31,7 @@ export function langdockBaseUrl(region: LangdockRegion): string {
   return `https://api.langdock.com/openai/${region}/v1`
 }
 
-// Stored model names are bare, without a provider prefix (docs/adr/0003): the
+// Stored model names are bare, without a provider prefix: the
 // instance provider is prepended only at invocation. The charset is shell-safe
 // (the ai action splices the final string into a bash command line); a slash
 // stays allowed because some catalogs ship slashed ids like 'meta-llama/...'.

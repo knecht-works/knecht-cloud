@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MODEL_NAME_RE, stripLegacyModelPrefix } from '../../shared/utils/ai'
 
-// Bare model names (docs/adr/0003): what the store accepts and how legacy
+// Bare model names: what the store accepts and how legacy
 // provider-prefixed values are normalized on their way into the runtime.
 
 describe('MODEL_NAME_RE', () => {

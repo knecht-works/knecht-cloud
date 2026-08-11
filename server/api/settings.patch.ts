@@ -19,11 +19,11 @@ const bodySchema = z.object({
   aiProvider: z.enum(AI_PROVIDERS.map(p => p.id) as [AiProviderId, ...AiProviderId[]]).optional(),
   aiRegion: z.enum(LANGDOCK_REGIONS).optional(),
   aiKey: z.string().min(1).max(500).nullable().optional(),
-  // Bare model names (docs/adr/0003), no provider prefix. The subtask model
+  // Bare model names, no provider prefix. The subtask model
   // becomes opencode's small_model; null clears it (main model does it all).
   aiModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).optional(),
   aiSubtaskModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).nullable().optional(),
-  // Instance-level agent instructions (docs/adr/0002).
+  // Instance-level agent instructions.
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
   sshTarget: z.string().trim().regex(SSH_TARGET_RE).max(200).nullable().optional(),
 })
@@ -44,7 +44,7 @@ export default defineEventHandler(async (event) => {
 })
 
 // A provider (or region/key/model) change must fail at save time when the
-// stored model would no longer resolve, not mid-run (docs/adr/0003). Best
+// stored model would no longer resolve, not mid-run. Best
 // effort by design: when the catalog itself cannot be loaded the save goes
 // through, because a catalog outage must never lock the settings page.
 async function assertModelInCatalog(patch: SettingsPatch): Promise<void> {

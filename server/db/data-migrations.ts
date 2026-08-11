@@ -29,7 +29,7 @@ export function runDataMigrations(): void {
 // Rewrite them to the current standard (label/type slug), including the
 // workflow's own {{ steps.<id>… }} references. Runs pinned before this keep
 // their old ids: they're historical records, not definitions.
-// Model names lost their provider prefix (docs/adr/0003): ai-step overrides
+// Model names lost their provider prefix: ai-step overrides
 // saved as 'anthropic/claude-sonnet-4-5' become 'claude-sonnet-4-5'. The
 // settings row is handled in SQL (0020); runs pinned before this keep their
 // prefixed snapshots (historical records, the runtime strips defensively).

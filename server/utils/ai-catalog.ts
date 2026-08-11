@@ -4,13 +4,13 @@ import { decrypt } from './crypto'
 
 // The model catalog for the `ai` step's pickers, scoped to the configured
 // provider. Shared by GET /api/ai-models and the settings PATCH (which
-// validates a saved model against the catalog, docs/adr/0003). Sources:
+// validates a saved model against the catalog). Sources:
 // OpenCode plans and Langdock list live from their own /models endpoints
 // (they reflect the workspace's model set) with a short TTL; everything else
 // comes from the models.dev registry, which changes rarely and keeps a long
 // TTL. Cache is keyed to provider + region + key so a settings change
 // refetches; a failed refresh serves the stale catalog. All ids are BARE
-// model names (docs/adr/0003).
+// model names.
 const LIVE_TTL_MS = 30 * 1000
 const REGISTRY_TTL_MS = 60 * 60 * 1000
 let cache: { at: number, ttl: number, scope: string, models: AiModel[] } | null = null
@@ -60,7 +60,7 @@ async function opencodeModels(provider: AiProviderId, key: string): Promise<AiMo
   const data = await fetchModelList(plan.url, key, plan.label)
   return data
     .map(m => ({
-      // Catalog ids are bare model names (docs/adr/0003); the plan endpoint
+      // Catalog ids are bare model names; the plan endpoint
       // may return them prefixed with the provider id.
       id: m.id.startsWith(`${provider}/`) ? m.id.slice(provider.length + 1) : m.id,
       name: m.name ?? m.id,
