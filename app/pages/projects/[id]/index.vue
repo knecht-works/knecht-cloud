@@ -113,9 +113,10 @@ const mascotLine = computed(() => {
 
 // ── Start a workflow (picked from the list, right at the project) ──────────
 const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
-// Production runs execute the published version, so only published workflows
-// can start here (an unpublished draft runs via the editor's test run).
-const startableWorkflows = computed(() => (workflowList.value ?? []).filter(w => w.publishedAt))
+// Manual runs execute the workflow's current state, so the picker offers
+// every workflow that would pass the run validation (finish half-built ones
+// in the editor first).
+const startableWorkflows = computed(() => (workflowList.value ?? []).filter(workflowRunnable))
 const starting = ref(false)
 // The "Start workflow" popover (branch + workflow picker together).
 const startOpen = ref(false)

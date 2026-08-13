@@ -111,9 +111,9 @@ const { uploading: uploadingDump, dumpName, upload: uploadDump } = useProjectDum
 // ── Step 4 · finish ──────────────────────────────────────────────────────────
 // The boot action targets the seeded boot-and-preview workflow (still found by
 // its seeded name, but started by id). The user may have deleted, renamed or
-// unpublished it; then only "Open project" is offered.
+// broken it; then only "Open project" is offered.
 const { data: workflowRows } = useFetch('/api/workflows', { default: () => [], lazy: true })
-const bootWorkflow = computed(() => workflowRows.value.find(w => w.name === 'boot-and-preview' && w.publishedAt))
+const bootWorkflow = computed(() => workflowRows.value.find(w => w.name === 'boot-and-preview' && workflowRunnable(w)))
 const hasBootWorkflow = computed(() => !!bootWorkflow.value)
 
 const booting = ref(false)

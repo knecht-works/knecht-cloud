@@ -280,11 +280,14 @@ export const workflows = sqliteTable('workflows', {
     .default(sql`'[]'`),
   // The editor's autosaved working copy. NULL means no unpublished changes
   // (the draft equals the published steps). Only loosely validated: steps may
-  // be half-filled; publishing runs the strict validation.
+  // be half-filled; publishing (and every manual run, which executes the
+  // draft) runs the strict validation.
   draftSteps: text('draft_steps', { mode: 'json' }).$type<Step[]>(),
-  // When the current `steps` were published. NULL = never published: triggers
-  // don't fire and production runs are refused (editor test runs execute the
-  // draft and are unaffected). Anchor for a future version-history table.
+  // When the current `steps` were published. The published snapshot exists
+  // FOR AUTOMATION: enabling the automation switch publishes the current
+  // state, and triggers execute it. NULL = never published: triggers don't
+  // fire. Manual runs are unaffected (they execute the draft). Anchor for a
+  // future version-history table.
   publishedAt: integer('published_at', { mode: 'timestamp' }),
   // Master switch for the workflow's automation: when false, its triggers don't
   // fire (manual "run now" / test are unaffected). Built-ins with no row are

@@ -199,6 +199,14 @@ export function stepValid(step: WorkflowStep): boolean {
   return stepIssues(step).length === 0
 }
 
+// Whether the workflow's CURRENT state (the draft, falling back to the
+// published steps) would pass the server's strict run validation: manual runs
+// execute exactly this, so pickers and run buttons gate on it.
+export function workflowRunnable(w: { steps: WorkflowStep[], draftSteps: WorkflowStep[] | null }): boolean {
+  const steps = w.draftSteps ?? w.steps
+  return steps.length > 0 && steps.every(stepValid)
+}
+
 // Provided by the editor page, flipped after a failed explicit save: the
 // save click is the fixed validation point, so from then on every component
 // drops the pristine grace and highlights all problems.
