@@ -113,6 +113,9 @@ const mascotLine = computed(() => {
 
 // ── Start a workflow (picked from the list, right at the project) ──────────
 const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
+// Production runs execute the published version, so only published workflows
+// can start here (an unpublished draft runs via the editor's test run).
+const startableWorkflows = computed(() => (workflowList.value ?? []).filter(w => w.publishedAt))
 const starting = ref(false)
 // The "Start workflow" popover (branch + workflow picker together).
 const startOpen = ref(false)
@@ -125,13 +128,13 @@ const { items: branchItems } = useBranchPicker(
   () => project.value?.defaultBranch ?? 'main',
 )
 
-async function startWorkflow(workflow: string) {
+async function startWorkflow(workflowId: number) {
   startOpen.value = false
   starting.value = true
   try {
     const created = await $fetch('/api/runs', {
       method: 'POST',
-      body: { projectId: id, workflow, branch: selectedBranch.value },
+      body: { projectId: id, workflowId, branch: selectedBranch.value },
     })
     await onRunStarted(created.id)
   }
@@ -193,9 +196,9 @@ const projectTriggers = computed(() =>
 
 // One row per workflow: its automation on THIS project (first trigger +
 // count of further ones), or none: "welcher Workflow startet wann".
-const workflowRows = computed(() => (workflowList.value ?? []).map((w) => {
-  const wired = projectTriggers.value.filter(t => t.workflow === w.name)
-  return { name: w.name, trigger: wired[0] ?? null, more: wired.length - 1 }
+const workflowRows = computed(() => startableWorkflows.value.map((w) => {
+  const wired = projectTriggers.value.filter(t => t.workflowId === w.id)
+  return { id: w.id, name: w.name, trigger: wired[0] ?? null, more: wired.length - 1 }
 }))
 
 // Poll the runs list while ANY of this project's runs is live: the selected
@@ -286,16 +289,16 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
                 Workflow
               </div>
               <div
-                v-if="workflowList?.length"
+                v-if="startableWorkflows.length"
                 class="flex flex-col gap-0.5"
               >
                 <button
-                  v-for="w in workflowList"
-                  :key="w.name"
+                  v-for="w in startableWorkflows"
+                  :key="w.id"
                   type="button"
                   class="flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass) disabled:cursor-default"
                   :disabled="starting"
-                  @click="startWorkflow(w.name)"
+                  @click="startWorkflow(w.id)"
                 >
                   <UIcon
                     name="i-lucide-workflow"
@@ -479,12 +482,12 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
           <div class="flex flex-col gap-3">
             <div
               v-for="row in workflowRows"
-              :key="row.name"
+              :key="row.id"
               class="flex items-center gap-3"
               :style="{ opacity: row.trigger && !row.trigger.active ? 0.55 : 1 }"
             >
               <NuxtLink
-                :to="`/workflows/${encodeURIComponent(row.name)}`"
+                :to="`/workflows/${row.id}`"
                 class="group flex min-w-0 flex-1 items-center gap-3 text-left"
               >
                 <KStepIcon
@@ -515,7 +518,7 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
                   size="xs"
                   :aria-label="`Run ${row.name} now`"
                   :disabled="starting"
-                  @click="startWorkflow(row.name)"
+                  @click="startWorkflow(row.id)"
                 />
               </UTooltip>
             </div>

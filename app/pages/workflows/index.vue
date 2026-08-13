@@ -7,18 +7,34 @@ const toastError = useToastError()
 
 type WorkflowItem = NonNullable<typeof workflows.value>[number]
 
-// Flip the workflow's automation master switch. Sends the full persisted body
-// (the PATCH endpoint takes it) plus the new enabled flag.
+// Flip the workflow's automation master switch.
 async function toggleEnabled(w: WorkflowItem) {
   try {
-    await $fetch(`/api/workflows/${encodeURIComponent(w.name)}`, {
+    await $fetch(`/api/workflows/${w.id}`, {
       method: 'PATCH',
-      body: { name: w.name, description: w.description, steps: w.steps, enabled: !w.enabled },
+      body: { enabled: !w.enabled },
     })
     await refresh()
   }
   catch (e) {
     toastError('Failed to update workflow', e)
+  }
+}
+
+// Create the workflow right away and open it: the editor autosaves into the
+// fresh row, so there is nothing to type before it exists.
+const creating = ref(false)
+async function createWorkflow() {
+  creating.value = true
+  try {
+    const created = await $fetch('/api/workflows', { method: 'POST', body: {} })
+    await navigateTo(`/workflows/${created.id}`)
+  }
+  catch (e) {
+    toastError('Failed to create workflow', e)
+  }
+  finally {
+    creating.value = false
   }
 }
 
@@ -30,7 +46,7 @@ function fmt(seconds: number) {
 // automation: the triggers it owns give both the projects it fires against and
 // the trigger summary: no run needs to have happened yet.
 const enriched = computed(() => (workflows.value ?? []).map((w) => {
-  const wRuns = (runs.value ?? []).filter(r => r.workflow === w.name)
+  const wRuns = (runs.value ?? []).filter(r => r.workflowId === w.id)
   const completed = wRuns.filter(r => r.status === 'success' || r.status === 'failed')
   const successCount = wRuns.filter(r => r.status === 'success').length
   const rate = completed.length ? Math.round((successCount / completed.length) * 100) : null
@@ -46,7 +62,7 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const statusText = latest ? `${status.label} · ${timeAgo(latest.createdAt)}` : 'No runs yet'
 
   // Projects + trigger summary from the workflow's triggers (its automation).
-  const wTriggers = (triggers.value ?? []).filter(t => t.workflow === w.name)
+  const wTriggers = (triggers.value ?? []).filter(t => t.workflowId === w.id)
   const names = [...new Set(wTriggers.flatMap(t => t.projects))]
   const projects = names.length > 3 ? [...names.slice(0, 2), `+${names.length - 2}`] : names
   const trigger = wTriggers.length === 0
@@ -81,7 +97,7 @@ async function importFile(e: Event) {
   try {
     const source = await file.text()
     const created = await $fetch('/api/workflows/import', { method: 'POST', body: { source } })
-    await navigateTo(`/workflows/${encodeURIComponent(created.name)}`)
+    await navigateTo(`/workflows/${created.id}`)
   }
   catch (err) {
     toastError('Import failed', err)
@@ -129,7 +145,8 @@ const filtered = computed(() =>
           icon="i-lucide-plus"
           label="New workflow"
           color="primary"
-          @click="() => { navigateTo('/workflows/new') }"
+          :loading="creating"
+          @click="createWorkflow"
         />
       </template>
     </KTopBar>
@@ -183,9 +200,10 @@ const filtered = computed(() =>
     >
       <WorkflowRow
         v-for="w in filtered"
-        :key="w.name"
+        :id="w.id"
+        :key="w.id"
         :name="w.name"
-        :steps="w.steps"
+        :steps="w.draftSteps ?? w.steps"
         :status="w.status"
         :status-text="w.statusText"
         :trigger="w.trigger"

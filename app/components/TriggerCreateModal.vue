@@ -6,13 +6,13 @@
 // App webhook, configured automatically when the app was created at setup.
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
-  presetWorkflow?: string
+  presetWorkflowId?: number
   presetProjectIds?: number[]
   /** Edit this trigger instead of creating one. */
   trigger?: {
     id: number
     source: 'schedule' | 'github' | 'manual' | 'jira'
-    workflow: string
+    workflowId: number
     projectIds: number[]
     endpoint: string | null
     webhookEvent: string | null
@@ -54,7 +54,7 @@ const { data: projects } = useFetch('/api/projects', {
 })
 
 const source = ref<Source>('schedule')
-const workflow = ref<string>()
+const workflowId = ref<number>()
 const projectIds = ref<number[]>([])
 const cron = ref('0 9 * * *')
 const githubEvent = ref<'push' | 'pull_request' | 'issues'>('push')
@@ -137,7 +137,7 @@ const jiraLooksValid = computed(() =>
       : true),
 )
 const canCreate = computed(() =>
-  !!workflow.value
+  !!workflowId.value
   && projectIds.value.length > 0
   && (source.value !== 'schedule' || cronLooksValid.value)
   && (source.value !== 'github' || issuesLookValid.value)
@@ -170,7 +170,7 @@ async function create() {
 
     const body: Record<string, unknown> = {
       source: source.value,
-      workflow: workflow.value,
+      workflowId: workflowId.value,
       projectIds: projectIds.value,
     }
     if (source.value === 'schedule') body.cron = cron.value.trim()
@@ -201,7 +201,7 @@ watch(open, (isOpen) => {
   if (isOpen) {
     if (props.trigger) {
       source.value = props.trigger.source
-      workflow.value = props.trigger.workflow
+      workflowId.value = props.trigger.workflowId
       projectIds.value = [...props.trigger.projectIds]
       if (props.trigger.source === 'schedule' && props.trigger.endpoint) {
         cron.value = props.trigger.endpoint
@@ -220,12 +220,12 @@ watch(open, (isOpen) => {
       }
       return
     }
-    if (props.presetWorkflow) workflow.value = props.presetWorkflow
+    if (props.presetWorkflowId) workflowId.value = props.presetWorkflowId
     if (props.presetProjectIds?.length) projectIds.value = [...props.presetProjectIds]
     return
   }
   source.value = 'schedule'
-  workflow.value = undefined
+  workflowId.value = undefined
   projectIds.value = []
   cron.value = '0 9 * * *'
   githubEvent.value = 'push'
