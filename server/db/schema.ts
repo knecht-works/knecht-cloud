@@ -99,7 +99,15 @@ export const runs = sqliteTable('runs', {
   projectId: integer('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
+  // The workflow's name at run time, kept as denormalized display history: it
+  // survives renames and deletion of the workflow itself.
   workflow: text('workflow').notNull(),
+  // The workflow this run belongs to; NULL once that workflow is deleted (the
+  // run survives as history under its `workflow` name). NOTE: FK actions are
+  // declarative only (PRAGMA foreign_keys is off); the delete route nulls
+  // this explicitly.
+  workflowId: integer('workflow_id')
+    .references(() => workflows.id, { onDelete: 'set null' }),
   status: text('status', { enum: ['queued', 'running', 'success', 'failed', 'cancelled'] })
     .notNull()
     .default('queued'),
@@ -172,6 +180,8 @@ export const runs = sqliteTable('runs', {
   index('runs_project_id_idx').on(table.projectId),
   // The dispatcher claims queued runs by status.
   index('runs_status_idx').on(table.status),
+  // The workflow pages join runs to their workflow by id.
+  index('runs_workflow_id_idx').on(table.workflowId),
 ])
 
 export type Run = typeof runs.$inferSelect
@@ -255,8 +265,11 @@ export type NewFollowup = typeof followups.$inferInsert
 
 // Workflows. Every workflow is a row here, including the bundled starter
 // templates (server/workflows/index.ts), which are seeded once on first boot
-// and thereafter owned by the user: freely renamed, edited or deleted. Steps
-// are stored in their normalized form: the same shape the runner consumes.
+// and thereafter owned by the user: freely renamed, edited or deleted. The id
+// is the workflow's identity everywhere (routes, runs, triggers); the name is
+// a display field. `steps` is the PUBLISHED version, in normalized form: the
+// same shape the runner consumes. The editor autosaves into `draftSteps` and
+// an explicit publish promotes the draft into `steps`.
 export const workflows = sqliteTable('workflows', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
@@ -265,6 +278,14 @@ export const workflows = sqliteTable('workflows', {
     .$type<Step[]>()
     .notNull()
     .default(sql`'[]'`),
+  // The editor's autosaved working copy. NULL means no unpublished changes
+  // (the draft equals the published steps). Only loosely validated: steps may
+  // be half-filled; publishing runs the strict validation.
+  draftSteps: text('draft_steps', { mode: 'json' }).$type<Step[]>(),
+  // When the current `steps` were published. NULL = never published: triggers
+  // don't fire and production runs are refused (editor test runs execute the
+  // draft and are unaffected). Anchor for a future version-history table.
+  publishedAt: integer('published_at', { mode: 'timestamp' }),
   // Master switch for the workflow's automation: when false, its triggers don't
   // fire (manual "run now" / test are unaffected). Built-ins with no row are
   // enabled by default.
@@ -368,7 +389,11 @@ export type IssueAction = 'opened' | 'labeled'
 export const triggers = sqliteTable('triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   source: text('source', { enum: ['schedule', 'github', 'manual', 'jira'] }).notNull(),
-  workflow: text('workflow').notNull(),
+  // NOTE: the cascade is declarative only (PRAGMA foreign_keys is off); the
+  // workflow delete route removes its triggers explicitly.
+  workflowId: integer('workflow_id')
+    .notNull()
+    .references(() => workflows.id, { onDelete: 'cascade' }),
   projectIds: text('project_ids', { mode: 'json' })
     .$type<number[]>()
     .notNull()
