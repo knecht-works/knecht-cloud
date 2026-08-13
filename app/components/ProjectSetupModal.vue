@@ -109,10 +109,12 @@ const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump } = useProjectDump(project)
 
 // ── Step 4 · finish ──────────────────────────────────────────────────────────
-// The boot action targets the seeded boot-and-preview workflow. The user may
-// have deleted or renamed it; then only "Open project" is offered.
+// The boot action targets the seeded boot-and-preview workflow (still found by
+// its seeded name, but started by id). The user may have deleted, renamed or
+// unpublished it; then only "Open project" is offered.
 const { data: workflowRows } = useFetch('/api/workflows', { default: () => [], lazy: true })
-const hasBootWorkflow = computed(() => workflowRows.value.some(w => w.name === 'boot-and-preview'))
+const bootWorkflow = computed(() => workflowRows.value.find(w => w.name === 'boot-and-preview' && w.publishedAt))
+const hasBootWorkflow = computed(() => !!bootWorkflow.value)
 
 const booting = ref(false)
 
@@ -124,12 +126,12 @@ async function openProject() {
 }
 
 async function bootAndPreview() {
-  if (!project.value) return
+  if (!project.value || !bootWorkflow.value) return
   booting.value = true
   try {
     const run = await $fetch('/api/runs', {
       method: 'POST',
-      body: { projectId: project.value.id, workflow: 'boot-and-preview' },
+      body: { projectId: project.value.id, workflowId: bootWorkflow.value.id },
     })
     open.value = false
     await navigateTo(runWorkspacePath(run.projectId, run.id))

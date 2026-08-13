@@ -61,14 +61,15 @@ const failedStep = computed(() => {
 
 // The run's meta facts (the workflow it executes, how it was triggered, the
 // branch it works on, timing). Chips are skipped when a run predates the
-// recorded field. The workflow chip links to the editor. The PR gets no chip:
-// the header's "Open Pull Request" button already covers it.
+// recorded field. The workflow chip links to the editor (plain text once the
+// workflow was deleted). The PR gets no chip: the header's "Open Pull
+// Request" button already covers it.
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
   const trigger = r.trigger ? triggerSourceMeta(r.trigger) : null
   return [
-    { icon: 'i-lucide-workflow', text: r.workflow, href: `/workflows/${encodeURIComponent(r.workflow)}` },
+    { icon: 'i-lucide-workflow', text: r.workflow, href: r.workflowId ? `/workflows/${r.workflowId}` : undefined },
     trigger && { icon: trigger.icon, text: trigger.label },
     r.branch && { icon: 'i-lucide-git-branch', text: r.branch },
     r.startedAt && { icon: 'i-lucide-timer', text: runDuration(r.startedAt, r.finishedAt) },
@@ -96,12 +97,12 @@ async function remove() {
 // a create-branch step overwrote it with the run's own work branch.
 const restarting = ref(false)
 async function runAgain() {
-  if (!run.value) return
+  if (!run.value?.workflowId) return
   restarting.value = true
   try {
     const created = await $fetch('/api/runs', {
       method: 'POST',
-      body: { projectId: run.value.projectId, workflow: run.value.workflow },
+      body: { projectId: run.value.projectId, workflowId: run.value.workflowId },
     })
     emit('started', created.id)
   }
@@ -481,13 +482,19 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
           This run's environment and its archive are gone, so there is nothing left to
           restore. Run the workflow again to get a fresh environment.
         </p>
-        <UButton
-          color="primary"
-          label="Run again"
-          icon="i-lucide-play"
-          :loading="restarting"
-          @click="runAgain"
-        />
+        <UTooltip
+          text="The workflow was deleted"
+          :disabled="!!run.workflowId"
+        >
+          <UButton
+            color="primary"
+            label="Run again"
+            icon="i-lucide-play"
+            :loading="restarting"
+            :disabled="!run.workflowId"
+            @click="runAgain"
+          />
+        </UTooltip>
       </template>
       <template v-else>
         <p class="max-w-70 text-2sm text-muted">
@@ -525,11 +532,12 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
       </div>
       <div class="flex items-center gap-2">
         <UButton
+          v-if="run.workflowId"
           color="neutral"
           variant="outline"
           icon="i-lucide-workflow"
           :label="failedStep ? 'Fix failed step' : 'Edit workflow'"
-          :to="`/workflows/${encodeURIComponent(run.workflow)}${failedStep ? `?step=${encodeURIComponent(failedStep.stepId)}` : ''}`"
+          :to="`/workflows/${run.workflowId}${failedStep ? `?step=${encodeURIComponent(failedStep.stepId)}` : ''}`"
         />
         <UButton
           color="primary"

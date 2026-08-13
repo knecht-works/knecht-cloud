@@ -2,6 +2,7 @@
 import type { RunStatusMeta, WorkflowStep } from '~/utils/dashboard'
 
 const props = defineProps<{
+  id: number
   name: string
   steps: WorkflowStep[]
   status: RunStatusMeta
@@ -26,7 +27,7 @@ const rateColor = computed(() => {
 
 <template>
   <NuxtLink
-    :to="`/workflows/${encodeURIComponent(name)}`"
+    :to="`/workflows/${id}`"
     class="k-card k-lift flex items-center gap-5 overflow-hidden px-5 py-4"
     :style="{ opacity: enabled ? 1 : 0.6 }"
   >
