@@ -7,14 +7,11 @@ const toastError = useToastError()
 
 type WorkflowItem = NonNullable<typeof workflows.value>[number]
 
-// Flip the workflow's automation master switch. Turning it ON publishes the
-// current state first (the switch means "what the editor shows is what
-// triggers run"), so an incomplete workflow refuses with the reason.
+// Flip the workflow's automation master switch. The server refuses to enable
+// a workflow that never had a complete version (nothing for triggers to run);
+// the toast carries that reason.
 async function toggleEnabled(w: WorkflowItem) {
   try {
-    if (!w.enabled) {
-      await $fetch(`/api/workflows/${w.id}/publish`, { method: 'POST' })
-    }
     await $fetch(`/api/workflows/${w.id}`, {
       method: 'PATCH',
       body: { enabled: !w.enabled },

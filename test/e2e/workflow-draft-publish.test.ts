@@ -1,10 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { expectJson, login, type E2eClient } from './client'
 
-// The draft/publish lifecycle through the real HTTP API: create a shell,
-// autosave a loose draft, publish after strict validation, discard, rename.
-// Workflows created here are timestamp-named and deleted afterwards, so the
-// suite can run against a dev instance with real data.
+// The draft/auto-promote lifecycle through the real HTTP API: create a shell,
+// autosave loosely, watch complete saves go live on their own, discard,
+// rename, and the automation-enable gate. Workflows created here are
+// timestamp-named and deleted afterwards, so the suite can run against a dev
+// instance with real data.
 
 interface WorkflowRow {
   id: number
@@ -67,40 +68,42 @@ describe('workflow draft/publish lifecycle over the API', () => {
     expect(first.enabled).toBe(false)
   })
 
-  it('autosaves an incomplete draft, which cannot publish or run', async () => {
+  it('stores an incomplete save as a draft, which cannot run, export or enable automation', async () => {
     const wf = await createWorkflow({ name: `e2e-draft-${Date.now()}` })
 
-    // A half-filled step saves fine and comes back exactly as sent.
+    // A half-filled step saves fine, comes back exactly as sent, and does NOT
+    // become the live version.
     const patched = await patchWorkflow(wf.id, { draftSteps: [{ type: 'bash' }] })
     expect(patched.ok).toBe(true)
-    expect((await getWorkflow(wf.id)).draftSteps).toEqual([{ type: 'bash' }])
+    const row = await getWorkflow(wf.id)
+    expect(row.draftSteps).toEqual([{ type: 'bash' }])
+    expect(row.steps).toEqual([])
+    expect(row.publishedAt).toBeNull()
 
-    // Publish is the strict gate: the incomplete draft is rejected.
-    const publish = await api.fetch(`/api/workflows/${wf.id}/publish`, { method: 'POST' })
-    expect(publish.status).toBe(400)
-
-    // Manual runs execute the draft, validated at start (checked before the
-    // project, so a placeholder projectId suffices).
+    // Manual runs execute the current state, validated at start (checked
+    // before the project, so a placeholder projectId suffices). The 400 names
+    // the missing field.
     const run = await api.fetch('/api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId: 999999, workflowId: wf.id }),
     })
     expect(run.status).toBe(400)
-    // The 400 names the missing field (zodBadRequest surfaces the first issue).
     expect(await run.text()).toContain('command')
 
     // Export serves the current state, which is incomplete too.
     const exported = await api.fetch(`/api/workflows/${wf.id}/export?format=yaml`)
     expect(exported.status).toBe(400)
+
+    // And there is no complete version automation could run.
+    const enable = await patchWorkflow(wf.id, { enabled: true })
+    expect(enable.status).toBe(400)
   })
 
-  it('publishes a completed draft: steps promoted, draft cleared, export unlocked', async () => {
-    const wf = await createWorkflow({ name: `e2e-publish-${Date.now()}` })
-    await patchWorkflow(wf.id, { draftSteps: [{ type: 'bash', command: 'echo hi' }] })
-
-    const publish = await api.fetch(`/api/workflows/${wf.id}/publish`, { method: 'POST' })
-    expect(publish.ok).toBe(true)
+  it('promotes a complete save to the live version on its own', async () => {
+    const wf = await createWorkflow({ name: `e2e-promote-${Date.now()}` })
+    const patched = await patchWorkflow(wf.id, { draftSteps: [{ type: 'bash', command: 'echo hi' }] })
+    expect(patched.ok).toBe(true)
 
     const row = await getWorkflow(wf.id)
     expect(row.steps).toHaveLength(1)
@@ -111,23 +114,27 @@ describe('workflow draft/publish lifecycle over the API', () => {
 
     const exported = await api.fetch(`/api/workflows/${wf.id}/export?format=yaml`)
     expect(exported.ok).toBe(true)
+
+    const enable = await patchWorkflow(wf.id, { enabled: true })
+    expect(enable.ok).toBe(true)
   })
 
-  it('normalizes a draft equal to the published steps back to null', async () => {
-    const wf = await createWorkflow({ name: `e2e-noop-draft-${Date.now()}` })
+  it('keeps the last complete version live while edits are incomplete', async () => {
+    const wf = await createWorkflow({ name: `e2e-keep-live-${Date.now()}` })
     await patchWorkflow(wf.id, { draftSteps: [{ type: 'bash', command: 'echo hi' }] })
-    await api.fetch(`/api/workflows/${wf.id}/publish`, { method: 'POST' })
+    const before = await getWorkflow(wf.id)
 
-    // Re-sending exactly the published steps means "no unpublished changes".
-    const published = (await getWorkflow(wf.id)).steps
-    await patchWorkflow(wf.id, { draftSteps: published })
-    expect((await getWorkflow(wf.id)).draftSteps).toBeNull()
+    await patchWorkflow(wf.id, { draftSteps: [{ type: 'bash', command: 'echo hi' }, { type: 'http' }] })
+
+    const after = await getWorkflow(wf.id)
+    expect(after.draftSteps).toHaveLength(2)
+    expect(after.steps).toEqual(before.steps)
+    expect(after.publishedAt).toEqual(before.publishedAt)
   })
 
-  it('discards a draft without touching the published version', async () => {
+  it('discards incomplete edits back to the last complete version', async () => {
     const wf = await createWorkflow({ name: `e2e-discard-${Date.now()}` })
     await patchWorkflow(wf.id, { draftSteps: [{ type: 'bash', command: 'echo hi' }] })
-    await api.fetch(`/api/workflows/${wf.id}/publish`, { method: 'POST' })
     await patchWorkflow(wf.id, { draftSteps: [{ type: 'bash', command: 'echo hi' }, { type: 'http' }] })
 
     const discard = await api.fetch(`/api/workflows/${wf.id}/discard`, { method: 'POST' })
