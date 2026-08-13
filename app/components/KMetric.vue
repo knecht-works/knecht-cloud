@@ -17,7 +17,7 @@ withDefaults(defineProps<{
     >
       {{ value }}<span
         v-if="suffix"
-        class="text-base font-medium text-dimmed"
+        class="ml-1 text-base font-medium text-dimmed"
       >{{ suffix }}</span>
     </div>
     <div class="k-label mt-2.5">
