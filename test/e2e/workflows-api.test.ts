@@ -8,7 +8,7 @@ import { expectJson, login, type E2eClient } from './client'
 // run against a dev instance with real data.
 
 const name = `e2e-roundtrip-${Date.now()}`
-const created: string[] = []
+const created: number[] = []
 let api: E2eClient
 
 const SOURCE = `
@@ -30,7 +30,7 @@ steps:
       else: []
 `
 
-interface WorkflowRow { name: string, description: string, steps: unknown[] }
+interface WorkflowRow { id: number, name: string, description: string, steps: unknown[], publishedAt: string | number | null }
 
 async function importWorkflow(source: string): Promise<WorkflowRow> {
   const row = await expectJson<WorkflowRow>(await api.fetch('/api/workflows/import', {
@@ -38,7 +38,7 @@ async function importWorkflow(source: string): Promise<WorkflowRow> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ source }),
   }))
-  created.push(row.name)
+  created.push(row.id)
   return row
 }
 
@@ -47,8 +47,8 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
-  for (const wf of created) {
-    await api.fetch(`/api/workflows/${encodeURIComponent(wf)}`, { method: 'DELETE' })
+  for (const id of created) {
+    await api.fetch(`/api/workflows/${id}`, { method: 'DELETE' })
   }
 })
 
@@ -57,16 +57,18 @@ describe('workflow import/export over the API', () => {
     const first = await importWorkflow(SOURCE)
     expect(first.name).toBe(name)
     expect(first.steps).toHaveLength(2)
+    // An import passes the strict schema, so it is born published.
+    expect(first.publishedAt).toBeTruthy()
 
-    const exported = await api.fetch(`/api/workflows/${encodeURIComponent(name)}/export?format=yaml`)
+    const exported = await api.fetch(`/api/workflows/${first.id}/export?format=yaml`)
     expect(exported.ok).toBe(true)
     const doc = await exported.text()
     expect(parse(doc).version).toBe(1)
 
-    // Re-importing the export must not overwrite: the copy gets a -2 name and
-    // byte-identical steps.
+    // Re-importing the export must not overwrite: the copy gets a numbered
+    // name and byte-identical steps.
     const second = await importWorkflow(doc)
-    expect(second.name).toBe(`${name}-2`)
+    expect(second.name).toBe(`${name} 2`)
     expect(second.steps).toEqual(first.steps)
     expect(second.description).toBe(first.description)
   })
