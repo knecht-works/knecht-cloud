@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../../db'
-import { getWorkflow } from '../../workflows'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
@@ -13,7 +12,7 @@ import type { NewTrigger } from '../../db/schema'
 // cron + next-fire, the others clear them.
 const bodySchema = z.object({
   active: z.boolean().optional(),
-  workflow: z.string().min(1).optional(),
+  workflowId: z.number().int().optional(),
   source: z.enum(['schedule', 'github', 'manual', 'jira']).optional(),
   projectIds: z.array(z.number().int()).optional(),
   cron: z.string().min(1).optional(),
@@ -37,11 +36,9 @@ export default defineEventHandler(async (event) => {
   const row = requireTrigger(id)
 
   const patch: Partial<NewTrigger> = { updatedAt: new Date() }
-  if (data.workflow !== undefined) {
-    if (!getWorkflow(data.workflow)) {
-      throw createError({ statusCode: 404, statusMessage: 'Unknown workflow' })
-    }
-    patch.workflow = data.workflow
+  if (data.workflowId !== undefined) {
+    requireWorkflowRow(data.workflowId)
+    patch.workflowId = data.workflowId
   }
   if (data.projectIds !== undefined) patch.projectIds = data.projectIds
   if (data.active !== undefined) patch.active = data.active
