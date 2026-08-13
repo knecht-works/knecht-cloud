@@ -142,12 +142,12 @@ const saveState = computed(() => {
 const saveErrorText = computed(() =>
   metaSave.state.value === 'error' ? metaSave.error.value : draftSave.error.value)
 
-// ── draft vs automation snapshot ─────────────────────────────────────────────
-// `steps`/`publishedAt` on the row form the snapshot AUTOMATION runs; the
-// draft is what the editor (and every manual run) uses. The drift matters
-// only while automation is on: that is when the panel offers "Apply changes".
-const hasUnpublished = computed(() =>
-  !!saved.value && stepsJson.value !== JSON.stringify(saved.value.steps))
+// ── live version ─────────────────────────────────────────────────────────────
+// Every complete save auto-promotes to the live version (`steps`); only an
+// incomplete save stays behind as `draftSteps`, and triggers keep running the
+// last complete version meanwhile. So "the server holds a draft" simply means
+// "the current edits are not runnable yet".
+const hasIncompleteEdits = computed(() => !!saved.value?.draftSteps)
 
 // ── inline test run (composable owns picker, run state and polling) ────────
 // Tests execute the DRAFT: the pending autosave is flushed first so the
@@ -201,10 +201,10 @@ async function removeTrigger(t: { id: number }) {
   }
 }
 
-// The automation master switch, THE lightswitch: turning it on publishes the
-// current state (what you see is what triggers run) and lets triggers fire;
-// turning it off pauses them, keeping the snapshot. Manual runs / tests are
-// unaffected either way.
+// The automation master switch, THE lightswitch: on = triggers fire (with
+// the latest complete version), off = paused. Manual runs / tests are
+// unaffected either way. Turning it on flushes the pending autosave first so
+// "the current state" is what just went live.
 const togglingEnabled = ref(false)
 async function toggleEnabled() {
   if (!saved.value || togglingEnabled.value) return
@@ -216,10 +216,7 @@ async function toggleEnabled() {
   }
   togglingEnabled.value = true
   try {
-    if (turningOn) {
-      await draftSave.flush()
-      await $fetch(`/api/workflows/${id.value}/publish`, { method: 'POST' })
-    }
+    if (turningOn) await draftSave.flush()
     await $fetch(`/api/workflows/${id.value}`, {
       method: 'PATCH',
       body: { enabled: turningOn },
@@ -248,9 +245,9 @@ const menuItems = computed(() => [
     },
   })),
   [
-    ...(hasUnpublished.value
+    ...(hasIncompleteEdits.value
       ? [{
-          label: 'Discard draft',
+          label: 'Discard incomplete edits',
           icon: 'i-lucide-undo-2',
           onSelect: () => { void discardDraft() },
         }]
@@ -321,34 +318,8 @@ function jumpToIssue(issue: DraftIssue) {
   if (issue.target) revealStep(issue.target)
 }
 
-// ── apply changes / discard ──────────────────────────────────────────────────
-// "Apply changes" updates the automation snapshot to the current draft while
-// automation is on. Strict validation point: an incomplete draft doesn't
-// apply, it shows everything in the way instead. The pending autosave is
-// flushed first so the server promotes exactly what the rail shows.
-const applying = ref(false)
-async function applyChanges() {
-  if (!saved.value || applying.value) return
-  if (!valid.value) {
-    submitted.value = true
-    issuesOpen.value = true
-    return
-  }
-  applying.value = true
-  try {
-    await draftSave.flush()
-    await $fetch(`/api/workflows/${id.value}/publish`, { method: 'POST' })
-    await refresh()
-  }
-  catch (e) {
-    submitted.value = true
-    toastError('Failed to apply changes', e)
-  }
-  finally {
-    applying.value = false
-  }
-}
-
+// ── discard ──────────────────────────────────────────────────────────────────
+// Drop incomplete edits and snap the rail back to the last complete version.
 async function discardDraft() {
   try {
     await draftSave.flush()
@@ -647,8 +618,10 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             <!-- onCloseAutoFocus prevented: closing would refocus the chip,
                  which scrolls the header back into view and cancels the
                  jump-to-step scroll a row click just started. -->
+            <!-- Hidden while the rail is empty: the empty state already says
+                 what to do, a chip would just nag. -->
             <UPopover
-              v-if="draftIssues.length"
+              v-if="draftIssues.length && steps.length"
               v-model:open="issuesOpen"
               :content="{ align: 'end', onCloseAutoFocus: (e: Event) => e.preventDefault() }"
             >
@@ -794,9 +767,11 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             <div
               class="min-w-0 flex-1 overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-panel"
             >
-              <!-- Header + master switch, THE lightswitch: on = the current
-                   state is published and triggers run it, off = paused (manual
-                   runs / tests are unaffected). Only shown once a trigger is
+              <!-- Header + master switch, THE lightswitch: on = triggers fire
+                   with the latest complete version, off = paused (manual runs
+                   / tests are unaffected). While the current edits are
+                   incomplete, triggers keep running the last complete version;
+                   the subline says so. Only shown once a trigger is
                    configured: with just the implicit manual start there is
                    nothing the switch could control. -->
               <div
@@ -819,45 +794,17 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                       :class="saved.enabled ? 'text-dimmed' : 'text-accent-orange'"
                     >
                       {{ saved.enabled
-                        ? (saved.publishedAt ? `Triggers run the version from ${timeAgo(saved.publishedAt)}` : 'Triggers fire automatically')
-                        : 'Off: turning on makes the current version live' }}
+                        ? (hasIncompleteEdits ? 'Triggers run the last complete version' : 'Triggers fire automatically')
+                        : 'Paused: triggers won’t fire' }}
                     </div>
                   </div>
                 </div>
-                <UTooltip :text="saved.enabled ? 'Pause automation' : (valid ? 'Publishes the current version and lets triggers fire' : 'Finish the step config first')">
+                <UTooltip :text="saved.enabled ? 'Pause automation' : (valid ? 'Enable automation' : 'Finish the step config first')">
                   <KToggle
                     :active="saved.enabled"
                     :disabled="togglingEnabled"
                     :aria-label="saved.enabled ? 'Pause automation' : 'Enable automation'"
                     @toggle="toggleEnabled"
-                  />
-                </UTooltip>
-              </div>
-
-              <!-- Drift between the draft and the live snapshot: only relevant
-                   while automation is on (turning it on applies the current
-                   state anyway). -->
-              <div
-                v-if="saved?.enabled && workflowTriggers.length && hasUnpublished"
-                class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2.5"
-                style="background: color-mix(in oklab, var(--accent-orange) 7%, transparent)"
-              >
-                <div class="flex min-w-0 items-center gap-2.5">
-                  <UIcon
-                    name="i-lucide-git-compare"
-                    class="size-4 flex-none text-accent-orange"
-                  />
-                  <span class="k-mono truncate text-2xs text-toned">Your edits are not live yet</span>
-                </div>
-                <UTooltip :text="valid ? 'Updates the version triggers run to your current edits' : 'Finish the step config first'">
-                  <UButton
-                    size="xs"
-                    color="neutral"
-                    variant="outline"
-                    label="Apply changes"
-                    :loading="applying"
-                    :disabled="!editable"
-                    @click="applyChanges"
                   />
                 </UTooltip>
               </div>
