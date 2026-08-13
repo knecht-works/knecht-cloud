@@ -151,7 +151,7 @@ function onZoneDrop(e: DragEvent) {
     >
       <template
         v-for="({ step: s, meta, flagged }, i) in rows"
-        :key="s.id ?? i"
+        :key="i"
       >
         <!-- library-drop insertion line -->
         <div
