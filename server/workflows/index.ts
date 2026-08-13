@@ -77,7 +77,9 @@ export function seedWorkflows(): void {
   const existing = new Set(db.select({ name: schema.workflows.name }).from(schema.workflows).all().map(r => r.name))
   for (const wf of STARTERS) {
     if (!existing.has(wf.name)) {
-      db.insert(schema.workflows).values({ name: wf.name, description: wf.description, steps: wf.steps }).run()
+      // Starters are strict-valid by construction, so they are born published:
+      // a fresh instance can run boot-and-preview immediately.
+      db.insert(schema.workflows).values({ name: wf.name, description: wf.description, steps: wf.steps, publishedAt: new Date() }).run()
     }
   }
   updateSettings({ workflowsSeeded: true })

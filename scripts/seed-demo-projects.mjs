@@ -68,9 +68,10 @@ const insertProject = db.prepare(`
 
 const insertRun = db.prepare(`
   INSERT INTO runs
-    (project_id, workflow, status, trigger, branch, pr_url, started_at, finished_at, created_at)
+    (project_id, workflow, workflow_id, status, trigger, branch, pr_url, started_at, finished_at, created_at)
   VALUES
-    (@projectId, @workflow, @status, 'manual', @branch, @prUrl, @startedAt, @finishedAt, @startedAt)
+    (@projectId, @workflow, (SELECT id FROM workflows WHERE name = @workflow),
+     @status, 'manual', @branch, @prUrl, @startedAt, @finishedAt, @startedAt)
 `)
 
 const now = Math.floor(Date.now() / 1000)
