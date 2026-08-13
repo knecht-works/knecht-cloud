@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { db, schema } from '../../db'
-import type { Step } from '../../db/schema'
-import { publishStepsSchema } from '../../workflows/schema'
+import { publishStepsSchema, type Step } from '../../workflows/schema'
 import { dispatchRuns } from '../../daemon/dispatcher'
 
 // POST /api/runs → queue a workflow against one project. The dispatcher

@@ -34,12 +34,14 @@ interface TestProject {
 }
 
 // The workflow editor's inline test run: pick a project + branch, start a real
-// run against the saved workflow, poll it while live. `onStarted` lets the
-// page react when a test kicks off (it collapses the open step settings).
+// run that executes the workflow's DRAFT (useDraft), poll it while live.
+// `beforeStart` runs before each start (the page flushes its pending autosave
+// so the server pins the latest draft); `onStarted` lets the page react when a
+// test kicks off (it collapses the open step settings).
 // `P` is the caller's project row shape (the picker binds the full row).
 export function useWorkflowTestRun<P extends TestProject>(
-  workflowName: () => string | undefined,
-  onStarted?: () => void,
+  workflowId: () => number | undefined,
+  opts?: { beforeStart?: () => Promise<unknown>, onStarted?: () => void },
 ) {
   const toastError = useToastError()
 
@@ -69,17 +71,18 @@ export function useWorkflowTestRun<P extends TestProject>(
   }
 
   async function start() {
-    const workflow = workflowName()
-    if (!project.value || !workflow) return
+    const id = workflowId()
+    if (!project.value || !id) return
     starting.value = true
     try {
+      await opts?.beforeStart?.()
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
-        body: { projectId: project.value.id, workflow, branch: testBranch.value, inputs: filledInputs() },
+        body: { projectId: project.value.id, workflowId: id, useDraft: true, branch: testBranch.value, inputs: filledInputs() },
       })
       activeRunSteps.value = []
       open.value = false
-      onStarted?.()
+      opts?.onStarted?.()
     }
     catch (e) {
       toastError('Failed to start test', e)
@@ -105,11 +108,11 @@ export function useWorkflowTestRun<P extends TestProject>(
   // doesn't lose an in-flight run's progress. Only live runs are restored
   // (the newest one); runs that finished while away stay on the runs page.
   async function reattach() {
-    const workflow = workflowName()
-    if (!workflow) return
+    const id = workflowId()
+    if (!id) return
     try {
       const runs = await $fetch('/api/runs')
-      const live = runs.find(r => r.workflow === workflow && isLiveStatus(r.status))
+      const live = runs.find(r => r.workflowId === id && isLiveStatus(r.status))
       if (!live || activeRun.value) return
       ;[activeRun.value, activeRunSteps.value] = await Promise.all([
         $fetch<TestRunRow>(`/api/runs/${live.id}`),
@@ -119,7 +122,7 @@ export function useWorkflowTestRun<P extends TestProject>(
     catch { /* nothing to restore */ }
   }
 
-  watch(workflowName, () => {
+  watch(workflowId, () => {
     detach()
     reattach()
   }, { immediate: true })
@@ -169,17 +172,20 @@ export function useWorkflowTestRun<P extends TestProject>(
   }
 
   async function retest() {
-    const workflow = workflowName()
-    if (!activeRun.value || !workflow) return
+    const id = workflowId()
+    if (!activeRun.value || !id) return
     const projectId = activeRun.value.projectId
     detach()
     try {
+      await opts?.beforeStart?.()
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
-        body: { projectId, workflow, inputs: filledInputs() },
+        body: { projectId, workflowId: id, useDraft: true, inputs: filledInputs() },
       })
     }
-    catch { /* surfaced via the run page if it fails to start */ }
+    catch (e) {
+      toastError('Failed to start test', e)
+    }
   }
 
   return { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
