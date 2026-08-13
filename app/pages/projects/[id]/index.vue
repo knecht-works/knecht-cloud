@@ -221,54 +221,36 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
       <span class="k-mono truncate text-xs text-muted">{{ project.fullName }}</span>
     </div>
 
-    <div class="mb-5.5 flex flex-wrap items-start justify-between gap-4">
-      <div class="flex gap-3.5">
-        <!-- The site's favicon when one was resolved, in the same chip frame
-             as the project cards; the generic box otherwise. -->
+    <KPageHeader
+      class="mb-5.5"
+      icon="i-lucide-box"
+      :icon-color="fw.color"
+      :favicon="project.favicon"
+    >
+      <h1 class="k-mono truncate text-2xl font-semibold tracking-tight text-highlighted">
+        {{ repoName }}
+      </h1>
+      <template #meta>
         <span
-          v-if="project.favicon"
-          class="grid size-12 flex-none place-items-center rounded-lg border border-default bg-(--surface-accented)"
-        >
-          <img
-            :src="project.favicon"
-            alt=""
-            class="size-7 object-contain"
-          >
+          class="k-mono inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs tracking-wider"
+          :style="{ color: fw.color, borderColor: 'color-mix(in oklab, currentColor 35%, transparent)' }"
+        >{{ fwLabel }}</span>
+        <span class="flex items-center gap-1.5 text-dimmed">
+          <UIcon
+            name="i-simple-icons-github"
+            class="size-3.5"
+          />
+          <span class="k-mono text-xs text-muted">{{ project.fullName.split('/')[0] }}</span>
         </span>
-        <KStepIcon
-          v-else
-          icon="i-lucide-box"
-          :color="fw.color"
-          :size="46"
-          :radius="10"
-        />
-        <div>
-          <h1 class="k-mono text-2xl font-semibold tracking-tight text-highlighted">
-            {{ repoName }}
-          </h1>
-          <div class="mt-2 flex flex-wrap items-center gap-3.5">
-            <span
-              class="k-mono inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs tracking-wider"
-              :style="{ color: fw.color, borderColor: 'color-mix(in oklab, currentColor 35%, transparent)' }"
-            >{{ fwLabel }}</span>
-            <span class="flex items-center gap-1.5 text-dimmed">
-              <UIcon
-                name="i-simple-icons-github"
-                class="size-3.5"
-              />
-              <span class="k-mono text-xs text-muted">{{ project.fullName.split('/')[0] }}</span>
-            </span>
-            <UBadge
-              :color="project.private ? 'neutral' : 'primary'"
-              variant="subtle"
-              size="sm"
-            >
-              {{ project.private ? 'Private' : 'Public' }}
-            </UBadge>
-          </div>
-        </div>
-      </div>
-      <div class="flex flex-none items-center gap-2.5">
+        <UBadge
+          :color="project.private ? 'neutral' : 'primary'"
+          variant="subtle"
+          size="sm"
+        >
+          {{ project.private ? 'Private' : 'Public' }}
+        </UBadge>
+      </template>
+      <template #actions>
         <UButton
           :to="`/projects/${id}/settings`"
           color="neutral"
@@ -348,8 +330,8 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
             aria-label="More actions"
           />
         </UDropdownMenu>
-      </div>
-    </div>
+      </template>
+    </KPageHeader>
 
     <!-- Sidebar column: identical on every detail page, viewport-based
          (clamp), so it can't drift between screens. Keep in sync with
