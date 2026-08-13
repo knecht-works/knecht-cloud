@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { PUBLISH_FOLLOWUP_PROMPT } from '#shared/utils/followup'
 import { stepsInclude, type Step } from '#shared/utils/workflow'
-import type { WorkflowStep } from '~/utils/dashboard'
-import type { StepMeta } from '~/utils/workflow-steps'
 
 // One run's full workspace: preview, follow-up chat, the run log as one
 // continuous stream with a step index rail beside it (KRunLog: clicking a
@@ -48,43 +46,9 @@ const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] 
 const previewOnline = computed(() =>
   run.value?.envState === 'up' && run.value.previewReady)
 
-// The step timeline: one row per executed step (run_steps), presented via
-// the step registry exactly like the workflow editor's rail (per-type label
-// and icon, derived from the row's RENDERED params, so e.g. a bash step is
-// titled by what its command does). What a step executed stays in its log
-// slice: every slice begins with the '▶' banner line. Unknown step types
-// (e.g. removed ones) render generically; nested rows indent by their
-// ancestor count (parentStepId chains).
-const timeline = computed(() => {
-  const rows = stepRows.value ?? []
-  const byStepId = new Map(rows.map(r => [r.stepId, r]))
-  const depthOf = (row: (typeof rows)[number]) => {
-    let depth = 0
-    for (let p = row.parentStepId; p; p = byStepId.get(p)?.parentStepId ?? null) depth++
-    return depth
-  }
-  return rows.map((s) => {
-    const def = stepDefFor(s.type)
-    let meta: StepMeta | null = null
-    if (def) {
-      try {
-        meta = workflowStepMeta({ type: s.type, ...(s.params ?? {}) } as unknown as WorkflowStep)
-      }
-      catch {
-        // Params from an older schema can miss a field a meta() reads; the
-        // def's own identity still renders below.
-      }
-    }
-    return {
-      ...s,
-      depth: depthOf(s),
-      icon: s.origin === 'followup' ? 'i-lucide-message-circle-reply' : (meta?.icon ?? def?.icon ?? 'i-lucide-square'),
-      label: s.origin === 'followup' ? 'Follow-up' : (meta?.label ?? def?.label ?? s.type),
-      color: STEP_KIND_COLOR[meta?.kind ?? def?.kind ?? 'det'],
-      statusMeta: RUN_STATUS_META[s.status],
-    }
-  })
-})
+// The step timeline behind KRunLog, shared with the workflow editor's test
+// run (utils/run-log.ts).
+const timeline = computed(() => runLogTimeline(stepRows.value ?? []))
 
 // The step behind the failure card: rows are in execution order, so the last
 // row carrying an error is the most specific one (a composite is finalized
@@ -667,7 +631,10 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
             :pulse="statusMeta.pulse"
             :size="6"
           />
-          <span class="k-mono text-2xs text-muted">{{ run.workflow }} · {{ run.project }}</span>
+          <span
+            class="k-mono text-2xs"
+            :style="{ color: statusMeta.text }"
+          >{{ statusMeta.label }}</span>
         </span>
       </template>
       <KRunLog
