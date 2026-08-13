@@ -29,15 +29,14 @@ export default defineEventHandler(async (event) => {
     zodBadRequest(result.error, 'Invalid workflow')
   }
 
-  // Imports never overwrite: an existing name gets `-2`, `-3`, … appended.
-  let name = result.data.name
-  for (let n = 2; getWorkflowRow(name); n++) {
-    name = `${result.data.name}-${n}`
-  }
+  // Imports never overwrite: an existing name gets ` 2`, ` 3`, … appended.
+  const name = uniqueWorkflowName(result.data.name)
 
+  // An import passes the strict document schema (min 1 complete step), so the
+  // workflow is born published and can run immediately.
   return db
     .insert(schema.workflows)
-    .values({ name, description: result.data.description, steps: result.data.steps })
+    .values({ name, description: result.data.description, steps: result.data.steps, publishedAt: new Date() })
     .returning()
     .get()
 })

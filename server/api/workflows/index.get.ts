@@ -1,17 +1,22 @@
 import { db, schema } from '../../db'
 import { ensureStepIds } from '../../../shared/utils/workflow'
 
-// GET /api/workflows → the workflows for the overview + builder: name,
-// description, the normalized step sequence and the `enabled` automation switch.
-// Every workflow is a plain row (starters are seeded on first boot). Run stats
-// are derived client-side from /api/runs.
+// GET /api/workflows → the workflows for the overview + builder: the published
+// steps, the editor's draft (returned exactly as stored, the editor diffs
+// against it), the `enabled` automation switch and when the workflow was last
+// published (null = never, nothing to run in production). Every workflow is a
+// plain row (starters are seeded on first boot). Run stats are derived
+// client-side from /api/runs.
 export default defineEventHandler(() => {
   return db
     .select({
+      id: schema.workflows.id,
       name: schema.workflows.name,
       description: schema.workflows.description,
       steps: schema.workflows.steps,
+      draftSteps: schema.workflows.draftSteps,
       enabled: schema.workflows.enabled,
+      publishedAt: schema.workflows.publishedAt,
     })
     .from(schema.workflows)
     .all()

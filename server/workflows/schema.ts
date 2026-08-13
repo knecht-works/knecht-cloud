@@ -106,20 +106,45 @@ const stepOptions = [
 ] as unknown as [StepOption, ...StepOption[]]
 const normalizedStepSchema = z.discriminatedUnion('type', stepOptions) as unknown as z.ZodType<Step>
 
-// Steps may be empty (a draft). The name rule lives in shared/utils/workflow.ts
-// so the editor validates with the same regex.
-export const workflowInputSchema = z.object({
-  name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores'),
+// Drafts autosave on every edit, so only STRUCTURE is enforced: a known step
+// type, children recursing, the shared depth cap. Params may be half-filled
+// or missing entirely; publishing (and a draft test run) runs the strict
+// schema instead. Unknown keys pass through untouched so the stored draft
+// stays byte-identical to what the editor sent (the client diffs against it).
+const DRAFT_STEP_TYPES = [...ACTIONS.map(a => a.type), 'if', 'loop'] as [string, ...string[]]
+const draftStepSchema: z.ZodType<Step> = z.lazy(() => z.looseObject({
+  type: z.enum(DRAFT_STEP_TYPES),
+  then: z.array(draftStepSchema).optional(),
+  else: z.array(draftStepSchema).optional(),
+  steps: z.array(draftStepSchema).optional(),
+})) as unknown as z.ZodType<Step>
+export const draftStepsSchema = z.array(draftStepSchema).superRefine(maxDepth)
+
+// The strict validation point: what publish and a draft test run enforce.
+// Required params are checked, ids are backfilled and de-duplicated, and an
+// empty workflow can't go live.
+export const publishStepsSchema = z.array(normalizedStepSchema)
+  .min(1, 'Add at least one step before publishing')
+  .superRefine(maxDepth)
+  .transform(ensureStepIds)
+
+// POST /api/workflows: an empty body is fine, the route picks a free default
+// name. The name rule lives in shared/utils/workflow.ts so the editor
+// validates with the same regex.
+export const workflowCreateSchema = z.object({
+  name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores').optional(),
   description: z.string().default(''),
-  // Saves from pre-id clients (or hand-edited bodies) get ids backfilled, and
-  // duplicates de-duplicated, before the steps hit the DB.
-  steps: z.array(normalizedStepSchema).superRefine(maxDepth).transform(ensureStepIds),
-  // The automation master switch. Optional so the editor's full-body auto-saves
-  // (which don't send it) leave the stored value untouched.
-  enabled: z.boolean().optional(),
 })
 
-export type WorkflowInput = z.infer<typeof workflowInputSchema>
+// PATCH /api/workflows/:id, partial: name/description/enabled apply directly
+// to the row (they don't affect execution), draftSteps is the editor's
+// loosely validated working copy.
+export const workflowPatchSchema = z.object({
+  name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores').optional(),
+  description: z.string().optional(),
+  enabled: z.boolean().optional(),
+  draftSteps: draftStepsSchema.optional(),
+})
 
 // ── import / export (workflow-engine-plan.md D9) ─────────────────────────────
 // The normalized JSON shape is canonical; YAML is the same document serialized.
