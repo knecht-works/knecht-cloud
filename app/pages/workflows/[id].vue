@@ -3,18 +3,20 @@ import { runWorkspacePath } from '#shared/utils/routes'
 import { flattenSteps } from '#shared/utils/workflow'
 import type { TestRunRow } from '~/composables/useWorkflowTestRun'
 
-// The workflow create/edit surface. A numbered step rail on the left (editable:
-// add from the library, reorder, remove, edit each step's params) and a context
-// panel on the right. Edits live in a local `draft` and persist via the
-// workflows CRUD API. An inline test run overlays per-step progress derived from
+// The workflow edit surface. A numbered step rail on the left (editable: add
+// from the library, reorder, remove, edit each step's params) and a context
+// panel on the right. Edits autosave continuously: name/description straight
+// onto the row, the steps as a loosely validated DRAFT. An explicit Publish
+// promotes the draft to the version triggers and production runs execute; the
+// inline test run executes the draft. Per-step progress overlays derive from
 // the run log's `▶ <step>` markers: no extra backend tracking.
 
 const route = useRoute()
 const toast = useToast()
 const toastError = useToastError()
 
-const isNew = computed(() => String(route.params.name) === 'new')
-const routeName = computed(() => decodeURIComponent(String(route.params.name)))
+// The id is the workflow's identity (the name is a display field).
+const id = computed(() => Number(route.params.id))
 
 const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
 // The run picker's projects and the trigger panel load lazily: neither blocks
@@ -26,18 +28,19 @@ const { data: projects } = useFetch('/api/projects', {
 })
 const { data: allTriggers, refresh: refreshTriggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 
-// The persisted record (null for a new draft or an unknown name).
-const saved = computed(() => isNew.value ? null : (workflows.value?.find(w => w.name === routeName.value) ?? null))
-const notFound = computed(() => !isNew.value && !saved.value)
+// The persisted record (null for an unknown id).
+const saved = computed(() => workflows.value?.find(w => w.id === id.value) ?? null)
+const notFound = computed(() => !saved.value)
 
-// ── editable draft ─────────────────────────────────────────────────────────
-interface Draft { name: string, description: string, steps: WorkflowStep[] }
-const draft = ref<Draft>({ name: '', description: '', steps: [] })
-const original = ref('')
-// Save state (see the explicit-save section below); declared with the draft
-// because resetDraft clears it.
-const saving = ref(false)
-const saveError = ref<string>()
+// ── the editor's working copy ────────────────────────────────────────────────
+// Two independent autosaves (the settings-page pattern): `meta` (name +
+// description) PATCHes the row directly since neither affects execution;
+// `steps` PATCHes the loose draft. Publish promotes the persisted draft.
+const meta = reactive({ name: '', description: '' })
+const metaOriginal = ref('')
+const steps = ref<WorkflowStep[]>([])
+const stepsOriginal = ref('')
+// A failed publish drops the pristine grace everywhere and flags every issue.
 const submitted = ref(false)
 // Which steps have their settings expanded: several can be open at once.
 // Tracked by step OBJECT (not index), so the open state survives reordering.
@@ -56,46 +59,101 @@ function revealStep(step: WorkflowStep) {
 
 // Any step in the tree carrying `id`: nested steps are always visible in the
 // rail now, so a deep link opens the exact card.
-function stepWithId(id: string): WorkflowStep | undefined {
-  return flattenSteps(draft.value.steps).find(s => s.id === id)
+function stepWithId(stepId: string): WorkflowStep | undefined {
+  return flattenSteps(steps.value).find(s => s.id === stepId)
 }
 
 // Deep link from a run's failure card: ?step=<id> lands with that step open.
 onMounted(() => {
-  const id = route.query.step
-  if (typeof id !== 'string') return
-  const step = stepWithId(id)
+  const stepId = route.query.step
+  if (typeof stepId !== 'string') return
+  const step = stepWithId(stepId)
   if (step) revealStep(step)
 })
 
-function resetDraft() {
-  const base: Draft = saved.value
-    ? { name: saved.value.name, description: saved.value.description, steps: structuredClone(toRaw(saved.value.steps)) as WorkflowStep[] }
-    : { name: '', description: '', steps: [] }
-  draft.value = base
-  original.value = JSON.stringify(base)
+// Initialize ONCE per workflow (and again on discard): from then on the
+// editor owns the working copy, a list refresh never resets it. The steps
+// start from the persisted draft, falling back to the published version.
+function loadMeta() {
+  meta.name = saved.value?.name ?? ''
+  meta.description = saved.value?.description ?? ''
+  metaOriginal.value = JSON.stringify({ ...meta })
+}
+function loadSteps() {
+  const src = saved.value ? (saved.value.draftSteps ?? saved.value.steps) : []
+  steps.value = structuredClone(toRaw(src)) as WorkflowStep[]
+  stepsOriginal.value = JSON.stringify(steps.value)
   openSteps.value.clear()
   submitted.value = false
-  saveError.value = undefined
 }
-resetDraft()
-// Re-init only when navigating to a different workflow, NOT when the list
-// refreshes after an auto-save (that would clobber the in-progress edit). The
-// guard skips the reset right after we navigate following a create/rename.
-let skipReset = false
-watch(routeName, () => {
-  if (skipReset) {
-    skipReset = false
-    return
-  }
-  resetDraft()
+loadMeta()
+loadSteps()
+watch(id, () => {
+  loadMeta()
+  loadSteps()
 })
 
-const steps = computed(() => draft.value.steps)
+// ── autosave (meta + draft) ──────────────────────────────────────────────────
+// The shared name rule (shared/utils/workflow.ts): the same regex the
+// server's patch schema validates with.
+const nameValid = computed(() => WORKFLOW_NAME_RE.test(meta.name.trim()))
+
+const metaSave = useAutosave(async () => {
+  await $fetch(`/api/workflows/${id.value}`, {
+    method: 'PATCH',
+    body: { name: meta.name.trim(), description: meta.description },
+  })
+  metaOriginal.value = JSON.stringify({ ...meta })
+  // Safe: the steps working copy lives separately, nothing to clobber.
+  await refresh()
+})
+watch(meta, () => {
+  if (!saved.value || JSON.stringify({ ...meta }) === metaOriginal.value) return
+  if (!nameValid.value) {
+    return metaSave.invalid(meta.name.trim() ? 'Name: only letters, numbers, spaces, hyphens and underscores' : 'Give the workflow a name')
+  }
+  metaSave.schedule()
+})
+
+const stepsJson = computed(() => JSON.stringify(steps.value))
+const draftSave = useAutosave(async () => {
+  const json = stepsJson.value
+  await $fetch(`/api/workflows/${id.value}`, {
+    method: 'PATCH',
+    body: { draftSteps: JSON.parse(json) },
+  })
+  // No refresh: the editor owns the draft.
+  stepsOriginal.value = json
+})
+watch(stepsJson, (json) => {
+  if (!saved.value || json === stepsOriginal.value) return
+  draftSave.schedule()
+})
+
+// One indicator for both autosaves: an error wins, then an in-flight save.
+const saveState = computed(() => {
+  if (metaSave.state.value === 'error' || draftSave.state.value === 'error') return 'error' as const
+  if (metaSave.state.value === 'saving' || draftSave.state.value === 'saving') return 'saving' as const
+  if (metaSave.state.value === 'saved' || draftSave.state.value === 'saved') return 'saved' as const
+  return 'idle' as const
+})
+const saveErrorText = computed(() =>
+  metaSave.state.value === 'error' ? metaSave.error.value : draftSave.error.value)
+
+// ── draft vs published ───────────────────────────────────────────────────────
+const published = computed(() => !!saved.value?.publishedAt)
+const hasUnpublished = computed(() =>
+  !!saved.value && stepsJson.value !== JSON.stringify(saved.value.steps))
+const canPublish = computed(() => hasUnpublished.value || !published.value)
 
 // ── inline test run (composable owns picker, run state and polling) ────────
+// Tests execute the DRAFT: the pending autosave is flushed first so the
+// server pins exactly what the rail shows.
 const { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
-  = useWorkflowTestRun<(typeof projects.value)[number]>(() => saved.value?.name, () => openSteps.value.clear())
+  = useWorkflowTestRun<(typeof projects.value)[number]>(() => saved.value?.id, {
+    beforeStart: () => draftSave.flush(),
+    onStarted: () => openSteps.value.clear(),
+  })
 
 // The "Trigger event (mock)" section of the run popover, collapsed by default.
 const mockOpen = ref(false)
@@ -106,7 +164,7 @@ const editable = computed(() => !activeRun.value)
 // Manual is always implicit; configured triggers (schedule/webhook/saved
 // manual) stack above it and are managed right here.
 const workflowTriggers = computed(() =>
-  saved.value ? (allTriggers.value ?? []).filter(t => t.workflow === saved.value!.name) : [])
+  saved.value ? (allTriggers.value ?? []).filter(t => t.workflowId === saved.value!.id) : [])
 const triggerModalOpen = ref(false)
 // Clicking a trigger row edits it; "Add trigger" opens a blank form.
 const editingTrigger = ref<(typeof workflowTriggers)['value'][number] | null>(null)
@@ -140,17 +198,16 @@ async function removeTrigger(t: { id: number }) {
   }
 }
 
-// The workflow's automation master switch. Sends the PERSISTED body (not the
-// in-progress draft) plus the flipped flag, so toggling never clobbers an
-// unsaved edit. Manual runs / tests are unaffected by this.
+// The workflow's automation master switch (a partial PATCH: it can never
+// touch the draft). Manual runs / tests are unaffected by this.
 const togglingEnabled = ref(false)
 async function toggleEnabled() {
   if (!saved.value) return
   togglingEnabled.value = true
   try {
-    await $fetch(`/api/workflows/${encodeURIComponent(saved.value.name)}`, {
+    await $fetch(`/api/workflows/${id.value}`, {
       method: 'PATCH',
-      body: { name: saved.value.name, description: saved.value.description, steps: saved.value.steps, enabled: !saved.value.enabled },
+      body: { enabled: !saved.value.enabled },
     })
     await refresh()
   }
@@ -163,29 +220,40 @@ async function toggleEnabled() {
 }
 
 // ── header overflow menu: export (a browser download; the endpoint sets
-// content-disposition) plus the destructive delete behind a confirm. ────────
+// content-disposition), discard draft, and the destructive delete behind a
+// confirm. Export serves the PUBLISHED version, so it needs one. ────────────
 const confirmDelete = ref(false)
 const menuItems = computed(() => [
   (['yaml', 'json'] as const).map(format => ({
     label: `Export ${format.toUpperCase()}`,
     icon: 'i-lucide-file-down',
+    disabled: !saved.value?.steps.length,
     onSelect: () => {
-      if (saved.value) window.location.assign(`/api/workflows/${encodeURIComponent(saved.value.name)}/export?format=${format}`)
+      if (saved.value) window.location.assign(`/api/workflows/${saved.value.id}/export?format=${format}`)
     },
   })),
-  [{
-    label: 'Delete workflow',
-    icon: 'i-lucide-trash-2',
-    color: 'error' as const,
-    onSelect: () => { confirmDelete.value = true },
-  }],
+  [
+    ...(hasUnpublished.value
+      ? [{
+          label: 'Discard draft',
+          icon: 'i-lucide-undo-2',
+          onSelect: () => { void discardDraft() },
+        }]
+      : []),
+    {
+      label: 'Delete workflow',
+      icon: 'i-lucide-trash-2',
+      color: 'error' as const,
+      onSelect: () => { confirmDelete.value = true },
+    },
+  ],
 ])
 
 // ── step mutations (step identity/fields come from the registry) ────────────
 function addStep(type: WorkflowStep['type']) {
-  const step = makeStep(type, draft.value.steps)
-  draft.value.steps.push(step)
-  openSteps.value.add(draft.value.steps.at(-1)!)
+  const step = makeStep(type, steps.value)
+  steps.value.push(step)
+  openSteps.value.add(steps.value.at(-1)!)
 }
 
 // ── drag & drop: one insertion-line model for reorder, moves and library ────
@@ -194,35 +262,19 @@ function addStep(type: WorkflowStep['type']) {
 const { drag, startLibDrag, overList, overAt, performDrop, endDrag }
   = useWorkflowDnd(steps, openSteps, editable)
 
-// ── explicit save ────────────────────────────────────────────────────────────
-// Edits stay local until Save (button or Cmd/Ctrl+S): the click is the one
-// fixed point where validation runs. An invalid draft flips `submitted`,
-// which drops the pristine grace everywhere and opens the issue list instead
-// of saving. Leaving with unsaved changes asks first.
-
-// The shared name rule (shared/utils/workflow.ts): the same regex the
-// server's workflowInputSchema validates with.
-const nameValid = computed(() => WORKFLOW_NAME_RE.test(draft.value.name.trim()))
-
-// Everything blocking the save, one row per problem: the header's
-// "Incomplete" popover lists these; clicking a row opens the affected step.
-// `target` is the TOP-LEVEL step to reveal (sub-step problems name the
-// offender in the text but expand their composite's card). `pristine` rows
-// sit on a step (or name) the user hasn't started filling in: they still
-// block the save but render as neutral to-dos, not errors.
+// ── validation (gates publishing and running, never saving) ─────────────────
+// Everything blocking a publish, one row per problem: the header's popover
+// lists these; clicking a row opens the affected step. `target` is the
+// TOP-LEVEL step to reveal (sub-step problems name the offender in the text
+// but expand their composite's card). `pristine` rows sit on a step the user
+// hasn't started filling in: still blocking, but rendered as neutral to-dos.
 interface DraftIssue { target?: WorkflowStep, pristine: boolean, text: string }
 const draftIssues = computed<DraftIssue[]>(() => {
   const list: DraftIssue[] = []
-  if (!nameValid.value) {
-    const untouched = !draft.value.name.trim()
-    list.push({
-      pristine: untouched,
-      text: untouched
-        ? 'Give the workflow a name'
-        : 'Name: only letters, numbers, spaces, hyphens and underscores',
-    })
+  if (!steps.value.length) {
+    list.push({ pristine: true, text: 'Add at least one step' })
   }
-  draft.value.steps.forEach((step, i) => {
+  steps.value.forEach((step, i) => {
     for (const issue of stepIssues(step)) {
       const where = issue.step === step ? '' : ` › ${workflowStepMeta(issue.step).label}`
       list.push({
@@ -236,10 +288,16 @@ const draftIssues = computed<DraftIssue[]>(() => {
 })
 const valid = computed(() => !draftIssues.value.length)
 // Problems the editor highlights: those on steps the user has actually
-// started configuring, or ALL of them once a save attempt failed.
+// started configuring, or ALL of them once a publish attempt failed.
 const flaggedIssues = computed(() => draftIssues.value.filter(i => submitted.value || !i.pristine))
 // Children (field highlights, sub-step borders) follow the same switch.
 provide(FORCE_STEP_ISSUES, submitted)
+
+// Once every problem is fixed, drop back into the quiet (pristine-aware)
+// mode: freshly added steps stay calm again until the next publish attempt.
+watch(valid, (ok) => {
+  if (ok) submitted.value = false
+})
 
 // The header popover's open state, closed when a row jumps to its step.
 const issuesOpen = ref(false)
@@ -248,81 +306,59 @@ function jumpToIssue(issue: DraftIssue) {
   if (issue.target) revealStep(issue.target)
 }
 
-function saveBody() {
-  return { name: draft.value.name.trim(), description: draft.value.description, steps: toRaw(draft.value.steps) }
-}
-
-const draftJson = computed(() => JSON.stringify(draft.value))
-const dirty = computed(() => draftJson.value !== original.value)
-
-// A save error belongs to the attempt it came from: the next edit clears it.
-watch(draftJson, () => {
-  saveError.value = undefined
-})
-
-// Once every problem is fixed, drop back into the quiet (pristine-aware)
-// mode: freshly added steps stay calm again until the next save attempt.
-watch(valid, (ok) => {
-  if (ok) submitted.value = false
-})
-
-// What the header shows next to the Save button.
-const headerState = computed(() => {
-  if (saving.value) return 'saving'
-  if (saveError.value !== undefined) return 'error'
-  if (!dirty.value) return saved.value ? 'saved' : 'idle'
-  return valid.value ? 'unsaved' : 'incomplete'
-})
-
-async function save() {
-  if (!editable.value || saving.value || !dirty.value) return
-  // The fixed validation point: an invalid draft doesn't save, it shows
-  // everything that's in the way instead.
+// ── publish / discard ────────────────────────────────────────────────────────
+// Publish is the fixed validation point: an incomplete draft doesn't publish,
+// it shows everything that's in the way instead. The pending autosave is
+// flushed first so the server promotes exactly what the rail shows.
+const publishing = ref(false)
+async function publish() {
+  if (!saved.value || publishing.value) return
   if (!valid.value) {
     submitted.value = true
     issuesOpen.value = true
     return
   }
-  saving.value = true
-  saveError.value = undefined
+  publishing.value = true
   try {
-    if (!saved.value) {
-      const created = await $fetch('/api/workflows', { method: 'POST', body: saveBody() })
-      original.value = JSON.stringify(draft.value)
-      skipReset = true
-      await refresh()
-      await navigateTo(`/workflows/${encodeURIComponent(created.name)}`)
-    }
-    else {
-      // Typed explicitly: `/api/workflows/${string}` also matches the export
-      // sub-route since it exists, which degrades Nitro's inference to unknown.
-      const updated = await $fetch<{ name: string }>(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'PATCH', body: saveBody() })
-      original.value = JSON.stringify(draft.value)
-      if (updated.name !== saved.value.name) {
-        skipReset = true
-        await refresh()
-        await navigateTo(`/workflows/${encodeURIComponent(updated.name)}`)
-      }
-    }
+    await draftSave.flush()
+    await metaSave.flush()
+    await $fetch(`/api/workflows/${id.value}/publish`, { method: 'POST' })
+    await refresh()
   }
   catch (e) {
-    saveError.value = errMsg(e, '')
+    submitted.value = true
+    toastError('Publish failed', e)
   }
   finally {
-    saving.value = false
+    publishing.value = false
   }
 }
 
-// Cmd/Ctrl+S saves; leaving with unsaved changes asks first (route change
-// AND hard reload/close).
+async function discardDraft() {
+  try {
+    await draftSave.flush()
+    await $fetch(`/api/workflows/${id.value}/discard`, { method: 'POST' })
+    await refresh()
+    loadSteps()
+  }
+  catch (e) {
+    toastError('Failed to discard draft', e)
+  }
+}
+
+// Cmd/Ctrl+S has nothing left to save (autosave does), but muscle memory
+// deserves better than the browser's save dialog: flush the pending edits.
 function onKeydown(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
-    save()
+    void draftSave.flush()
+    void metaSave.flush()
   }
 }
+// Closing the tab mid-save (or mid-debounce) could lose the last edit; the
+// route-leave case needs nothing, useAutosave flushes on unmount.
 function onBeforeUnload(e: BeforeUnloadEvent) {
-  if (dirty.value) e.preventDefault()
+  if (saveState.value === 'saving') e.preventDefault()
 }
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
@@ -332,63 +368,13 @@ onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('beforeunload', onBeforeUnload)
 })
-onBeforeRouteLeave(() => {
-  if (!dirty.value) return true
-  return window.confirm('You have unsaved changes. Leave without saving?')
-})
-
-// ── rename (existing workflows) ─────────────────────────────────────────────
-// The title is a static heading; renaming is an explicit, atomic action so a
-// stray keystroke can't rename-and-navigate mid-typing. The input binds a local
-// value and only commits (one PATCH → reference cascade → navigate) on
-// Enter/blur; Escape cancels.
-const renaming = ref(false)
-const renameValue = ref('')
-const renameInput = ref<HTMLInputElement>()
-const renameValid = computed(() => WORKFLOW_NAME_RE.test(renameValue.value.trim()))
-
-async function startRename() {
-  renameValue.value = draft.value.name
-  renaming.value = true
-  await nextTick()
-  renameInput.value?.focus()
-  renameInput.value?.select()
-}
-function cancelRename() {
-  renaming.value = false
-}
-async function commitRename() {
-  if (!renaming.value) return
-  renaming.value = false
-  const next = renameValue.value.trim()
-  if (!saved.value || next === saved.value.name || !renameValid.value) return
-  // Renames PATCH the PERSISTED record (like toggleEnabled): an in-progress
-  // step edit stays local and unsaved, exactly as it was.
-  try {
-    const updated = await $fetch<{ name: string }>(`/api/workflows/${encodeURIComponent(saved.value.name)}`, {
-      method: 'PATCH',
-      body: { name: next, description: saved.value.description, steps: saved.value.steps },
-    })
-    draft.value.name = updated.name
-    // Keep the dirty diff honest: the baseline gets the new name too.
-    const base = JSON.parse(original.value) as Draft
-    base.name = updated.name
-    original.value = JSON.stringify(base)
-    skipReset = true
-    await refresh()
-    await navigateTo(`/workflows/${encodeURIComponent(updated.name)}`)
-  }
-  catch (e) {
-    toast.add({ title: 'Rename failed', description: errMsg(e, ''), color: 'error' })
-  }
-}
 
 const removing = ref(false)
 async function removeWorkflow() {
   if (!saved.value) return
   removing.value = true
   try {
-    const res = await $fetch<{ deletedTriggers: number }>(`/api/workflows/${encodeURIComponent(saved.value.name)}`, { method: 'DELETE' })
+    const res = await $fetch<{ deletedTriggers: number }>(`/api/workflows/${id.value}`, { method: 'DELETE' })
     await refresh()
     toast.add({
       title: 'Workflow deleted',
@@ -498,7 +484,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
         name="i-lucide-chevron-right"
         class="size-3"
       />
-      <span class="k-mono truncate text-xs text-muted">{{ isNew ? 'New' : routeName }}</span>
+      <span class="k-mono truncate text-xs text-muted">{{ meta.name || saved?.name || '…' }}</span>
     </div>
 
     <div
@@ -525,57 +511,32 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
         icon="i-lucide-workflow"
         icon-color="var(--text-primary)"
       >
-        <!-- New draft: the name is entered directly (no identity yet). -->
+        <!-- The title is the name field: always editable, autosaved. -->
         <input
-          v-if="!saved && editable"
-          v-model="draft.name"
+          v-if="editable"
+          v-model="meta.name"
           placeholder="Workflow name"
           spellcheck="false"
-          class="k-mono w-full bg-transparent text-2xl font-semibold tracking-tight text-highlighted outline-none"
-          :class="submitted && !nameValid ? 'placeholder:text-(--accent-orange)' : 'placeholder:text-dimmed'"
+          aria-label="Workflow name"
+          class="k-mono w-full bg-transparent text-2xl font-semibold tracking-tight text-highlighted outline-none placeholder:text-dimmed"
         >
-        <!-- Renaming an existing workflow: deliberate + atomic. -->
-        <input
-          v-else-if="renaming"
-          ref="renameInput"
-          v-model="renameValue"
-          spellcheck="false"
-          class="k-mono w-full bg-transparent text-2xl font-semibold tracking-tight text-highlighted outline-none"
-          @keyup.enter="commitRename"
-          @keyup.esc="cancelRename"
-          @blur="commitRename"
-        >
-        <!-- Saved: the title itself is the rename affordance, click it. -->
-        <UTooltip
-          v-else-if="saved && editable"
-          text="Click to rename"
-        >
-          <h1
-            tabindex="0"
-            class="k-mono min-w-0 cursor-text truncate text-2xl font-semibold tracking-tight text-highlighted outline-none transition-opacity hover:opacity-70"
-            @click="startRename"
-            @keyup.enter="startRename"
-          >
-            {{ saved?.name ?? draft.name }}
-          </h1>
-        </UTooltip>
         <h1
           v-else
           class="k-mono min-w-0 truncate text-2xl font-semibold tracking-tight text-highlighted"
         >
-          {{ saved?.name ?? draft.name }}
+          {{ meta.name }}
         </h1>
         <template #meta>
           <input
             v-if="editable"
-            v-model="draft.description"
+            v-model="meta.description"
             placeholder="Short description (optional)"
             class="w-full bg-transparent text-2sm text-muted outline-none placeholder:text-dimmed"
           >
           <span
-            v-else-if="draft.description"
+            v-else-if="meta.description"
             class="truncate text-2sm text-muted"
-          >{{ draft.description }}</span>
+          >{{ meta.description }}</span>
         </template>
         <template #actions>
           <template v-if="mode === 'running'">
@@ -645,27 +606,16 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </UTooltip>
           </template>
           <template v-else>
-            <!-- save state chip + the explicit Save button (Cmd/Ctrl+S) -->
-            <span
-              v-if="headerState === 'saved'"
-              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
-            >
-              <UIcon
-                name="i-lucide-check"
-                class="size-3.5 text-primary"
-              /> Saved
-            </span>
-            <span
-              v-else-if="headerState === 'unsaved'"
-              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
-            >
-              <span class="size-1.5 rounded-full bg-(--accent-orange)" /> Unsaved changes
-            </span>
+            <!-- autosave indicator + publish state chip + the Publish button -->
+            <KSaveStatus
+              :state="saveState"
+              :error-text="saveErrorText"
+            />
             <!-- onCloseAutoFocus prevented: closing would refocus the chip,
                  which scrolls the header back into view and cancels the
                  jump-to-step scroll a row click just started. -->
             <UPopover
-              v-else-if="headerState === 'incomplete'"
+              v-if="draftIssues.length"
               v-model:open="issuesOpen"
               :content="{ align: 'end', onCloseAutoFocus: (e: Event) => e.preventDefault() }"
             >
@@ -684,7 +634,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               <template #content>
                 <div class="w-80 p-1.5">
                   <p class="px-2 pb-1 pt-1.5 text-2xs text-dimmed">
-                    {{ flaggedIssues.length ? 'Fix these to save:' : 'Left to fill in before this saves:' }}
+                    {{ flaggedIssues.length ? 'Fix these to publish:' : 'Left to fill in before this runs:' }}
                   </p>
                   <button
                     v-for="(issue, i) in draftIssues"
@@ -704,40 +654,34 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 </div>
               </template>
             </UPopover>
-            <UTooltip
-              v-else-if="headerState === 'error'"
-              :text="saveError"
+            <span
+              v-else-if="hasUnpublished"
+              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
             >
-              <span class="k-mono flex items-center gap-1.5 text-2xs text-error">
-                <UIcon
-                  name="i-lucide-circle-x"
-                  class="size-3.5"
-                /> Not saved
-              </span>
-            </UTooltip>
+              <span class="size-1.5 rounded-full bg-(--accent-orange)" /> Unpublished changes
+            </span>
+            <span
+              v-else-if="published"
+              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
+            >
+              <UIcon
+                name="i-lucide-check"
+                class="size-3.5 text-primary"
+              /> Published
+            </span>
 
-            <UButton
-              color="primary"
-              :loading="saving"
-              :disabled="!dirty"
-              @click="save"
+            <UTooltip
+              text="Makes the draft the version triggers and runs execute"
+              :disabled="!canPublish"
             >
-              Save
-              <template #trailing>
-                <!-- Blend into the primary button: no solid chip background,
-                     just the button's ink, dimmed. -->
-                <span class="flex items-center gap-0.5 opacity-55">
-                  <UKbd
-                    value="meta"
-                    class="bg-transparent text-current ring-current/40"
-                  />
-                  <UKbd
-                    value="s"
-                    class="bg-transparent text-current ring-current/40"
-                  />
-                </span>
-              </template>
-            </UButton>
+              <UButton
+                color="primary"
+                label="Publish"
+                :loading="publishing"
+                :disabled="!canPublish"
+                @click="publish"
+              />
+            </UTooltip>
             <UDropdownMenu
               v-if="saved"
               :items="menuItems"
@@ -953,15 +897,15 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   :content="{ side: 'bottom', align: 'end' }"
                 >
                   <UTooltip
-                    :text="!saved ? 'Save the workflow first' : dirty ? 'Save your changes first' : !valid ? 'Finish the step config first' : !projects?.length ? 'Connect a project first' : ''"
-                    :disabled="!!saved && !dirty && valid && !!projects?.length"
+                    :text="!steps.length ? 'Add a step first' : !valid ? 'Finish the step config first' : !projects?.length ? 'Connect a project first' : ''"
+                    :disabled="!!steps.length && valid && !!projects?.length"
                   >
                     <UButton
                       color="primary"
                       size="xs"
                       icon="i-lucide-play"
                       label="Run"
-                      :disabled="!saved || dirty || saving || !valid || !projects?.length"
+                      :disabled="!steps.length || !valid || starting || !projects?.length"
                     />
                   </UTooltip>
                   <template #content>
@@ -1049,16 +993,18 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 </UPopover>
               </div>
 
-              <!-- Add another trigger (group footer) -->
+              <!-- Add another trigger (group footer). Triggers execute the
+                   published version, so a never-published workflow has
+                   nothing to wire up yet. -->
               <UTooltip
-                text="Save the workflow first"
-                :disabled="!!saved"
+                text="Publish the workflow first"
+                :disabled="published"
                 class="block"
               >
                 <button
                   type="button"
                   class="flex w-full cursor-pointer items-center gap-2 border-t border-muted px-3 py-2.5 text-left text-xs text-muted transition-colors hover:bg-(--surface-glass) disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!saved || !editable"
+                  :disabled="!published || !editable"
                   @click="triggerModalOpen = true"
                 >
                   <UIcon
@@ -1250,7 +1196,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
 
     <TriggerCreateModal
       v-model:open="triggerModalOpen"
-      :preset-workflow="saved?.name"
+      :preset-workflow-id="saved?.id"
       :trigger="editingTrigger"
       @created="refreshTriggers"
     />
@@ -1258,7 +1204,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
     <KConfirmModal
       v-model:open="confirmDelete"
       title="Delete workflow"
-      :description="`Deletes ${saved?.name ?? draft.name} along with its configured triggers.`"
+      :description="`Deletes ${meta.name || saved?.name} along with its configured triggers.`"
       confirm-label="Delete"
       :loading="removing"
       @confirm="removeWorkflow"

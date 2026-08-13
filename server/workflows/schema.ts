@@ -111,7 +111,7 @@ const normalizedStepSchema = z.discriminatedUnion('type', stepOptions) as unknow
 // or missing entirely; publishing (and a draft test run) runs the strict
 // schema instead. Unknown keys pass through untouched so the stored draft
 // stays byte-identical to what the editor sent (the client diffs against it).
-const DRAFT_STEP_TYPES = [...ACTIONS.map(a => a.type), 'if', 'loop'] as [string, ...string[]]
+const DRAFT_STEP_TYPES = [...ACTIONS.map(a => a.type), 'if', 'loop'] as unknown as [string, ...string[]]
 const draftStepSchema: z.ZodType<Step> = z.lazy(() => z.looseObject({
   type: z.enum(DRAFT_STEP_TYPES),
   then: z.array(draftStepSchema).optional(),
