@@ -553,96 +553,64 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
 
     <template v-else>
       <!-- Header -->
-      <div class="mb-4.5 flex items-start justify-between gap-5">
-        <div class="flex min-w-0 flex-1 items-center gap-3.5">
-          <KStepIcon
-            icon="i-lucide-workflow"
-            color="var(--text-primary)"
-            :size="40"
-            :radius="9"
-          />
-          <div class="min-w-0 flex-1">
-            <!-- New draft: the name is entered directly (no identity yet). -->
-            <input
-              v-if="!saved && editable"
-              v-model="draft.name"
-              placeholder="Workflow name"
-              spellcheck="false"
-              class="k-mono w-full bg-transparent text-xl font-semibold tracking-tight text-highlighted outline-none"
-              :class="submitted && !nameValid ? 'placeholder:text-(--accent-orange)' : 'placeholder:text-dimmed'"
-            >
-            <!-- Renaming an existing workflow: deliberate + atomic. -->
-            <input
-              v-else-if="renaming"
-              ref="renameInput"
-              v-model="renameValue"
-              spellcheck="false"
-              class="k-mono w-full bg-transparent text-xl font-semibold tracking-tight text-highlighted outline-none"
-              @keyup.enter="commitRename"
-              @keyup.esc="cancelRename"
-              @blur="commitRename"
-            >
-            <!-- Saved: the title itself is the rename affordance, click it. -->
-            <UTooltip
-              v-else-if="saved && editable"
-              text="Click to rename"
-            >
-              <h1
-                tabindex="0"
-                class="k-mono min-w-0 cursor-text truncate text-xl font-semibold tracking-tight text-highlighted outline-none transition-opacity hover:opacity-70"
-                @click="startRename"
-                @keyup.enter="startRename"
-              >
-                {{ saved?.name ?? draft.name }}
-              </h1>
-            </UTooltip>
-            <h1
-              v-else
-              class="k-mono min-w-0 truncate text-xl font-semibold tracking-tight text-highlighted"
-            >
-              {{ saved?.name ?? draft.name }}
-            </h1>
-            <div class="mt-1.5 flex items-center gap-1.5">
-              <UBadge
-                v-if="mode === 'draft'"
-                color="neutral"
-                variant="subtle"
-                size="sm"
-                label="Draft"
-              />
-              <span
-                v-else-if="mode === 'running'"
-                class="k-mono flex items-center gap-1.5 text-2xs text-accent-orange"
-              >
-                <KStatusDot
-                  color="orange"
-                  pulse
-                  :size="5"
-                /> Test running
-              </span>
-              <span
-                v-else-if="mode === 'success'"
-                class="k-mono flex items-center gap-1.5 text-2xs text-primary"
-              >
-                <UIcon
-                  name="i-lucide-check"
-                  class="size-3.5"
-                /> Test succeeded
-              </span>
-              <span
-                v-else-if="mode === 'failed'"
-                class="k-mono flex items-center gap-1.5 text-2xs text-error"
-              >
-                <KStatusDot
-                  color="error"
-                  :size="5"
-                /> Test failed
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex flex-none items-center gap-2.5">
+      <KPageHeader
+        class="mb-4.5"
+        icon="i-lucide-workflow"
+        icon-color="var(--text-primary)"
+      >
+        <!-- New draft: the name is entered directly (no identity yet). -->
+        <input
+          v-if="!saved && editable"
+          v-model="draft.name"
+          placeholder="Workflow name"
+          spellcheck="false"
+          class="k-mono w-full bg-transparent text-2xl font-semibold tracking-tight text-highlighted outline-none"
+          :class="submitted && !nameValid ? 'placeholder:text-(--accent-orange)' : 'placeholder:text-dimmed'"
+        >
+        <!-- Renaming an existing workflow: deliberate + atomic. -->
+        <input
+          v-else-if="renaming"
+          ref="renameInput"
+          v-model="renameValue"
+          spellcheck="false"
+          class="k-mono w-full bg-transparent text-2xl font-semibold tracking-tight text-highlighted outline-none"
+          @keyup.enter="commitRename"
+          @keyup.esc="cancelRename"
+          @blur="commitRename"
+        >
+        <!-- Saved: the title itself is the rename affordance, click it. -->
+        <UTooltip
+          v-else-if="saved && editable"
+          text="Click to rename"
+        >
+          <h1
+            tabindex="0"
+            class="k-mono min-w-0 cursor-text truncate text-2xl font-semibold tracking-tight text-highlighted outline-none transition-opacity hover:opacity-70"
+            @click="startRename"
+            @keyup.enter="startRename"
+          >
+            {{ saved?.name ?? draft.name }}
+          </h1>
+        </UTooltip>
+        <h1
+          v-else
+          class="k-mono min-w-0 truncate text-2xl font-semibold tracking-tight text-highlighted"
+        >
+          {{ saved?.name ?? draft.name }}
+        </h1>
+        <template #meta>
+          <input
+            v-if="editable"
+            v-model="draft.description"
+            placeholder="Short description (optional)"
+            class="w-full bg-transparent text-2sm text-muted outline-none placeholder:text-dimmed"
+          >
+          <span
+            v-else-if="draft.description"
+            class="truncate text-2sm text-muted"
+          >{{ draft.description }}</span>
+        </template>
+        <template #actions>
           <template v-if="mode === 'running'">
             <UButton
               color="error"
@@ -816,16 +784,8 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               />
             </UDropdownMenu>
           </template>
-        </div>
-      </div>
-
-      <!-- Description (editable) -->
-      <input
-        v-if="editable"
-        v-model="draft.description"
-        placeholder="Short description (optional)"
-        class="mb-4.5 w-full bg-transparent text-2sm text-muted outline-none placeholder:text-dimmed"
-      >
+        </template>
+      </KPageHeader>
 
       <!-- Banner -->
       <div
