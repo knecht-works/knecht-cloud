@@ -19,6 +19,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:reset": "rm -f \"${KNECHT_DB_PATH:-.data/knecht.db}\"* && drizzle-kit migrate",
     "db:reset:vm": "limactl shell knecht-dev -- bash -lc 'npm run db:reset'",
+    "db:seed:demo": "node scripts/seed-demo-projects.mjs",
+    "db:seed:demo:vm": "limactl shell knecht-dev -- bash -lc 'npm run db:seed:demo'",
     "data:reset": "bash scripts/reset-data.sh",
     "data:reset:vm": "limactl shell knecht-dev -- bash scripts/reset-data.sh",
     "db:studio": "drizzle-kit studio",
