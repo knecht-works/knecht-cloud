@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { runWorkspacePath } from '#shared/utils/routes'
-import { stepChildren } from '#shared/utils/workflow'
+import { flattenSteps } from '#shared/utils/workflow'
 import type { TestRunRow } from '~/composables/useWorkflowTestRun'
 
 // The workflow create/edit surface. A numbered step rail on the left (editable:
@@ -54,12 +54,10 @@ function revealStep(step: WorkflowStep) {
   nextTick(() => document.getElementById(`step-card-${step.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 }
 
-// The top-level step carrying `id`, or the composite containing it: only
-// top-level cards expand, sub-steps render inside their composite's settings.
+// Any step in the tree carrying `id`: nested steps are always visible in the
+// rail now, so a deep link opens the exact card.
 function stepWithId(id: string): WorkflowStep | undefined {
-  const contains = (step: WorkflowStep): boolean =>
-    step.id === id || stepChildren(step).flat().some(contains)
-  return draft.value.steps.find(s => contains(s))
+  return flattenSteps(draft.value.steps).find(s => s.id === id)
 }
 
 // Deep link from a run's failure card: ?step=<id> lands with that step open.
@@ -189,14 +187,12 @@ function addStep(type: WorkflowStep['type']) {
   draft.value.steps.push(step)
   openSteps.value.add(draft.value.steps.at(-1)!)
 }
-function removeStep(i: number) {
-  const [removed] = draft.value.steps.splice(i, 1)
-  if (removed) openSteps.value.delete(removed)
-}
 
-// ── drag & drop: reorder rows + drop new steps from the library ─────────────
-const { dragIndex, dragArmed, libDrag, dropIndex, onDragStart, onDragOver, onRailOver, onRailDrop, endDrag }
-  = useStepDnd(steps, openSteps)
+// ── drag & drop: one insertion-line model for reorder, moves and library ────
+// Row-level tracking lives in StepCard/StepList (via WORKFLOW_DND); the page
+// wires the library, the rail container and the single drop handler.
+const { drag, startLibDrag, overList, overAt, performDrop, endDrag }
+  = useWorkflowDnd(steps, openSteps, editable)
 
 // ── explicit save ────────────────────────────────────────────────────────────
 // Edits stay local until Save (button or Cmd/Ctrl+S): the click is the one
@@ -422,30 +418,24 @@ const mode = computed<Mode>(() => {
   return 'edit'
 })
 
-// ── per-step status ───────────────────────────────────────────────────────
-type StepStatus = 'idle' | 'selected' | 'done' | 'running' | 'error' | 'pending' | 'skipped'
+// ── per-step status (vocabulary + treatments live in utils/step-status) ────
 
-// The run's top-level step records (nested rows belong to composites), keyed
-// by sequence position, shared by the per-card statuses and the banner.
-const topRows = computed(() => new Map(
-  activeRunSteps.value.filter(r => !r.parentStepId).map(r => [r.stepIndex, r])))
+// Run status for EVERY step in the tree, keyed by step id (nested rows carry
+// parentStepId/iteration; buildStatusMap infers skipped/pending for row-less
+// steps). Empty map without a run: cards fall back to idle/selected.
+const statusMap = computed(() => buildStatusMap(steps.value, activeRun.value, activeRunSteps.value))
 
-// Per-card status from the run's step records (run_steps, polled alongside the
-// run): a top-level step's row is matched by its position in the sequence.
-const statuses = computed<StepStatus[]>(() => {
-  const run = activeRun.value
-  if (!run) return steps.value.map(s => (openSteps.value.has(s) ? 'selected' : 'idle'))
-  return steps.value.map((_, i) => {
-    const row = topRows.value.get(i)
-    if (!row) return run.status === 'failed' ? 'skipped' : 'pending'
-    if (row.status === 'running') return 'running'
-    if (row.status === 'failed') return 'error'
-    return 'done'
-  })
-})
+// The test run's log timeline (same presentation as the run workspace's log).
+const testTimeline = computed(() => runLogTimeline(activeRunSteps.value))
 
-// 1-based "step N of M" for the live banner.
-const startedSteps = computed(() => Math.max(1, topRows.value.size))
+const statusOf = (step: WorkflowStep | undefined): StepStatus | undefined =>
+  step ? statusMap.value.get(step.id ?? '')?.status : undefined
+
+// 1-based "step N of M" for the live banner (top-level steps started so far).
+const startedSteps = computed(() => Math.max(1, steps.value.filter((s) => {
+  const status = statusOf(s)
+  return status === 'done' || status === 'running' || status === 'error'
+}).length))
 
 // The failed test's banner facts: the step that stopped the run (1-based
 // position + label) and how many later steps never ran. A runner crash can
@@ -453,7 +443,10 @@ const startedSteps = computed(() => Math.max(1, topRows.value.size))
 // Null when the run failed before its first step row; the log has the story.
 const failedStep = computed(() => {
   if (mode.value !== 'failed') return null
-  const i = statuses.value.findIndex(s => s === 'error' || s === 'running')
+  const i = steps.value.findIndex((s) => {
+    const status = statusOf(s)
+    return status === 'error' || status === 'running'
+  })
   if (i === -1) return null
   return { n: i + 1, label: workflowStepMeta(steps.value[i]!).label, skipped: steps.value.length - i - 1 }
 })
@@ -466,42 +459,16 @@ function backToEditing() {
   if (failed) revealStep(failed)
 }
 
-const railSteps = computed(() =>
-  steps.value.map((step, i) => ({
-    step,
-    meta: workflowStepMeta(step),
-    status: statuses.value[i]!,
-    n: i + 1,
-    // Only problems on touched steps light the card up (all of them after a
-    // failed save); a just-added step keeps its neutral "Not configured yet".
-    issues: stepIssues(step).filter(issue => submitted.value || !stepPristine(issue.step)),
-  })),
-)
-
-// The card's one-line problem summary ("Command is required · +2 more"),
-// naming the sub-step when the problem sits inside a composite.
-function issueSummary(r: { step: WorkflowStep, issues: StepIssue[] }): string {
-  const first = r.issues[0]!
-  const text = first.step === r.step ? first.message : `${workflowStepMeta(first.step).label}: ${first.message}`
-  return r.issues.length > 1 ? `${text} · +${r.issues.length - 1} more` : text
-}
-
-// status → card treatment (border / background / left accent / dim)
-const TREAT: Record<StepStatus, { border: string, bg: string, accent: string | null, dim?: boolean }> = {
-  idle: { border: 'var(--border-default)', bg: 'var(--surface-muted)', accent: null },
-  selected: { border: 'var(--border-accented)', bg: 'var(--surface-muted)', accent: null },
-  done: { border: 'var(--border-default)', bg: 'var(--surface-muted)', accent: 'var(--primary)' },
-  running: { border: 'var(--accent-orange)', bg: 'color-mix(in oklab, var(--accent-orange) 10%, var(--surface-muted))', accent: 'var(--accent-orange)' },
-  error: { border: 'var(--status-error)', bg: 'color-mix(in oklab, var(--status-error) 8%, var(--surface-muted))', accent: 'var(--status-error)' },
-  pending: { border: 'var(--border-muted)', bg: 'color-mix(in oklab, var(--surface-muted) 60%, transparent)', accent: null, dim: true },
-  skipped: { border: 'var(--border-muted)', bg: 'transparent', accent: null, dim: true },
-}
-const STATUS_LABEL: Partial<Record<StepStatus, { text: string, color: string }>> = {
-  running: { text: 'running', color: 'var(--accent-orange)' },
-  done: { text: 'done', color: 'var(--text-primary)' },
-  error: { text: 'failed', color: 'var(--status-error)' },
-  skipped: { text: 'skipped', color: 'var(--text-dimmed)' },
-}
+// The recursive rail (WorkflowStepList/StepCard) reads the page-global state
+// through this context.
+provide(RAIL_CTX, {
+  editable,
+  openSteps,
+  toggleStep,
+  root: steps,
+  statuses: statusMap,
+  submitted,
+})
 
 // ── run-derived summary values (real, parsed from the log + timestamps) ────
 const pr = computed(() => {
@@ -852,8 +819,8 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]">
         <div
           class="min-w-0"
-          @dragover="onRailOver"
-          @drop.prevent="onRailDrop"
+          @dragover="overList(steps, 1, $event)"
+          @drop.prevent="performDrop()"
         >
           <!-- Triggers: the head of the flow, ONE grouped panel (master switch,
                configured triggers, the always-available manual start), joined to
@@ -1119,7 +1086,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </div>
             <div
               class="flex flex-1 flex-col items-center gap-4 rounded-lg border border-dashed bg-(--surface-glass) px-6 py-9 text-center"
-              :style="{ borderColor: libDrag ? 'var(--primary)' : 'var(--border-accented)' }"
+              :style="{ borderColor: drag?.kind === 'lib' ? 'var(--primary)' : 'var(--border-accented)' }"
             >
               <img
                 src="/mascot/mascotRight.png"
@@ -1143,175 +1110,20 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </div>
           </div>
 
-          <!-- Step rail -->
-          <template
-            v-for="(r, i) in railSteps"
+          <!-- Step rail: the recursive flowchart (if branches, loop bodies) -->
+          <WorkflowStepList
             v-else
-            :key="i"
-          >
-            <!-- library-drop insertion line -->
-            <div
-              v-if="libDrag && dropIndex === i"
-              class="mb-3 ml-11 h-1 rounded-full bg-primary"
-              style="box-shadow: 0 0 10px var(--primary)"
-            />
-            <div
-              class="flex gap-3.5"
-              :style="{ opacity: dragIndex === i ? 0.45 : TREAT[r.status].dim ? 0.55 : 1 }"
-              :draggable="dragArmed === i"
-              @dragstart="onDragStart(i, $event)"
-              @dragover="onDragOver(i, $event)"
-              @dragend="endDrag"
-            >
-              <div class="flex w-7.5 flex-none flex-col items-center">
-                <!-- status mark -->
-                <span
-                  v-if="r.status === 'done'"
-                  class="k-mono grid size-7.5 flex-none place-items-center rounded-full"
-                  style="background: var(--lime-950); border: 1px solid var(--primary-border); color: var(--primary)"
-                >
-                  <UIcon
-                    name="i-lucide-check"
-                    class="size-4"
-                  />
-                </span>
-                <span
-                  v-else-if="r.status === 'running'"
-                  class="grid size-7.5 flex-none place-items-center rounded-full"
-                  style="background: color-mix(in oklab, var(--accent-orange) 20%, var(--surface-muted)); border: 1px solid var(--accent-orange)"
-                >
-                  <KStatusDot
-                    color="orange"
-                    pulse
-                    :size="8"
-                  />
-                </span>
-                <span
-                  v-else-if="r.status === 'error'"
-                  class="k-mono grid size-7.5 flex-none place-items-center rounded-full text-2sm font-semibold"
-                  style="background: color-mix(in oklab, var(--status-error) 18%, var(--surface-muted)); border: 1px solid var(--status-error); color: var(--status-error)"
-                >!</span>
-                <span
-                  v-else-if="r.status === 'skipped'"
-                  class="k-mono grid size-7.5 flex-none place-items-center rounded-full border border-muted bg-(--surface-muted) text-dimmed"
-                >–</span>
-                <span
-                  v-else
-                  class="k-mono grid size-7.5 flex-none place-items-center rounded-full text-xs font-semibold"
-                  :style="editable && r.issues.length
-                    ? { background: 'color-mix(in oklab, var(--accent-orange) 12%, var(--surface-muted))', border: '1px solid var(--accent-orange)', color: 'var(--accent-orange)' }
-                    : r.status === 'selected'
-                      ? { background: 'var(--surface-accented)', border: '1px solid var(--border-accented)', color: 'var(--text-toned)' }
-                      : { background: 'var(--surface-muted)', border: '1px solid var(--border-accented)', color: 'var(--text-muted)' }"
-                >{{ r.n }}</span>
-                <span
-                  v-if="i < railSteps.length - 1"
-                  class="my-1 w-0.5 flex-1 rounded-sm bg-(--border-default)"
-                  style="min-height: 16px"
-                />
-              </div>
-
-              <!-- Card: summary row; clicking expands the settings inline. -->
-              <div
-                :id="`step-card-${r.step.id}`"
-                class="relative mb-3 min-w-0 flex-1 overflow-hidden rounded-lg"
-                :style="{ border: `1px solid ${editable && r.issues.length ? 'var(--accent-orange)' : openSteps.has(r.step) ? 'var(--border-accented)' : TREAT[r.status].border}`, background: TREAT[r.status].bg, boxShadow: 'var(--shadow-panel)' }"
-              >
-                <span
-                  v-if="TREAT[r.status].accent"
-                  class="absolute inset-y-0 left-0 z-10 w-1"
-                  :style="{ background: TREAT[r.status].accent! }"
-                />
-                <div class="group/row flex items-center gap-2.5 py-2.5 pl-2.5 pr-3">
-                  <!-- drag grip: arms the row for HTML5 dragging -->
-                  <span
-                    v-if="editable"
-                    class="flex-none cursor-grab text-dimmed transition-colors hover:text-muted active:cursor-grabbing"
-                    aria-label="Drag to reorder"
-                    @mousedown="dragArmed = i"
-                    @mouseup="dragArmed = null"
-                  >
-                    <UIcon
-                      name="i-lucide-grip-vertical"
-                      class="size-4"
-                    />
-                  </span>
-                  <button
-                    type="button"
-                    class="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    :aria-label="openSteps.has(r.step) ? 'Collapse settings' : 'Open settings'"
-                    @click="toggleStep(r.step)"
-                  >
-                    <KStepIcon
-                      :icon="r.meta.icon"
-                      :color="STEP_KIND_COLOR[r.meta.kind]"
-                      :size="34"
-                      :radius="8"
-                    />
-                    <span class="min-w-0 flex-1">
-                      <span class="block whitespace-nowrap text-sm font-medium text-highlighted">{{ r.meta.label }}</span>
-                      <span
-                        class="mt-1 block truncate text-xs"
-                        :style="{ color: r.status === 'error' ? 'var(--status-error)' : editable && r.issues.length ? 'var(--accent-orange)' : 'var(--text-muted)' }"
-                      >
-                        {{ editable && r.issues.length ? issueSummary(r) : (r.meta.detail || 'Not configured yet') }}
-                      </span>
-                    </span>
-                  </button>
-                  <span
-                    v-if="STATUS_LABEL[r.status]"
-                    class="k-mono flex-none text-3xs uppercase tracking-widest"
-                    :style="{ color: STATUS_LABEL[r.status]!.color }"
-                  >{{ STATUS_LABEL[r.status]!.text }}</span>
-                  <UButton
-                    v-if="editable"
-                    color="neutral"
-                    variant="ghost"
-                    size="xs"
-                    icon="i-lucide-trash-2"
-                    aria-label="Remove step"
-                    class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
-                    @click="removeStep(i)"
-                  />
-                  <UIcon
-                    name="i-lucide-chevron-down"
-                    class="size-4 flex-none cursor-pointer text-dimmed transition-transform duration-300"
-                    :class="{ 'rotate-180': openSteps.has(r.step) }"
-                    @click="toggleStep(r.step)"
-                  />
-                </div>
-
-                <!-- inline settings, animated open/closed -->
-                <div
-                  class="grid transition-[grid-template-rows] duration-300 ease-out"
-                  :style="{ gridTemplateRows: openSteps.has(r.step) ? '1fr' : '0fr' }"
-                >
-                  <div class="overflow-hidden">
-                    <WorkflowStepSettings
-                      v-if="openSteps.has(r.step)"
-                      :step="r.step"
-                      :groups="availableVars(steps, i)"
-                      :editable="editable"
-                      :root="steps"
-                      :depth="1"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
+            :steps="steps"
+            :depth="1"
+            :vars-base="baseVarGroups()"
+          />
 
           <!-- Add-step affordance under the rail (also the append drop zone) -->
           <div
             v-if="editable && steps.length"
             class="flex flex-col"
-            @dragover.prevent="libDrag && (dropIndex = steps.length)"
+            @dragover="overAt(steps, 1, steps.length, $event)"
           >
-            <div
-              v-if="libDrag && dropIndex === steps.length"
-              class="mb-3 ml-11 h-1 rounded-full bg-primary"
-              style="box-shadow: 0 0 10px var(--primary)"
-            />
             <div class="flex gap-3.5">
               <div class="w-7.5 flex-none" />
               <UButton
@@ -1335,14 +1147,18 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               title="Live log"
               icon="i-lucide-terminal"
               accent="var(--accent-orange)"
+              :pad="0"
             >
               <template #action>
                 <span class="k-mono text-3xs text-dimmed">run #{{ activeRun.id }}</span>
               </template>
-              <KLogView
+              <KRunLog
                 :log="activeRun.log"
-                :max-height="340"
-                class="text-2xs leading-loose"
+                :rows="testTimeline"
+                live
+                :run-status="activeRun.status"
+                :run-started-at="activeRun.startedAt"
+                :run-finished-at="activeRun.finishedAt"
               />
             </KPanel>
 
@@ -1351,8 +1167,9 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               title="Run result"
               icon="i-lucide-check"
               accent="var(--primary)"
+              :pad="0"
             >
-              <div class="flex flex-col gap-3.5">
+              <div class="flex flex-col gap-3.5 p-5">
                 <a
                   v-if="pr"
                   :href="pr.url"
@@ -1381,10 +1198,15 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   <span class="k-mono text-2xs text-dimmed">Steps <span class="text-primary">{{ steps.length }} / {{ steps.length }}</span></span>
                   <span class="k-mono text-2xs text-dimmed">Runtime <span class="text-toned">{{ fmtDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
                 </div>
-                <KLogView
+              </div>
+              <div class="border-t border-muted">
+                <KRunLog
                   :log="activeRun.log"
-                  :max-height="260"
-                  class="text-2xs leading-loose"
+                  :rows="testTimeline"
+                  :live="false"
+                  :run-status="activeRun.status"
+                  :run-started-at="activeRun.startedAt"
+                  :run-finished-at="activeRun.finishedAt"
                 />
               </div>
             </KPanel>
@@ -1394,16 +1216,20 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               title="Error details"
               icon="i-lucide-flask-conical"
               accent="var(--status-error)"
+              :pad="0"
             >
-              <div class="flex flex-col gap-3.5">
-                <div class="flex items-center justify-between">
-                  <span class="k-mono text-2xs text-dimmed">Failed at step</span>
-                  <span class="k-mono text-2xs text-error">{{ failedStep ? `${failedStep.n} of ${steps.length}` : 'before step 1' }}</span>
-                </div>
-                <KLogView
+              <div class="flex items-center justify-between p-5">
+                <span class="k-mono text-2xs text-dimmed">Failed at step</span>
+                <span class="k-mono text-2xs text-error">{{ failedStep ? `${failedStep.n} of ${steps.length}` : 'before step 1' }}</span>
+              </div>
+              <div class="border-t border-muted">
+                <KRunLog
                   :log="activeRun.log"
-                  :max-height="340"
-                  class="rounded-md border border-muted bg-(--surface-base) p-3 text-2xs leading-relaxed"
+                  :rows="testTimeline"
+                  :live="false"
+                  :run-status="activeRun.status"
+                  :run-started-at="activeRun.startedAt"
+                  :run-finished-at="activeRun.finishedAt"
                 />
               </div>
             </KPanel>
@@ -1415,7 +1241,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
           <WorkflowStepLibrary
             :editable="editable"
             @add="addStep"
-            @drag="type => libDrag = type"
+            @drag="startLibDrag"
             @dragend="endDrag"
           />
         </div>
