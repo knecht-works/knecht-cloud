@@ -461,14 +461,10 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
                 :pulse="RUN_STATUS_META[r.status].pulse"
                 :size="6"
               />
-              <span class="k-mono text-xs text-default">{{ r.workflow }}</span>
-              <span class="k-mono text-2xs text-dimmed">#{{ r.id }}</span>
-              <span
-                class="k-mono ml-auto text-2xs"
-                :style="{ color: RUN_STATUS_META[r.status].text }"
-              >{{ RUN_STATUS_META[r.status].label }}</span>
-              <span class="k-mono w-14 text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
-              <span class="k-mono hidden text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
+              <span class="k-mono min-w-0 truncate text-xs text-default">{{ r.workflow }}</span>
+              <span class="k-mono shrink-0 text-2xs text-dimmed">#{{ r.id }}</span>
+              <span class="k-mono ml-auto w-14 text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
+              <span class="k-mono hidden w-16 text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
             </NuxtLink>
           </div>
         </KPanel>
