@@ -134,7 +134,7 @@ export const LOOP_VARS: VarGroup = {
 
 // The output groups of the steps BEFORE `index`: the one home for the
 // "values flow front to back" scoping rule, shared by the top-level editor
-// (availableVars) and composite sub-lists (WorkflowSubSteps).
+// (availableVars) and composite sub-lists (WorkflowStepList).
 export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup[] {
   const groups: VarGroup[] = []
   steps.slice(0, index).forEach((step, i) => {
@@ -147,14 +147,19 @@ export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup
 // Everything a step at `index` can reference: the run context plus the outputs
 // of every step BEFORE it. Outputs are offered under the step's stable id
 // ({{ steps.<id>.<output> }}), so a step type used twice stays unambiguous.
-// (Sub-steps of composites extend this, see WorkflowSubSteps, with the loop
+// (Sub-steps of composites extend this, see WorkflowStepList, with the loop
 // vars and their prior siblings.)
 export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
+  return [...baseVarGroups(), ...stepOutputGroups(steps, index)]
+}
+
+// The run-seeded groups every step sees regardless of position: the root
+// list's `varsBase` (composite sub-lists inherit their parent's scope).
+export function baseVarGroups(): VarGroup[] {
   // Context vars are seeded by the trigger/run: they wear the trigger colour.
   return [
     { label: 'Context', color: STEP_KIND_COLOR.trigger, vars: CONTEXT_VARS },
     { label: 'Trigger event', color: STEP_KIND_COLOR.trigger, vars: TRIGGER_VARS },
-    ...stepOutputGroups(steps, index),
   ]
 }
 

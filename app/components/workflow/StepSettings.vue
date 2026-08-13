@@ -9,10 +9,8 @@ const props = defineProps<{
   step: WorkflowStep
   groups: VarGroup[]
   editable: boolean
-  /** The workflow's ROOT step list; composite steps create sub-steps with tree-unique ids. */
+  /** The workflow's ROOT step list; renames must stay tree-unique. */
   root: WorkflowStep[]
-  /** The step's nesting depth (top-level = 1); composites cap at MAX_STEP_DEPTH. */
-  depth: number
 }>()
 
 const def = computed(() => stepDef(props.step.type))
@@ -185,39 +183,12 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       {{ meta.detail }}. This step has no settings.
     </p>
 
-    <!-- composite steps: conditions + nested step lists -->
-    <template v-if="step.type === 'if'">
-      <WorkflowConditionEditor
-        ref="conditionEditor"
-        :step="step"
-        :groups="groups"
-        :editable="editable"
-      />
-      <WorkflowSubSteps
-        :steps="step.then"
-        title="Then"
-        :root="root"
-        :vars-base="groups"
-        :depth="depth + 1"
-        :editable="editable"
-      />
-      <WorkflowSubSteps
-        :steps="step.else"
-        title="Else"
-        :root="root"
-        :vars-base="groups"
-        :depth="depth + 1"
-        :editable="editable"
-      />
-    </template>
-    <WorkflowSubSteps
-      v-if="step.type === 'loop'"
-      :steps="step.steps"
-      title="Loop steps"
-      loop
-      :root="root"
-      :vars-base="groups"
-      :depth="depth + 1"
+    <!-- if: the conditions (the branch lists render as rail columns, not here) -->
+    <WorkflowConditionEditor
+      v-if="step.type === 'if'"
+      ref="conditionEditor"
+      :step="step"
+      :groups="groups"
       :editable="editable"
     />
 
