@@ -63,6 +63,8 @@ describe('workflow draft/publish lifecycle over the API', () => {
     expect(second.name).not.toBe(first.name)
     expect(first.steps).toEqual([])
     expect(first.publishedAt).toBeNull()
+    // Automation starts off: turning it on is what publishes the first version.
+    expect(first.enabled).toBe(false)
   })
 
   it('autosaves an incomplete draft, which cannot publish or run', async () => {
@@ -77,16 +79,18 @@ describe('workflow draft/publish lifecycle over the API', () => {
     const publish = await api.fetch(`/api/workflows/${wf.id}/publish`, { method: 'POST' })
     expect(publish.status).toBe(400)
 
-    // Production runs need a published version (checked before the project).
+    // Manual runs execute the draft, validated at start (checked before the
+    // project, so a placeholder projectId suffices).
     const run = await api.fetch('/api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ projectId: 999999, workflowId: wf.id }),
     })
     expect(run.status).toBe(400)
-    expect(await run.text()).toContain('no published version')
+    // The 400 names the missing field (zodBadRequest surfaces the first issue).
+    expect(await run.text()).toContain('command')
 
-    // Export serves the published document, of which there is none yet.
+    // Export serves the current state, which is incomplete too.
     const exported = await api.fetch(`/api/workflows/${wf.id}/export?format=yaml`)
     expect(exported.status).toBe(400)
   })

@@ -4,7 +4,8 @@ import { workflowCreateSchema } from '../../workflows/schema'
 // POST /api/workflows → create a workflow shell the editor opens immediately:
 // a fresh row with a free name ("Untitled workflow", "Untitled workflow 2", …),
 // no steps and nothing published yet. The editor autosaves drafts into it; a
-// taken name gets a numeric suffix instead of failing the create.
+// taken name gets a numeric suffix instead of failing the create. Automation
+// starts OFF: turning it on is what snapshots the first published version.
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event).catch(() => undefined)) ?? {}
   const result = workflowCreateSchema.safeParse(body)
@@ -15,7 +16,7 @@ export default defineEventHandler(async (event) => {
   const name = uniqueWorkflowName(result.data.name ?? 'Untitled workflow')
   return db
     .insert(schema.workflows)
-    .values({ name, description: result.data.description, steps: [] })
+    .values({ name, description: result.data.description, steps: [], enabled: false })
     .returning()
     .get()
 })

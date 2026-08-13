@@ -34,7 +34,7 @@ interface TestProject {
 }
 
 // The workflow editor's inline test run: pick a project + branch, start a real
-// run that executes the workflow's DRAFT (useDraft), poll it while live.
+// run (manual runs always execute the current draft), poll it while live.
 // `beforeStart` runs before each start (the page flushes its pending autosave
 // so the server pins the latest draft); `onStarted` lets the page react when a
 // test kicks off (it collapses the open step settings).
@@ -78,7 +78,7 @@ export function useWorkflowTestRun<P extends TestProject>(
       await opts?.beforeStart?.()
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
-        body: { projectId: project.value.id, workflowId: id, useDraft: true, branch: testBranch.value, inputs: filledInputs() },
+        body: { projectId: project.value.id, workflowId: id, branch: testBranch.value, inputs: filledInputs() },
       })
       activeRunSteps.value = []
       open.value = false
@@ -180,7 +180,7 @@ export function useWorkflowTestRun<P extends TestProject>(
       await opts?.beforeStart?.()
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
-        body: { projectId, workflowId: id, useDraft: true, inputs: filledInputs() },
+        body: { projectId, workflowId: id, inputs: filledInputs() },
       })
     }
     catch (e) {

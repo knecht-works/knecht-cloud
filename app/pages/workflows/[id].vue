@@ -6,10 +6,12 @@ import type { TestRunRow } from '~/composables/useWorkflowTestRun'
 // The workflow edit surface. A numbered step rail on the left (editable: add
 // from the library, reorder, remove, edit each step's params) and a context
 // panel on the right. Edits autosave continuously: name/description straight
-// onto the row, the steps as a loosely validated DRAFT. An explicit Publish
-// promotes the draft to the version triggers and production runs execute; the
-// inline test run executes the draft. Per-step progress overlays derive from
-// the run log's `▶ <step>` markers: no extra backend tracking.
+// onto the row, the steps as a loosely validated DRAFT. Manual runs (the
+// inline test here, the project page) always execute the draft, validated at
+// start. Only AUTOMATION runs a published snapshot: the automation switch
+// publishes the current state when turned on, and "Apply changes" updates the
+// snapshot while it is on. Per-step progress overlays derive from the run
+// log's `▶ <step>` markers: no extra backend tracking.
 
 const route = useRoute()
 const toast = useToast()
@@ -140,11 +142,12 @@ const saveState = computed(() => {
 const saveErrorText = computed(() =>
   metaSave.state.value === 'error' ? metaSave.error.value : draftSave.error.value)
 
-// ── draft vs published ───────────────────────────────────────────────────────
-const published = computed(() => !!saved.value?.publishedAt)
+// ── draft vs automation snapshot ─────────────────────────────────────────────
+// `steps`/`publishedAt` on the row form the snapshot AUTOMATION runs; the
+// draft is what the editor (and every manual run) uses. The drift matters
+// only while automation is on: that is when the panel offers "Apply changes".
 const hasUnpublished = computed(() =>
   !!saved.value && stepsJson.value !== JSON.stringify(saved.value.steps))
-const canPublish = computed(() => hasUnpublished.value || !published.value)
 
 // ── inline test run (composable owns picker, run state and polling) ────────
 // Tests execute the DRAFT: the pending autosave is flushed first so the
@@ -198,16 +201,28 @@ async function removeTrigger(t: { id: number }) {
   }
 }
 
-// The workflow's automation master switch (a partial PATCH: it can never
-// touch the draft). Manual runs / tests are unaffected by this.
+// The automation master switch, THE lightswitch: turning it on publishes the
+// current state (what you see is what triggers run) and lets triggers fire;
+// turning it off pauses them, keeping the snapshot. Manual runs / tests are
+// unaffected either way.
 const togglingEnabled = ref(false)
 async function toggleEnabled() {
-  if (!saved.value) return
+  if (!saved.value || togglingEnabled.value) return
+  const turningOn = !saved.value.enabled
+  if (turningOn && !valid.value) {
+    submitted.value = true
+    issuesOpen.value = true
+    return
+  }
   togglingEnabled.value = true
   try {
+    if (turningOn) {
+      await draftSave.flush()
+      await $fetch(`/api/workflows/${id.value}/publish`, { method: 'POST' })
+    }
     await $fetch(`/api/workflows/${id.value}`, {
       method: 'PATCH',
-      body: { enabled: !saved.value.enabled },
+      body: { enabled: turningOn },
     })
     await refresh()
   }
@@ -221,13 +236,13 @@ async function toggleEnabled() {
 
 // ── header overflow menu: export (a browser download; the endpoint sets
 // content-disposition), discard draft, and the destructive delete behind a
-// confirm. Export serves the PUBLISHED version, so it needs one. ────────────
+// confirm. Export serves the current state, so it needs a complete one. ─────
 const confirmDelete = ref(false)
 const menuItems = computed(() => [
   (['yaml', 'json'] as const).map(format => ({
     label: `Export ${format.toUpperCase()}`,
     icon: 'i-lucide-file-down',
-    disabled: !saved.value?.steps.length,
+    disabled: !valid.value,
     onSelect: () => {
       if (saved.value) window.location.assign(`/api/workflows/${saved.value.id}/export?format=${format}`)
     },
@@ -306,31 +321,31 @@ function jumpToIssue(issue: DraftIssue) {
   if (issue.target) revealStep(issue.target)
 }
 
-// ── publish / discard ────────────────────────────────────────────────────────
-// Publish is the fixed validation point: an incomplete draft doesn't publish,
-// it shows everything that's in the way instead. The pending autosave is
+// ── apply changes / discard ──────────────────────────────────────────────────
+// "Apply changes" updates the automation snapshot to the current draft while
+// automation is on. Strict validation point: an incomplete draft doesn't
+// apply, it shows everything in the way instead. The pending autosave is
 // flushed first so the server promotes exactly what the rail shows.
-const publishing = ref(false)
-async function publish() {
-  if (!saved.value || publishing.value) return
+const applying = ref(false)
+async function applyChanges() {
+  if (!saved.value || applying.value) return
   if (!valid.value) {
     submitted.value = true
     issuesOpen.value = true
     return
   }
-  publishing.value = true
+  applying.value = true
   try {
     await draftSave.flush()
-    await metaSave.flush()
     await $fetch(`/api/workflows/${id.value}/publish`, { method: 'POST' })
     await refresh()
   }
   catch (e) {
     submitted.value = true
-    toastError('Publish failed', e)
+    toastError('Failed to apply changes', e)
   }
   finally {
-    publishing.value = false
+    applying.value = false
   }
 }
 
@@ -606,11 +621,29 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </UTooltip>
           </template>
           <template v-else>
-            <!-- autosave indicator + publish state chip + the Publish button -->
-            <KSaveStatus
-              :state="saveState"
-              :error-text="saveErrorText"
-            />
+            <!-- The quiet header: autosave surfaces only while saving or on
+                 error, everything else lives where it acts (the automation
+                 panel owns the snapshot state). -->
+            <span
+              v-if="saveState === 'saving'"
+              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
+            >
+              <UIcon
+                name="i-lucide-loader-circle"
+                class="size-3.5 animate-spin"
+              /> Saving…
+            </span>
+            <UTooltip
+              v-else-if="saveState === 'error'"
+              :text="saveErrorText"
+            >
+              <span class="k-mono flex items-center gap-1.5 text-2xs text-error">
+                <UIcon
+                  name="i-lucide-circle-x"
+                  class="size-3.5"
+                /> Not saved
+              </span>
+            </UTooltip>
             <!-- onCloseAutoFocus prevented: closing would refocus the chip,
                  which scrolls the header back into view and cancels the
                  jump-to-step scroll a row click just started. -->
@@ -634,7 +667,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
               <template #content>
                 <div class="w-80 p-1.5">
                   <p class="px-2 pb-1 pt-1.5 text-2xs text-dimmed">
-                    {{ flaggedIssues.length ? 'Fix these to publish:' : 'Left to fill in before this runs:' }}
+                    {{ flaggedIssues.length ? 'Fix these to run:' : 'Left to fill in before this runs:' }}
                   </p>
                   <button
                     v-for="(issue, i) in draftIssues"
@@ -654,34 +687,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 </div>
               </template>
             </UPopover>
-            <span
-              v-else-if="hasUnpublished"
-              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
-            >
-              <span class="size-1.5 rounded-full bg-(--accent-orange)" /> Unpublished changes
-            </span>
-            <span
-              v-else-if="published"
-              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
-            >
-              <UIcon
-                name="i-lucide-check"
-                class="size-3.5 text-primary"
-              /> Published
-            </span>
-
-            <UTooltip
-              text="Makes the draft the version triggers and runs execute"
-              :disabled="!canPublish"
-            >
-              <UButton
-                color="primary"
-                label="Publish"
-                :loading="publishing"
-                :disabled="!canPublish"
-                @click="publish"
-              />
-            </UTooltip>
             <UDropdownMenu
               v-if="saved"
               :items="menuItems"
@@ -789,10 +794,11 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             <div
               class="min-w-0 flex-1 overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-panel"
             >
-              <!-- Header + master switch: pauses every trigger at once (manual
+              <!-- Header + master switch, THE lightswitch: on = the current
+                   state is published and triggers run it, off = paused (manual
                    runs / tests are unaffected). Only shown once a trigger is
                    configured: with just the implicit manual start there is
-                   nothing the switch could pause. -->
+                   nothing the switch could control. -->
               <div
                 v-if="saved && workflowTriggers.length"
                 class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2.5 transition-colors"
@@ -812,16 +818,46 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                       class="k-mono truncate text-2xs transition-colors"
                       :class="saved.enabled ? 'text-dimmed' : 'text-accent-orange'"
                     >
-                      {{ saved.enabled ? 'Triggers fire automatically' : 'Paused: triggers won’t fire' }}
+                      {{ saved.enabled
+                        ? (saved.publishedAt ? `Triggers run the version from ${timeAgo(saved.publishedAt)}` : 'Triggers fire automatically')
+                        : 'Off: turning on makes the current version live' }}
                     </div>
                   </div>
                 </div>
-                <UTooltip :text="saved.enabled ? 'Pause automation' : 'Enable automation'">
+                <UTooltip :text="saved.enabled ? 'Pause automation' : (valid ? 'Publishes the current version and lets triggers fire' : 'Finish the step config first')">
                   <KToggle
                     :active="saved.enabled"
                     :disabled="togglingEnabled"
                     :aria-label="saved.enabled ? 'Pause automation' : 'Enable automation'"
                     @toggle="toggleEnabled"
+                  />
+                </UTooltip>
+              </div>
+
+              <!-- Drift between the draft and the live snapshot: only relevant
+                   while automation is on (turning it on applies the current
+                   state anyway). -->
+              <div
+                v-if="saved?.enabled && workflowTriggers.length && hasUnpublished"
+                class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2.5"
+                style="background: color-mix(in oklab, var(--accent-orange) 7%, transparent)"
+              >
+                <div class="flex min-w-0 items-center gap-2.5">
+                  <UIcon
+                    name="i-lucide-git-compare"
+                    class="size-4 flex-none text-accent-orange"
+                  />
+                  <span class="k-mono truncate text-2xs text-toned">Your edits are not live yet</span>
+                </div>
+                <UTooltip :text="valid ? 'Updates the version triggers run to your current edits' : 'Finish the step config first'">
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="outline"
+                    label="Apply changes"
+                    :loading="applying"
+                    :disabled="!editable"
+                    @click="applyChanges"
                   />
                 </UTooltip>
               </div>
@@ -993,27 +1029,20 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 </UPopover>
               </div>
 
-              <!-- Add another trigger (group footer). Triggers execute the
-                   published version, so a never-published workflow has
-                   nothing to wire up yet. -->
-              <UTooltip
-                text="Publish the workflow first"
-                :disabled="published"
-                class="block"
+              <!-- Add another trigger (group footer). Configure them anytime;
+                   they fire once the automation switch is on. -->
+              <button
+                type="button"
+                class="flex w-full cursor-pointer items-center gap-2 border-t border-muted px-3 py-2.5 text-left text-xs text-muted transition-colors hover:bg-(--surface-glass) disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="!editable"
+                @click="triggerModalOpen = true"
               >
-                <button
-                  type="button"
-                  class="flex w-full cursor-pointer items-center gap-2 border-t border-muted px-3 py-2.5 text-left text-xs text-muted transition-colors hover:bg-(--surface-glass) disabled:cursor-not-allowed disabled:opacity-50"
-                  :disabled="!published || !editable"
-                  @click="triggerModalOpen = true"
-                >
-                  <UIcon
-                    name="i-lucide-plus"
-                    class="size-4 flex-none text-dimmed"
-                  />
-                  Add trigger
-                </button>
-              </UTooltip>
+                <UIcon
+                  name="i-lucide-plus"
+                  class="size-4 flex-none text-dimmed"
+                />
+                Add trigger
+              </button>
             </div>
           </div>
 
