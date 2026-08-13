@@ -1,19 +1,21 @@
-import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { workflowInputSchema } from '../../workflows/schema'
+import { workflowCreateSchema } from '../../workflows/schema'
 
-// POST /api/workflows → create a new workflow. Names are unique.
+// POST /api/workflows → create a workflow shell the editor opens immediately:
+// a fresh row with a free name ("Untitled workflow", "Untitled workflow 2", …),
+// no steps and nothing published yet. The editor autosaves drafts into it; a
+// taken name gets a numeric suffix instead of failing the create.
 export default defineEventHandler(async (event) => {
-  const result = workflowInputSchema.safeParse(await readBody(event))
+  const body = (await readBody(event).catch(() => undefined)) ?? {}
+  const result = workflowCreateSchema.safeParse(body)
   if (!result.success) {
     zodBadRequest(result.error, 'Invalid workflow')
   }
-  const { name } = result.data
 
-  const existing = db.select().from(schema.workflows).where(eq(schema.workflows.name, name)).get()
-  if (existing) {
-    throw createError({ statusCode: 409, statusMessage: 'A workflow with this name already exists' })
-  }
-
-  return db.insert(schema.workflows).values(result.data).returning().get()
+  const name = uniqueWorkflowName(result.data.name ?? 'Untitled workflow')
+  return db
+    .insert(schema.workflows)
+    .values({ name, description: result.data.description, steps: [] })
+    .returning()
+    .get()
 })
