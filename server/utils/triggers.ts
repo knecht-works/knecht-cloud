@@ -1,8 +1,8 @@
 import { eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { IssueAction, Trigger } from '../db/schema'
-import { isWorkflowEnabled } from '../workflows'
 import { dispatchRuns } from '../daemon/dispatcher'
+import { getWorkflowRow } from './entities'
 import { isGithubAppConfigured } from './github-credentials'
 import { getTriggerSource } from './trigger-sources'
 
@@ -19,7 +19,8 @@ export interface TriggerSummary {
   source: TriggerSource
   event: string
   kind: TriggerKind
-  workflow: string
+  workflowId: number
+  workflowName: string
   projects: string[]
   projectIds: number[]
   endpoint: string | null
@@ -79,8 +80,8 @@ function endpoint(t: Trigger): string | null {
   return t.source === 'schedule' ? t.cron : null
 }
 
-// Map DB rows to the UI contract, resolving project ids to short repo names in
-// one query.
+// Map DB rows to the UI contract, resolving project ids to short repo names
+// and workflow ids to display names in one query each.
 export function toSummaries(rows: Trigger[]): TriggerSummary[] {
   const ids = [...new Set(rows.flatMap(r => r.projectIds))]
   const names = new Map<number, string>()
@@ -94,12 +95,25 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
     }
   }
 
+  const workflowIds = [...new Set(rows.map(r => r.workflowId))]
+  const workflowNames = new Map<number, string>()
+  if (workflowIds.length) {
+    for (const w of db
+      .select({ id: schema.workflows.id, name: schema.workflows.name })
+      .from(schema.workflows)
+      .where(inArray(schema.workflows.id, workflowIds))
+      .all()) {
+      workflowNames.set(w.id, w.name)
+    }
+  }
+
   return rows.map(t => ({
     id: t.id,
     source: t.source,
     kind: KIND[t.source],
     event: eventLabel(t),
-    workflow: t.workflow,
+    workflowId: t.workflowId,
+    workflowName: workflowNames.get(t.workflowId) ?? '',
     projects: t.projectIds.map(id => names.get(id)).filter((n): n is string => !!n),
     projectIds: t.projectIds,
     endpoint: endpoint(t),
@@ -129,10 +143,12 @@ export interface FireOverrides {
 // (no session needed); with the app unconfigured each run is recorded as failed
 // with a clear reason rather than failing silently.
 export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
-  // The workflow's master switch is off → automation is paused. Don't create
-  // runs or bump counters; the trigger stays configured and resumes when
-  // re-enabled. Manual runs bypass this path entirely.
-  if (!isWorkflowEnabled(t.workflow)) return []
+  // Automation fires only a published workflow whose master switch is on: a
+  // missing row (already deleted) or a never-published one has nothing to
+  // fire, and enabled=false means automation is paused. The trigger stays
+  // configured and resumes when re-enabled. Manual runs bypass this path.
+  const workflow = getWorkflowRow(t.workflowId)
+  if (!workflow || !workflow.enabled || !workflow.publishedAt) return []
 
   const projectIds = opts.projectIds ?? t.projectIds
   const projects = projectIds.length
@@ -145,7 +161,8 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
       .insert(schema.runs)
       .values({
         projectId: project.id,
-        workflow: t.workflow,
+        workflow: workflow.name,
+        workflowId: workflow.id,
         trigger: t.source,
         triggerId: t.id,
         branch: opts.branch ?? project.defaultBranch,

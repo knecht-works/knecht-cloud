@@ -90,10 +90,12 @@ async function execRun(runId: number, project: Project): Promise<void> {
   if (!run) return
 
   // Pin the definition: from here on the run executes this snapshot, immune to
-  // workflow edits (and to the workflow being deleted mid-queue).
+  // workflow edits (and to the workflow being deleted mid-queue). Draft test
+  // runs arrive with steps already pinned at creation; production runs resolve
+  // the published version here.
   let steps = run.steps
   if (!steps) {
-    const workflow = getWorkflow(run.workflow)
+    const workflow = run.workflowId ? getWorkflow(run.workflowId) : undefined
     if (!workflow) {
       finish(runId, 'failed')
       return

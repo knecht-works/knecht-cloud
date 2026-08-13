@@ -34,12 +34,28 @@ export function requireTrigger(id: number): Trigger {
 
 // Named `*Row` to stay clear of server/workflows' getWorkflow (the parsed
 // workflow definition): this is the raw DB row the CRUD routes edit.
-export function getWorkflowRow(name: string): WorkflowRow | undefined {
+export function getWorkflowRow(id: number): WorkflowRow | undefined {
+  return db.select().from(schema.workflows).where(eq(schema.workflows.id, id)).get()
+}
+
+export function requireWorkflowRow(id: number): WorkflowRow {
+  const row = getWorkflowRow(id)
+  if (!row) throw createError({ statusCode: 404, statusMessage: 'Workflow not found' })
+  return row
+}
+
+// Name lookups remain for uniqueness checks (names stay unique as display and
+// search keys, they are just no longer the identity).
+export function getWorkflowRowByName(name: string): WorkflowRow | undefined {
   return db.select().from(schema.workflows).where(eq(schema.workflows.name, name)).get()
 }
 
-export function requireWorkflowRow(name: string): WorkflowRow {
-  const row = getWorkflowRow(name)
-  if (!row) throw createError({ statusCode: 404, statusMessage: 'Workflow not found' })
-  return row
+// "base", "base 2", "base 3", ... whichever is free. Used by create (default
+// "Untitled workflow") and import (duplicate file names).
+export function uniqueWorkflowName(base: string): string {
+  let name = base
+  for (let n = 2; getWorkflowRowByName(name); n++) {
+    name = `${base} ${n}`
+  }
+  return name
 }

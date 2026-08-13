@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { db, schema } from '../../db'
 import type { IssueAction } from '../../db/schema'
-import { getWorkflow } from '../../workflows'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { TRIGGER_SOURCES } from '../../utils/trigger-sources'
@@ -11,13 +10,14 @@ import { TRIGGER_SOURCES } from '../../utils/trigger-sources'
 // deliveries on the app webhook (/api/github/webhook, configured automatically
 // at setup); a manual trigger just fires on demand; registry sources (jira, …)
 // carry their settings in `config`, validated by the source's own schema. Each
-// fires `workflow` against `projectIds`.
+// fires `workflowId` against `projectIds`.
 const projectIds = z.array(z.number().int()).default([])
+const workflowId = z.number().int()
 const bodySchema = z.discriminatedUnion('source', [
-  z.object({ source: z.literal('schedule'), workflow: z.string().min(1), projectIds, cron: z.string().min(1) }),
+  z.object({ source: z.literal('schedule'), workflowId, projectIds, cron: z.string().min(1) }),
   z.object({
     source: z.literal('github'),
-    workflow: z.string().min(1),
+    workflowId,
     projectIds,
     webhookEvent: z.enum(['push', 'pull_request', 'issues']).default('push'),
     // push: the pushed branch; pull_request: the base branch. Empty = all.
@@ -25,9 +25,9 @@ const bodySchema = z.discriminatedUnion('source', [
     issueActions: z.array(z.enum(['opened', 'labeled'])).min(1).default(['opened']),
     issueLabel: z.string().min(1).nullish(),
   }),
-  z.object({ source: z.literal('manual'), workflow: z.string().min(1), projectIds }),
+  z.object({ source: z.literal('manual'), workflowId, projectIds }),
   ...TRIGGER_SOURCES.map(def =>
-    z.object({ source: z.literal(def.source), workflow: z.string().min(1), projectIds, config: def.configSchema }),
+    z.object({ source: z.literal(def.source), workflowId, projectIds, config: def.configSchema }),
   ),
 ])
 
@@ -38,13 +38,11 @@ export default defineEventHandler(async (event) => {
   }
   const data = result.data
 
-  if (!getWorkflow(data.workflow)) {
-    throw createError({ statusCode: 404, statusMessage: 'Unknown workflow' })
-  }
+  requireWorkflowRow(data.workflowId)
 
   const values = {
     source: data.source,
-    workflow: data.workflow,
+    workflowId: data.workflowId,
     projectIds: data.projectIds,
     cron: null as string | null,
     nextFireAt: null as Date | null,

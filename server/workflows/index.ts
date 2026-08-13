@@ -57,16 +57,11 @@ export function listWorkflows(): Workflow[] {
   return db.select().from(schema.workflows).all().map(rowToWorkflow)
 }
 
-export function getWorkflow(name: string): Workflow | undefined {
-  const row = db.select().from(schema.workflows).where(eq(schema.workflows.name, name)).get()
+// The published definition (the `steps` column) by workflow id: what the
+// runner executes for production runs.
+export function getWorkflow(id: number): Workflow | undefined {
+  const row = db.select().from(schema.workflows).where(eq(schema.workflows.id, id)).get()
   return row ? rowToWorkflow(row) : undefined
-}
-
-// Whether the workflow's automation is on. A missing row (already deleted)
-// counts as off, nothing to fire.
-export function isWorkflowEnabled(name: string): boolean {
-  const row = db.select({ enabled: schema.workflows.enabled }).from(schema.workflows).where(eq(schema.workflows.name, name)).get()
-  return row ? row.enabled : false
 }
 
 // Insert the starter templates on first boot only (tracked by the settings
