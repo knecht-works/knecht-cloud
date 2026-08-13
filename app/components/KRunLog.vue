@@ -22,8 +22,8 @@ export interface RunLogRow {
   iteration: number | null
   attempt: number
   logStart: number | null
-  startedAt: string | Date | null
-  finishedAt: string | Date | null
+  startedAt: string | number | Date | null
+  finishedAt: string | number | Date | null
 }
 
 const props = defineProps<{
@@ -36,8 +36,8 @@ const props = defineProps<{
   /** Run facts for the synthetic Preparation entry (checkout + env boot
    *  happen before any step row exists). */
   runStatus: RunStatus
-  runStartedAt: string | Date | null
-  runFinishedAt: string | Date | null
+  runStartedAt: string | number | Date | null
+  runFinishedAt: string | number | Date | null
 }>()
 
 // ── Byte segmentation ──────────────────────────────────────────────────────
@@ -115,6 +115,50 @@ const preludeDuration = computed(() =>
 const container = ref<HTMLElement | null>(null)
 const { stick, onScroll } = useStickToBottom(container, () => props.log)
 
+// ── Collapsed sections (default expanded, toggled via the sticky header) ───
+// Replaced wholesale on every toggle so the Set stays reactive.
+const collapsed = ref(new Set<number | 'prelude'>())
+function toggleCollapsed(key: number | 'prelude') {
+  const next = new Set(collapsed.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  collapsed.value = next
+}
+
+// ── Active section (scroll spy for the index rail) ─────────────────────────
+// The section whose anchor sits above the reading position (just under the
+// sticky header). While following the tail (or when there is nothing to
+// scroll yet) the LAST section wins: that is the step currently producing
+// output, active the moment it starts, even before it printed enough lines
+// to reach the reading position.
+const activeKey = ref<number | 'prelude'>('prelude')
+function updateActive() {
+  const node = container.value
+  if (!node) return
+  if (stick.value || (props.live && node.scrollHeight <= node.clientHeight)) {
+    activeKey.value = sections.value[sections.value.length - 1]!.key
+    return
+  }
+  const pos = node.scrollTop + 60
+  let current: number | 'prelude' = 'prelude'
+  for (const seg of sections.value) {
+    const el = anchors.get(seg.key)
+    if (el && el.offsetTop <= pos) current = seg.key
+  }
+  activeKey.value = current
+}
+function handleScroll() {
+  onScroll()
+  updateActive()
+}
+// A short log fires no scroll events, so a freshly started step would keep
+// the previous one active until the user scrolls; recompute when the
+// section list changes (nextTick: the new anchor must be in the DOM).
+watch(sections, async () => {
+  await nextTick()
+  updateActive()
+}, { immediate: true })
+
 // Segment anchors keyed by row id ('prelude' for the synthetic entry).
 // Function refs, so v-for cleanup nulls stale entries.
 const anchors = new Map<number | 'prelude', HTMLElement>()
@@ -130,8 +174,12 @@ function setAnchor(key: number | 'prelude', el: unknown) {
 function jumpTo(key: number | 'prelude') {
   const target = anchors.get(key)
   if (!container.value || !target) return
+  if (collapsed.value.has(key)) toggleCollapsed(key)
   stick.value = false
   container.value.scrollTo({ top: target.offsetTop })
+  // Directly, not via updateActive: a log too short to scroll fires no
+  // scroll event, and the clicked entry must still light up.
+  activeKey.value = key
 }
 </script>
 
@@ -145,9 +193,14 @@ function jumpTo(key: number | 'prelude') {
         <li>
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left transition-colors hover:bg-elevated/50"
+            class="relative flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left transition-colors hover:bg-elevated/50"
+            :class="activeKey === 'prelude' ? 'bg-elevated/50' : ''"
             @click="jumpTo('prelude')"
           >
+            <span
+              v-if="activeKey === 'prelude'"
+              class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
+            />
             <UIcon
               name="i-lucide-container"
               class="size-3.5 flex-none text-dimmed"
@@ -167,11 +220,15 @@ function jumpTo(key: number | 'prelude') {
         >
           <button
             type="button"
-            class="flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left transition-colors hover:bg-elevated/50"
-            :class="r.status === 'running' ? 'bg-elevated/50' : ''"
+            class="relative flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left transition-colors hover:bg-elevated/50"
+            :class="activeKey === r.id || r.status === 'running' ? 'bg-elevated/50' : ''"
             :style="r.depth ? { paddingLeft: `${14 + r.depth * 14}px` } : undefined"
             @click="jumpTo(r.id)"
           >
+            <span
+              v-if="activeKey === r.id"
+              class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
+            />
             <UIcon
               :name="r.icon"
               class="size-3.5 flex-none"
@@ -198,7 +255,7 @@ function jumpTo(key: number | 'prelude') {
     <div
       ref="container"
       class="k-scrollbar-none relative order-2 max-h-150 min-w-0 flex-1 overflow-y-auto lg:order-1"
-      @scroll="onScroll"
+      @scroll="handleScroll"
     >
       <section
         v-for="(seg, i) in sections"
@@ -207,12 +264,20 @@ function jumpTo(key: number | 'prelude') {
         :class="i ? 'border-t border-muted' : ''"
       >
         <!-- The step row, in the app's standard list-row look (icon tile,
-             label + snippet, duration, status dot); sticky within the
-             container so a long segment stays labeled while it scrolls. -->
+             label + snippet); duration and status live in the index rail.
+             Sticky within the container so a long segment stays labeled
+             while it scrolls. Clicking it folds the section's output. The
+             active section carries the same primary edge bar as its rail
+             entry. -->
         <header
-          class="sticky top-0 z-10 flex items-center gap-3 px-4.5 py-3"
+          class="sticky top-0 z-10 flex cursor-pointer select-none items-center gap-3 px-4.5 py-3"
           style="background: var(--surface-muted)"
+          @click="toggleCollapsed(seg.key)"
         >
+          <span
+            v-if="activeKey === seg.key"
+            class="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-primary"
+          />
           <KStepIcon
             :icon="seg.row?.icon ?? 'i-lucide-container'"
             :size="30"
@@ -243,24 +308,21 @@ function jumpTo(key: number | 'prelude') {
               {{ seg.row.error }}
             </p>
           </div>
-          <span class="k-mono text-2xs text-dimmed">
-            {{ seg.row ? runDuration(seg.row.startedAt, seg.row.finishedAt) : preludeDuration }}
-          </span>
-          <KStatusDot
-            :color="(seg.row?.statusMeta ?? preludeStatusMeta).dot"
-            :pulse="(seg.row?.statusMeta ?? preludeStatusMeta).pulse"
-            :size="6"
+          <UIcon
+            name="i-lucide-chevron-down"
+            class="size-3.5 flex-none text-dimmed transition-transform"
+            :class="collapsed.has(seg.key) ? '-rotate-90' : ''"
           />
         </header>
         <!-- The step's output, readable and in order. Empty slices happen (a
              composite's banner-only slice, a row that just started): a dim
              placeholder while running, just the row itself after. -->
         <pre
-          v-if="seg.text"
+          v-if="seg.text && !collapsed.has(seg.key)"
           class="k-mono whitespace-pre-wrap break-words px-4.5 pb-3.5 text-xs leading-loose text-muted"
         >{{ seg.text }}</pre>
         <p
-          v-else-if="seg.row?.status === 'running'"
+          v-else-if="seg.row?.status === 'running' && !collapsed.has(seg.key)"
           class="px-4.5 pb-3.5 text-xs text-dimmed"
         >
           …

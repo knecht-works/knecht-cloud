@@ -9,15 +9,23 @@ export interface TestRunRow {
   finishedAt: string | number | null
 }
 
-// The run's per-step execution records (run_steps): drives per-card status.
+// The run's per-step execution records (run_steps): drives per-card status
+// and the run log's step timeline (runLogTimeline → KRunLog).
 export interface TestRunStepRow {
   id: number
   stepIndex: number
   stepId: string
   type: string
+  origin: 'workflow' | 'followup'
+  params: Record<string, unknown> | null
   status: 'running' | 'success' | 'failed'
+  error: string | null
+  attempt: number
   parentStepId: string | null
   iteration: number | null
+  logStart: number | null
+  startedAt: string | number | null
+  finishedAt: string | number | null
 }
 
 interface TestProject {
