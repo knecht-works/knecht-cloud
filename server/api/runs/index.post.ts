@@ -27,7 +27,6 @@ export default defineEventHandler(async (event) => {
   }
 
   const workflow = requireWorkflowRow(result.data.workflowId)
-  const project = requireProject(result.data.projectId)
 
   let steps: Step[] | null = null
   if (result.data.useDraft) {
@@ -40,6 +39,8 @@ export default defineEventHandler(async (event) => {
   else if (!workflow.publishedAt) {
     throw createError({ statusCode: 400, statusMessage: 'This workflow has no published version yet' })
   }
+
+  const project = requireProject(result.data.projectId)
 
   const run = db
     .insert(schema.runs)

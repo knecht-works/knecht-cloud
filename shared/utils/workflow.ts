@@ -125,11 +125,13 @@ export function stepsInclude(steps: Step[], type: Step['type']): boolean {
     || stepChildren(step).some(children => stepsInclude(children, type)))
 }
 
-// A composite step's sub-step lists ([] for plain steps).
+// A composite step's sub-step lists ([] for plain steps). A missing list
+// counts as empty: loose DRAFTS may carry an `if` without its `else` yet, and
+// every consumer of this walks drafts too.
 export function stepChildren(step: Step): Step[][] {
   if (!isComposite(step)) return []
-  const record = step as unknown as Record<string, Step[]>
-  return COMPOSITE_CHILD_KEYS[step.type].map(key => record[key]!)
+  const record = step as unknown as Record<string, Step[] | undefined>
+  return COMPOSITE_CHILD_KEYS[step.type].map(key => record[key] ?? [])
 }
 
 // A copy of the step with every child list passed through `fn` (the step
