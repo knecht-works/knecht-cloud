@@ -25,11 +25,12 @@ describe('buildOpencodeConfig', () => {
   it('declares langdock as a custom provider with the region endpoint and env key', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })
     expect(config.provider!.langdock).toEqual({
-      npm: '@ai-sdk/openai-compatible',
+      npm: '@ai-sdk/openai',
       name: 'Langdock',
       options: {
         baseURL: 'https://api.langdock.com/openai/eu/v1',
         apiKey: '{env:LANGDOCK_API_KEY}',
+        setCacheKey: false,
       },
       models: { 'claude-sonnet-4-5': {} },
     })
