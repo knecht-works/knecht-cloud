@@ -21,7 +21,10 @@ const bodySchema = z.object({
   aiKey: z.string().min(1).max(500).nullable().optional(),
   // Bare model names, no provider prefix. The subtask model
   // becomes opencode's small_model; null clears it (main model does it all).
-  aiModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).optional(),
+  // The default model is also nullable: a provider switch clears it (the old
+  // provider's name would not resolve) and ai steps refuse to run until a new
+  // one is picked.
+  aiModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).nullable().optional(),
   aiSubtaskModel: z.string().min(1).max(200).regex(MODEL_NAME_RE).nullable().optional(),
   // Instance-level agent instructions.
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
@@ -35,9 +38,16 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: field ? `Invalid value for ${field}` : 'Invalid settings' })
   }
   const { aiKey, ...patch } = result.data
-  const settingsPatch = {
+  const settingsPatch: SettingsPatch = {
     ...patch,
     ...(aiKey !== undefined ? { aiKeyEnc: aiKey === null ? null : encrypt(aiKey) } : {}),
+  }
+  // A provider switch clears both models (unless the patch sets them): the old
+  // provider's names would not resolve at the new one, and a stale model must
+  // never block saving the new provider's API key.
+  if (settingsPatch.aiProvider && settingsPatch.aiProvider !== getSettings().aiProvider) {
+    if (!('aiModel' in settingsPatch)) settingsPatch.aiModel = null
+    if (!('aiSubtaskModel' in settingsPatch)) settingsPatch.aiSubtaskModel = null
   }
   await assertModelInCatalog(settingsPatch)
   return publicSettings(updateSettings(settingsPatch))
@@ -50,6 +60,7 @@ export default defineEventHandler(async (event) => {
 async function assertModelInCatalog(patch: SettingsPatch): Promise<void> {
   if (!['aiProvider', 'aiRegion', 'aiModel', 'aiSubtaskModel', 'aiKeyEnc'].some(f => f in patch)) return
   const effective = { ...getSettings(), ...patch }
+  if (!effective.aiModel && !effective.aiSubtaskModel) return
   let ids: Set<string>
   try {
     ids = new Set((await loadModelCatalog(effective)).map(m => m.id))
@@ -57,7 +68,7 @@ async function assertModelInCatalog(patch: SettingsPatch): Promise<void> {
   catch {
     return
   }
-  if (!ids.has(effective.aiModel)) {
+  if (effective.aiModel && !ids.has(effective.aiModel)) {
     throw createError({
       statusCode: 400,
       statusMessage: `The model '${effective.aiModel}' is not available at ${effective.aiProvider}. Pick a model from its catalog first.`,

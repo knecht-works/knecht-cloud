@@ -19,10 +19,20 @@ watch(settings, (s) => {
   if (!s) return
   aiProvider.value = s.aiProvider as AiProviderId
   aiRegion.value = s.aiRegion as LangdockRegion
-  aiModel.value = s.aiModel
+  aiModel.value = s.aiModel ?? ''
   aiSubtaskModel.value = s.aiSubtaskModel ?? NO_SUBTASK_MODEL
   agentInstructions.value = s.agentInstructions
 }, { immediate: true })
+
+// A provider switch clears both model fields (the server does the same to the
+// stored row): the old provider's names would not resolve, and a stale model
+// used to block saving the new provider's key. The guard keeps the initial
+// settings load (which sets provider and models together) from clearing them.
+watch(aiProvider, () => {
+  if (!settings.value || aiProvider.value === settings.value.aiProvider) return
+  aiModel.value = ''
+  aiSubtaskModel.value = NO_SUBTASK_MODEL
+})
 
 const { data: aiModels, status: aiModelsStatus, error: aiModelsError } = useAiModels()
 const modelItems = computed(() =>
@@ -47,7 +57,7 @@ const { state: saveState, error: saveError, schedule, invalid } = useAutosave(as
   await patchSettings(settings, {
     aiProvider: aiProvider.value,
     aiRegion: aiRegion.value,
-    aiModel: aiModel.value,
+    aiModel: aiModel.value.trim() || null,
     aiSubtaskModel: aiSubtaskModel.value === NO_SUBTASK_MODEL ? null : aiSubtaskModel.value,
   })
   await refreshNuxtData('ai-models')
@@ -56,10 +66,14 @@ watch([aiProvider, aiRegion, aiModel, aiSubtaskModel], () => {
   if (
     aiProvider.value === settings.value?.aiProvider
     && aiRegion.value === settings.value?.aiRegion
-    && aiModel.value === settings.value?.aiModel
+    && aiModel.value === (settings.value?.aiModel ?? '')
     && aiSubtaskModel.value === (settings.value?.aiSubtaskModel ?? NO_SUBTASK_MODEL)
   ) return
-  if (!aiModel.value.trim()) return invalid('Pick a default model')
+  // An empty model only saves as part of a provider switch (where it means
+  // "cleared"); emptying the field on its own asks for a pick instead.
+  if (!aiModel.value.trim() && aiProvider.value === settings.value?.aiProvider) {
+    return invalid('Pick a default model')
+  }
   schedule()
 })
 

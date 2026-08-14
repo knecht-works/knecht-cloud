@@ -11,7 +11,8 @@ export interface DashboardSettings {
   aiProvider: string
   /** Langdock region (eu/us); present for every provider, used by langdock. */
   aiRegion: string
-  aiModel: string
+  /** Default agent model; null after a provider switch until a new one is picked. */
+  aiModel: string | null
   /** Optional faster model for the agent's internal small tasks; null = main model. */
   aiSubtaskModel?: string | null
   /** Instance-level agent instructions, layered into every agent run. */
