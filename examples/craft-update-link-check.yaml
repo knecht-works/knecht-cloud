@@ -1,0 +1,115 @@
+# Boots a Craft CMS project and updates Craft + plugins. Only when the update
+# actually changed something: create a branch, link-check the site, let the
+# agent fix broken links in the repo, and open a PR with the update (and the
+# fixes). No update available -> the run ends quietly after the check.
+#
+# Steps are written in the normalized form so they carry explicit ids
+# (referenced as {{ steps.<id>... }}) and labels for the builder.
+#
+# Import via Workflows -> Import, or POST /api/workflows/import.
+version: 1
+name: Craft update and link check
+description: Update Craft, link-check the site and open a PR with update + link fixes.
+steps:
+  - type: ddev-start
+    id: boot
+    label: Boot Craft
+    commands: |
+      ddev composer install
+
+  - type: bash
+    id: update
+    label: Update Craft
+    command: |
+      set -e
+      ddev craft update all
+      ddev craft up --interactive=0
+
+  # The update writes composer.json/lock (and possibly more). A clean working
+  # tree means there was nothing to update.
+  - type: bash
+    id: detect_changes
+    label: Detect update changes
+    command: '[ -z "$(git status --porcelain)" ] && echo unchanged || echo changed'
+
+  - type: if
+    id: has_update
+    label: Update found?
+    conditions:
+      - - left: "{{ steps.detect_changes.stdout }}"
+          op: eq
+          right: changed
+    then:
+      # Branch first, so the commit at the end lands on it.
+      - type: create-branch
+        id: branch
+        name: knecht/craft-update-{{ run.id }}
+
+      # failOnBroken off: broken links flow into the fix branch, they must
+      # not kill the run.
+      - type: link-check
+        id: check_links
+        label: Check links
+        sitemap: "{{ steps.boot.url }}/sitemap.xml"
+        failOnBroken: false
+
+      - type: if
+        id: has_broken
+        label: Broken links?
+        conditions:
+          - - left: "{{ steps.check_links.broken }}"
+              op: gt
+              right: "0"
+        then:
+          - type: ai
+            id: fix_links
+            label: Fix broken links
+            prompt: |
+              The link checker found {{ steps.check_links.broken }} broken link(s)
+              on this Craft CMS site ({{ steps.check_links.checked }} pages checked).
+              The broken URLs with their HTTP status:
+
+              {{ steps.check_links.brokenUrls }}
+
+              Find where each broken URL is referenced and fix it IN THE
+              REPOSITORY: Twig templates (templates/), config, redirects.
+              Correct obvious typos, point moved pages to their new URL and
+              remove references whose target is gone for good.
+
+              The database is a disposable copy: for links that only exist in
+              entry content (not in the repo), do NOT fix them in the database.
+              List them in your summary instead so an editor can fix them in
+              the CMS.
+
+              Only change what is needed to fix the links.
+            output: |
+              summary: string
+
+          # Informational re-check (content-side links cannot be fixed from
+          # the repo, so this never fails the run).
+          - type: link-check
+            id: recheck
+            label: Re-check links
+            sitemap: "{{ steps.boot.url }}/sitemap.xml"
+            failOnBroken: false
+
+      # One commit with everything: the update and any link fixes.
+      - type: create-commit
+        id: commit
+        message: Update Craft CMS and plugins (run {{ run.id }})
+
+      - type: create-pr
+        id: pr
+        title: Craft CMS update
+        body: |
+          Automated Craft CMS update by Knecht (run {{ run.id }}).
+
+          Link check after the update: {{ steps.check_links.broken }} broken
+          of {{ steps.check_links.checked }} checked pages.
+
+          {{ steps.fix_links.json.summary }}
+    else:
+      - type: bash
+        id: no_update
+        label: Nothing to update
+        command: echo "Craft and all plugins are up to date, nothing to do."
