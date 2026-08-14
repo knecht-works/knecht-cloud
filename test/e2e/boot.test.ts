@@ -194,10 +194,14 @@ for (const fixture of FIXTURES) {
         expect(uploaded.ok).toBe(true)
       }
 
+      const workflows = await expectJson<{ id: number, name: string }[]>(await client.fetch('/api/workflows'))
+      const workflowId = workflows.find(w => w.name === 'boot-and-preview')?.id
+      if (!workflowId) throw new Error('The instance has no boot-and-preview workflow; the starter seed is missing.')
+
       const run = await expectJson<RunRow>(await client.fetch('/api/runs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ projectId, workflow: 'boot-and-preview' }),
+        body: JSON.stringify({ projectId, workflowId }),
       }))
       runId = run.id
 
