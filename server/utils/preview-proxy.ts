@@ -75,6 +75,10 @@ function injectBridge(html: string): string {
 }
 
 export async function proxyRunPreview(event: H3Event, runId: number, label?: string): Promise<void> {
+  // The instance's own server-side fetches (the link-check step) carry the
+  // per-boot preview auth token instead of a browser session
+  // (utils/preview-fetch.ts); they skip the login gate.
+  const internal = isPreviewAuthToken(getRequestHeader(event, PREVIEW_AUTH_HEADER))
   const session = await getUserSession(event)
   // Reading the session must never WRITE one: for a request without a session
   // cookie, getUserSession seeds an empty session and emits a domain-scoped
@@ -83,26 +87,28 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
   // empty cookie would overwrite the operator's live session domain-wide,
   // logging them out of the dashboard.
   removeResponseHeader(event, 'set-cookie')
-  if (!session?.user) {
-    const reqUrl = getRequestURL(event)
-    if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
-      throw createError({ statusCode: 401, statusMessage: 'Login required' })
+  if (!internal) {
+    if (!session?.user) {
+      const reqUrl = getRequestURL(event)
+      if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
+        throw createError({ statusCode: 401, statusMessage: 'Login required' })
+      }
+      const baseHost = stripPreviewPrefix(reqUrl.host)
+      setCookie(event, 'knecht-redirect', `${reqUrl.protocol}//${reqUrl.host}${reqUrl.pathname}${reqUrl.search}`, {
+        domain: process.env.KNECHT_BASE_DOMAIN || undefined,
+        path: '/',
+        maxAge: 600,
+        sameSite: 'lax',
+      })
+      return sendRedirect(event, `${reqUrl.protocol}//${baseHost}/login`, 302)
     }
-    const baseHost = stripPreviewPrefix(reqUrl.host)
-    setCookie(event, 'knecht-redirect', `${reqUrl.protocol}//${reqUrl.host}${reqUrl.pathname}${reqUrl.search}`, {
-      domain: process.env.KNECHT_BASE_DOMAIN || undefined,
-      path: '/',
-      maxAge: 600,
-      sameSite: 'lax',
-    })
-    return sendRedirect(event, `${reqUrl.protocol}//${baseHost}/login`, 302)
-  }
 
-  // Same per-request re-check as the /api gate (server/middleware/auth.ts):
-  // removing a member must also revoke their still-valid session cookie here.
-  if (memberCount() > 0 && !isMember(session.user.login)) {
-    await clearUserSession(event)
-    throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
+    // Same per-request re-check as the /api gate (server/middleware/auth.ts):
+    // removing a member must also revoke their still-valid session cookie here.
+    if (memberCount() > 0 && !isMember(session.user.login)) {
+      await clearUserSession(event)
+      throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
+    }
   }
 
   const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()

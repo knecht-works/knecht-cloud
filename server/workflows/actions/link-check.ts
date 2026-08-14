@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { tryParseJson } from '../../utils/json'
+import { previewAwareFetch } from '../../utils/preview-fetch'
 import { defineAction, ActionError } from './types'
 
 // A website test: request every page of a sitemap (or of an explicit URL
@@ -116,8 +117,11 @@ async function collectPageUrls(sitemapUrl: string, signal: AbortSignal, log: (te
   return [...urls]
 }
 
+// Both fetches go through previewAwareFetch: a sitemap on the run's OWN
+// login-gated preview is reachable (the instance authenticates itself),
+// foreign hosts see a plain anonymous request.
 async function fetchSitemap(url: string, signal: AbortSignal): Promise<string> {
-  const res = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
+  const res = await previewAwareFetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
   if (!res.ok) throw new ActionError(`HTTP ${res.status} fetching sitemap ${url}`)
   return await res.text()
 }
@@ -126,7 +130,7 @@ async function fetchSitemap(url: string, signal: AbortSignal): Promise<string> {
 // itself failed (DNS, TLS, timeout). The body is never downloaded.
 async function checkPage(url: string, signal: AbortSignal): Promise<number | string> {
   try {
-    const res = await fetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
+    const res = await previewAwareFetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
     await res.body?.cancel()
     return res.status
   }
