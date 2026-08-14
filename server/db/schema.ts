@@ -345,7 +345,10 @@ export const settings = sqliteTable('settings', {
   aiProvider: text('ai_provider').notNull().default('anthropic'),
   aiRegion: text('ai_region', { enum: ['eu', 'us'] }).notNull().default('eu'),
   aiKeyEnc: text('ai_key_enc'),
-  aiModel: text('ai_model').notNull().default('claude-sonnet-4-5'),
+  // Both models are cleared (null) on a provider switch: the old provider's
+  // names would not resolve at the new one, and a stored mismatch used to
+  // block saving the new provider's API key (catalog validation deadlock).
+  aiModel: text('ai_model').default('claude-sonnet-4-5'),
   aiSubtaskModel: text('ai_subtask_model'),
 
   // Instance-level agent instructions: human-written rules layered into every

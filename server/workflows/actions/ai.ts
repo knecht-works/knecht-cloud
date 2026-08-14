@@ -111,7 +111,11 @@ async function resolveAgentEnv(
   // Stored model names are bare; the configured provider is
   // prepended here. The legacy strip covers pre-migration values that still
   // reach the runtime (retried runs pinned old snapshots).
-  const bare = stripLegacyModelPrefix(stepModel?.trim() || settings.aiModel)
+  const configured = stepModel?.trim() || settings.aiModel
+  if (!configured) {
+    throw new Error('No default model configured (a provider switch clears it), pick one under Settings → Agent')
+  }
+  const bare = stripLegacyModelPrefix(configured)
   if (!MODEL_NAME_RE.test(bare)) {
     throw new Error(`Invalid model '${bare}': expected a bare model name, e.g. claude-sonnet-4-5`)
   }
