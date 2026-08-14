@@ -21,6 +21,22 @@ import { ensureEnvUp, rebootEnv, rehydrateEnv } from './envs'
 // uncommitted. Everything is recorded as a run_steps row with
 // origin 'followup', so the run timeline shows the whole conversation.
 
+// The abort controllers of follow-ups THIS process is executing, keyed by run
+// (one active follow-up per run), so a cancel (POST
+// /api/runs/:id/followups/cancel) can stop the executor mid-flight: the
+// streamed sandbox command is killed through the signal.
+const controllers = new Map<number, AbortController>()
+
+// Abort the follow-up this process is executing for a run. Returns false when
+// none is in-flight here (still queued, or a stale 'running' row after a
+// crash); the caller has already flipped the row, so nothing else is needed.
+export function cancelFollowup(runId: number): boolean {
+  const controller = controllers.get(runId)
+  if (!controller) return false
+  controller.abort()
+  return true
+}
+
 // Whether a run has a follow-up waiting or executing (the API refuses a second
 // one; follow-ups per run are strictly sequential).
 export function hasActiveFollowup(runId: number): boolean {
@@ -55,13 +71,19 @@ export async function startFollowup(followupId: number): Promise<void> {
       return
     }
 
+    const controller = new AbortController()
+    controllers.set(run.id, controller)
     try {
-      await execFollowup(followup, run, project)
+      await execFollowup(followup, run, project, controller)
       finishFollowup(followupId, 'success')
     }
     catch (e) {
-      appendLog(run.id, `\n✗ Follow-up failed: ${(e as Error).message}\n`)
-      finishFollowup(followupId, 'failed', (e as Error).message)
+      const cancelled = controller.signal.aborted
+      appendLog(run.id, cancelled ? `\n✗ Follow-up cancelled\n` : `\n✗ Follow-up failed: ${(e as Error).message}\n`)
+      finishFollowup(followupId, 'failed', cancelled ? 'Cancelled' : (e as Error).message)
+    }
+    finally {
+      controllers.delete(run.id)
     }
   }
   catch (e) {
@@ -69,7 +91,7 @@ export async function startFollowup(followupId: number): Promise<void> {
   }
 }
 
-async function execFollowup(followup: Followup, run: Run, project: Project): Promise<void> {
+async function execFollowup(followup: Followup, run: Run, project: Project, controller: AbortController): Promise<void> {
   // Offset BEFORE the banner: the banner and the env-revive output below
   // belong to this follow-up's log segment on the dashboard.
   const logStart = runLogBytes(run.id)
@@ -107,7 +129,6 @@ async function execFollowup(followup: Followup, run: Run, project: Project): Pro
       .run()
   }
 
-  const controller = new AbortController()
   const rt: ActionRuntime = {
     runId: run.id,
     project,
@@ -130,7 +151,7 @@ async function execFollowup(followup: Followup, run: Run, project: Project): Pro
     log(`\n✓ Follow-up done\n`)
   }
   catch (e) {
-    finalizeRow({ status: 'failed', error: (e as Error).message })
+    finalizeRow({ status: 'failed', error: controller.signal.aborted ? 'Cancelled' : (e as Error).message })
     throw e
   }
 }
