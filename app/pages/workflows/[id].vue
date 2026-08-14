@@ -161,6 +161,22 @@ const { open, project, starting, activeRun, activeRunSteps, testBranch, testBran
 // The "Trigger event (mock)" section of the run popover, collapsed by default.
 const mockOpen = ref(false)
 
+// The run popover's open state, doubling as the validation trigger: clicking
+// Run on an invalid draft flags every issue and opens the issue list instead
+// of the picker (the same move the automation switch makes). The button stays
+// clickable so the click can explain itself.
+const runPickerOpen = computed({
+  get: () => open.value,
+  set: (isOpen: boolean) => {
+    if (isOpen && !valid.value) {
+      submitted.value = true
+      issuesOpen.value = true
+      return
+    }
+    open.value = isOpen
+  },
+})
+
 const editable = computed(() => !activeRun.value)
 
 // ── triggers wired to this workflow (the head of the flow) ──────────────────
@@ -876,19 +892,19 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                   </div>
                 </div>
                 <UPopover
-                  v-model:open="open"
+                  v-model:open="runPickerOpen"
                   :content="{ side: 'bottom', align: 'end' }"
                 >
                   <UTooltip
-                    :text="!steps.length ? 'Add a step first' : !valid ? 'Finish the step config first' : !projects?.length ? 'Connect a project first' : ''"
-                    :disabled="!!steps.length && valid && !!projects?.length"
+                    :text="!steps.length ? 'Add a step first' : !projects?.length ? 'Connect a project first' : ''"
+                    :disabled="!!steps.length && !!projects?.length"
                   >
                     <UButton
                       color="primary"
                       size="xs"
                       icon="i-lucide-play"
                       label="Run"
-                      :disabled="!steps.length || !valid || starting || !projects?.length"
+                      :disabled="!steps.length || starting || !projects?.length"
                     />
                   </UTooltip>
                   <template #content>
