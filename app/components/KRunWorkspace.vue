@@ -297,6 +297,24 @@ async function sendFollowup(prompt: string) {
   }
 }
 
+// Stop the active follow-up: the row flips server-side (the composer unlocks
+// right away), the executor kills the in-flight agent command.
+const stoppingFollowup = ref(false)
+async function stopFollowup() {
+  if (stoppingFollowup.value) return
+  stoppingFollowup.value = true
+  try {
+    await $fetch(`/api/runs/${id}/followups/cancel`, { method: 'POST' })
+    await Promise.all([refresh(), refreshSteps(), refreshFollowups()])
+  }
+  catch (e) {
+    toastError('Stop failed', e)
+  }
+  finally {
+    stoppingFollowup.value = false
+  }
+}
+
 // The follow-ups as a chat transcript for UChatMessages: each follow-up is a
 // user message (the prompt) plus, once finished, an assistant message (the
 // agent's clean reply pulled from the opencode session, or the failure). The
@@ -616,9 +634,13 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
         :disabled="followupLocked"
         @submit="sendFollowup(followupPrompt)"
       >
+        <!-- While a follow-up is active the submit button becomes a stop
+             button (UChatPromptSubmit switches on status and emits stop). -->
         <UChatPromptSubmit
           color="primary"
+          :status="chatStatus"
           :disabled="followupLocked || !followupPrompt.trim()"
+          @stop="stopFollowup"
         />
       </UChatPrompt>
     </KPanel>
