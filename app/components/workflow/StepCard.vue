@@ -65,7 +65,7 @@ function remove() {
     class="flex gap-3.5"
     :style="{ opacity: dragged ? 0.45 : TREAT[status].dim ? 0.55 : 1 }"
     :draggable="armed"
-    @dragstart="dnd.startStepDrag(step, list, $event)"
+    @dragstart.stop="dnd.startStepDrag(step, list, $event)"
     @dragover="dnd.overRow(list, depth, index, $event)"
     @dragend="dnd.endDrag"
   >
