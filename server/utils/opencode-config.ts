@@ -35,7 +35,7 @@ export interface OpencodeConfig {
     langdock: {
       npm: string
       name: string
-      options: { baseURL: string, apiKey: string }
+      options: { baseURL: string, apiKey: string, setCacheKey: false }
       models: Record<string, object>
     }
   }
@@ -61,17 +61,23 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
   // exploration subagents): a faster model than the main one.
   if (input.subtaskModel) config.small_model = `${input.provider}/${models[1]}`
   // Langdock is not in models.dev, so opencode needs the provider declared:
-  // the OpenAI-compatible SDK against the region's endpoint, the key via env
+  // the OpenAI SDK against the region's endpoint, the key via env
   // interpolation (resolveAgentEnv hands LANGDOCK_API_KEY to the process),
   // and a models map registering exactly the models this invocation may use.
+  // @ai-sdk/openai (not openai-compatible) because it speaks the Responses
+  // API: Langdock's chat/completions route rejects function tools combined
+  // with reasoning_effort (GPT-5.x), the responses route accepts both.
+  // setCacheKey: false stops opencode from sending prompt_cache_key, which
+  // Langdock does not document as a forwarded parameter.
   if (input.provider === 'langdock') {
     config.provider = {
       langdock: {
-        npm: '@ai-sdk/openai-compatible',
+        npm: '@ai-sdk/openai',
         name: 'Langdock',
         options: {
           baseURL: langdockBaseUrl(input.region),
           apiKey: '{env:LANGDOCK_API_KEY}',
+          setCacheKey: false,
         },
         models: Object.fromEntries(models.map(m => [m, {}])),
       },
