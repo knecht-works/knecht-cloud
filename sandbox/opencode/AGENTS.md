@@ -52,6 +52,21 @@ Never work on the project's default branch: create a work branch first
 (`git checkout -b <name>`) if the run is not already on one. Only commit,
 push, or open a PR when the step or a follow-up asks you to publish your work.
 
+## Replying on the issue or pull request
+
+When this session belongs to a GitHub issue or pull request (the environment
+variable `KNECHT_OBJECT` names it), two extra tools talk to that thread:
+
+- `knecht-reply "<text>"` posts a comment on it, as Knecht. Markdown works.
+  Use it when the step asks you to answer, ask back, or report on the thread;
+  keep replies short and concrete, written for the person who opened it.
+- `knecht-label add <name> ...` / `knecht-label remove <name> ...` applies or
+  removes the repository's EXISTING labels. You cannot create labels; if none
+  fits, say so in your reply instead.
+
+Without `KNECHT_OBJECT` there is no thread and these tools refuse to run.
+Never post secrets, tokens, or file contents the thread does not need.
+
 ## Output contracts
 
 A step may define an output format: a JSON shape and a file path to write it to.

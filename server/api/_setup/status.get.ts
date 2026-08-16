@@ -56,9 +56,13 @@ export default defineEventHandler((event) => {
       contents: 'write',
       pull_requests: 'write',
       metadata: 'read',
-      issues: 'read',
+      // write: the agent replies and labels on issues/PRs (PR conversation
+      // comments go through the issues API too), and @mentions react with an
+      // acknowledgement. Instances whose app was created with issues: read
+      // must approve the permission bump in the app's settings on GitHub.
+      issues: 'write',
     },
-    default_events: ['push', 'pull_request', 'issues'],
+    default_events: ['push', 'pull_request', 'issues', 'issue_comment'],
   }
 
   // The page builds the POST target from `state` + the chosen owner (personal

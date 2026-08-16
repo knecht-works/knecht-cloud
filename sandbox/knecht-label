@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Add or remove EXISTING repository labels on the session's GitHub issue or
+# pull request. Only labels that already exist in the repo can be added
+# (Knecht never invents labels); the Knecht host applies them via the GitHub
+# App (server/routes/agent-bridge.post.ts). See sandbox/opencode/AGENTS.md.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+usage:
+  knecht-label add <name> [<name> ...]      add existing repo labels to this session's issue/PR
+  knecht-label remove <name> [<name> ...]   remove labels from it
+EOF
+  exit 2
+}
+
+[ -n "${KNECHT_BRIDGE_URL:-}" ] && [ -n "${KNECHT_BRIDGE_TOKEN:-}" ] && [ -n "${KNECHT_RUN_ID:-}" ] || {
+  echo "knecht-label is not available in this run (bridge not configured)" >&2
+  exit 1
+}
+[ -n "${KNECHT_OBJECT:-}" ] || {
+  echo "knecht-label is not available: this session does not belong to an issue or pull request" >&2
+  exit 1
+}
+
+action="${1:-}"
+shift || true
+[ "$#" -gt 0 ] || usage
+case "$action" in
+  add) key="add" ;;
+  remove) key="remove" ;;
+  *) usage ;;
+esac
+
+# JSON array of the label names (node is in the image for the js step).
+labels="$(node -e 'console.log(JSON.stringify(process.argv.slice(1)))' "$@")"
+
+response="$(mktemp)"
+trap 'rm -f "$response"' EXIT
+code="$(curl -sS -o "$response" -w '%{http_code}' \
+  -X POST "$KNECHT_BRIDGE_URL" \
+  -H 'content-type: application/json' \
+  -H "x-knecht-run-id: $KNECHT_RUN_ID" \
+  -H "x-knecht-token: $KNECHT_BRIDGE_TOKEN" \
+  --data "{\"op\":\"label\",\"$key\":$labels}")"
+cat "$response"
+case "$code" in
+  2*) exit 0 ;;
+  *) exit 1 ;;
+esac

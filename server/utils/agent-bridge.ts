@@ -1,6 +1,7 @@
 import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
 import { hostname } from 'node:os'
 import { execa } from 'execa'
+import { getSession } from './entities'
 
 // The agent bridge: how in-sandbox git gets its push/fetch credentials and
 // how a PR is opened from inside a session's sandbox. The sandbox holds only
@@ -84,9 +85,17 @@ async function resolveBase(): Promise<string | null> {
 export async function bridgeEnv(sessionId: number): Promise<Record<string, string>> {
   const base = await bridgeBaseUrl()
   if (!base) return {}
-  return {
+  const env: Record<string, string> = {
     KNECHT_BRIDGE_URL: `${base}/agent-bridge`,
     KNECHT_BRIDGE_TOKEN: bridgeToken(sessionId),
     KNECHT_RUN_ID: String(sessionId),
   }
+  // Sessions with an object also get the reply tools (knecht-reply,
+  // knecht-label): the marker tells the CLIs (and the agent, via AGENTS.md)
+  // what they would post on. Enforcement stays host-side in the bridge.
+  const session = getSession(sessionId)
+  if (session?.objectKind && session.objectNumber) {
+    env.KNECHT_OBJECT = `${session.objectKind === 'issue' ? 'issue' : 'pull request'} #${session.objectNumber}`
+  }
+  return env
 }

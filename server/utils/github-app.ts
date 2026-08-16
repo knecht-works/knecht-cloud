@@ -122,6 +122,46 @@ export async function getBotIdentity(): Promise<{ name: string, email: string } 
   }
 }
 
+// Post a comment on an issue or PR conversation (the issues API covers both).
+// How Knecht replies on its session's object: the agent's reply tool and the
+// mention acknowledgement both land here.
+export async function createIssueComment(owner: string, repo: string, issueNumber: number, body: string): Promise<{ url: string }> {
+  const octokit = await getInstallationClient(owner, repo)
+  const { data } = await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body })
+  return { url: data.html_url }
+}
+
+// The repo's existing label names. The agent may only apply these: it never
+// invents labels, so client repos stay free of label sprawl (ADR 0007).
+export async function listRepoLabels(owner: string, repo: string): Promise<string[]> {
+  const octokit = await getInstallationClient(owner, repo)
+  const labels = await octokit.paginate(octokit.rest.issues.listLabelsForRepo, { owner, repo, per_page: 100 })
+  return labels.map(l => l.name)
+}
+
+export async function addIssueLabels(owner: string, repo: string, issueNumber: number, labels: string[]): Promise<void> {
+  const octokit = await getInstallationClient(owner, repo)
+  await octokit.rest.issues.addLabels({ owner, repo, issue_number: issueNumber, labels })
+}
+
+export async function removeIssueLabel(owner: string, repo: string, issueNumber: number, label: string): Promise<void> {
+  const octokit = await getInstallationClient(owner, repo)
+  try {
+    await octokit.rest.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: label })
+  }
+  catch (e) {
+    // Removing a label the object doesn't carry is a no-op, not a failure.
+    if ((e as { status?: number }).status !== 404) throw e
+  }
+}
+
+// The immediate acknowledgement on a mention comment: Knecht saw it and is
+// working; the real reply follows when the follow-up finishes.
+export async function addCommentReaction(owner: string, repo: string, commentId: number, reaction: 'eyes' | '+1'): Promise<void> {
+  const octokit = await getInstallationClient(owner, repo)
+  await octokit.rest.reactions.createForIssueComment({ owner, repo, comment_id: commentId, content: reaction })
+}
+
 // Open a pull request as the app. Returns null when there is no diff to open a
 // PR for (e.g. an empty agent run committed nothing): a skip, not a failure.
 export async function createPullRequest(

@@ -16,6 +16,7 @@ export default defineEventHandler(() => {
       steps: schema.workflows.steps,
       draftSteps: schema.workflows.draftSteps,
       enabled: schema.workflows.enabled,
+      repliesEnabled: schema.workflows.repliesEnabled,
       publishedAt: schema.workflows.publishedAt,
     })
     .from(schema.workflows)
