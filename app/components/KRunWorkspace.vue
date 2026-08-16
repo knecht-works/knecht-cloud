@@ -440,7 +440,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
           @click="cancel"
         />
         <UButton
-          v-else-if="run.status === 'cancelled'"
+          v-else-if="run.status === 'cancelled' && run.kind !== 'mention'"
           color="primary"
           icon="i-lucide-play"
           label="Retry"
@@ -560,6 +560,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
           :to="`/workflows/${run.workflowId}${failedStep ? `?step=${encodeURIComponent(failedStep.stepId)}` : ''}`"
         />
         <UButton
+          v-if="run.kind !== 'mention'"
           color="primary"
           icon="i-lucide-play"
           label="Retry"

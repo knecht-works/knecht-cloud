@@ -1,4 +1,4 @@
-import { asc, eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { startRun } from './runner'
 import { startFollowup } from './followups'
@@ -52,7 +52,10 @@ function busySessions(): Set<number> {
 
 export function dispatchRuns(): void {
   // The queue is tiny by construction (a single-instance tool); fetching all
-  // queued rows keeps the claim logic trivial.
+  // queued rows keeps the claim logic trivial. Mention runs are excluded on
+  // both counts: the runner never executes them (their follow-up does, and
+  // it drives the run row's status), and a queued mention run must not block
+  // its own follow-up in the loop below.
   const queued = db
     .select({
       run: { id: schema.runs.id, sessionId: schema.runs.sessionId },
@@ -60,7 +63,7 @@ export function dispatchRuns(): void {
     })
     .from(schema.runs)
     .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))
-    .where(eq(schema.runs.status, 'queued'))
+    .where(and(eq(schema.runs.status, 'queued'), eq(schema.runs.kind, 'workflow')))
     .orderBy(asc(schema.runs.id))
     .all()
     .filter(({ run }) => !active.has(run.id))

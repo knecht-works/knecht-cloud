@@ -222,6 +222,14 @@ export const runs = sqliteTable('runs', {
   status: text('status', { enum: ['queued', 'running', 'success', 'failed', 'cancelled'] })
     .notNull()
     .default('queued'),
+  // What drives the run: 'workflow' rows execute their pinned steps through
+  // the runner; 'mention' rows are a mention's own run, driven by its
+  // follow-up (daemon/followups.ts) so the mention's work gets its own
+  // timeline instead of landing in whatever workflow ran last. The
+  // dispatcher never hands 'mention' rows to the runner.
+  kind: text('kind', { enum: ['workflow', 'mention'] })
+    .notNull()
+    .default('workflow'),
   // What started the run: the UI's "Start workflow" button ('manual', also a
   // manually fired trigger, same gesture) or a trigger's source. Free-form so
   // new sources don't need a schema change; the UI falls back to a generic

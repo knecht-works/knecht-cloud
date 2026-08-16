@@ -14,6 +14,7 @@ export default defineEventHandler((event) => {
       workflow: schema.runs.workflow,
       workflowId: schema.runs.workflowId,
       status: schema.runs.status,
+      kind: schema.runs.kind,
       // Env fields come from the run's session (ADR 0006), flattened in under
       // their historical names so the dashboard keeps working unchanged.
       envState: schema.sessions.envState,
