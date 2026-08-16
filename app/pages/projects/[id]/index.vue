@@ -25,6 +25,36 @@ const repoName = computed(() => project.value?.fullName.split('/').pop() ?? 'Pro
 const projectRuns = computed(() => runs.value ?? [])
 const latest = computed(() => projectRuns.value[0] ?? null)
 
+// The sidebar list grouped by session: runs on the same issue/PR collect
+// under one object header, one-shot runs (manual, push, schedule) stay plain
+// rows. Groups keep the list's order, newest run first per session and
+// sessions ordered by their newest run (Map preserves first-seen order).
+const sessionGroups = computed(() => {
+  const bySession = new Map<number, (typeof projectRuns.value)[number][]>()
+  for (const r of projectRuns.value) {
+    const group = bySession.get(r.sessionId)
+    if (group) group.push(r)
+    else bySession.set(r.sessionId, [r])
+  }
+  return [...bySession.values()].map((groupRuns) => {
+    const head = groupRuns[0]!
+    return {
+      sessionId: head.sessionId,
+      object: head.objectKind
+        ? {
+            kind: head.objectKind,
+            number: head.objectNumber,
+            title: head.objectTitle,
+            url: head.objectUrl,
+            closed: head.sessionStatus === 'closed',
+            live: head.envState === 'up',
+          }
+        : null,
+      runs: groupRuns,
+    }
+  })
+})
+
 // ── Run selection (?run=<id>, default: the newest run) ─────────────────────
 // The selection is a ref, not a computed from the query, so it NEVER moves
 // on its own: a new run appearing (trigger, webhook) changes the list but not
@@ -440,36 +470,81 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
           </div>
           <!-- Rows SELECT (query replace), they don't navigate: the run
                renders on the left. The selected row is marked with the
-               primary edge bar. Capped in height (the API returns up to 200
-               runs) so a busy project scrolls here instead of pushing the
-               Automation panel off screen. -->
+               primary edge bar. Runs on the same issue/PR sit under one
+               session header (the object's number + title, linking to the
+               thread); one-shot runs stay plain rows. Capped in height (the
+               API returns up to 200 runs) so a busy project scrolls here
+               instead of pushing the Automation panel off screen. -->
           <div class="max-h-100 overflow-y-auto">
-            <NuxtLink
-              v-for="(r, i) in projectRuns"
-              :key="r.id"
-              :to="{ query: { run: String(r.id) } }"
-              replace
-              class="relative flex items-center gap-3 px-4.5 py-3 transition-colors hover:bg-(--surface-glass)"
-              :class="[
-                i ? 'border-t border-muted' : '',
-                r.id === selectedRunId ? 'bg-(--surface-glass)' : '',
-              ]"
-              :aria-current="r.id === selectedRunId ? 'true' : undefined"
+            <div
+              v-for="(g, gi) in sessionGroups"
+              :key="g.sessionId"
+              :class="gi ? 'border-t border-muted' : ''"
             >
-              <span
-                v-if="r.id === selectedRunId"
-                class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
-              />
-              <KStatusDot
-                :color="RUN_STATUS_META[r.status].dot"
-                :pulse="RUN_STATUS_META[r.status].pulse"
-                :size="6"
-              />
-              <span class="k-mono min-w-0 truncate text-xs text-default">{{ r.workflow }}</span>
-              <span class="k-mono shrink-0 text-2xs text-dimmed">#{{ r.id }}</span>
-              <span class="k-mono ml-auto w-14 text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
-              <span class="k-mono hidden w-16 text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
-            </NuxtLink>
+              <div
+                v-if="g.object"
+                class="flex items-center gap-2 px-4.5 pb-1 pt-3"
+              >
+                <UIcon
+                  :name="sessionObjectMeta(g.object.kind).icon"
+                  class="size-3.5 flex-none"
+                  :style="{ color: g.object.closed ? 'var(--text-dimmed)' : sessionObjectMeta(g.object.kind).color }"
+                />
+                <span class="k-mono flex-none text-2xs text-dimmed">#{{ g.object.number }}</span>
+                <UTooltip :text="g.object.title ?? ''">
+                  <span class="k-mono min-w-0 truncate text-2xs text-muted">{{ g.object.title }}</span>
+                </UTooltip>
+                <span
+                  v-if="g.object.closed"
+                  class="k-mono ml-auto flex-none text-2xs text-dimmed"
+                >Closed</span>
+                <KStatusDot
+                  v-else-if="g.object.live"
+                  class="ml-auto flex-none"
+                  color="primary"
+                  :size="5"
+                />
+                <a
+                  v-if="g.object.url"
+                  :href="g.object.url"
+                  target="_blank"
+                  class="flex-none text-dimmed transition-colors hover:text-muted"
+                  :class="g.object.closed || g.object.live ? '' : 'ml-auto'"
+                  :aria-label="`Open ${g.object.kind === 'issue' ? 'issue' : 'pull request'} #${g.object.number} on GitHub`"
+                >
+                  <UIcon
+                    name="i-lucide-arrow-up-right"
+                    class="size-3.5"
+                  />
+                </a>
+              </div>
+              <NuxtLink
+                v-for="r in g.runs"
+                :key="r.id"
+                :to="{ query: { run: String(r.id) } }"
+                replace
+                class="relative flex items-center gap-3 py-3 pr-4.5 transition-colors hover:bg-(--surface-glass)"
+                :class="[
+                  g.object ? 'pl-8' : 'pl-4.5',
+                  r.id === selectedRunId ? 'bg-(--surface-glass)' : '',
+                ]"
+                :aria-current="r.id === selectedRunId ? 'true' : undefined"
+              >
+                <span
+                  v-if="r.id === selectedRunId"
+                  class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
+                />
+                <KStatusDot
+                  :color="RUN_STATUS_META[r.status].dot"
+                  :pulse="RUN_STATUS_META[r.status].pulse"
+                  :size="6"
+                />
+                <span class="k-mono min-w-0 truncate text-xs text-default">{{ r.workflow }}</span>
+                <span class="k-mono shrink-0 text-2xs text-dimmed">#{{ r.id }}</span>
+                <span class="k-mono ml-auto w-14 text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
+                <span class="k-mono hidden w-16 text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
+              </NuxtLink>
+            </div>
           </div>
         </KPanel>
 

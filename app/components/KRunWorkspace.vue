@@ -59,16 +59,18 @@ const failedStep = computed(() => {
   return [...timeline.value].reverse().find(s => s.error) ?? null
 })
 
-// The run's meta facts (the workflow it executes, how it was triggered, the
-// branch it works on, timing). Chips are skipped when a run predates the
-// recorded field. The workflow chip links to the editor (plain text once the
-// workflow was deleted). The PR gets no chip: the header's "Open Pull
-// Request" button already covers it.
+// The run's meta facts (the session's issue/PR, the workflow it executes,
+// how it was triggered, the branch it works on, timing). Chips are skipped
+// when a run predates the recorded field. The workflow chip links to the
+// editor (plain text once the workflow was deleted). The PR gets no chip:
+// the header's "Open Pull Request" button already covers it.
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
   const trigger = r.trigger ? triggerSourceMeta(r.trigger) : null
+  const object = r.objectKind ? sessionObjectMeta(r.objectKind) : null
   return [
+    object && { icon: object.icon, text: `${object.label} #${r.objectNumber}`, href: r.objectUrl ?? undefined },
     { icon: 'i-lucide-workflow', text: r.workflow, href: r.workflowId ? `/workflows/${r.workflowId}` : undefined },
     trigger && { icon: trigger.icon, text: trigger.label },
     r.branch && { icon: 'i-lucide-git-branch', text: r.branch },

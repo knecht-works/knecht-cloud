@@ -19,6 +19,13 @@ export default defineEventHandler((event) => {
       envState: schema.sessions.envState,
       previewHosts: schema.sessions.previewHosts,
       previewReady: schema.sessions.previewReady,
+      // The session's object (issue/PR), so the run header can name the
+      // thread the session works on. All null for one-shot sessions.
+      objectKind: schema.sessions.objectKind,
+      objectNumber: schema.sessions.objectNumber,
+      objectTitle: schema.sessions.objectTitle,
+      objectUrl: schema.sessions.objectUrl,
+      sessionStatus: schema.sessions.status,
       trigger: schema.runs.trigger,
       triggerId: schema.runs.triggerId,
       branch: schema.runs.branch,
