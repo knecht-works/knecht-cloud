@@ -10,7 +10,7 @@ import { verifyBridgeToken } from '../utils/agent-bridge'
 import { getProject, getSession, getWorkflowRow } from '../utils/entities'
 import { addIssueLabels, createIssueComment, createPullRequest, getInstallationToken, listRepoLabels, removeIssueLabel } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
-import { recordAgentReply } from '../utils/sessions'
+import { recordAgentReply, withSessionLinks } from '../utils/sessions'
 import { sessionCheckoutDir } from '../utils/storage'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
@@ -100,7 +100,7 @@ export default defineEventHandler(async (event) => {
       case 'comment': {
         const object = requireObject(session)
         requireRepliesEnabled(sessionId)
-        const comment = await createIssueComment(project.owner, project.name, object.number, body.body)
+        const comment = await createIssueComment(project.owner, project.name, object.number, withSessionLinks(body.body, sessionId))
         recordAgentReply(sessionId)
         log(`\nagent-reply: commented on ${object.label}\n`)
         return reply(event, 200, `posted the reply on ${object.label}: ${comment.url}`)
