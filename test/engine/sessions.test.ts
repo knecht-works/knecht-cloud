@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
 import { fireTrigger } from '../../server/utils/triggers'
-import { findObjectSession, resolveSession, sessionHasActiveWork, syncObjectStatus } from '../../server/utils/sessions'
+import { findObjectSession, resolveSession, sessionHasActiveWork, syncObjectStatus, withSessionLinks } from '../../server/utils/sessions'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
 // The session model (ADR 0006) against the real schema: one session per
@@ -134,5 +134,48 @@ describe('sessionHasActiveWork', () => {
 
     db.update(schema.followups).set({ status: 'failed' }).where(eq(schema.followups.id, followup.id)).run()
     expect(sessionHasActiveWork(run.sessionId)).toBe(false)
+  })
+})
+
+describe('withSessionLinks', () => {
+  beforeEach(() => {
+    process.env.KNECHT_BASE_URL = 'http://lvh.me:3333'
+  })
+  afterEach(() => {
+    delete process.env.KNECHT_BASE_URL
+  })
+
+  it('leaves the text alone when there is nothing to link', () => {
+    const project = makeProject()
+    const run = makeRun(project, [])
+    expect(withSessionLinks('just triage', run.sessionId)).toBe('just triage')
+  })
+
+  it('appends the preview once booted and the PR once opened', () => {
+    const project = makeProject()
+    const run = makeRun(project, [])
+    db.update(schema.sessions)
+      .set({ objectKind: 'issue', objectNumber: 5, previewReady: true })
+      .where(eq(schema.sessions.id, run.sessionId))
+      .run()
+
+    expect(withSessionLinks('done', run.sessionId))
+      .toBe(`done\n\n---\n**Preview:** http://${run.sessionId}.preview.lvh.me:3333`)
+
+    db.update(schema.runs).set({ prUrl: 'https://x/pull/9' }).where(eq(schema.runs.id, run.id)).run()
+    expect(withSessionLinks('done', run.sessionId)).toContain('**PR:** https://x/pull/9')
+  })
+
+  it('never links a PR thread to itself', () => {
+    const project = makeProject()
+    const run = makeRun(project, [], { prUrl: 'https://x/pull/9' })
+    db.update(schema.sessions)
+      .set({ objectKind: 'pull_request', objectNumber: 9, previewReady: true })
+      .where(eq(schema.sessions.id, run.sessionId))
+      .run()
+
+    const text = withSessionLinks('done', run.sessionId)
+    expect(text).toContain('**Preview:**')
+    expect(text).not.toContain('**PR:**')
   })
 })

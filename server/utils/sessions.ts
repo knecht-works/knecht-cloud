@@ -1,6 +1,7 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
+import { previewOrigin } from './origin'
 
 // Session resolution (ADR 0006): an object (GitHub issue or PR) has at most
 // ONE session per project, forever; every trigger firing and mention on the
@@ -96,6 +97,31 @@ export function sessionHasActiveWork(sessionId: number): boolean {
     ))
     .get()
   return Boolean(followup)
+}
+
+// The links footer for every comment posted on a session's thread (the
+// agent's knecht-reply comments and the guaranteed mention reply): the
+// preview URL once the environment is booted, the PR once a run opened one.
+// Appended host-side, the same principle as withPreviewFooter on PR bodies
+// (utils/origin.ts): links are a guarantee, never left to the agent's memory.
+// A PR session's thread IS its PR, so the PR link only appears on issues.
+export function withSessionLinks(text: string, sessionId: number): string {
+  const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+  if (!session) return text
+  const links: string[] = []
+  const preview = session.previewReady ? previewOrigin(sessionId) : null
+  if (preview) links.push(`**Preview:** ${preview}`)
+  if (session.objectKind !== 'pull_request') {
+    const run = db
+      .select({ prUrl: schema.runs.prUrl })
+      .from(schema.runs)
+      .where(and(eq(schema.runs.sessionId, sessionId), isNotNull(schema.runs.prUrl)))
+      .orderBy(desc(schema.runs.id))
+      .get()
+    if (run?.prUrl) links.push(`**PR:** ${run.prUrl}`)
+  }
+  if (!links.length) return text
+  return `${text.trim()}\n\n---\n${links.join(' · ')}`
 }
 
 // Whether the agent itself posted on the session's thread (the bridge's

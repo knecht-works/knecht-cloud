@@ -8,7 +8,7 @@ import { getProject, getRun, getSession } from '../utils/entities'
 import { createIssueComment } from '../utils/github-app'
 import { sessionCheckoutDir } from '../utils/storage'
 import { tryParseJson } from '../utils/json'
-import { agentRepliedSince } from '../utils/sessions'
+import { agentRepliedSince, withSessionLinks } from '../utils/sessions'
 import { currentBranch } from './git'
 import { appendLog, runLogBytes, streamInSandbox } from './runner'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
@@ -176,7 +176,7 @@ async function postMentionReply(followup: Followup, session: Session, project: P
   if (followup.origin !== 'mention' || !session.objectNumber) return
   if (agentRepliedSince(session.id, followup.startedAt ?? followup.createdAt)) return
   try {
-    await createIssueComment(project.owner, project.name, session.objectNumber, text)
+    await createIssueComment(project.owner, project.name, session.objectNumber, withSessionLinks(text, session.id))
   }
   catch (e) {
     appendLog(followup.runId, `\nCould not post the reply on the thread: ${(e as Error).message}\n`)

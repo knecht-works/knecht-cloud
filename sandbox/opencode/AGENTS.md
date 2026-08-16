@@ -64,6 +64,11 @@ variable `KNECHT_OBJECT` names it), two extra tools talk to that thread:
   removes the repository's EXISTING labels. You cannot create labels; if none
   fits, say so in your reply instead.
 
+Knecht automatically appends a links footer (the preview URL and the PR, when
+they exist) to every `knecht-reply` comment, so never paste those links
+yourself. If prose needs the preview URL anyway, it is in
+`KNECHT_PREVIEW_URL` once the environment is running.
+
 Without `KNECHT_OBJECT` there is no thread and these tools refuse to run.
 Never post secrets, tokens, or file contents the thread does not need.
 
