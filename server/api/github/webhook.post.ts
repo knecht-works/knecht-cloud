@@ -2,7 +2,8 @@ import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { fireTrigger } from '../../utils/triggers'
-import { matchGithubEvent, verifyGithubSignature, type GithubPayload } from '../../utils/github-webhook'
+import { githubObject, matchGithubEvent, verifyGithubSignature, type GithubPayload } from '../../utils/github-webhook'
+import { syncObjectStatus } from '../../utils/sessions'
 import { tryParseJson } from '../../utils/json'
 
 // POST /api/github/webhook → the central GitHub App webhook. GitHub delivers
@@ -39,6 +40,14 @@ export default defineEventHandler(async (event) => {
     return { ok: true, skipped: 'no matching project' }
   }
 
+  // Sessions mirror their object (ADR 0006): a closed issue/PR closes its
+  // session, a reopen revives it. Independent of trigger matching.
+  const action = payload.action ?? ''
+  if ((delivered === 'issues' || delivered === 'pull_request') && (action === 'closed' || action === 'reopened')) {
+    const object = githubObject(delivered === 'issues' ? 'issue' : 'pull_request', payload)
+    if (object) syncObjectStatus(project.id, object, action === 'closed' ? 'closed' : 'open')
+  }
+
   const candidates = db
     .select()
     .from(schema.triggers)
@@ -54,6 +63,7 @@ export default defineEventHandler(async (event) => {
       projectIds: [project.id],
       branch: match.branch,
       inputs: match.inputs,
+      object: match.object,
     }))
   }
 

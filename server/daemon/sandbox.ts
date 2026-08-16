@@ -1,6 +1,6 @@
 import { hostname } from 'node:os'
 import { execa, type Options } from 'execa'
-import { runSandboxName, runCheckoutDir } from '../utils/storage'
+import { sessionSandboxName, sessionCheckoutDir } from '../utils/storage'
 
 // The env substrate seam: every run is a ddev project on the HOST docker
 // daemon (project name knecht-run-<id>, containers ddev-knecht-run-<id>-web
@@ -32,21 +32,21 @@ const KNECHT_STATE_DIR = `${WEB_PROJECT_DIR}/.knecht`
 const INGRESS_NETWORK = 'knecht-ingress'
 
 // The name of the run's web container, derived from the ddev project name.
-export function webContainerName(runId: number): string {
-  return `ddev-${runSandboxName(runId)}-web`
+export function webContainerName(sessionId: number): string {
+  return `ddev-${sessionSandboxName(sessionId)}-web`
 }
 
 // Any of the run's service containers (web, db, extra ddev services).
-export function serviceContainerName(runId: number, service: string): string {
-  return `ddev-${runSandboxName(runId)}-${service}`
+export function serviceContainerName(sessionId: number, service: string): string {
+  return `ddev-${sessionSandboxName(sessionId)}-${service}`
 }
 
 // The run's currently running ddev services, web first (it is the one every
 // consumer defaults to). Empty when the stack is stopped or gone.
-export async function listRunServices(runId: number): Promise<string[]> {
+export async function listRunServices(sessionId: number): Promise<string[]> {
   try {
     const { stdout } = await execa('docker', [
-      'ps', '--filter', `label=com.ddev.site-name=${runSandboxName(runId)}`,
+      'ps', '--filter', `label=com.ddev.site-name=${sessionSandboxName(sessionId)}`,
       '--format', '{{.Label "com.docker.compose.service"}}',
     ])
     const services = [...new Set(stdout.split('\n').map(s => s.trim()).filter(Boolean))]
@@ -62,11 +62,11 @@ export async function listRunServices(runId: number): Promise<string[]> {
 // bakes a matching user into the web image). Same derivation as EXEC_WRAPPER,
 // but host-side, for callers that must splice the values into a command line
 // (the ssh command builder) or an exec config (the web terminal).
-export async function resolveContainerUser(runId: number): Promise<{ uid: number, gid: number, user: string, home: string }> {
+export async function resolveContainerUser(sessionId: number): Promise<{ uid: number, gid: number, user: string, home: string }> {
   const uid = process.getuid?.() ?? 1000
   const gid = process.getgid?.() ?? 1000
   try {
-    const { stdout } = await execa('docker', ['exec', webContainerName(runId), 'getent', 'passwd', String(uid)])
+    const { stdout } = await execa('docker', ['exec', webContainerName(sessionId), 'getent', 'passwd', String(uid)])
     const fields = stdout.trim().split(':')
     return { uid, gid, user: fields[0] || 'web', home: fields[5] || '/tmp' }
   }
@@ -80,20 +80,20 @@ export async function resolveContainerUser(runId: number): Promise<{ uid: number
 // with its DB intact; a running one is reconciled. The ingress network must
 // exist before the start: the run's compose override references it as
 // external (daemon/ddev.ts).
-export async function startEnvStack(runId: number): Promise<void> {
+export async function startEnvStack(sessionId: number): Promise<void> {
   await ensureIngressNetwork()
-  ipCache.delete(runId)
-  await execDdev(runId, ['start', '-y'])
-  await wireNetworks(runId)
+  ipCache.delete(sessionId)
+  await execDdev(sessionId, ['start', '-y'])
+  await wireNetworks(sessionId)
 }
 
 // Whether the run's web container has a bind mount at the given in-container
 // destination. Spots envs booted before a mount was configured (e.g. a shared
 // folder added while the env was already up); false when the container is gone.
-export async function webMountPresent(runId: number, dest: string): Promise<boolean> {
+export async function webMountPresent(sessionId: number, dest: string): Promise<boolean> {
   try {
     const { stdout } = await execa('docker', [
-      'inspect', '-f', '{{range .Mounts}}{{.Destination}}{{"\\n"}}{{end}}', webContainerName(runId),
+      'inspect', '-f', '{{range .Mounts}}{{.Destination}}{{"\\n"}}{{end}}', webContainerName(sessionId),
     ])
     return stdout.split('\n').includes(dest)
   }
@@ -102,9 +102,9 @@ export async function webMountPresent(runId: number, dest: string): Promise<bool
   }
 }
 
-export async function envStackRunning(runId: number): Promise<boolean> {
+export async function envStackRunning(sessionId: number): Promise<boolean> {
   try {
-    const { stdout } = await execa('docker', ['inspect', '-f', '{{.State.Running}}', webContainerName(runId)])
+    const { stdout } = await execa('docker', ['inspect', '-f', '{{.State.Running}}', webContainerName(sessionId)])
     return stdout.trim() === 'true'
   }
   catch {
@@ -117,13 +117,13 @@ export async function envStackRunning(runId: number): Promise<boolean> {
 // it works even when the checkout is already gone; when ddev doesn't know the
 // project (its registry lives in ~/.ddev, which can lag reality), removing
 // the labelled containers by hand is equivalent (volumes stay).
-export async function stopEnvStack(runId: number): Promise<void> {
-  ipCache.delete(runId)
+export async function stopEnvStack(sessionId: number): Promise<void> {
+  ipCache.delete(sessionId)
   try {
-    await execa('ddev', ['stop', runSandboxName(runId)], { env: DDEV_ENV })
+    await execa('ddev', ['stop', sessionSandboxName(sessionId)], { env: DDEV_ENV })
   }
   catch {
-    await removeLabelledContainers(runId)
+    await removeLabelledContainers(sessionId)
   }
 }
 
@@ -132,17 +132,17 @@ export async function stopEnvStack(runId: number): Promise<void> {
 // project isn't (or no longer is) in ddev's registry, plus the legacy per-run
 // Sysbox container (pre-DooD installs named them knecht-run-<id>) so upgraded
 // hosts converge.
-export async function removeEnvStack(runId: number): Promise<void> {
-  ipCache.delete(runId)
+export async function removeEnvStack(sessionId: number): Promise<void> {
+  ipCache.delete(sessionId)
   try {
-    await execa('ddev', ['delete', '--omit-snapshot', '-y', runSandboxName(runId)], { env: DDEV_ENV })
+    await execa('ddev', ['delete', '--omit-snapshot', '-y', sessionSandboxName(sessionId)], { env: DDEV_ENV })
   }
   catch {
     // Not a registered project (never started, or already deleted).
   }
-  await removeLabelledContainers(runId)
+  await removeLabelledContainers(sessionId)
   try {
-    const { stdout } = await execa('docker', ['volume', 'ls', '-q', '--filter', `label=com.ddev.site-name=${runSandboxName(runId)}`])
+    const { stdout } = await execa('docker', ['volume', 'ls', '-q', '--filter', `label=com.ddev.site-name=${sessionSandboxName(sessionId)}`])
     const volumes = stdout.split('\n').map(v => v.trim()).filter(Boolean)
     if (volumes.length) await execa('docker', ['volume', 'rm', '-f', ...volumes])
   }
@@ -150,7 +150,7 @@ export async function removeEnvStack(runId: number): Promise<void> {
     // Nothing labelled left.
   }
   try {
-    await execa('docker', ['rm', '-f', runSandboxName(runId)])
+    await execa('docker', ['rm', '-f', sessionSandboxName(sessionId)])
   }
   catch {
     // No legacy sandbox container.
@@ -158,9 +158,9 @@ export async function removeEnvStack(runId: number): Promise<void> {
 }
 
 // Force-remove the run's ddev-labelled containers (volumes untouched).
-async function removeLabelledContainers(runId: number): Promise<void> {
+async function removeLabelledContainers(sessionId: number): Promise<void> {
   try {
-    const { stdout } = await execa('docker', ['ps', '-aq', '--filter', `label=com.ddev.site-name=${runSandboxName(runId)}`])
+    const { stdout } = await execa('docker', ['ps', '-aq', '--filter', `label=com.ddev.site-name=${sessionSandboxName(sessionId)}`])
     const ids = stdout.split('\n').map(v => v.trim()).filter(Boolean)
     if (ids.length) await execa('docker', ['rm', '-f', ...ids])
   }
@@ -173,9 +173,9 @@ async function removeLabelledContainers(runId: number): Promise<void> {
 // checkout so ddev resolves the right project.
 const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true' }
 
-function execDdev(runId: number, args: string[], options?: Options) {
+function execDdev(sessionId: number, args: string[], options?: Options) {
   return execa('ddev', args, {
-    cwd: runCheckoutDir(runId),
+    cwd: sessionCheckoutDir(sessionId),
     ...options,
     env: { ...DDEV_ENV, ...(options?.env as Record<string, string> | undefined) },
   })
@@ -195,13 +195,13 @@ const EXEC_WRAPPER = 'HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"; [ -n "$H
 // options pass through (the runner streams with `buffer: false`); `env`
 // becomes `docker exec -e` vars: how a secret reaches the agent process
 // without appearing in the command line (the ai step's provider key).
-export function execInSandbox(runId: number, command: string[], options?: Options, env?: Record<string, string>) {
+export function execInSandbox(sessionId: number, command: string[], options?: Options, env?: Record<string, string>) {
   if (command[0] === 'ddev') {
-    const child = execDdev(runId, command.slice(1), { ...options, env: { ...(options?.env as Record<string, string> | undefined), ...env } })
+    const child = execDdev(sessionId, command.slice(1), { ...options, env: { ...(options?.env as Record<string, string> | undefined), ...env } })
     // EVERY `ddev start` re-attaches the shared ddev_default network (compose
     // reconciles the project towards its generated config), so the detach
     // must follow every one, not just the boot in startEnvStack.
-    if (command[1] === 'start') void child.then(() => wireNetworks(runId), () => {})
+    if (command[1] === 'start') void child.then(() => wireNetworks(sessionId), () => {})
     return child
   }
   return execa('docker', [
@@ -210,15 +210,15 @@ export function execInSandbox(runId: number, command: string[], options?: Option
     '-e', `XDG_CONFIG_HOME=${KNECHT_STATE_DIR}`,
     '-e', `XDG_DATA_HOME=${KNECHT_STATE_DIR}/data`,
     ...Object.entries(env ?? {}).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
-    webContainerName(runId),
+    webContainerName(sessionId),
     '/bin/sh', '-c', EXEC_WRAPPER, 'knecht-exec', ...command,
   ], options)
 }
 
 // Copy a host-side file into the run's web container (e.g. the ai step's
 // prompt file travels this way).
-export async function copyIntoSandbox(runId: number, file: string, dest: string): Promise<void> {
-  await execa('docker', ['cp', file, `${webContainerName(runId)}:${dest}`])
+export async function copyIntoSandbox(sessionId: number, file: string, dest: string): Promise<void> {
+  await execa('docker', ['cp', file, `${webContainerName(sessionId)}:${dest}`])
 }
 
 // Resolve the address the preview proxy targets: the web container's IP on the
@@ -228,18 +228,18 @@ export async function copyIntoSandbox(runId: number, file: string, dest: string)
 // the entry on connection errors so a restarted stack re-resolves.
 const ipCache = new Map<number, string>()
 
-export async function resolvePreview(runId: number): Promise<string | null> {
-  const cached = ipCache.get(runId)
+export async function resolvePreview(sessionId: number): Promise<string | null> {
+  const cached = ipCache.get(sessionId)
   if (cached) return cached
   try {
     const { stdout } = await execa('docker', [
       'inspect', '-f',
       `{{with index .NetworkSettings.Networks "${INGRESS_NETWORK}"}}{{.IPAddress}}{{end}}`,
-      webContainerName(runId),
+      webContainerName(sessionId),
     ])
     const ip = stdout.trim()
     if (!ip) return null
-    ipCache.set(runId, ip)
+    ipCache.set(sessionId, ip)
     return ip
   }
   catch {
@@ -247,8 +247,8 @@ export async function resolvePreview(runId: number): Promise<string | null> {
   }
 }
 
-export function forgetPreview(runId: number): void {
-  ipCache.delete(runId)
+export function forgetPreview(sessionId: number): void {
+  ipCache.delete(sessionId)
 }
 
 // Post-start network wiring. The compose override already attaches web to the
@@ -256,9 +256,9 @@ export function forgetPreview(runId: number): void {
 // (which ddev adds to every project) is what keeps parallel runs from reaching
 // each other. Best-effort: a missing network or an already-detached container
 // must not fail the start.
-async function wireNetworks(runId: number): Promise<void> {
-  const name = runSandboxName(runId)
-  for (const container of [webContainerName(runId), `ddev-${name}-db`]) {
+async function wireNetworks(sessionId: number): Promise<void> {
+  const name = sessionSandboxName(sessionId)
+  for (const container of [webContainerName(sessionId), `ddev-${name}-db`]) {
     await execa('docker', ['network', 'disconnect', 'ddev_default', container]).catch(() => {})
   }
 }

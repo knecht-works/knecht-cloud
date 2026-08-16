@@ -6,7 +6,7 @@ import { IDE_DEFAULT_SETTINGS, IDE_PORT } from '../daemon/ide'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
 
-// The web IDE's origin: `ide--<runId>.preview.<host>` (the label `ide` is
+// The web IDE's origin: `ide--<sessionId>.preview.<host>` (the label `ide` is
 // reserved; a project ddev hostname that would map to it loses, which no real
 // hostname does in practice). Unlike app previews nothing is rewritten or
 // injected: openvscode-server speaks same-origin URLs natively. Two legs:
@@ -23,13 +23,13 @@ import { isMember, memberCount } from './members'
 
 const IDE_LABEL = 'ide'
 
-function bumpPreviewSeen(runId: number): void {
-  db.update(schema.runs).set({ previewLastSeen: new Date() }).where(eq(schema.runs.id, runId)).run()
+function bumpPreviewSeen(sessionId: number): void {
+  db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, sessionId)).run()
 }
 
 // ── HTTP leg ──────────────────────────────────────────────────────────────────
 
-export async function proxyRunIde(event: H3Event, runId: number): Promise<void> {
+export async function proxyRunIde(event: H3Event, sessionId: number): Promise<void> {
   const session = await getUserSession(event)
   // Never let the session read WRITE a session (see preview-proxy.ts).
   removeResponseHeader(event, 'set-cookie')
@@ -55,15 +55,15 @@ export async function proxyRunIde(event: H3Event, runId: number): Promise<void> 
     throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
   }
 
-  const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()
-  if (!run) throw createError({ statusCode: 404, statusMessage: 'Run not found' })
-  if (run.envState !== 'up') {
+  const env = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+  if (!env) throw createError({ statusCode: 404, statusMessage: 'Session not found' })
+  if (env.envState !== 'up') {
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
-  const ip = await resolvePreview(runId)
+  const ip = await resolvePreview(sessionId)
   if (!ip) throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
 
-  bumpPreviewSeen(runId)
+  bumpPreviewSeen(sessionId)
 
   const url = getRequestURL(event)
   const req = event.node.req
@@ -103,7 +103,7 @@ export async function proxyRunIde(event: H3Event, runId: number): Promise<void> 
       },
     )
     upstream.on('error', (e) => {
-      forgetPreview(runId)
+      forgetPreview(sessionId)
       reject(e)
     })
     req.pipe(upstream)
@@ -158,10 +158,10 @@ function upgradeHost(source: { headers?: unknown, request?: { headers?: unknown 
   return String((headers as Record<string, unknown>).host ?? '')
 }
 
-function ideRunRef(source: { headers?: unknown, request?: { headers?: unknown } }): number | null {
+function ideSessionRef(source: { headers?: unknown, request?: { headers?: unknown } }): number | null {
   const host = upgradeHost(source).split(':')[0] ?? ''
   const ref = parsePreviewHost(host)
-  return ref?.label === IDE_LABEL ? ref.runId : null
+  return ref?.label === IDE_LABEL ? ref.sessionId : null
 }
 
 interface Pipe {
@@ -170,7 +170,7 @@ interface Pipe {
   backend: WebSocket | null
   // Client frames arriving before the backend socket opens are queued.
   queue: (string | Uint8Array<ArrayBuffer>)[]
-  runId: number
+  sessionId: number
   lastBump: number
 }
 const pipes = new Map<string, Pipe>()
@@ -186,25 +186,25 @@ const ideWsHooks = {
     if (memberCount() > 0 && !isMember(session.user.login)) {
       throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
     }
-    const runId = ideRunRef(request)
-    const run = runId === null
+    const sessionId = ideSessionRef(request)
+    const env = sessionId === null
       ? null
-      : db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()
-    if (!run || run.envState !== 'up') {
+      : db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+    if (!env || env.envState !== 'up') {
       throw createError({ statusCode: 409, statusMessage: 'Environment is not running' })
     }
   },
 
   async open(peer: { id: string, request?: { url?: string, headers?: unknown }, send: (data: unknown) => void, close: (code?: number, reason?: string) => void }) {
-    const runId = ideRunRef(peer.request ?? {})
-    if (runId === null) return peer.close(1011, 'Environment is not running')
+    const sessionId = ideSessionRef(peer.request ?? {})
+    if (sessionId === null) return peer.close(1011, 'Environment is not running')
     // Register the pipe BEFORE the awaited resolvePreview: crossws does not
     // await this hook, so the workbench's earliest frames (a reconnect after a
     // Knecht restart, cold ipCache) can arrive mid-await. With the pipe present
     // they queue instead of hitting message() with no pipe and being dropped.
-    const pipe: Pipe = { backend: null, queue: [], runId, lastBump: 0 }
+    const pipe: Pipe = { backend: null, queue: [], sessionId, lastBump: 0 }
     pipes.set(peer.id, pipe)
-    const ip = await resolvePreview(runId)
+    const ip = await resolvePreview(sessionId)
     if (!ip) {
       pipes.delete(peer.id)
       return peer.close(1011, 'Environment is not running')
@@ -241,7 +241,7 @@ const ideWsHooks = {
     const now = Date.now()
     if (now - pipe.lastBump > 30_000) {
       pipe.lastBump = now
-      bumpPreviewSeen(pipe.runId)
+      bumpPreviewSeen(pipe.sessionId)
     }
   },
 
@@ -259,7 +259,7 @@ export function wrapWebsocketResolve(h3App: { websocket: { resolve: (info: never
   const ws = h3App.websocket
   const original = ws.resolve.bind(ws)
   ws.resolve = (info: never) => {
-    if (ideRunRef(info) !== null) return ideWsHooks
+    if (ideSessionRef(info) !== null) return ideWsHooks
     return original(info)
   }
 }

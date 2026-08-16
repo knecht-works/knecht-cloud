@@ -5,17 +5,18 @@ import { db, schema } from '../db'
 import { readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
-import { runCheckoutDir } from './storage'
+import { sessionCheckoutDir } from './storage'
 
-// Reverse-proxy a whole request to a RUN's isolated environment (projects.md
-// §8). Called from the preview-host middleware for requests to
-// `[<label>--]<runId>.preview.<host>`. EVERY hostname the project's ddev
+// Reverse-proxy a whole request to a SESSION's isolated environment
+// (projects.md §8). Called from the preview-host middleware for requests to
+// `[<label>--]<sessionId>.preview.<host>`. EVERY hostname the project's ddev
 // config serves (primary + additional_hostnames/additional_fqdns, via
-// readDdevHosts) gets its own per-run preview origin: the primary as
-// `<runId>.preview.<base>`, each additional one as
-// `<label>--<runId>.preview.<base>`.
+// readDdevHosts) gets its own per-session preview origin: the primary as
+// `<sessionId>.preview.<base>`, each additional one as
+// `<label>--<sessionId>.preview.<base>`.
 //
-// TWO MODES, pinned per run (runs.urlMode, from the project setting):
+// TWO MODES, pinned per session (sessions.urlMode, from the project
+// setting):
 //
 //   'env' (default): the project derives all its URLs from env vars, and the
 //   run's env was already translated to the preview origins at boot
@@ -74,7 +75,7 @@ function injectBridge(html: string): string {
   return html + BRIDGE_SCRIPT
 }
 
-export async function proxyRunPreview(event: H3Event, runId: number, label?: string): Promise<void> {
+export async function proxyRunPreview(event: H3Event, sessionId: number, label?: string): Promise<void> {
   // The instance's own server-side fetches (the link-check step) carry the
   // per-boot preview auth token instead of a browser session
   // (utils/preview-fetch.ts); they skip the login gate.
@@ -111,15 +112,15 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
     }
   }
 
-  const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()
-  if (!run) {
-    throw createError({ statusCode: 404, statusMessage: 'Run not found' })
+  const env = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+  if (!env) {
+    throw createError({ statusCode: 404, statusMessage: 'Session not found' })
   }
-  if (run.envState !== 'up') {
+  if (env.envState !== 'up') {
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
 
-  const hosts = runHosts(runId)
+  const hosts = sessionHosts(sessionId)
   const appHost = label
     ? hosts.all.find(h => previewLabel(h) === label)
     : hosts.primary
@@ -127,29 +128,30 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
     throw createError({ statusCode: 404, statusMessage: 'Unknown preview host' })
   }
 
-  const sandboxAddr = await resolvePreview(runId)
+  const sandboxAddr = await resolvePreview(sessionId)
   if (!sandboxAddr) {
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
 
   // Keep the idle-stopper from reaping an env that is actively being viewed.
-  db.update(schema.runs)
+  db.update(schema.sessions)
     .set({ previewLastSeen: new Date() })
-    .where(eq(schema.runs.id, runId))
+    .where(eq(schema.sessions.id, sessionId))
     .run()
 
   const url = getRequestURL(event)
   const baseHost = stripPreviewPrefix(url.host)
-  // 'env' runs boot with their env already translated to the preview origins;
-  // runs from before the setting existed (null) carry a verbatim env.
-  const rewriteMode = (run.urlMode ?? 'rewrite') === 'rewrite'
+  // 'env' sessions boot with their env already translated to the preview
+  // origins; sessions from before the setting existed (null) carry a
+  // verbatim env.
+  const rewriteMode = (env.urlMode ?? 'rewrite') === 'rewrite'
   // Longest first so a host that contains another as a suffix (knaus.kta.…
   // vs kta.…) is never half-rewritten by the shorter one.
   const mappings = hosts.all
     .sort((a, b) => b.length - a.length)
     .map(h => ({
       host: h,
-      previewHost: previewHostname(runId, baseHost, h === hosts.primary ? undefined : previewLabel(h)),
+      previewHost: previewHostname(sessionId, baseHost, h === hosts.primary ? undefined : previewLabel(h)),
     }))
   const req = event.node.req
   const res = event.node.res
@@ -243,7 +245,7 @@ export async function proxyRunPreview(event: H3Event, runId: number, label?: str
     upstream.on('error', (e) => {
       // A rebooted sandbox gets a fresh IP: drop the cached one so the next
       // request re-resolves instead of failing against a stale address.
-      forgetPreview(runId)
+      forgetPreview(sessionId)
       reject(e)
     })
     req.pipe(upstream)
@@ -293,11 +295,11 @@ function rewriteUrls(
 // it is fixed for the run's lifetime.
 const hostsCache = new Map<number, DdevHosts>()
 
-function runHosts(runId: number): DdevHosts {
-  let hosts = hostsCache.get(runId)
+function sessionHosts(sessionId: number): DdevHosts {
+  let hosts = hostsCache.get(sessionId)
   if (!hosts || !hosts.all.length) {
-    hosts = readDdevHosts(runCheckoutDir(runId))
-    hostsCache.set(runId, hosts)
+    hosts = readDdevHosts(sessionCheckoutDir(sessionId))
+    hostsCache.set(sessionId, hosts)
   }
   return hosts
 }

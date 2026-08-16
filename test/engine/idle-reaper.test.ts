@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { makeProject, makeRun } from '../helpers/db'
+import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
 // The idle reaper against the real schema: only the container boundary is
 // faked. The contract under test: a stale env is stopped, but a run with a
@@ -22,15 +22,11 @@ const { reapIdleEnvs } = await import('../../server/daemon/envs')
 function makeUpRun(previewLastSeen: Date) {
   const project = makeProject()
   const run = makeRun(project, [])
-  db.update(schema.runs)
+  db.update(schema.sessions)
     .set({ envState: 'up', previewLastSeen })
-    .where(eq(schema.runs.id, run.id))
+    .where(eq(schema.sessions.id, run.sessionId))
     .run()
   return run
-}
-
-function getRunRow(runId: number) {
-  return db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()!
 }
 
 const STALE = new Date(Date.now() - 3 * 24 * 60 * 60_000)
@@ -40,9 +36,9 @@ describe('reapIdleEnvs', () => {
     const stale = makeUpRun(STALE)
     const fresh = makeUpRun(new Date())
     await reapIdleEnvs()
-    expect(stopEnvStack).toHaveBeenCalledWith(stale.id)
-    expect(getRunRow(stale.id).envState).toBe('stopped')
-    expect(getRunRow(fresh.id).envState).toBe('up')
+    expect(stopEnvStack).toHaveBeenCalledWith(stale.sessionId)
+    expect(getSessionRow(stale.sessionId).envState).toBe('stopped')
+    expect(getSessionRow(fresh.sessionId).envState).toBe('up')
   })
 
   it('spares a stale env with a running step and resets its idle clock', async () => {
@@ -56,8 +52,8 @@ describe('reapIdleEnvs', () => {
     }).run()
     stopEnvStack.mockClear()
     await reapIdleEnvs()
-    expect(stopEnvStack).not.toHaveBeenCalledWith(busy.id)
-    const row = getRunRow(busy.id)
+    expect(stopEnvStack).not.toHaveBeenCalledWith(busy.sessionId)
+    const row = getSessionRow(busy.sessionId)
     expect(row.envState).toBe('up')
     expect(row.previewLastSeen!.getTime()).toBeGreaterThan(Date.now() - 60_000)
   })
@@ -72,14 +68,14 @@ describe('reapIdleEnvs', () => {
       origin: 'followup',
     }).returning({ id: schema.runSteps.id }).get()
     await reapIdleEnvs()
-    expect(getRunRow(run.id).envState).toBe('up')
+    expect(getSessionRow(run.sessionId).envState).toBe('up')
     // Step finishes; the bumped clock keeps the env up through the next tick.
     db.update(schema.runSteps).set({ status: 'success' }).where(eq(schema.runSteps.id, step.id)).run()
     await reapIdleEnvs()
-    expect(getRunRow(run.id).envState).toBe('up')
+    expect(getSessionRow(run.sessionId).envState).toBe('up')
     // Only once the full idle window has passed after the bump does it stop.
-    db.update(schema.runs).set({ previewLastSeen: STALE }).where(eq(schema.runs.id, run.id)).run()
+    db.update(schema.sessions).set({ previewLastSeen: STALE }).where(eq(schema.sessions.id, run.sessionId)).run()
     await reapIdleEnvs()
-    expect(getRunRow(run.id).envState).toBe('stopped')
+    expect(getSessionRow(run.sessionId).envState).toBe('stopped')
   })
 })

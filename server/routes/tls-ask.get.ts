@@ -15,7 +15,7 @@ export default defineEventHandler((event) => {
   // Only the canonical form [<label>--]<runId>.preview.<base> of an existing
   // run qualifies; reconstruct and compare so nothing sneaks in around it.
   const ref = parsePreviewHost(domain)
-  if (!ref || !getRun(ref.runId)) throw createError({ statusCode: 404 })
-  if (domain !== previewHostname(ref.runId, base, ref.label)) throw createError({ statusCode: 404 })
+  if (!ref || !getRun(ref.sessionId)) throw createError({ statusCode: 404 })
+  if (domain !== previewHostname(ref.sessionId, base, ref.label)) throw createError({ statusCode: 404 })
   return 'ok'
 })

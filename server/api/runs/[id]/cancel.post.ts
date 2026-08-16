@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { cancelRun } from '../../../daemon/runner'
+import { withSessionEnv } from '../../../utils/run-view'
 
 // POST /api/runs/:id/cancel → stop a live run. The row flips to 'cancelled'
 // immediately (the UI settles without waiting on the runner), then the
@@ -21,5 +22,5 @@ export default defineEventHandler((event) => {
   }
 
   cancelRun(id)
-  return getRun(id)
+  return withSessionEnv(requireRun(id))
 })

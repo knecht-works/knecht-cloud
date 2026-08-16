@@ -4,7 +4,7 @@ import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { readDdevHosts } from '../daemon/ddev'
 import { resolvePreview } from '../daemon/sandbox'
-import { runCheckoutDir } from './storage'
+import { sessionCheckoutDir } from './storage'
 
 // Fallback favicon source for projects whose repo scan found none: once a
 // run's preview is browsable (ddev-start), read the site's <head> for its
@@ -28,11 +28,11 @@ export const FAVICON_MIME_BY_EXT: Record<string, string> = {
   webp: 'image/webp',
 }
 
-export async function detectPreviewFavicon(runId: number, project: Project): Promise<void> {
+export async function detectPreviewFavicon(sessionId: number, project: Project): Promise<void> {
   if (project.favicon) return
   try {
-    const addr = await resolvePreview(runId)
-    const hosts = readDdevHosts(runCheckoutDir(runId))
+    const addr = await resolvePreview(sessionId)
+    const hosts = readDdevHosts(sessionCheckoutDir(sessionId))
     if (!addr || !hosts.primary) return
 
     const page = await fetchFrom(addr, hosts.primary, '/', MAX_HTML_BYTES)

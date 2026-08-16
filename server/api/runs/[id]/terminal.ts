@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { openRunTerminal, type RunTerminal } from '../../../daemon/terminal'
 import { isMember, memberCount } from '../../../utils/members'
+import { requireSession } from '../../../utils/entities'
 
 // WS /api/runs/:id/terminal?service=web&cols=120&rows=32 → the run page's web
 // terminal: an interactive shell in one of the run's service containers
@@ -24,11 +25,11 @@ const closedEarly = new Set<string>()
 // once per 30s per run (unlike an external SSH session, this traffic flows
 // through the app, so a long session properly keeps the env alive).
 const lastBump = new Map<number, number>()
-function bumpPreviewSeen(runId: number): void {
+function bumpPreviewSeen(sessionId: number): void {
   const now = Date.now()
-  if (now - (lastBump.get(runId) ?? 0) < 30_000) return
-  lastBump.set(runId, now)
-  db.update(schema.runs).set({ previewLastSeen: new Date() }).where(eq(schema.runs.id, runId)).run()
+  if (now - (lastBump.get(sessionId) ?? 0) < 30_000) return
+  lastBump.set(sessionId, now)
+  db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, sessionId)).run()
 }
 
 function parseTerminalUrl(url: string): { runId: number, service: string, cols: number, rows: number } | null {
@@ -60,8 +61,8 @@ export default defineWebSocketHandler({
     if (!target) {
       throw createError({ statusCode: 400, statusMessage: 'Bad terminal target' })
     }
-    const run = requireRun(target.runId)
-    if (run.envState !== 'up') {
+    const env = requireSession(requireRun(target.runId).sessionId)
+    if (env.envState !== 'up') {
       throw createError({ statusCode: 409, statusMessage: 'Environment is not running' })
     }
   },
@@ -69,8 +70,10 @@ export default defineWebSocketHandler({
   async open(peer) {
     const target = parseTerminalUrl(peer.request?.url ?? '')
     if (!target) return peer.close(1008, 'Bad terminal target')
+    const anchor = getRun(target.runId)
+    if (!anchor) return peer.close(1008, 'Bad terminal target')
     try {
-      const terminal = await openRunTerminal(target.runId, target.service, target)
+      const terminal = await openRunTerminal(anchor.sessionId, target.service, target)
       // The socket may have closed while the exec was being set up (close()
       // ran before this terminal existed). Discard it, or it leaks the
       // container-side shell and its stream forever.
@@ -82,7 +85,7 @@ export default defineWebSocketHandler({
       terminal.stream.on('data', (chunk: Buffer) => peer.send(chunk))
       terminal.stream.on('close', () => peer.close(1000, 'Session ended'))
       terminal.stream.on('error', () => peer.close(1011, 'Session error'))
-      bumpPreviewSeen(target.runId)
+      bumpPreviewSeen(anchor.sessionId)
     }
     catch {
       closedEarly.delete(peer.id)
@@ -98,7 +101,8 @@ export default defineWebSocketHandler({
       const frame = JSON.parse(message.text()) as { t?: string, d?: string, cols?: number, rows?: number }
       if (frame.t === 'i' && typeof frame.d === 'string') {
         terminal.stream.write(frame.d)
-        bumpPreviewSeen(target.runId)
+        const anchor = getRun(target.runId)
+        if (anchor) bumpPreviewSeen(anchor.sessionId)
       }
       else if (frame.t === 'r' && frame.cols && frame.rows) {
         terminal.resize(frame.cols, frame.rows)

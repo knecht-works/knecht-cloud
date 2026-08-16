@@ -1,13 +1,15 @@
 import { z } from 'zod'
 import { db, schema } from '../../../db'
-import { hasActiveFollowup, startFollowup } from '../../../daemon/followups'
+import { startFollowup } from '../../../daemon/followups'
+import { requireSession } from '../../../utils/entities'
 import { dispatchRuns } from '../../../daemon/dispatcher'
+import { sessionHasActiveWork } from '../../../utils/sessions'
 
-// POST /api/runs/:id/followups → send a follow-up prompt to a finished run:
-// the agent continues the run's opencode session inside the run's existing
-// sandbox (docs/plans/run-follow-ups.md). Whether to publish is part of the
-// prompt itself: the agent commits/pushes when asked and keeps an existing PR
-// current; otherwise changes stay in the checkout for preview-first iteration.
+// POST /api/runs/:id/followups → send a follow-up prompt to the run's
+// session: the agent continues the session's conversation inside the
+// existing sandbox. Whether to publish is part of the prompt itself: the
+// agent commits/pushes when asked and keeps an existing PR current;
+// otherwise changes stay in the checkout for preview-first iteration.
 //
 // Fast lane vs queue: an 'up' env costs no new RAM, so its follow-up starts
 // immediately; a stopped/archived env must be revived, which takes a
@@ -19,6 +21,7 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
   const run = requireRun(id)
+  const session = requireSession(run.sessionId)
 
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {
@@ -28,21 +31,22 @@ export default defineEventHandler(async (event) => {
   if (run.status !== 'success' && run.status !== 'failed') {
     throw createError({ statusCode: 409, statusMessage: 'Only finished runs accept follow-ups' })
   }
-  if (run.envState === 'down') {
-    throw createError({ statusCode: 409, statusMessage: 'The run\'s environment is gone. Run the workflow again.' })
+  if (session.envState === 'down') {
+    throw createError({ statusCode: 409, statusMessage: 'The session\'s environment is gone. Run the workflow again.' })
   }
-  if (hasActiveFollowup(id)) {
-    throw createError({ statusCode: 409, statusMessage: 'A follow-up is already running on this run' })
+  if (sessionHasActiveWork(session.id)) {
+    throw createError({ statusCode: 409, statusMessage: 'The session is still executing work' })
   }
 
   const { user } = await requireUserSession(event)
   const followup = db.insert(schema.followups).values({
+    sessionId: session.id,
     runId: id,
     prompt: result.data.prompt,
     requestedBy: user.login,
   }).returning().get()
 
-  if (run.envState === 'up') void startFollowup(followup.id)
+  if (session.envState === 'up') void startFollowup(followup.id)
   else dispatchRuns()
 
   return followup

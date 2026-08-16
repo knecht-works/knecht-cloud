@@ -3,17 +3,22 @@ import { hostname } from 'node:os'
 import { execa } from 'execa'
 
 // The agent bridge: how in-sandbox git gets its push/fetch credentials and
-// how a PR is opened from inside a run's sandbox. The sandbox holds only the
-// bridge env vars (KNECHT_BRIDGE_URL + a per-run token, also baked into the
-// clone's credential.helper config); the `knecht-git` CLI (sandbox/knecht-git)
-// POSTs to /agent-bridge (server/routes/agent-bridge.post.ts), which mints a
-// short-lived installation token scoped to the run's ONE repo. The blast
-// radius of a prompt-injected agent is that repo for about an hour; branch
-// protection on the repo guards its default branch.
+// how a PR is opened from inside a session's sandbox. The sandbox holds only
+// the bridge env vars (KNECHT_BRIDGE_URL + a per-session token, also baked
+// into the clone's credential.helper config); the `knecht-git` CLI
+// (sandbox/knecht-git) POSTs to /agent-bridge
+// (server/routes/agent-bridge.post.ts), which mints a short-lived
+// installation token scoped to the session's ONE repo. The blast radius of a
+// prompt-injected agent is that repo for about an hour; branch protection on
+// the repo guards its default branch.
 
-// Per-run bearer token, derived (not stored): HMAC over the run id with a key
-// stretched from NUXT_SESSION_PASSWORD (same secret crypto.ts derives from,
-// different HKDF info so the keys are independent). Verification recomputes.
+// Per-session bearer token, derived (not stored): HMAC over the session id
+// with a key stretched from NUXT_SESSION_PASSWORD (same secret crypto.ts
+// derives from, different HKDF info so the keys are independent). The HMAC
+// input string and the KNECHT_RUN_ID env name keep their historical `run`
+// naming: tokens baked into pre-session checkouts (git credential helper
+// config) must stay valid, and the id they carry is the session id now.
+// Verification recomputes.
 function bridgeKey(): Buffer {
   const password = process.env.NUXT_SESSION_PASSWORD
   if (!password || password.length < 32) {
@@ -22,12 +27,12 @@ function bridgeKey(): Buffer {
   return Buffer.from(hkdfSync('sha256', password, 'knecht-agent-bridge', 'hmac-token', 32))
 }
 
-export function bridgeToken(runId: number): string {
-  return createHmac('sha256', bridgeKey()).update(`run-${runId}`).digest('hex')
+export function bridgeToken(sessionId: number): string {
+  return createHmac('sha256', bridgeKey()).update(`run-${sessionId}`).digest('hex')
 }
 
-export function verifyBridgeToken(runId: number, provided: string): boolean {
-  const expected = Buffer.from(bridgeToken(runId))
+export function verifyBridgeToken(sessionId: number, provided: string): boolean {
+  const expected = Buffer.from(bridgeToken(sessionId))
   const given = Buffer.from(provided)
   return expected.length === given.length && timingSafeEqual(expected, given)
 }
@@ -76,12 +81,12 @@ async function resolveBase(): Promise<string | null> {
 // The env vars that hand the bridge to the agent process (docker exec -e).
 // Empty when the bridge address can't be resolved: the knecht-git CLI then
 // reports the tools as unavailable instead of hanging.
-export async function bridgeEnv(runId: number): Promise<Record<string, string>> {
+export async function bridgeEnv(sessionId: number): Promise<Record<string, string>> {
   const base = await bridgeBaseUrl()
   if (!base) return {}
   return {
     KNECHT_BRIDGE_URL: `${base}/agent-bridge`,
-    KNECHT_BRIDGE_TOKEN: bridgeToken(runId),
-    KNECHT_RUN_ID: String(runId),
+    KNECHT_BRIDGE_TOKEN: bridgeToken(sessionId),
+    KNECHT_RUN_ID: String(sessionId),
   }
 }

@@ -14,7 +14,7 @@ vi.mock('../../server/daemon/git', async (importOriginal) => {
   const { fakeCheckout } = await import('../helpers/local-sandbox')
   // Only the checkout is faked: createBranch/commitAll stay the real git code,
   // running against the fake checkout's real repo.
-  return { ...actual, prepareRunCheckout: fakeCheckout }
+  return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
 vi.mock('../../server/daemon/sandbox', async () => {
   const { execInSandbox, copyIntoSandbox } = await import('../helpers/local-sandbox')
@@ -43,6 +43,9 @@ describe('runner', () => {
       { type: 'bash', id: 'use', command: 'echo got: {{ steps.greet.stdout }}' },
     ])
     expect(run.status).toBe('success')
+    // A one-shot session mirrors its single run: closed once it finished.
+    const { getSessionRow } = await import('../helpers/db')
+    expect(getSessionRow(run.sessionId).status).toBe('closed')
     expect(steps).toHaveLength(2)
     expect(steps.every(s => s.status === 'success')).toBe(true)
     // The second step's params were rendered against the first step's outputs.

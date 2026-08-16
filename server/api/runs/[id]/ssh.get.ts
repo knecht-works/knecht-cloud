@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { listRunServices, resolveContainerUser, serviceContainerName, WEB_PROJECT_DIR } from '../../../daemon/sandbox'
 import { getSettings } from '../../../utils/settings'
+import { requireSession } from '../../../utils/entities'
 import { defaultSshTarget, sshTerminalCommand } from '../../../utils/ssh'
 
 // GET /api/runs/:id/ssh → what the terminal modal needs, fetched on click
@@ -12,26 +13,27 @@ import { defaultSshTarget, sshTerminalCommand } from '../../../utils/ssh'
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
   const run = requireRun(id)
-  if (run.envState === 'down' || run.envState === 'archived') {
+  const session = requireSession(run.sessionId)
+  if (session.envState === 'down' || session.envState === 'archived') {
     throw createError({ statusCode: 409, statusMessage: 'The environment is not available' })
   }
 
   const sshTarget = getSettings().sshTarget ?? defaultSshTarget()
-  const services = run.envState === 'up' ? await listRunServices(id) : []
+  const services = session.envState === 'up' ? await listRunServices(session.id) : []
 
   let sshCommands: Record<string, string> | null = null
   if (sshTarget && services.length) {
-    const user = await resolveContainerUser(id)
+    const user = await resolveContainerUser(session.id)
     sshCommands = Object.fromEntries(services.map(service => [
       service,
       service === 'web'
-        ? sshTerminalCommand({ sshTarget, containerName: serviceContainerName(id, service), workdir: WEB_PROJECT_DIR, user })
-        : sshTerminalCommand({ sshTarget, containerName: serviceContainerName(id, service) }),
+        ? sshTerminalCommand({ sshTarget, containerName: serviceContainerName(session.id, service), workdir: WEB_PROJECT_DIR, user })
+        : sshTerminalCommand({ sshTarget, containerName: serviceContainerName(session.id, service) }),
     ]))
   }
 
   // The operator is about to work in this env: keep the idle-stopper away.
-  db.update(schema.runs).set({ previewLastSeen: new Date() }).where(eq(schema.runs.id, id)).run()
+  db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, session.id)).run()
 
   return { services, sshCommands }
 })

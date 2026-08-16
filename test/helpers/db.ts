@@ -1,6 +1,6 @@
 import { asc, eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
-import type { Project, Run } from '../../server/db/schema'
+import type { Project, Run, Session } from '../../server/db/schema'
 import { ensureStepIds, type Step } from '../../shared/utils/workflow'
 
 // Minimal row builders for engine tests. Tests assert on the persisted
@@ -21,15 +21,28 @@ export function makeProject(overrides: Partial<typeof schema.projects.$inferInse
   }).returning().get()
 }
 
+// A one-shot session for a run to execute in (every run needs one, ADR 0006).
+export function makeSession(project: Project, overrides: Partial<typeof schema.sessions.$inferInsert> = {}): Session {
+  return db.insert(schema.sessions).values({
+    projectId: project.id,
+    ...overrides,
+  }).returning().get()
+}
+
 // A queued run with its step sequence already pinned (the runner executes the
-// snapshot; no workflows row is needed).
+// snapshot; no workflows row is needed), inside a fresh one-shot session.
 export function makeRun(project: Project, steps: Step[], overrides: Partial<typeof schema.runs.$inferInsert> = {}): Run {
   return db.insert(schema.runs).values({
     projectId: project.id,
+    sessionId: overrides.sessionId ?? makeSession(project).id,
     workflow: 'engine-test',
     steps: ensureStepIds(steps),
     ...overrides,
   }).returning().get()
+}
+
+export function getSessionRow(sessionId: number): Session {
+  return db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()!
 }
 
 export function getRun(runId: number): Run {

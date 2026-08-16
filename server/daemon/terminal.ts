@@ -17,13 +17,13 @@ export interface RunTerminal {
 }
 
 export async function openRunTerminal(
-  runId: number,
+  sessionId: number,
   service: string,
   size: { cols: number, rows: number },
 ): Promise<RunTerminal> {
-  const container = docker.getContainer(serviceContainerName(runId, service))
+  const container = docker.getContainer(serviceContainerName(sessionId, service))
   const identity = service === 'web'
-    ? await resolveContainerUser(runId).then(u => ({
+    ? await resolveContainerUser(sessionId).then(u => ({
         User: `${u.uid}:${u.gid}`,
         WorkingDir: WEB_PROJECT_DIR,
         Env: [`HOME=${u.home}`, `USER=${u.user}`],

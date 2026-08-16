@@ -29,14 +29,14 @@ export interface GcResult {
 // Sweep every category, tolerating a failure in one so the rest still run. Each
 // helper reports what it removed; the caller sums for the UI/logs.
 export async function collectGarbage(): Promise<GcResult> {
-  const liveRuns = new Set(db.select({ id: schema.runs.id }).from(schema.runs).all().map(r => r.id))
+  const liveSessions = new Set(db.select({ id: schema.sessions.id }).from(schema.sessions).all().map(r => r.id))
   const projects = db.select({ id: schema.projects.id, dbDumpPath: schema.projects.dbDumpPath }).from(schema.projects).all()
   const liveProjects = new Set(projects.map(p => p.id))
 
   const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], sharedDirs: [], memoryDirs: [], dockerPruned: [] }
-  result.sandboxes = await reapOrphanSandboxes(liveRuns)
-  result.checkouts = reapOrphanCheckouts(liveRuns)
-  result.archives = reapOrphanArchives(liveRuns)
+  result.sandboxes = await reapOrphanSandboxes(liveSessions)
+  result.checkouts = reapOrphanCheckouts(liveSessions)
+  result.archives = reapOrphanArchives(liveSessions)
   result.dumpDirs = reapOrphanDumpDirs(liveProjects)
   result.dumpFiles = reapStaleDumpFiles(projects)
   result.sharedDirs = reapOrphanSharedDirs(liveProjects)
@@ -46,11 +46,12 @@ export async function collectGarbage(): Promise<GcResult> {
   return result
 }
 
-// A run's env containers carry ddev's site-name label with the per-run
-// project name knecht-run-<id> (legacy Sysbox sandboxes carried knecht.run
-// instead). List by both labels (so we never touch an unrelated container),
-// dedupe to run ids, and tear down any whose run row is gone.
-async function reapOrphanSandboxes(liveRuns: Set<number>): Promise<string[]> {
+// A session's env containers carry ddev's site-name label with the
+// per-session project name knecht-run-<id> (the prefix is historical; legacy
+// Sysbox sandboxes carried knecht.run instead). List by both labels (so we
+// never touch an unrelated container), dedupe to session ids, and tear down
+// any whose session row is gone.
+async function reapOrphanSandboxes(liveSessions: Set<number>): Promise<string[]> {
   const orphans = new Map<number, string>()
   try {
     for (const filter of ['label=com.ddev.site-name', 'label=knecht.run']) {
@@ -58,9 +59,9 @@ async function reapOrphanSandboxes(liveRuns: Set<number>): Promise<string[]> {
       for (const line of stdout.split('\n')) {
         const [name = '', site = ''] = line.trim().split('\t')
         if (!name) continue
-        const runId = Number((site || name).match(/^knecht-run-(\d+)$/)?.[1])
-        if (!runId || liveRuns.has(runId)) continue
-        orphans.set(runId, `knecht-run-${runId}`)
+        const sessionId = Number((site || name).match(/^knecht-run-(\d+)$/)?.[1])
+        if (!sessionId || liveSessions.has(sessionId)) continue
+        orphans.set(sessionId, `knecht-run-${sessionId}`)
       }
     }
   }
@@ -68,21 +69,21 @@ async function reapOrphanSandboxes(liveRuns: Set<number>): Promise<string[]> {
     return [] // docker unreachable: try again next tick
   }
   const removed: string[] = []
-  for (const [runId, name] of orphans) {
-    await removeEnvStack(runId)
+  for (const [sessionId, name] of orphans) {
+    await removeEnvStack(sessionId)
     removed.push(name)
   }
   return removed
 }
 
-// Run checkouts are projectsDir()/run-<id>.
-function reapOrphanCheckouts(liveRuns: Set<number>): string[] {
-  return removeMatching(projectsDir(), /^run-(\d+)$/, id => !liveRuns.has(id))
+// Session checkouts are projectsDir()/run-<id> (historical prefix).
+function reapOrphanCheckouts(liveSessions: Set<number>): string[] {
+  return removeMatching(projectsDir(), /^run-(\d+)$/, id => !liveSessions.has(id))
 }
 
-// Run archives are dataDir()/archives/run-<id>.
-function reapOrphanArchives(liveRuns: Set<number>): string[] {
-  return removeMatching(join(dataDir(), 'archives'), /^run-(\d+)$/, id => !liveRuns.has(id))
+// Session archives are dataDir()/archives/run-<id> (historical prefix).
+function reapOrphanArchives(liveSessions: Set<number>): string[] {
+  return removeMatching(join(dataDir(), 'archives'), /^run-(\d+)$/, id => !liveSessions.has(id))
 }
 
 // Uploaded dumps live under dataDir()/dumps/<projectId>; a deleted project's

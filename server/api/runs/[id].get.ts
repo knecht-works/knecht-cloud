@@ -10,12 +10,15 @@ export default defineEventHandler((event) => {
       id: schema.runs.id,
       projectId: schema.runs.projectId,
       project: schema.projects.fullName,
+      sessionId: schema.runs.sessionId,
       workflow: schema.runs.workflow,
       workflowId: schema.runs.workflowId,
       status: schema.runs.status,
-      envState: schema.runs.envState,
-      previewHosts: schema.runs.previewHosts,
-      previewReady: schema.runs.previewReady,
+      // Env fields come from the run's session (ADR 0006), flattened in under
+      // their historical names so the dashboard keeps working unchanged.
+      envState: schema.sessions.envState,
+      previewHosts: schema.sessions.previewHosts,
+      previewReady: schema.sessions.previewReady,
       trigger: schema.runs.trigger,
       triggerId: schema.runs.triggerId,
       branch: schema.runs.branch,
@@ -28,6 +31,7 @@ export default defineEventHandler((event) => {
     })
     .from(schema.runs)
     .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))
+    .innerJoin(schema.sessions, eq(schema.runs.sessionId, schema.sessions.id))
     .where(eq(schema.runs.id, id))
     .get()
 

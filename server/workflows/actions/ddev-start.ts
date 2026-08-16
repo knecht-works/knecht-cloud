@@ -27,19 +27,29 @@ export const ddevStartAction = defineAction({
     await rt.sandbox.ensureUp()
     const { code } = await rt.sandbox.stream(['ddev', 'start'])
     if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
+    // The session boots ONCE: a later run's boot step in the same session
+    // only wakes the containers (the `ddev start` above). DB import and the
+    // setup commands already happened, and re-running them would wipe or
+    // churn the session's live state. So every workflow can safely carry its
+    // own boot step; whichever runs first in the session does the real work.
+    if (sessionBooted(rt.sessionId)) {
+      rt.log(`Environment already booted in this session: skipping DB import and setup commands\n`)
+      const url = previewOrigin(rt.sessionId)
+      return url ? { url } : undefined
+    }
     await importDb(rt)
     await runSetupCommands(step.commands, async c => (await rt.sandbox.stream(['bash', '-lc', c])).code, rt.log)
     // Boot, DB import and the setup commands are through: the site is actually
     // browsable now, so THIS is what makes the preview visible in the UI
     // (envState 'up' alone only means the containers run).
-    db.update(schema.runs).set({ previewReady: true }).where(eq(schema.runs.id, rt.runId)).run()
+    db.update(schema.sessions).set({ previewReady: true }).where(eq(schema.sessions.id, rt.sessionId)).run()
     // The repo scan found no favicon for this project: the running site is
     // the second chance (icons generated at build time or served by the CMS).
     // Fire-and-forget; failures just keep the generic project icon.
-    if (!rt.project.favicon) void detectPreviewFavicon(rt.runId, rt.project)
+    if (!rt.project.favicon) void detectPreviewFavicon(rt.sessionId, rt.project)
     // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
-    // per-run origin the preview proxy serves.
-    const previewUrl = previewOrigin(rt.runId)
+    // per-session origin the preview proxy serves.
+    const previewUrl = previewOrigin(rt.sessionId)
     return previewUrl ? { url: previewUrl } : undefined
   },
 })
@@ -62,10 +72,18 @@ export async function runSetupCommands(
   }
 }
 
-// Import the project's DB dump into this run's fresh environment (projects.md
-// §6). Each run env is isolated, so the import happens per run (idle reboots
-// keep the run's db volume and don't re-import). The ddev CLI runs host-side
-// and reads the dump straight from the data dir.
+// Whether the session already went through a full boot (DB import + setup
+// commands): previewReady is set at the end of the first complete ddev-start
+// and survives stop/archive/restore.
+function sessionBooted(sessionId: number): boolean {
+  return db.select({ previewReady: schema.sessions.previewReady })
+    .from(schema.sessions)
+    .where(eq(schema.sessions.id, sessionId))
+    .get()?.previewReady ?? false
+}
+
+// Import the project's DB dump into the session's fresh environment
+// (projects.md §6). Runs once per session (see sessionBooted above).
 async function importDb(rt: ActionRuntime): Promise<void> {
   if (!rt.project.dbDumpPath) return
 

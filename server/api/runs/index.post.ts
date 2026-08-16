@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { db, schema } from '../../db'
 import { publishStepsSchema } from '../../workflows/schema'
 import { dispatchRuns } from '../../daemon/dispatcher'
+import { resolveSession } from '../../utils/sessions'
 
 // POST /api/runs → queue a workflow against one project. The dispatcher
 // (server/plugins/dispatcher.ts) starts it as soon as a concurrency slot is
@@ -35,14 +36,17 @@ export default defineEventHandler(async (event) => {
 
   const project = requireProject(result.data.projectId)
 
+  // Manual runs have no object: each gets a fresh one-shot session.
+  const session = resolveSession(project, null, result.data.branch ?? null)
   const run = db
     .insert(schema.runs)
     .values({
       projectId: project.id,
+      sessionId: session.id,
       workflow: workflow.name,
       workflowId: workflow.id,
       trigger: 'manual',
-      branch: result.data.branch ?? project.defaultBranch,
+      branch: session.branch ?? project.defaultBranch,
       inputs: result.data.inputs ?? null,
       steps: validated.data,
     })
