@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  agentModelRef,
   buildAgentRules,
   buildOpencodeConfig,
   MEMORY_INDEX_PATH,
@@ -23,7 +24,7 @@ describe('buildOpencodeConfig', () => {
   })
 
   it('declares langdock as a custom provider with the region endpoint and env key', () => {
-    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'gpt-5.1', subtaskModel: null })
     expect(config.provider!.langdock).toEqual({
       npm: '@ai-sdk/openai',
       name: 'Langdock',
@@ -32,24 +33,47 @@ describe('buildOpencodeConfig', () => {
         apiKey: '{env:LANGDOCK_API_KEY}',
         setCacheKey: false,
       },
-      models: { 'claude-sonnet-4-5': {} },
+      models: { 'gpt-5.1': {} },
     })
+    expect(config.provider!['langdock-anthropic']).toBeUndefined()
   })
 
-  it('switches the endpoint with the region', () => {
-    const config = buildOpencodeConfig({ provider: 'langdock', region: 'us', model: 'gpt-4o', subtaskModel: null })
+  it('routes a langdock Claude model to the Anthropic-compatible endpoint', () => {
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })
+    expect(config.provider!['langdock-anthropic']).toEqual({
+      npm: '@ai-sdk/anthropic',
+      name: 'Langdock (Anthropic)',
+      options: {
+        baseURL: 'https://api.langdock.com/anthropic/eu/v1',
+        apiKey: '{env:LANGDOCK_API_KEY}',
+      },
+      models: { 'claude-sonnet-4-5': {} },
+    })
+    expect(config.provider!.langdock).toBeUndefined()
+  })
+
+  it('splits mixed langdock models across both route blocks', () => {
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'gpt-5.1', subtaskModel: 'claude-haiku-4-5' })
+    expect(config.provider!.langdock.models).toEqual({ 'gpt-5.1': {} })
+    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-haiku-4-5': {} })
+    expect(config.small_model).toBe('langdock-anthropic/claude-haiku-4-5')
+  })
+
+  it('switches the endpoints with the region', () => {
+    const config = buildOpencodeConfig({ provider: 'langdock', region: 'us', model: 'gpt-4o', subtaskModel: 'claude-haiku-4-5' })
     expect(config.provider!.langdock.options.baseURL).toBe('https://api.langdock.com/openai/us/v1')
+    expect(config.provider!['langdock-anthropic']!.options.baseURL).toBe('https://api.langdock.com/anthropic/us/v1')
   })
 
   it('registers a legacy-prefixed model under its bare name', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'anthropic/claude-sonnet-4-5', subtaskModel: null })
-    expect(config.provider!.langdock.models).toEqual({ 'claude-sonnet-4-5': {} })
+    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-sonnet-4-5': {} })
   })
 
-  it('emits small_model prefixed with the provider and registers it at langdock', () => {
+  it('emits small_model prefixed with its route block and registers it at langdock', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: 'claude-haiku-4-5' })
-    expect(config.small_model).toBe('langdock/claude-haiku-4-5')
-    expect(config.provider!.langdock.models).toEqual({ 'claude-sonnet-4-5': {}, 'claude-haiku-4-5': {} })
+    expect(config.small_model).toBe('langdock-anthropic/claude-haiku-4-5')
+    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-sonnet-4-5': {}, 'claude-haiku-4-5': {} })
   })
 
   it('emits small_model for registry providers and strips a legacy prefix from it', () => {
@@ -61,6 +85,14 @@ describe('buildOpencodeConfig', () => {
   it('dedupes the langdock models map when main and subtask model match', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'gpt-4o', subtaskModel: 'gpt-4o' })
     expect(config.provider!.langdock.models).toEqual({ 'gpt-4o': {} })
+  })
+})
+
+describe('agentModelRef', () => {
+  it('routes langdock models to their route block, everything else to the provider id', () => {
+    expect(agentModelRef('langdock', 'claude-sonnet-4-5')).toBe('langdock-anthropic/claude-sonnet-4-5')
+    expect(agentModelRef('langdock', 'gpt-5.1')).toBe('langdock/gpt-5.1')
+    expect(agentModelRef('anthropic', 'claude-sonnet-4-5')).toBe('anthropic/claude-sonnet-4-5')
   })
 })
 

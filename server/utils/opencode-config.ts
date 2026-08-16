@@ -1,4 +1,4 @@
-import { type AiProviderId, type LangdockRegion, langdockBaseUrl, stripLegacyModelPrefix } from '../../shared/utils/ai'
+import { type AiProviderId, type LangdockRegion, langdockAnthropicBaseUrl, langdockBaseUrl, stripLegacyModelPrefix } from '../../shared/utils/ai'
 
 // Builds the opencode.json the ai step drops into a run's checkout. Pure
 // (no fs, no Nitro) so unit tests can assert the exact config; the writing
@@ -31,14 +31,26 @@ export interface OpencodeConfig {
   $schema: string
   instructions: string[]
   small_model?: string
-  provider?: {
-    langdock: {
-      npm: string
-      name: string
-      options: { baseURL: string, apiKey: string, setCacheKey: false }
-      models: Record<string, object>
-    }
-  }
+  provider?: Record<string, {
+    npm: string
+    name: string
+    options: { baseURL: string, apiKey: string, setCacheKey?: false }
+    models: Record<string, object>
+  }>
+}
+
+// Langdock is one gateway with two compatibility routes, and the route depends
+// on the model: Claude models speak the Anthropic Messages API, everything
+// else the OpenAI one. The user only picks a model; this maps a bare model
+// name to the opencode provider key its route is declared under.
+export function langdockProviderKey(bareModel: string): 'langdock' | 'langdock-anthropic' {
+  return bareModel.startsWith('claude') ? 'langdock-anthropic' : 'langdock'
+}
+
+// The `provider/model` reference handed to opencode (--model and small_model).
+export function agentModelRef(provider: AiProviderId, bareModel: string): string {
+  const key = provider === 'langdock' ? langdockProviderKey(bareModel) : provider
+  return `${key}/${bareModel}`
 }
 
 // The rules.md content: instance rules first, project rules after (the more
@@ -59,19 +71,25 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
     .map(stripLegacyModelPrefix)
   // opencode's official lever for internal small tasks (title generation,
   // exploration subagents): a faster model than the main one.
-  if (input.subtaskModel) config.small_model = `${input.provider}/${models[1]}`
+  if (input.subtaskModel) config.small_model = agentModelRef(input.provider, models[1]!)
   // Langdock is not in models.dev, so opencode needs the provider declared:
-  // the OpenAI SDK against the region's endpoint, the key via env
+  // the vendor SDK against the region's endpoint, the key via env
   // interpolation (resolveAgentEnv hands LANGDOCK_API_KEY to the process),
   // and a models map registering exactly the models this invocation may use.
-  // @ai-sdk/openai (not openai-compatible) because it speaks the Responses
-  // API: Langdock's chat/completions route rejects function tools combined
-  // with reasoning_effort (GPT-5.x), the responses route accepts both.
-  // setCacheKey: false stops opencode from sending prompt_cache_key, which
-  // Langdock does not document as a forwarded parameter.
+  // Each invocation's models are split across the two routes by
+  // langdockProviderKey; a block is only emitted when it has models.
+  // On the OpenAI route, @ai-sdk/openai (not openai-compatible) because it
+  // speaks the Responses API: Langdock's chat/completions route rejects
+  // function tools combined with reasoning_effort (GPT-5.x), the responses
+  // route accepts both. setCacheKey: false stops opencode from sending
+  // prompt_cache_key, which Langdock does not document as a forwarded
+  // parameter.
   if (input.provider === 'langdock') {
-    config.provider = {
-      langdock: {
+    config.provider = {}
+    const openai = models.filter(m => langdockProviderKey(m) === 'langdock')
+    const anthropic = models.filter(m => langdockProviderKey(m) === 'langdock-anthropic')
+    if (openai.length) {
+      config.provider.langdock = {
         npm: '@ai-sdk/openai',
         name: 'Langdock',
         options: {
@@ -79,8 +97,19 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
           apiKey: '{env:LANGDOCK_API_KEY}',
           setCacheKey: false,
         },
-        models: Object.fromEntries(models.map(m => [m, {}])),
-      },
+        models: Object.fromEntries(openai.map(m => [m, {}])),
+      }
+    }
+    if (anthropic.length) {
+      config.provider['langdock-anthropic'] = {
+        npm: '@ai-sdk/anthropic',
+        name: 'Langdock (Anthropic)',
+        options: {
+          baseURL: langdockAnthropicBaseUrl(input.region),
+          apiKey: '{env:LANGDOCK_API_KEY}',
+        },
+        models: Object.fromEntries(anthropic.map(m => [m, {}])),
+      }
     }
   }
   return config
