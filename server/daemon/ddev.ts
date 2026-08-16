@@ -121,6 +121,8 @@ function composeOverride(sharedMounts: { host: string, dest: string }[] = []): R
   const toolMounts = [
     { host: join(tools, 'opencode'), dest: '/usr/local/bin/opencode' },
     { host: join(tools, 'knecht-git'), dest: '/usr/local/bin/knecht-git' },
+    { host: join(tools, 'knecht-reply'), dest: '/usr/local/bin/knecht-reply' },
+    { host: join(tools, 'knecht-label'), dest: '/usr/local/bin/knecht-label' },
     // Shadows the stock in-container ddev shim, which silently no-ops
     // (`ddev composer install` would exit 0 without installing anything).
     { host: join(tools, 'ddev-shim'), dest: '/usr/local/bin/ddev' },

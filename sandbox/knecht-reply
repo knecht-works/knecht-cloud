@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Post a reply on the session's GitHub issue or pull request, as Knecht.
+# Only available when the session belongs to an issue/PR (KNECHT_OBJECT is
+# set); the Knecht host posts the comment via the GitHub App
+# (server/routes/agent-bridge.post.ts). See sandbox/opencode/AGENTS.md.
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+usage:
+  knecht-reply <text>     post a comment on this session's issue/PR
+  echo <text> | knecht-reply    same, reading the text from stdin
+EOF
+  exit 2
+}
+
+[ -n "${KNECHT_BRIDGE_URL:-}" ] && [ -n "${KNECHT_BRIDGE_TOKEN:-}" ] && [ -n "${KNECHT_RUN_ID:-}" ] || {
+  echo "knecht-reply is not available in this run (bridge not configured)" >&2
+  exit 1
+}
+[ -n "${KNECHT_OBJECT:-}" ] || {
+  echo "knecht-reply is not available: this session does not belong to an issue or pull request" >&2
+  exit 1
+}
+
+if [ "$#" -gt 0 ]; then
+  text="$*"
+else
+  text="$(cat)"
+fi
+[ -n "$text" ] || usage
+
+json_escape() {
+  node -e 'console.log(JSON.stringify(process.argv[1] ?? ""))' "$1"
+}
+
+response="$(mktemp)"
+trap 'rm -f "$response"' EXIT
+code="$(curl -sS -o "$response" -w '%{http_code}' \
+  -X POST "$KNECHT_BRIDGE_URL" \
+  -H 'content-type: application/json' \
+  -H "x-knecht-run-id: $KNECHT_RUN_ID" \
+  -H "x-knecht-token: $KNECHT_BRIDGE_TOKEN" \
+  --data "{\"op\":\"comment\",\"body\":$(json_escape "$text")}")"
+cat "$response"
+case "$code" in
+  2*) exit 0 ;;
+  *) exit 1 ;;
+esac

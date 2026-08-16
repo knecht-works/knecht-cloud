@@ -1,27 +1,34 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { H3Event } from 'h3'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../db'
 import { currentBranch, pushBranch } from '../daemon/git'
 import { appendLog } from '../daemon/runner'
 import { verifyBridgeToken } from '../utils/agent-bridge'
-import { getProject, getSession } from '../utils/entities'
-import { createPullRequest, getInstallationToken } from '../utils/github-app'
+import { getProject, getSession, getWorkflowRow } from '../utils/entities'
+import { addIssueLabels, createIssueComment, createPullRequest, getInstallationToken, listRepoLabels, removeIssueLabel } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
 import { sessionCheckoutDir } from '../utils/storage'
 
-// POST /agent-bridge → what in-sandbox git can NOT do on its own. Plain git
-// works inside the sandbox (the session's checkout is a self-contained clone,
-// daemon/git.ts), so the bridge is down to two ops, both called by the
-// `knecht-git` CLI mounted into the web container:
-//   - `credential`: the git credential helper's token source; hands plain git
-//     a repo-scoped ~1h installation token for push/fetch.
-//   - `open-pr`: pushes the checkout's current branch and opens a pull
-//     request (a GitHub API call the sandbox has no other path to), and syncs
-//     the session's branch (+ the newest run's branch/prUrl) so the
-//     dashboard shows them.
+// POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
+// Plain git works inside the sandbox (the session's checkout is a
+// self-contained clone, daemon/git.ts), so the bridge is down to four ops,
+// called by the CLIs mounted into the web container:
+//   - `credential` (knecht-git): the git credential helper's token source;
+//     hands plain git a repo-scoped ~1h installation token for push/fetch.
+//   - `open-pr` (knecht-git): pushes the checkout's current branch and opens
+//     a pull request (a GitHub API call the sandbox has no other path to),
+//     and syncs the session's branch (+ the newest run's branch/prUrl) so
+//     the dashboard shows them.
+//   - `comment` (knecht-reply): posts a reply on the session's object (ADR
+//     0007). Object sessions only; a workflow can opt its runs out
+//     (workflows.repliesEnabled).
+//   - `label` (knecht-label): adds EXISTING repo labels to / removes labels
+//     from the session's object. Never creates labels, never closes or
+//     assigns: the bridge is where that boundary is enforced, a raw GitHub
+//     token could not be narrowed like this.
 // Outside /api on purpose: the session gate (server/middleware/auth.ts) skips
 // non-API paths, and this route authenticates with its own per-session token
 // (server/utils/agent-bridge.ts) instead. The x-knecht-run-id header carries
@@ -33,6 +40,8 @@ import { sessionCheckoutDir } from '../utils/storage'
 const bodySchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('credential') }),
   z.object({ op: z.literal('open-pr'), title: z.string().min(1), body: z.string().optional() }),
+  z.object({ op: z.literal('comment'), body: z.string().min(1) }),
+  z.object({ op: z.literal('label'), add: z.array(z.string().min(1)).optional(), remove: z.array(z.string().min(1)).optional() }),
 ])
 
 // Replies are plain text: the CLI prints the body verbatim to the agent, and
@@ -87,6 +96,36 @@ export default defineEventHandler(async (event) => {
         log(`\nagent-git: issued a repo credential to in-sandbox git\n`)
         return reply(event, 200, ghToken)
       }
+      case 'comment': {
+        const object = requireObject(session)
+        requireRepliesEnabled(sessionId)
+        const comment = await createIssueComment(project.owner, project.name, object.number, body.body)
+        log(`\nagent-reply: commented on ${object.label}\n`)
+        return reply(event, 200, `posted the reply on ${object.label}: ${comment.url}`)
+      }
+      case 'label': {
+        const object = requireObject(session)
+        requireRepliesEnabled(sessionId)
+        const add = body.add ?? []
+        const remove = body.remove ?? []
+        if (!add.length && !remove.length) throw new BridgeError('nothing to do: pass labels to add or remove')
+        if (add.length) {
+          // Only labels that already exist in the repo may be applied: Knecht
+          // never invents labels (ADR 0007).
+          const existing = new Set(await listRepoLabels(project.owner, project.name))
+          const unknown = add.filter(l => !existing.has(l))
+          if (unknown.length) {
+            throw new BridgeError(`these labels do not exist in the repo and Knecht never creates labels: ${unknown.join(', ')}. Existing labels: ${[...existing].join(', ') || '(none)'}`)
+          }
+          await addIssueLabels(project.owner, project.name, object.number, add)
+        }
+        for (const label of remove) {
+          await removeIssueLabel(project.owner, project.name, object.number, label)
+        }
+        const did = [add.length ? `added ${add.join(', ')}` : '', remove.length ? `removed ${remove.join(', ')}` : ''].filter(Boolean).join('; ')
+        log(`\nagent-label: ${did} on ${object.label}\n`)
+        return reply(event, 200, `${did} on ${object.label}`)
+      }
       case 'open-pr': {
         const branch = await currentBranch(dir)
         if (branch === 'HEAD') {
@@ -120,3 +159,31 @@ export default defineEventHandler(async (event) => {
 })
 
 class BridgeError extends Error {}
+
+// The session's object, or a clear refusal: the reply ops only exist on
+// sessions that belong to an issue or PR.
+function requireObject(session: { objectKind: string | null, objectNumber: number | null }): { number: number, label: string } {
+  if (!session.objectKind || !session.objectNumber) {
+    throw new BridgeError('this session does not belong to an issue or pull request, so there is no thread to post on')
+  }
+  return {
+    number: session.objectNumber,
+    label: `${session.objectKind === 'issue' ? 'issue' : 'pull request'} #${session.objectNumber}`,
+  }
+}
+
+// The workflow-level opt-out (workflows.repliesEnabled): enforced against
+// whatever workflow run is executing in the session right now. Follow-ups
+// (no running run) always carry the reply tools.
+function requireRepliesEnabled(sessionId: number): void {
+  const running = db
+    .select({ workflowId: schema.runs.workflowId })
+    .from(schema.runs)
+    .where(and(eq(schema.runs.sessionId, sessionId), eq(schema.runs.status, 'running')))
+    .get()
+  if (!running?.workflowId) return
+  const workflow = getWorkflowRow(running.workflowId)
+  if (workflow && !workflow.repliesEnabled) {
+    throw new BridgeError('replying on the issue/PR is disabled for this workflow (workflow settings, Advanced)')
+  }
+}

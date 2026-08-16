@@ -143,6 +143,9 @@ export const workflowPatchSchema = z.object({
   name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores').optional(),
   description: z.string().optional(),
   enabled: z.boolean().optional(),
+  // The agent's reply tool on issue/PR sessions (ADR 0007), on by default;
+  // the opt-out lives under the editor's Advanced settings.
+  repliesEnabled: z.boolean().optional(),
   draftSteps: draftStepsSchema.optional(),
 })
 

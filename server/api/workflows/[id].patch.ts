@@ -39,6 +39,7 @@ export default defineEventHandler(async (event) => {
       patch.draftSteps = data.draftSteps
     }
   }
+  if (data.repliesEnabled !== undefined) patch.repliesEnabled = data.repliesEnabled
   if (data.enabled !== undefined) {
     // Triggers execute the live version; without one the switch has nothing
     // to turn on. (The editor gates this client-side, the list page relies

@@ -247,6 +247,28 @@ async function toggleEnabled() {
   }
 }
 
+// The agent's reply tool (comment + labels on the session's issue/PR): on by
+// default, rarely touched, so the switch hides behind the Advanced fold.
+const advancedOpen = ref(false)
+const togglingReplies = ref(false)
+async function toggleReplies() {
+  if (!saved.value || togglingReplies.value) return
+  togglingReplies.value = true
+  try {
+    await $fetch(`/api/workflows/${id.value}`, {
+      method: 'PATCH',
+      body: { repliesEnabled: !saved.value.repliesEnabled },
+    })
+    await refresh()
+  }
+  catch (e) {
+    toastError('Failed to update workflow', e)
+  }
+  finally {
+    togglingReplies.value = false
+  }
+}
+
 // ── header overflow menu: export (a browser download; the endpoint sets
 // content-disposition), discard draft, and the destructive delete behind a
 // confirm. Export serves the current state, so it needs a complete one. ─────
@@ -1006,6 +1028,43 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 />
                 Add trigger
               </button>
+
+              <!-- Rare switches live behind the fold (settings style): today
+                   just the reply tool for runs on an issue/PR session. -->
+              <div class="border-t border-muted px-3 py-2.5">
+                <button
+                  type="button"
+                  :aria-expanded="advancedOpen"
+                  class="group flex w-full cursor-pointer items-center gap-1.5"
+                  @click="advancedOpen = !advancedOpen"
+                >
+                  <UIcon
+                    name="i-lucide-chevron-right"
+                    class="size-3.5 text-dimmed transition-transform"
+                    :class="advancedOpen && 'rotate-90'"
+                  />
+                  <span class="k-label">Advanced</span>
+                </button>
+                <div
+                  v-if="advancedOpen && saved"
+                  class="mt-2.5 flex items-center justify-between gap-3"
+                >
+                  <div class="min-w-0">
+                    <div class="text-2sm text-highlighted">
+                      May the agent answer on the issue or PR?
+                    </div>
+                    <div class="k-mono text-2xs text-dimmed">
+                      Comments and existing labels, on the thread this run belongs to.
+                    </div>
+                  </div>
+                  <KToggle
+                    :active="saved.repliesEnabled"
+                    :disabled="togglingReplies"
+                    :aria-label="saved.repliesEnabled ? 'Disable replies on the issue/PR' : 'Enable replies on the issue/PR'"
+                    @toggle="toggleReplies"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 

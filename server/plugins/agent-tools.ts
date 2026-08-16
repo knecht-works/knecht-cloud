@@ -15,11 +15,12 @@ import { stageIde } from '../daemon/ide'
 //      container directly, so no router may bind host ports), mutagen stays
 //      off, instrumentation off. Without this, the first `ddev start` would
 //      boot a router that collides with Caddy on :80/:443.
-//   2. The agent tools dir (dataDir/tools): the knecht-git bridge CLI (from
-//      the bundled server assets) and the opencode binary (downloaded via the
-//      official installer when missing). daemon/ddev.ts bind-mounts both into
-//      every run's web container; when a tool is missing its mount is simply
-//      omitted and the agent reports its git tools as unavailable.
+//   2. The agent tools dir (dataDir/tools): the bridge CLIs (knecht-git,
+//      knecht-reply, knecht-label, from the bundled server assets) and the
+//      opencode binary (downloaded via the official installer when missing).
+//      daemon/ddev.ts bind-mounts them into every session's web container;
+//      when a tool is missing its mount is simply omitted and the agent
+//      reports it as unavailable.
 export default defineNitroPlugin(() => {
   try {
     ensureDdevGlobalConfig()
@@ -62,7 +63,7 @@ async function stageAgentTools(): Promise<void> {
   // knecht-git and the in-container ddev shim ship as bundled server assets;
   // (re)write them every boot so updates propagate. The mounted files must be
   // executable.
-  for (const name of ['knecht-git', 'ddev-shim']) {
+  for (const name of ['knecht-git', 'knecht-reply', 'knecht-label', 'ddev-shim']) {
     const content = await readSandboxAsset(name)
     if (!content) continue
     // Both tools are bash scripts. A mangled asset mounted into runs surfaces

@@ -78,6 +78,17 @@ export const projects = sqliteTable('projects', {
   // only, layered on top of the instance instructions.
   agentInstructions: text('agent_instructions').notNull().default(''),
 
+  // Mentions (@<app slug> in an issue/PR comment, ADR 0007): on by default,
+  // the opt-out lives under the project's Advanced settings.
+  mentionsEnabled: integer('mentions_enabled', { mode: 'boolean' }).notNull().default(true),
+  // The workflow a mention starts when its object has no session yet: it
+  // provides the checkout and environment, then the mention prompt runs as
+  // the first follow-up. Unset: Knecht replies with a setup hint instead.
+  // NOTE: FK actions are declarative only; the workflow delete route nulls
+  // this explicitly.
+  starterWorkflowId: integer('starter_workflow_id')
+    .references(() => workflows.id, { onDelete: 'set null' }),
+
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -312,6 +323,12 @@ export const followups = sqliteTable('followups', {
   prompt: text('prompt').notNull(),
   // Login of the member who sent it.
   requestedBy: text('requested_by'),
+  // Where the prompt came from: the dashboard composer, or a @mention on the
+  // session's object (ADR 0007). Mention follow-ups post their answer back
+  // into the thread when they finish (daemon/followups.ts).
+  origin: text('origin', { enum: ['dashboard', 'mention'] })
+    .notNull()
+    .default('dashboard'),
   status: text('status', { enum: ['queued', 'running', 'success', 'failed'] })
     .notNull()
     .default('queued'),
@@ -362,6 +379,11 @@ export const workflows = sqliteTable('workflows', {
   // fire (manual "run now" / test are unaffected). Built-ins with no row are
   // enabled by default.
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  // Whether the agent's reply tool (comment + labels on the session's object,
+  // ADR 0007) is handed to this workflow's ai steps. On by default; the
+  // opt-out lives under the workflow's Advanced settings. Follow-ups are
+  // unaffected: they always carry the tool on object sessions.
+  repliesEnabled: integer('replies_enabled', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
