@@ -26,12 +26,12 @@ export function requireRun(id: number): Run {
   return run
 }
 
-export function getSession(id: number): Session | undefined {
+export function getSessionRow(id: number): Session | undefined {
   return db.select().from(schema.sessions).where(eq(schema.sessions.id, id)).get()
 }
 
 export function requireSession(id: number): Session {
-  const session = getSession(id)
+  const session = getSessionRow(id)
   if (!session) throw createError({ statusCode: 404, statusMessage: 'Session not found' })
   return session
 }

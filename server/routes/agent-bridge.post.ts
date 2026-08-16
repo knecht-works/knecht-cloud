@@ -7,7 +7,7 @@ import { db, schema } from '../db'
 import { currentBranch, pushBranch } from '../daemon/git'
 import { appendLog } from '../daemon/runner'
 import { verifyBridgeToken } from '../utils/agent-bridge'
-import { getProject, getSession, getWorkflowRow } from '../utils/entities'
+import { getProject, getSessionRow, getWorkflowRow } from '../utils/entities'
 import { addIssueLabels, createIssueComment, createPullRequest, getInstallationToken, listRepoLabels, removeIssueLabel } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
 import { recordAgentReply, withSessionLinks } from '../utils/sessions'
@@ -70,7 +70,7 @@ export default defineEventHandler(async (event) => {
     return reply(event, 401, 'invalid bridge credentials')
   }
 
-  const session = getSession(sessionId)
+  const session = getSessionRow(sessionId)
   const project = session && getProject(session.projectId)
   if (!session || !project) return reply(event, 404, 'session not found')
 

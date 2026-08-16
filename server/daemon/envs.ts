@@ -5,7 +5,7 @@ import { and, desc, eq, inArray, lt } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { getSettings } from '../utils/settings'
-import { getProject, getSession } from '../utils/entities'
+import { getProject, getSessionRow } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
 import { joinBootCommands, runSetupCommands } from '../workflows/actions/ddev-start'
@@ -48,7 +48,7 @@ export async function rebootEnv(sessionId: number): Promise<void> {
   // Knecht (tool mounts like the IDE server, resource limits), and a reboot
   // must pick up its current shape, not the one from the session's original
   // boot.
-  const session = getSession(sessionId)
+  const session = getSessionRow(sessionId)
   const project = session && getProject(session.projectId)
   const dir = sessionCheckoutDir(sessionId)
   if (session && project && existsSync(dir)) {
@@ -69,7 +69,7 @@ export async function rebootEnv(sessionId: number): Promise<void> {
 // best-effort snapshot failed) falls back to a fresh clone at the branch tip.
 // Takes minutes, the price of archives costing MBs instead of GBs.
 export async function rehydrateEnv(sessionId: number): Promise<void> {
-  const session = getSession(sessionId)
+  const session = getSessionRow(sessionId)
   const project = session && getProject(session.projectId)
   if (!session || !project) throw new Error('Session or project not found')
 

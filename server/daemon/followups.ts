@@ -4,7 +4,7 @@ import type { Followup, Project, Run, Session } from '../db/schema'
 import { runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
-import { getProject, getRun, getSession } from '../utils/entities'
+import { getProject, getRun, getSessionRow } from '../utils/entities'
 import { createIssueComment } from '../utils/github-app'
 import { sessionCheckoutDir } from '../utils/storage'
 import { tryParseJson } from '../utils/json'
@@ -66,7 +66,7 @@ export async function startFollowup(followupId: number): Promise<void> {
     if (!claimed.changes) return
 
     const followup = db.select().from(schema.followups).where(eq(schema.followups.id, followupId)).get()
-    const session = followup && getSession(followup.sessionId)
+    const session = followup && getSessionRow(followup.sessionId)
     const run = followup && getRun(followup.runId)
     const project = session && getProject(session.projectId)
     if (!followup || !session || !run || !project) {
