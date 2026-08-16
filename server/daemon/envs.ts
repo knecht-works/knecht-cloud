@@ -8,7 +8,7 @@ import { getSettings } from '../utils/settings'
 import { getProject, getSession } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
-import { runSetupCommands } from '../workflows/actions/ddev-start'
+import { joinBootCommands, runSetupCommands } from '../workflows/actions/ddev-start'
 import { writeDdevConfig } from './ddev'
 import { prepareSessionCheckout } from './git'
 import { envStackRunning, execInSandbox, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
@@ -114,7 +114,7 @@ export async function rehydrateEnv(sessionId: number): Promise<void> {
   await startEnvStack(sessionId)
   try {
     await importArchivedDb(sessionId, project)
-    await rerunBootSetup(sessionId)
+    await rerunBootSetup(sessionId, project)
   }
   catch (e) {
     // A half-restored stack must not keep running under envState 'archived':
@@ -127,14 +127,14 @@ export async function rehydrateEnv(sessionId: number): Promise<void> {
   markUp(sessionId)
 }
 
-// Re-run the boot step's setup commands (composer install and friends) after a
-// restore: the archive keeps only git-visible state plus the DB export and
-// .knecht, so everything gitignored (vendor/, node_modules/, a generated
-// .env) died with the teardown and must be rebuilt the way the original boot
-// built it. The commands come from the session's last executed ddev-start
-// row, already rendered. A session without a successful boot step never had
-// a preview: nothing to redo.
-async function rerunBootSetup(sessionId: number): Promise<void> {
+// Re-run the boot commands (composer install and friends) after a restore:
+// the archive keeps only git-visible state plus the DB export and .knecht,
+// so everything gitignored (vendor/, node_modules/, a generated .env) died
+// with the teardown and must be rebuilt the way the original boot built it:
+// the project's CURRENT boot commands plus the workflow extras from the
+// session's last executed ddev-start row. A session without a successful
+// boot step never had a preview: nothing to redo.
+async function rerunBootSetup(sessionId: number, project: Project): Promise<void> {
   const row = db
     .select({ params: schema.runSteps.params })
     .from(schema.runSteps)
@@ -146,8 +146,9 @@ async function rerunBootSetup(sessionId: number): Promise<void> {
     ))
     .orderBy(desc(schema.runSteps.id))
     .get()
-  const { commands } = (row?.params ?? {}) as { commands?: string }
-  await runSetupCommands(commands, async (command) => {
+  if (!row) return
+  const { commands } = (row.params ?? {}) as { commands?: string }
+  await runSetupCommands(joinBootCommands(project.bootCommands, commands), async (command) => {
     const { exitCode } = await execInSandbox(sessionId, ['bash', '-lc', command], { reject: false })
     return exitCode ?? 1
   })
@@ -323,7 +324,10 @@ export async function reapExpiredArchives(): Promise<void> {
     .all()
   for (const { id } of expired) {
     rmSync(sessionArchiveDir(id), { recursive: true, force: true })
-    db.update(schema.sessions).set({ envState: 'down' }).where(eq(schema.sessions.id, id)).run()
+    // previewReady falls with the archive: the next run in this session must
+    // boot from scratch (fresh clone, DB import, setup commands) instead of
+    // the boot step treating the session as already booted.
+    db.update(schema.sessions).set({ envState: 'down', previewReady: false }).where(eq(schema.sessions.id, id)).run()
   }
 }
 

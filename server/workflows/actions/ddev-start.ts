@@ -24,21 +24,32 @@ export const ddevStartAction = defineAction({
   legacyKey: 'preview',
   async run(step, rt) {
     rt.log(`\n▶ ddev-start\n`)
+    // ensureUp starts the stack only when it isn't running (a stopped env's
+    // volumes and checkout revive in seconds), so the booted path below is a
+    // true no-op: no compose reconcile, no container recreates.
     await rt.sandbox.ensureUp()
-    const { code } = await rt.sandbox.stream(['ddev', 'start'])
-    if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
     // The session boots ONCE: a later run's boot step in the same session
-    // only wakes the containers (the `ddev start` above). DB import and the
-    // setup commands already happened, and re-running them would wipe or
-    // churn the session's live state. So every workflow can safely carry its
-    // own boot step; whichever runs first in the session does the real work.
+    // finds everything in place. DB import and the setup commands already
+    // happened, and re-running them would wipe or churn the session's live
+    // state. So every workflow can safely carry its own boot step; whichever
+    // runs first in the session does the real work.
     if (sessionBooted(rt.sessionId)) {
-      rt.log(`Environment already booted in this session: skipping DB import and setup commands\n`)
+      rt.log(`Environment already booted in this session: nothing to do\n`)
       const url = previewOrigin(rt.sessionId)
       return url ? { url } : undefined
     }
+    const { code } = await rt.sandbox.stream(['ddev', 'start'])
+    if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
     await importDb(rt)
-    await runSetupCommands(step.commands, async c => (await rt.sandbox.stream(['bash', '-lc', c])).code, rt.log)
+    // The project's own boot commands first (how THIS project boots, from the
+    // project settings), then the step's workflow-specific extras. Together
+    // they are what a restore later re-runs (daemon/envs.ts). Each group is
+    // announced in the log so the run page shows where a command came from.
+    const exec = async (c: string) => (await rt.sandbox.stream(['bash', '-lc', c])).code
+    if (rt.project.bootCommands.trim()) rt.log(`\nBoot commands (project settings):\n`)
+    await runSetupCommands(rt.project.bootCommands, exec, rt.log)
+    if (step.commands?.trim()) rt.log(`\nAdditional setup commands (this workflow's boot step):\n`)
+    await runSetupCommands(step.commands, exec, rt.log)
     // Boot, DB import and the setup commands are through: the site is actually
     // browsable now, so THIS is what makes the preview visible in the UI
     // (envState 'up' alone only means the containers run).
@@ -54,7 +65,13 @@ export const ddevStartAction = defineAction({
   },
 })
 
-// The step's optional setup commands (one per line), run after boot + DB
+// Project boot commands + the step's extras as one command list; either side
+// may be empty. Exported so the archive restore rebuilds with the same set.
+export function joinBootCommands(projectCommands: string, stepCommands: string | undefined): string {
+  return [projectCommands, stepCommands ?? ''].filter(Boolean).join('\n')
+}
+
+// The optional setup commands (one per line), run after boot + DB
 // import like dedicated bash steps would be: sequentially, first failure
 // fails the step. `exec` runs one command and returns its exit code; exported
 // so the archive restore (daemon/envs.ts) re-runs the commands with its own

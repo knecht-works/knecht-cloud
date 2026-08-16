@@ -78,6 +78,12 @@ export const projects = sqliteTable('projects', {
   // only, layered on top of the instance instructions.
   agentInstructions: text('agent_instructions').notNull().default(''),
 
+  // How THIS project boots: commands (one per line) that run after
+  // `ddev start` + DB import on a session's first boot, before any
+  // workflow-specific commands on the ddev-start step. Lives on the project
+  // so one generic workflow can serve projects that boot differently.
+  bootCommands: text('boot_commands').notNull().default(''),
+
   // Mentions (@<app slug> in an issue/PR comment, ADR 0007): on by default,
   // the opt-out lives under the project's Advanced settings.
   mentionsEnabled: integer('mentions_enabled', { mode: 'boolean' }).notNull().default(true),
