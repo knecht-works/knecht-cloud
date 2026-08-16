@@ -5,8 +5,10 @@ import { runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
 import { getProject, getRun, getSession } from '../utils/entities'
+import { createIssueComment } from '../utils/github-app'
 import { sessionCheckoutDir } from '../utils/storage'
 import { tryParseJson } from '../utils/json'
+import { agentRepliedSince } from '../utils/sessions'
 import { currentBranch } from './git'
 import { appendLog, runLogBytes, streamInSandbox } from './runner'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
@@ -75,13 +77,17 @@ export async function startFollowup(followupId: number): Promise<void> {
     const controller = new AbortController()
     controllers.set(session.id, controller)
     try {
-      await execFollowup(followup, session, run, project, controller)
+      const reply = await execFollowup(followup, session, run, project, controller)
       finishFollowup(followupId, 'success')
+      await postMentionReply(followup, session, project, reply)
     }
     catch (e) {
       const cancelled = controller.signal.aborted
       appendLog(run.id, cancelled ? `\n✗ Follow-up cancelled\n` : `\n✗ Follow-up failed: ${(e as Error).message}\n`)
       finishFollowup(followupId, 'failed', cancelled ? 'Cancelled' : (e as Error).message)
+      if (!cancelled) {
+        await postMentionReply(followup, session, project, `I could not finish this: ${(e as Error).message}`)
+      }
     }
     finally {
       controllers.delete(session.id)
@@ -92,7 +98,7 @@ export async function startFollowup(followupId: number): Promise<void> {
   }
 }
 
-async function execFollowup(followup: Followup, session: Session, run: Run, project: Project, controller: AbortController): Promise<void> {
+async function execFollowup(followup: Followup, session: Session, run: Run, project: Project, controller: AbortController): Promise<string> {
   // Offset BEFORE the banner: the banner and the env-revive output below
   // belong to this follow-up's log segment on the dashboard.
   const logStart = runLogBytes(run.id)
@@ -152,10 +158,28 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
     await syncSessionBranch(session.id, run.id, rt)
     finalizeRow({ status: 'success', outputs: { text: reply.slice(0, 8 * 1024) } })
     log(`\n✓ Follow-up done\n`)
+    return reply
   }
   catch (e) {
     finalizeRow({ status: 'failed', error: controller.signal.aborted ? 'Cancelled' : (e as Error).message })
     throw e
+  }
+}
+
+// The guaranteed thread reply (ADR 0007): a mention always gets an answer on
+// its object. When the agent already posted on the thread itself during this
+// follow-up (knecht-reply), the guarantee is met and auto-posting the final
+// assistant message (or a late failure notice) would just duplicate what the
+// thread already heard. Best-effort: the follow-up already succeeded/failed
+// either way.
+async function postMentionReply(followup: Followup, session: Session, project: Project, text: string): Promise<void> {
+  if (followup.origin !== 'mention' || !session.objectNumber) return
+  if (agentRepliedSince(session.id, followup.startedAt ?? followup.createdAt)) return
+  try {
+    await createIssueComment(project.owner, project.name, session.objectNumber, text)
+  }
+  catch (e) {
+    appendLog(followup.runId, `\nCould not post the reply on the thread: ${(e as Error).message}\n`)
   }
 }
 

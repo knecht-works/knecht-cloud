@@ -97,3 +97,18 @@ export function sessionHasActiveWork(sessionId: number): boolean {
     .get()
   return Boolean(followup)
 }
+
+// Whether the agent itself posted on the session's thread (the bridge's
+// comment op) since a given moment. In-process memory is enough: the bridge
+// and the follow-up executor live in the same process, and the only consumer
+// is the mention pipeline deciding whether its guaranteed reply would just
+// duplicate what the agent already said.
+const agentReplies = new Map<number, number>()
+
+export function recordAgentReply(sessionId: number): void {
+  agentReplies.set(sessionId, Date.now())
+}
+
+export function agentRepliedSince(sessionId: number, since: Date): boolean {
+  return (agentReplies.get(sessionId) ?? 0) >= since.getTime()
+}

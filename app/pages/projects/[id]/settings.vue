@@ -176,6 +176,39 @@ async function uploadSeed(event: Event) {
     input.value = ''
   }
 }
+
+// ── Mentions ───────────────────────────────────────────────────────────────
+// @-mentioning Knecht on one of this repo's issues/PRs runs the comment as a
+// follow-up. The starter workflow is what boots the environment when the
+// mentioned thread has no session yet; only published workflows qualify.
+const { data: workflows } = await useFetch('/api/workflows')
+const starterItems = computed(() =>
+  (workflows.value ?? [])
+    .filter(w => w.publishedAt)
+    .map(w => ({ label: w.name, value: w.id })),
+)
+const starterWorkflowId = ref<number | null>(project.value?.starterWorkflowId ?? null)
+async function setStarter(value: number | null) {
+  starterWorkflowId.value = value
+  try {
+    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { starterWorkflowId: value } })
+  }
+  catch (e) {
+    toastError('Failed to save', e)
+  }
+}
+const mentionsEnabled = ref(project.value?.mentionsEnabled ?? true)
+const mentionsAdvancedOpen = ref(false)
+async function toggleMentions() {
+  mentionsEnabled.value = !mentionsEnabled.value
+  try {
+    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { mentionsEnabled: mentionsEnabled.value } })
+  }
+  catch (e) {
+    mentionsEnabled.value = !mentionsEnabled.value
+    toastError('Failed to save', e)
+  }
+}
 </script>
 
 <template>
@@ -338,6 +371,62 @@ async function uploadSeed(event: Event) {
               placeholder="Styles live in src/css. Use the existing design tokens, never raw hex values."
               class="w-full"
             />
+          </div>
+        </KPanel>
+
+        <KPanel
+          title="Mentions"
+          icon="i-lucide-at-sign"
+        >
+          <div class="flex flex-col">
+            <p class="text-2xs leading-relaxed text-dimmed">
+              Write
+              <span class="k-mono text-toned">@{{ project.mentionHandle ?? 'knecht' }} &lt;instruction&gt;</span>
+              in a comment on one of this repo's issues or pull requests and
+              Knecht does what the comment says, then answers in the thread.
+            </p>
+            <div class="k-label mb-1.5 mt-3">
+              Which workflow boots the environment for a new thread?
+            </div>
+            <USelectMenu
+              :model-value="starterItems.find(i => i.value === starterWorkflowId)"
+              :items="starterItems"
+              placeholder="Choose a starter workflow…"
+              icon="i-lucide-rocket"
+              class="w-full"
+              @update:model-value="(item: { value: number } | undefined) => setStarter(item?.value ?? null)"
+            />
+            <p
+              v-if="!starterWorkflowId"
+              class="k-mono mt-1.5 text-2xs text-dimmed"
+            >
+              Until one is chosen, Knecht answers mentions with a setup hint.
+            </p>
+
+            <div class="mt-3.5">
+              <button
+                type="button"
+                class="k-mono flex items-center gap-1.5 text-2xs text-dimmed transition-colors hover:text-muted"
+                @click="mentionsAdvancedOpen = !mentionsAdvancedOpen"
+              >
+                <UIcon
+                  :name="mentionsAdvancedOpen ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                  class="size-3.5"
+                />
+                Advanced
+              </button>
+              <div
+                v-if="mentionsAdvancedOpen"
+                class="mt-2.5 flex items-center justify-between gap-3"
+              >
+                <span class="text-2xs text-muted">Answer mentions in this repo</span>
+                <KToggle
+                  :active="mentionsEnabled"
+                  :aria-label="mentionsEnabled ? 'Disable mentions' : 'Enable mentions'"
+                  @toggle="toggleMentions"
+                />
+              </div>
+            </div>
           </div>
         </KPanel>
       </div>

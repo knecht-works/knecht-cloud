@@ -34,7 +34,16 @@ export interface GithubPayload {
     head?: { ref?: string }
     base?: { ref?: string }
   }
-  issue?: { number?: number, title?: string, body?: string | null, html_url?: string }
+  issue?: {
+    number?: number
+    title?: string
+    body?: string | null
+    html_url?: string
+    // Present when the "issue" is actually a pull request (issue_comment
+    // deliveries cover both surfaces).
+    pull_request?: object
+  }
+  comment?: { id?: number, body?: string, user?: { login?: string, type?: string } }
   label?: { name?: string }
 }
 
