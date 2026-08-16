@@ -25,35 +25,10 @@ const repoName = computed(() => project.value?.fullName.split('/').pop() ?? 'Pro
 const projectRuns = computed(() => runs.value ?? [])
 const latest = computed(() => projectRuns.value[0] ?? null)
 
-// The sidebar list grouped by session: runs on the same issue/PR collect
-// under one object header, one-shot runs (manual, push, schedule) stay plain
-// rows. Groups keep the list's order, newest run first per session and
-// sessions ordered by their newest run (Map preserves first-seen order).
-const sessionGroups = computed(() => {
-  const bySession = new Map<number, (typeof projectRuns.value)[number][]>()
-  for (const r of projectRuns.value) {
-    const group = bySession.get(r.sessionId)
-    if (group) group.push(r)
-    else bySession.set(r.sessionId, [r])
-  }
-  return [...bySession.values()].map((groupRuns) => {
-    const head = groupRuns[0]!
-    return {
-      sessionId: head.sessionId,
-      object: head.objectKind
-        ? {
-            kind: head.objectKind,
-            number: head.objectNumber,
-            title: head.objectTitle,
-            url: head.objectUrl,
-            closed: head.sessionStatus === 'closed',
-            live: head.envState === 'up',
-          }
-        : null,
-      runs: groupRuns,
-    }
-  })
-})
+// The sidebar list grouped by session (utils/dashboard.ts): runs on the same
+// issue/PR collect under one object header, one-shot runs (manual, push,
+// schedule) stay plain rows.
+const sessionGroups = computed(() => groupRunsBySession(projectRuns.value))
 
 // ── Run selection (?run=<id>, default: the newest run) ─────────────────────
 // The selection is a ref, not a computed from the query, so it NEVER moves
@@ -486,37 +461,36 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
                 class="flex items-center gap-2 px-4.5 pb-1 pt-3"
               >
                 <UIcon
-                  :name="sessionObjectMeta(g.object.kind).icon"
+                  :name="g.object.closed ? sessionObjectMeta(g.object.kind).closedIcon : sessionObjectMeta(g.object.kind).icon"
                   class="size-3.5 flex-none"
                   :style="{ color: g.object.closed ? 'var(--text-dimmed)' : sessionObjectMeta(g.object.kind).color }"
                 />
                 <span class="k-mono flex-none text-2xs text-dimmed">#{{ g.object.number }}</span>
                 <UTooltip :text="g.object.title ?? ''">
-                  <span class="k-mono min-w-0 truncate text-2xs text-muted">{{ g.object.title }}</span>
+                  <span
+                    class="k-mono min-w-0 truncate text-2xs"
+                    :class="g.object.closed ? 'text-dimmed' : 'text-muted'"
+                  >{{ g.object.title }}</span>
                 </UTooltip>
-                <span
-                  v-if="g.object.closed"
-                  class="k-mono ml-auto flex-none text-2xs text-dimmed"
-                >Closed</span>
-                <KStatusDot
-                  v-else-if="g.object.live"
-                  class="ml-auto flex-none"
-                  color="primary"
-                  :size="5"
-                />
-                <a
-                  v-if="g.object.url"
-                  :href="g.object.url"
-                  target="_blank"
-                  class="flex-none text-dimmed transition-colors hover:text-muted"
-                  :class="g.object.closed || g.object.live ? '' : 'ml-auto'"
-                  :aria-label="`Open ${g.object.kind === 'issue' ? 'issue' : 'pull request'} #${g.object.number} on GitHub`"
-                >
-                  <UIcon
-                    name="i-lucide-arrow-up-right"
-                    class="size-3.5"
+                <span class="ml-auto flex flex-none items-center gap-2">
+                  <KStatusDot
+                    v-if="g.object.live"
+                    color="primary"
+                    :size="5"
                   />
-                </a>
+                  <a
+                    v-if="g.object.url"
+                    :href="g.object.url"
+                    target="_blank"
+                    class="flex text-dimmed transition-colors hover:text-muted"
+                    :aria-label="`Open ${g.object.kind === 'issue' ? 'issue' : 'pull request'} #${g.object.number} on GitHub`"
+                  >
+                    <UIcon
+                      name="i-lucide-arrow-up-right"
+                      class="size-3.5"
+                    />
+                  </a>
+                </span>
               </div>
               <NuxtLink
                 v-for="r in g.runs"
