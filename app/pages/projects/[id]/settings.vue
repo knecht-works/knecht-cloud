@@ -177,6 +177,22 @@ async function uploadSeed(event: Event) {
   }
 }
 
+// ── Boot commands (project layer, auto-saved) ──────────────────────────────
+// How THIS project boots: runs after `ddev start` + DB import on a session's
+// first boot, before any workflow-specific ddev-start commands. Lives here so
+// one generic workflow can serve projects that boot differently.
+const bootCommands = ref(project.value?.bootCommands ?? '')
+const { state: bootState, error: bootError, schedule: scheduleBoot } = useAutosave(async () => {
+  await $fetch(`/api/projects/${id}`, {
+    method: 'PATCH',
+    body: { bootCommands: bootCommands.value },
+  })
+})
+watch(bootCommands, () => {
+  if (bootCommands.value === (project.value?.bootCommands ?? '')) return
+  scheduleBoot()
+})
+
 // ── Mentions ───────────────────────────────────────────────────────────────
 // @-mentioning Knecht on one of this repo's issues/PRs runs the comment as a
 // follow-up. The starter workflow is what boots the environment when the
@@ -460,6 +476,36 @@ async function toggleMentions() {
           >
             Resolving environment…
           </p>
+        </KPanel>
+
+        <KPanel
+          title="Boot commands"
+          icon="i-lucide-terminal"
+        >
+          <template #action>
+            <KSaveStatus
+              v-if="bootState !== 'idle'"
+              :state="bootState"
+              :error-text="bootError"
+            />
+          </template>
+          <div>
+            <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
+              What has to run after <span class="k-mono">ddev start</span> and the
+              database import before the site works. One command per line, run
+              once per session, before any workflow-specific boot commands.
+            </p>
+            <UTextarea
+              v-model="bootCommands"
+              :rows="3"
+              autoresize
+              :maxrows="10"
+              spellcheck="false"
+              placeholder="ddev composer install"
+              class="w-full"
+              :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
+            />
+          </div>
         </KPanel>
 
         <KPanel

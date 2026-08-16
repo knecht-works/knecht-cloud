@@ -32,6 +32,10 @@ const bodySchema = z.object({
   // Project-level agent instructions, layered on top of the instance ones
   // (materialized by server/workflows/actions/ai.ts).
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
+  // Commands that run after `ddev start` + DB import on a session's first
+  // boot, before any workflow-specific ddev-start commands: how THIS project
+  // boots, so one generic workflow serves differently-booting projects.
+  bootCommands: z.string().max(4000).optional(),
   // Mentions (ADR 0007): the @-mention switch and the workflow that boots a
   // session when a mentioned object has none yet. Null clears the starter.
   mentionsEnabled: z.boolean().optional(),

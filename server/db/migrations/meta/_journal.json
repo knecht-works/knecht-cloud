@@ -176,6 +176,13 @@
       "when": 1786879923655,
       "tag": "0024_replies-and-mentions",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1786882060824,
+      "tag": "0025_project-boot-commands",
+      "breakpoints": true
     }
   ]
 }
