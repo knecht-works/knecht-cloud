@@ -1,7 +1,7 @@
 import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
 import { hostname } from 'node:os'
 import { execa } from 'execa'
-import { getSession } from './entities'
+import { getSessionRow } from './entities'
 import { previewOrigin } from './origin'
 
 // The agent bridge: how in-sandbox git gets its push/fetch credentials and
@@ -94,7 +94,7 @@ export async function bridgeEnv(sessionId: number): Promise<Record<string, strin
   // Sessions with an object also get the reply tools (knecht-reply,
   // knecht-label): the marker tells the CLIs (and the agent, via AGENTS.md)
   // what they would post on. Enforcement stays host-side in the bridge.
-  const session = getSession(sessionId)
+  const session = getSessionRow(sessionId)
   if (session?.objectKind && session.objectNumber) {
     env.KNECHT_OBJECT = `${session.objectKind === 'issue' ? 'issue' : 'pull request'} #${session.objectNumber}`
   }

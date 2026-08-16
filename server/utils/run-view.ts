@@ -1,5 +1,5 @@
 import type { Run, Session } from '../db/schema'
-import { getSession } from './entities'
+import { getSessionRow } from './entities'
 
 // The run payload the dashboard consumes: the run row plus its session's env
 // fields, flattened in under their historical names. The UI reads
@@ -8,7 +8,7 @@ import { getSession } from './entities'
 // dedicated session UI is still to come. `sessionId` is what preview URLs
 // are built from.
 export function withSessionEnv<R extends Run>(run: R, session?: Session) {
-  const s = session ?? getSession(run.sessionId)
+  const s = session ?? getSessionRow(run.sessionId)
   return {
     ...run,
     envState: s?.envState ?? 'down',
