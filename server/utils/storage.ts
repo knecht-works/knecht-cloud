@@ -15,18 +15,21 @@ export function projectsDir(): string {
   return process.env.KNECHT_PROJECTS || '/data/knecht/projects'
 }
 
-// A run's isolated working directory (a self-contained shallow clone): its own
-// ddev environment boots here.
-export function runCheckoutDir(runId: number): string {
-  return join(projectsDir(), `run-${runId}`)
+// A session's isolated working directory (a self-contained shallow clone):
+// its own ddev environment boots here. The `run-` prefix is historical
+// (sessions took over the envs of pre-session runs id-for-id, so existing
+// checkouts keep working); the id is the SESSION id.
+export function sessionCheckoutDir(sessionId: number): string {
+  return join(projectsDir(), `run-${sessionId}`)
 }
 
-// The name of a run's environment: its ddev project name on the host daemon
-// (containers ddev-knecht-run-<id>-web/-db). Everything about a run's
-// environment is addressed through this one name. (Pre-DooD installs used the
-// same name for the per-run Sysbox container; the teardown still sweeps those.)
-export function runSandboxName(runId: number): string {
-  return `knecht-run-${runId}`
+// The name of a session's environment: its ddev project name on the host
+// daemon (containers ddev-knecht-run-<id>-web/-db). Everything about a
+// session's environment is addressed through this one name. The `run-` prefix
+// is historical, see sessionCheckoutDir. (Pre-DooD installs used the same
+// name for the per-run Sysbox container; the teardown still sweeps those.)
+export function sessionSandboxName(sessionId: number): string {
+  return `knecht-run-${sessionId}`
 }
 
 // Host dir the agent tools (the opencode binary, the knecht-git bridge CLI)
@@ -37,11 +40,12 @@ export function toolsDir(): string {
   return join(dataDir(), 'tools')
 }
 
-// A run's archive folder: the small artifacts (DB export, checkout patch) that
-// survive the env teardown so an archived run can be restored exactly. NOT
-// created here: writers mkdir, readers probe.
-export function runArchiveDir(runId: number): string {
-  return join(dataDir(), 'archives', `run-${runId}`)
+// A session's archive folder: the small artifacts (DB export, checkout patch,
+// .knecht agent state) that survive the env teardown so an archived session
+// can be restored exactly. The `run-` prefix is historical, see
+// sessionCheckoutDir. NOT created here: writers mkdir, readers probe.
+export function sessionArchiveDir(sessionId: number): string {
+  return join(dataDir(), 'archives', `run-${sessionId}`)
 }
 
 // Per-project folder for uploaded DB dumps (created on demand).

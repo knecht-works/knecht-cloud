@@ -13,8 +13,10 @@ import type { RunContext } from '../context'
 // are imported by the action modules directly.
 export interface ActionRuntime {
   runId: number
+  /** The run's session: env, checkout and conversation are keyed by it. */
+  sessionId: number
   project: Project
-  /** Host-side path of the run's isolated git checkout. */
+  /** Host-side path of the session's isolated git checkout. */
   checkoutDir: string
   /** The full run context, for reads beyond the step's own rendered params. */
   ctx: RunContext

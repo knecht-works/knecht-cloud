@@ -7,8 +7,9 @@
 // frame posts `nav` messages up, the chrome posts `cmd` messages down. The
 // default slot renders inside the (16/9) viewport while the preview is offline.
 const props = withDefaults(defineProps<{
-  runId: number
-  /** All ddev hostnames the run serves, primary first (run.previewHosts). */
+  /** The session whose preview origin the frame loads (run.sessionId). */
+  sessionId: number
+  /** All ddev hostnames the session serves, primary first (run.previewHosts). */
   hosts?: string[]
   /** The preview is browsable: the env is up AND the boot step finished
    *  (run.previewReady). Renders the iframe directly; no probing needed. */
@@ -27,10 +28,10 @@ const primaryHost = computed(() => props.hosts[0] ?? null)
 
 const live = computed(() => props.online)
 
-// The per-run preview origin for one of the project's ddev hostnames.
+// The per-session preview origin for one of the project's ddev hostnames.
 function originFor(host: string | null): string {
   const label = host && host !== primaryHost.value ? previewLabel(host) : undefined
-  return `${reqUrl.protocol}//${previewHostname(props.runId, reqUrl.host, label)}`
+  return `${reqUrl.protocol}//${previewHostname(props.sessionId, reqUrl.host, label)}`
 }
 
 const homeUrl = `${originFor(null)}/`
@@ -55,7 +56,7 @@ function onMessage(e: MessageEvent) {
   if (data?.knecht !== 'nav' || typeof data.href !== 'string') return
   if (e.source !== frame.value?.contentWindow) return
   // Only trust this run's preview origins.
-  if (parsePreviewHost(new URL(e.origin).host)?.runId !== props.runId) return
+  if (parsePreviewHost(new URL(e.origin).host)?.sessionId !== props.sessionId) return
 
   bridged.value = true
   currentUrl.value = data.href
@@ -118,7 +119,7 @@ function displayUrl(url: string): string {
   try {
     const u = new URL(url)
     const target = parsePreviewHost(u.host)
-    if (target?.runId === props.runId && props.hosts.length) {
+    if (target?.sessionId === props.sessionId && props.hosts.length) {
       const host = target.label
         ? props.hosts.find(h => previewLabel(h) === target.label)
         : primaryHost.value

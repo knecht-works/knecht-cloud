@@ -4,7 +4,7 @@ import AdmZip from 'adm-zip'
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { rebootEnv } from '../../../daemon/envs'
-import { hasActiveFollowup } from '../../../daemon/followups'
+import { sessionHasActiveWork } from '../../../utils/sessions'
 import { WEB_PROJECT_DIR, webMountPresent } from '../../../daemon/sandbox'
 
 // POST /api/projects/:id/shared → seed one of the project's shared folders
@@ -62,15 +62,15 @@ export default defineEventHandler(async (event) => {
   // (runs/[id]/ide.post.ts): reboot every running env that lacks the mount,
   // except ones mid-workflow or mid-follow-up (recreating the web container
   // would kill them). Envs with the mount see the files live already.
-  const upRuns = db
-    .select({ id: schema.runs.id, status: schema.runs.status })
-    .from(schema.runs)
-    .where(and(eq(schema.runs.projectId, id), eq(schema.runs.envState, 'up')))
+  const upSessions = db
+    .select({ id: schema.sessions.id })
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.projectId, id), eq(schema.sessions.envState, 'up')))
     .all()
-  await Promise.all(upRuns.map(async (run) => {
-    if (run.status === 'queued' || run.status === 'running' || hasActiveFollowup(run.id)) return
-    if (await webMountPresent(run.id, `${WEB_PROJECT_DIR}/${target}`)) return
-    await rebootEnv(run.id).catch(() => {})
+  await Promise.all(upSessions.map(async (session) => {
+    if (sessionHasActiveWork(session.id)) return
+    if (await webMountPresent(session.id, `${WEB_PROJECT_DIR}/${target}`)) return
+    await rebootEnv(session.id).catch(() => {})
   }))
 
   return { folder: target, files: written }

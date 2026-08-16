@@ -5,11 +5,11 @@ describe('preview host scheme', () => {
   it('builds and parses primary and labeled origins symmetrically', () => {
     const primary = previewHostname(42, 'lvh.me:3333')
     expect(primary).toBe('42.preview.lvh.me:3333')
-    expect(parsePreviewHost('42.preview.lvh.me')).toEqual({ runId: 42, label: undefined })
+    expect(parsePreviewHost('42.preview.lvh.me')).toEqual({ sessionId: 42, label: undefined })
 
     const labeled = previewHostname(42, 'example.com', 'alpha-test')
     expect(labeled).toBe('alpha-test--42.preview.example.com')
-    expect(parsePreviewHost('alpha-test--42.preview.example.com')).toEqual({ runId: 42, label: 'alpha-test' })
+    expect(parsePreviewHost('alpha-test--42.preview.example.com')).toEqual({ sessionId: 42, label: 'alpha-test' })
   })
 
   it('does not mistake dashboard or project hosts for preview hosts', () => {

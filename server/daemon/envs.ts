@@ -1,77 +1,80 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
-import { and, desc, eq, lt } from 'drizzle-orm'
+import { and, desc, eq, inArray, lt } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { getSettings } from '../utils/settings'
-import { getProject, getRun } from '../utils/entities'
+import { getProject, getSession } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
-import { projectDumpDir, runArchiveDir, runCheckoutDir } from '../utils/storage'
+import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
 import { runSetupCommands } from '../workflows/actions/ddev-start'
 import { writeDdevConfig } from './ddev'
-import { prepareRunCheckout } from './git'
+import { prepareSessionCheckout } from './git'
 import { envStackRunning, execInSandbox, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
 
-// Lifecycle of the per-run environments: the ONE place that moves envState.
-// Envs walk down a retention ladder that trades disk for restore time:
+// Lifecycle of the per-session environments: the ONE place that moves
+// envState. Envs walk down a retention ladder that trades disk for restore
+// time:
 //
 //   up ─idleStopMinutes─▶ stopped ─previewRetentionDays─▶ archived ─archiveRetentionDays─▶ down
 //      (DB exported on          (volumes + checkout (               (archive deleted;
 //       the way down;            the GBs) deleted; DB               only a re-run
 //       containers gone,         export + the checkout's            boots it again)
 //       volumes kept)            .git + uncommitted patch
-//                                (MBs) kept)
+//                                + .knecht state (MBs) kept)
 //
 // Reactivation: 'stopped' reboots in seconds (rebootEnv: `ddev start` revives
 // the containers around the kept volumes); 'archived' is restored exactly:
 // the archived .git is unpacked and reset (offline, keeps unpushed commits),
-// the uncommitted patch re-applied, fresh stack, the run's own DB export
+// the uncommitted patch re-applied, the .knecht agent state (the session's
+// conversation) unpacked, fresh stack, the session's own DB export
 // re-imported (rehydrateEnv). All timeouts are operator settings
 // (server/utils/settings.ts).
 
-// Bring a run's env up before project-facing work: start its ddev stack if it
-// isn't running, mark it previewable. Idempotent; the running check keeps the
-// per-step calls cheap (a no-op `ddev start` still takes seconds).
-export async function ensureEnvUp(runId: number): Promise<void> {
-  if (!await envStackRunning(runId)) await startEnvStack(runId)
-  markUp(runId)
+// Bring a session's env up before project-facing work: start its ddev stack
+// if it isn't running, mark it previewable. Idempotent; the running check
+// keeps the per-step calls cheap (a no-op `ddev start` still takes seconds).
+export async function ensureEnvUp(sessionId: number): Promise<void> {
+  if (!await envStackRunning(sessionId)) await startEnvStack(sessionId)
+  markUp(sessionId)
 }
 
-// Restart an idle-stopped env: the project's volumes (the imported DB) and the
-// checkout survived the stop, so `ddev start` brings it back without
-// re-running the workflow.
-export async function rebootEnv(runId: number): Promise<void> {
+// Restart an idle-stopped env: the volumes (the imported DB) and the checkout
+// survived the stop, so `ddev start` brings it back without re-running the
+// workflow.
+export async function rebootEnv(sessionId: number): Promise<void> {
   // Refresh the knecht ddev config first: the compose override evolves with
   // Knecht (tool mounts like the IDE server, resource limits), and a reboot
-  // must pick up its current shape, not the one from the run's original boot.
-  const run = getRun(runId)
-  const project = run && getProject(run.projectId)
-  const dir = runCheckoutDir(runId)
-  if (run && project && existsSync(dir)) {
-    writeDdevConfig(dir, project.envVars, runId, run.urlMode ?? 'rewrite', { projectId: project.id, folders: project.sharedFolders })
+  // must pick up its current shape, not the one from the session's original
+  // boot.
+  const session = getSession(sessionId)
+  const project = session && getProject(session.projectId)
+  const dir = sessionCheckoutDir(sessionId)
+  if (session && project && existsSync(dir)) {
+    writeDdevConfig(dir, project.envVars, sessionId, session.urlMode ?? 'rewrite', { projectId: project.id, folders: project.sharedFolders })
   }
-  await startEnvStack(runId)
-  markUp(runId)
+  await startEnvStack(sessionId)
+  markUp(sessionId)
 }
 
 // Restore an archived env exactly: unpack the archived .git and reset the
-// working tree from it (offline, and it carries the run's branch, config and
-// every commit the run made, pushed or not), re-apply the uncommitted diff,
-// start a fresh stack, import the run's own DB export (falling back to the
-// project dump for archives without one) and re-run the boot step's setup
-// commands, which rebuild what the archive doesn't carry (vendor/ and other
-// gitignored artifacts). An archive whose .git snapshot is
-// missing (the best-effort snapshot failed) falls back to a fresh clone at
-// the branch tip. Takes minutes, the price of archives costing MBs instead
-// of GBs.
-export async function rehydrateEnv(runId: number): Promise<void> {
-  const run = getRun(runId)
-  const project = run && getProject(run.projectId)
-  if (!run || !project) throw new Error('Run or project not found')
+// working tree from it (offline, and it carries the session's branch, config
+// and every commit the session made, pushed or not), re-apply the uncommitted
+// diff, unpack the .knecht agent state (the conversation continues where it
+// was), start a fresh stack, import the session's own DB export (falling back
+// to the project dump for archives without one) and re-run the boot step's
+// setup commands, which rebuild what the archive doesn't carry (vendor/ and
+// other gitignored artifacts). An archive whose .git snapshot is missing (the
+// best-effort snapshot failed) falls back to a fresh clone at the branch tip.
+// Takes minutes, the price of archives costing MBs instead of GBs.
+export async function rehydrateEnv(sessionId: number): Promise<void> {
+  const session = getSession(sessionId)
+  const project = session && getProject(session.projectId)
+  if (!session || !project) throw new Error('Session or project not found')
 
-  const dir = runCheckoutDir(runId)
-  const gitArchive = join(runArchiveDir(runId), 'git.tar.gz')
+  const dir = sessionCheckoutDir(sessionId)
+  const gitArchive = join(sessionArchiveDir(sessionId), 'git.tar.gz')
   if (existsSync(gitArchive)) {
     // The archived .git is the exact object store. (Re)unpack and reset the
     // working tree from it on every attempt, so a crash between the extract and
@@ -87,46 +90,57 @@ export async function rehydrateEnv(runId: number): Promise<void> {
   }
   else {
     const token = await getInstallationToken(project.owner, project.name)
-    await prepareRunCheckout(project, runId, token, () => {}, run.branch ?? project.defaultBranch)
+    await prepareSessionCheckout(project, sessionId, token, () => {}, session.branch ?? project.defaultBranch)
   }
 
   // Re-apply the uncommitted changes saved at archive time, only onto a clean
   // checkout, so a retry after a half-done restore doesn't apply them twice.
-  const patch = join(runArchiveDir(runId), 'checkout.patch')
+  const patch = join(sessionArchiveDir(sessionId), 'checkout.patch')
   if (existsSync(patch)) {
     const { stdout: status } = await execa('git', ['-C', dir, 'status', '--porcelain'])
     if (!status.trim()) await execa('git', ['-C', dir, 'apply', patch])
   }
-  writeDdevConfig(dir, project.envVars, runId, run.urlMode ?? 'rewrite', { projectId: project.id, folders: project.sharedFolders })
 
-  await startEnvStack(runId)
+  // The session's agent state (.knecht: opencode config + the conversation
+  // DB) is git-excluded, so it rides its own tarball. Restored only when the
+  // checkout has none yet (a retry keeps the live state), so a follow-up
+  // after the restore continues the conversation instead of starting blank.
+  const stateArchive = join(sessionArchiveDir(sessionId), 'knecht-state.tar.gz')
+  if (existsSync(stateArchive) && !existsSync(join(dir, '.knecht'))) {
+    await execa('tar', ['-xzf', stateArchive, '-C', dir])
+  }
+  writeDdevConfig(dir, project.envVars, sessionId, session.urlMode ?? 'rewrite', { projectId: project.id, folders: project.sharedFolders })
+
+  await startEnvStack(sessionId)
   try {
-    await importArchivedDb(runId, project)
-    await rerunBootSetup(runId)
+    await importArchivedDb(sessionId, project)
+    await rerunBootSetup(sessionId)
   }
   catch (e) {
     // A half-restored stack must not keep running under envState 'archived':
     // no reaper reclaims that state, and the next restore would boot a second
     // stack on top. Stop the containers again (the unpacked checkout and the
     // archive stay for the retry) and surface the failure.
-    await stopEnvStack(runId)
+    await stopEnvStack(sessionId)
     throw e
   }
-  markUp(runId)
+  markUp(sessionId)
 }
 
 // Re-run the boot step's setup commands (composer install and friends) after a
-// restore: the archive keeps only git-visible state plus the DB export, so
-// everything gitignored (vendor/, node_modules/, a generated .env) died with
-// the teardown and must be rebuilt the way the original boot built it. The
-// commands come from the run's executed ddev-start row, already rendered.
-// A run without a successful boot step never had a preview: nothing to redo.
-async function rerunBootSetup(runId: number): Promise<void> {
+// restore: the archive keeps only git-visible state plus the DB export and
+// .knecht, so everything gitignored (vendor/, node_modules/, a generated
+// .env) died with the teardown and must be rebuilt the way the original boot
+// built it. The commands come from the session's last executed ddev-start
+// row, already rendered. A session without a successful boot step never had
+// a preview: nothing to redo.
+async function rerunBootSetup(sessionId: number): Promise<void> {
   const row = db
     .select({ params: schema.runSteps.params })
     .from(schema.runSteps)
+    .innerJoin(schema.runs, eq(schema.runSteps.runId, schema.runs.id))
     .where(and(
-      eq(schema.runSteps.runId, runId),
+      eq(schema.runs.sessionId, sessionId),
       eq(schema.runSteps.type, 'ddev-start'),
       eq(schema.runSteps.status, 'success'),
     ))
@@ -134,52 +148,53 @@ async function rerunBootSetup(runId: number): Promise<void> {
     .get()
   const { commands } = (row?.params ?? {}) as { commands?: string }
   await runSetupCommands(commands, async (command) => {
-    const { exitCode } = await execInSandbox(runId, ['bash', '-lc', command], { reject: false })
+    const { exitCode } = await execInSandbox(sessionId, ['bash', '-lc', command], { reject: false })
     return exitCode ?? 1
   })
 }
 
 // The env is up and previewable now, even if later steps fail. Also resets
 // the idle clock so the reaper doesn't stop what was just booted.
-function markUp(runId: number): void {
-  db.update(schema.runs)
+function markUp(sessionId: number): void {
+  db.update(schema.sessions)
     .set({ envState: 'up', previewLastSeen: new Date() })
-    .where(eq(schema.runs.id, runId))
+    .where(eq(schema.sessions.id, sessionId))
     .run()
 }
 
-// Stop a run's env: export its database into the run archive while the stack
-// is still up, then stop it (containers removed, volumes and checkout kept, so
-// it can be rebooted quickly). Guarded: the export makes a stop take a while,
-// and the reaper tick must not pile a second stop onto a run mid-export.
-// Failures propagate (envState stays 'up'): the stop endpoint reports them,
-// the idle reaper catches per run and retries on its next tick.
+// Stop a session's env: export its database into the session archive while
+// the stack is still up, then stop it (containers removed, volumes and
+// checkout kept, so it can be rebooted quickly). Guarded: the export makes a
+// stop take a while, and the reaper tick must not pile a second stop onto a
+// session mid-export. Failures propagate (envState stays 'up'): the stop
+// endpoint reports them, the idle reaper catches per session and retries on
+// its next tick.
 const stopping = new Set<number>()
-export async function stopEnv(runId: number): Promise<void> {
-  if (stopping.has(runId)) return
-  stopping.add(runId)
+export async function stopEnv(sessionId: number): Promise<void> {
+  if (stopping.has(sessionId)) return
+  stopping.add(sessionId)
   try {
-    await exportRunDb(runId)
-    // A run whose stack never came up has nothing to stop; `ddev stop` on an
-    // unregistered project would fail and wedge the env in 'up' forever.
-    if (await envStackRunning(runId)) await stopEnvStack(runId)
-    db.update(schema.runs).set({ envState: 'stopped' }).where(eq(schema.runs.id, runId)).run()
+    await exportSessionDb(sessionId)
+    // A session whose stack never came up has nothing to stop; `ddev stop` on
+    // an unregistered project would fail and wedge the env in 'up' forever.
+    if (await envStackRunning(sessionId)) await stopEnvStack(sessionId)
+    db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, sessionId)).run()
   }
   finally {
-    stopping.delete(runId)
+    stopping.delete(sessionId)
   }
 }
 
-// Export the env's CURRENT database into the run's archive. The DB can only
-// change while the env is 'up', so exporting on the way down always captures
-// the latest state, each stop overwrites the previous export. The ddev CLI
-// runs host-side, so it writes the archive file directly. Best-effort: a run
-// whose ddev never came up has nothing to export, and that must not block
-// the stop.
-async function exportRunDb(runId: number): Promise<void> {
+// Export the env's CURRENT database into the session's archive. The DB can
+// only change while the env is 'up', so exporting on the way down always
+// captures the latest state, each stop overwrites the previous export. The
+// ddev CLI runs host-side, so it writes the archive file directly.
+// Best-effort: a session whose ddev never came up has nothing to export, and
+// that must not block the stop.
+async function exportSessionDb(sessionId: number): Promise<void> {
   try {
-    mkdirSync(runArchiveDir(runId), { recursive: true })
-    await execInSandbox(runId, ['ddev', 'export-db', `--file=${join(runArchiveDir(runId), 'db.sql.gz')}`])
+    mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
+    await execInSandbox(sessionId, ['ddev', 'export-db', `--file=${join(sessionArchiveDir(sessionId), 'db.sql.gz')}`])
   }
   catch {
     // No (working) DB to export: restore falls back to the project dump.
@@ -188,30 +203,38 @@ async function exportRunDb(runId: number): Promise<void> {
 
 // Stop envs that have been idle (no preview access) longer than the configured
 // timeout. This is the RAM guard: each 'up' env keeps a web + db container
-// running. A run with a step still executing (workflow or follow-up) is not
-// idle no matter how stale its preview timestamp: stopping would SIGKILL the
-// agent working inside (exit 137). Its idle clock is bumped instead, so the
-// env stays up a full window after the step finishes. Stale 'running' rows
-// cannot pin an env forever: plugins/runs-recover.ts closes them at boot.
+// running. A session with a step still executing (workflow or follow-up) is
+// not idle no matter how stale its preview timestamp: stopping would SIGKILL
+// the agent working inside (exit 137). Its idle clock is bumped instead, so
+// the env stays up a full window after the step finishes. Stale 'running'
+// rows cannot pin an env forever: plugins/runs-recover.ts closes them at boot.
 export async function reapIdleEnvs(): Promise<void> {
   const { idleStopMinutes } = getSettings()
   const cutoff = new Date(Date.now() - idleStopMinutes * 60_000)
   const idle = db
-    .select({ id: schema.runs.id })
-    .from(schema.runs)
-    .where(and(eq(schema.runs.envState, 'up'), lt(schema.runs.previewLastSeen, cutoff)))
+    .select({ id: schema.sessions.id })
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.envState, 'up'), lt(schema.sessions.previewLastSeen, cutoff)))
     .all()
   if (!idle.length) return
-  const busy = new Set(db
+  const runningRuns = db
     .select({ runId: schema.runSteps.runId })
     .from(schema.runSteps)
     .where(eq(schema.runSteps.status, 'running'))
     .all()
-    .map(r => r.runId))
+    .map(r => r.runId)
+  const busy = new Set(runningRuns.length
+    ? db
+        .select({ sessionId: schema.runs.sessionId })
+        .from(schema.runs)
+        .where(inArray(schema.runs.id, runningRuns))
+        .all()
+        .map(r => r.sessionId)
+    : [])
   for (const { id } of idle) {
     try {
       if (busy.has(id)) {
-        db.update(schema.runs).set({ previewLastSeen: new Date() }).where(eq(schema.runs.id, id)).run()
+        db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, id)).run()
         continue
       }
       await stopEnv(id)
@@ -224,55 +247,60 @@ export async function reapIdleEnvs(): Promise<void> {
 
 // Archive envs that have been 'stopped' (untouched) longer than the preview
 // retention: snapshot what the teardown would lose (the checkout's HEAD + its
-// uncommitted diff; the DB export was already taken at stop time), then
-// delete the sandbox and checkout. 0 keeps stopped envs until the run is
-// deleted.
+// uncommitted diff + the .knecht agent state; the DB export was already taken
+// at stop time), then delete the sandbox and checkout. 0 keeps stopped envs
+// until the session is deleted.
 export async function archiveStaleEnvs(): Promise<void> {
   const { previewRetentionDays } = getSettings()
   if (previewRetentionDays <= 0) return
   const cutoff = new Date(Date.now() - previewRetentionDays * 86_400_000)
   const stale = db
     .select()
-    .from(schema.runs)
-    .where(and(eq(schema.runs.envState, 'stopped'), lt(schema.runs.previewLastSeen, cutoff)))
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.envState, 'stopped'), lt(schema.sessions.previewLastSeen, cutoff)))
     .all()
-  for (const run of stale) await archiveEnv(run.id)
+  for (const session of stale) await archiveEnv(session.id)
 }
 
 // Archive one stopped env: snapshot, teardown, mark archived. Shared by the
 // retention reaper above and the run page's "archive now" action.
-export async function archiveEnv(runId: number): Promise<void> {
-  await snapshotCheckout(runId)
-  await teardownRun(runId)
-  db.update(schema.runs).set({ envState: 'archived' }).where(eq(schema.runs.id, runId)).run()
+export async function archiveEnv(sessionId: number): Promise<void> {
+  await snapshotCheckout(sessionId)
+  await teardownSession(sessionId)
+  db.update(schema.sessions).set({ envState: 'archived' }).where(eq(schema.sessions.id, sessionId)).run()
 }
 
 // Record what the teardown is about to delete from the checkout: its HEAD
 // (the fallback restore point), any uncommitted changes as a binary patch,
-// and the whole .git dir. The .git tarball is what makes the restore exact:
-// the run's clone IS its object store, so commits that were never pushed
-// would die with the teardown otherwise. `.ddev/config.knecht.yaml` is
-// excluded via the clone's info/exclude and regenerated on restore, so no
-// secrets enter the patch.
-async function snapshotCheckout(runId: number): Promise<void> {
-  const dir = runCheckoutDir(runId)
+// the whole .git dir, and the .knecht agent state (the session's
+// conversation, which must survive archiving; ADR 0006). The .git tarball is
+// what makes the restore exact: the session's clone IS its object store, so
+// commits that were never pushed would die with the teardown otherwise.
+// `.ddev/config.knecht.yaml` is excluded via the clone's info/exclude and
+// regenerated on restore, so no secrets enter the patch.
+async function snapshotCheckout(sessionId: number): Promise<void> {
+  const dir = sessionCheckoutDir(sessionId)
   const gitDir = join(dir, '.git')
   if (!existsSync(gitDir)) return
   try {
     const { stdout: sha } = await execa('git', ['-C', dir, 'rev-parse', 'HEAD'])
-    db.update(schema.runs).set({ commitSha: sha.trim() }).where(eq(schema.runs.id, runId)).run()
+    db.update(schema.sessions).set({ commitSha: sha.trim() }).where(eq(schema.sessions.id, sessionId)).run()
     await execa('git', ['-C', dir, 'add', '-A'])
-    mkdirSync(runArchiveDir(runId), { recursive: true })
-    // Snapshot the object store FIRST: it carries every commit the run made and
-    // is what makes the restore exact. Taken before the (maxBuffer-capped) diff
-    // so an oversized uncommitted diff that throws still leaves a restorable
-    // .git rather than falling back to a branch-tip clone that loses commits.
-    await execa('tar', ['-czf', join(runArchiveDir(runId), 'git.tar.gz'), '-C', dir, '.git'])
+    mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
+    // Snapshot the object store FIRST: it carries every commit the session
+    // made and is what makes the restore exact. Taken before the
+    // (maxBuffer-capped) diff so an oversized uncommitted diff that throws
+    // still leaves a restorable .git rather than falling back to a
+    // branch-tip clone that loses commits.
+    await execa('tar', ['-czf', join(sessionArchiveDir(sessionId), 'git.tar.gz'), '-C', dir, '.git'])
+    if (existsSync(join(dir, '.knecht'))) {
+      await execa('tar', ['-czf', join(sessionArchiveDir(sessionId), 'knecht-state.tar.gz'), '-C', dir, '.knecht'])
+    }
     // Keep the final newline: execa strips it by default, and `git apply`
     // rejects a patch whose last hunk line lost it ("corrupt patch").
     const { stdout: patch } = await execa('git', ['-C', dir, 'diff', '--cached', '--binary'], { maxBuffer: 256 * 1024 * 1024, stripFinalNewline: false })
     if (patch.trim()) {
-      writeFileSync(join(runArchiveDir(runId), 'checkout.patch'), patch)
+      writeFileSync(join(sessionArchiveDir(sessionId), 'checkout.patch'), patch)
     }
   }
   catch {
@@ -281,38 +309,40 @@ async function snapshotCheckout(runId: number): Promise<void> {
 }
 
 // Delete archives untouched longer than the archive retention; after this
-// only re-running the workflow gets a fresh environment. 0 keeps archives
-// until the run is deleted.
+// only a re-run gets a fresh environment, and the session's conversation is
+// gone (the next one starts seeded from the thread and durable state).
+// 0 keeps archives until the session is deleted.
 export async function reapExpiredArchives(): Promise<void> {
   const { archiveRetentionDays } = getSettings()
   if (archiveRetentionDays <= 0) return
   const cutoff = new Date(Date.now() - archiveRetentionDays * 86_400_000)
   const expired = db
-    .select({ id: schema.runs.id })
-    .from(schema.runs)
-    .where(and(eq(schema.runs.envState, 'archived'), lt(schema.runs.previewLastSeen, cutoff)))
+    .select({ id: schema.sessions.id })
+    .from(schema.sessions)
+    .where(and(eq(schema.sessions.envState, 'archived'), lt(schema.sessions.previewLastSeen, cutoff)))
     .all()
   for (const { id } of expired) {
-    rmSync(runArchiveDir(id), { recursive: true, force: true })
-    db.update(schema.runs).set({ envState: 'down' }).where(eq(schema.runs.id, id)).run()
+    rmSync(sessionArchiveDir(id), { recursive: true, force: true })
+    db.update(schema.sessions).set({ envState: 'down' }).where(eq(schema.sessions.id, id)).run()
   }
 }
 
-// Import the run's archived DB export into a freshly restored env; archives
-// without one (the export never succeeded) fall back to the project's dump.
-// The ddev CLI runs host-side and reads the file itself, no copy step.
-async function importArchivedDb(runId: number, project: Project): Promise<void> {
-  const archived = join(runArchiveDir(runId), 'db.sql.gz')
+// Import the session's archived DB export into a freshly restored env;
+// archives without one (the export never succeeded) fall back to the
+// project's dump. The ddev CLI runs host-side and reads the file itself, no
+// copy step.
+async function importArchivedDb(sessionId: number, project: Project): Promise<void> {
+  const archived = join(sessionArchiveDir(sessionId), 'db.sql.gz')
   const fallback = project.dbDumpPath && join(projectDumpDir(project.id), basename(project.dbDumpPath))
   const file = existsSync(archived) ? archived : fallback && existsSync(fallback) ? fallback : null
   if (!file) return
-  await execInSandbox(runId, ['ddev', 'import-db', `--file=${file}`])
+  await execInSandbox(sessionId, ['ddev', 'import-db', `--file=${file}`])
 }
 
-// Fully tear down a run's isolated environment: remove its ddev stack
+// Fully tear down a session's isolated environment: remove its ddev stack
 // (containers, volumes, project registration) and its checkout. Best-effort
 // so a half-gone env still gets cleaned up.
-export async function teardownRun(runId: number): Promise<void> {
-  await removeEnvStack(runId)
-  rmSync(runCheckoutDir(runId), { recursive: true, force: true })
+export async function teardownSession(sessionId: number): Promise<void> {
+  await removeEnvStack(sessionId)
+  rmSync(sessionCheckoutDir(sessionId), { recursive: true, force: true })
 }

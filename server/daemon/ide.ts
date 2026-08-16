@@ -71,8 +71,8 @@ export const IDE_DEFAULT_SETTINGS = {
 
 // Probe whether the run's IDE server answers. The IDE lives and dies with the
 // web container, so there is no bookkeeping to get stale.
-export async function ideRunning(runId: number): Promise<boolean> {
-  const ip = await resolvePreview(runId)
+export async function ideRunning(sessionId: number): Promise<boolean> {
+  const ip = await resolvePreview(sessionId)
   if (!ip) return false
   try {
     // Any HTTP answer means the server listens (no assumptions about
@@ -88,9 +88,9 @@ export async function ideRunning(runId: number): Promise<boolean> {
 // Whether the run's web container lacks the IDE mount: it booted before the
 // IDE existed, or before its download finished. The ide endpoint heals this
 // with a config-refreshing reboot (daemon/envs.ts rebootEnv).
-export async function ideMountMissing(runId: number): Promise<boolean> {
+export async function ideMountMissing(sessionId: number): Promise<boolean> {
   try {
-    await execa('docker', ['exec', webContainerName(runId), 'test', '-x', `${IDE_CONTAINER_DIR}/bin/openvscode-server`])
+    await execa('docker', ['exec', webContainerName(sessionId), 'test', '-x', `${IDE_CONTAINER_DIR}/bin/openvscode-server`])
     return false
   }
   catch {
@@ -101,8 +101,8 @@ export async function ideMountMissing(runId: number): Promise<boolean> {
 // Start the IDE in the run's web container (idempotent) and wait until it
 // answers. Runs as the same identity every Knecht exec uses; its state lives
 // under the checkout's .knecht dir so settings survive container recreates.
-export async function startRunIde(runId: number): Promise<void> {
-  if (await ideRunning(runId)) return
+export async function startRunIde(sessionId: number): Promise<void> {
+  if (await ideRunning(sessionId)) return
   if (!ideStaged()) {
     void stageIde().catch(e => console.error('openvscode-server staging failed:', (e as Error).message))
     throw createError({
@@ -111,17 +111,17 @@ export async function startRunIde(runId: number): Promise<void> {
     })
   }
 
-  const container = webContainerName(runId)
+  const container = webContainerName(sessionId)
   // Normally healed by the ide endpoint before it calls this; still missing
   // here means the heal did not stick.
-  if (await ideMountMissing(runId)) {
+  if (await ideMountMissing(sessionId)) {
     throw createError({
       statusCode: 409,
       statusMessage: 'The environment is missing the IDE mount. Reboot it and try again.',
     })
   }
 
-  const user = await resolveContainerUser(runId)
+  const user = await resolveContainerUser(sessionId)
   await execa('docker', [
     'exec', '-d',
     '-u', `${user.uid}:${user.gid}`,
@@ -140,7 +140,7 @@ export async function startRunIde(runId: number): Promise<void> {
   // The server needs a moment to listen; surface a clean error instead of
   // letting the freshly opened tab 503.
   for (let i = 0; i < 30; i++) {
-    if (await ideRunning(runId)) return
+    if (await ideRunning(sessionId)) return
     await new Promise(resolve => setTimeout(resolve, 500))
   }
   throw createError({ statusCode: 502, statusMessage: 'The IDE did not come up. Check the server logs.' })

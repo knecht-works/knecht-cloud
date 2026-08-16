@@ -1,12 +1,12 @@
 import { rmSync } from 'node:fs'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { teardownRun } from '../../daemon/envs'
-import { runArchiveDir } from '../../utils/storage'
+import { teardownSession } from '../../daemon/envs'
+import { sessionArchiveDir } from '../../utils/storage'
 
-// DELETE /api/projects/:id → disconnect a project and clean up after it: every
-// run's isolated ddev env + checkout + archive. Without this the envs would
-// linger on disk forever (run rows cascade-delete via FK).
+// DELETE /api/projects/:id → disconnect a project and clean up after it:
+// every session's isolated ddev env + checkout + archive. Without this the
+// envs would linger on disk forever.
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
   const project = getProject(id)
@@ -14,10 +14,10 @@ export default defineEventHandler(async (event) => {
     return { ok: true }
   }
 
-  const runs = db.select({ id: schema.runs.id }).from(schema.runs).where(eq(schema.runs.projectId, id)).all()
-  for (const run of runs) {
-    await teardownRun(run.id)
-    rmSync(runArchiveDir(run.id), { recursive: true, force: true })
+  const sessions = db.select({ id: schema.sessions.id }).from(schema.sessions).where(eq(schema.sessions.projectId, id)).all()
+  for (const session of sessions) {
+    await teardownSession(session.id)
+    rmSync(sessionArchiveDir(session.id), { recursive: true, force: true })
   }
 
   db.delete(schema.projects).where(eq(schema.projects.id, id)).run()

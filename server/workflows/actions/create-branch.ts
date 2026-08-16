@@ -14,6 +14,7 @@ export const createBranchAction = defineAction({
     rt.log(`\n▶ create-branch: ${step.name}\n`)
     await createBranch(rt.checkoutDir, step.name)
     db.update(schema.runs).set({ branch: step.name }).where(eq(schema.runs.id, rt.runId)).run()
+    db.update(schema.sessions).set({ branch: step.name }).where(eq(schema.sessions.id, rt.sessionId)).run()
     return { name: step.name }
   },
 })

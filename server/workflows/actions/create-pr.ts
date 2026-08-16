@@ -27,7 +27,7 @@ export const createPrAction = defineAction({
     try {
       pr = await createPullRequest(rt.project.owner, rt.project.name, {
         title: step.title,
-        body: withPreviewFooter(step.body, rt.runId),
+        body: withPreviewFooter(step.body, rt.sessionId),
         head: branch,
         base: rt.project.defaultBranch,
       })

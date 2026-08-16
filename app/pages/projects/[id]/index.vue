@@ -353,7 +353,7 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
       />
       <KPreviewBrowser
         v-else
-        :run-id="0"
+        :session-id="0"
         :online="false"
         :booting="false"
       >

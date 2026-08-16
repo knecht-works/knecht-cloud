@@ -15,7 +15,7 @@ import type { Project } from '../../server/db/schema'
 // so a resumed run (same runId) gets the same dir back, marker files included.
 const checkouts = new Map<number, string>()
 
-// Replaces daemon/git prepareRunCheckout: a fresh temp dir with a real git
+// Replaces daemon/git prepareSessionCheckout: a fresh temp dir with a real git
 // repo (the git actions run real git against it) and an empty .ddev/ (the
 // runner writes its config override there).
 export async function fakeCheckout(_project: Project, runId: number): Promise<string> {

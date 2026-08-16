@@ -71,7 +71,7 @@ export const aiAction = defineAction({
     ),
   },
   async run(step, rt) {
-    const { model, bareModel, env } = await resolveAgentEnv(rt.runId, step.model)
+    const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId, step.model)
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
 
@@ -81,7 +81,7 @@ export const aiAction = defineAction({
       await writeAgentConfig(rt, step.system ?? '', bareModel)
 
       if (!step.output) {
-        const text = await runOpencode(rt, dir, model, env, step.prompt, false)
+        const text = await runOpencode(rt, dir, model, env, step.prompt, hasConversation(rt))
         // Expose a parsed form when the agent answered with pure JSON (a common
         // pattern for feeding a js/http step); code fences stripped first.
         const json = tryParseJson(stripFences(text))
@@ -96,12 +96,21 @@ export const aiAction = defineAction({
   },
 })
 
+// Whether the session already has an agent conversation: opencode's state
+// lives under <checkout>/.knecht/data (XDG_DATA_HOME, daemon/sandbox.ts),
+// created on its first invocation and restored by the archive rehydrate. One
+// conversation per session (ADR 0006): every run and follow-up continues it,
+// so later work sees what earlier work found.
+function hasConversation(rt: ActionRuntime): boolean {
+  return existsSync(join(rt.checkoutDir, '.knecht', 'data'))
+}
+
 // Resolve everything an opencode invocation needs from settings: the model
 // (with an optional per-step override) and the env handed to the process (the
 // provider key plus the agent bridge vars that switch on the knecht-git
 // tools). Shared by the ai step and the follow-up executor.
 async function resolveAgentEnv(
-  runId: number,
+  sessionId: number,
   stepModel?: string,
 ): Promise<{ model: string, bareModel: string, env: Record<string, string> }> {
   const settings = getSettings()
@@ -134,17 +143,17 @@ async function resolveAgentEnv(
   return {
     model,
     bareModel: bare,
-    env: { ...Object.fromEntries(envNames.map(name => [name, key])), ...await bridgeEnv(runId) },
+    env: { ...Object.fromEntries(envNames.map(name => [name, key])), ...await bridgeEnv(sessionId) },
   }
 }
 
-// Run one prompt against the run's EXISTING opencode session (the follow-up
+// Run one prompt against the session's EXISTING conversation (the follow-up
 // executor's entry): same settings resolution as the ai step, but always
-// `--continue`, so the agent keeps the context of what it did during the run.
+// `--continue`, so the agent keeps the session's full context.
 // The step's workflow.md step prompt is deliberately left as-is: the last
 // ai step's system context stays valid for tweaks to that step's work.
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Promise<string> {
-  const { model, bareModel, env } = await resolveAgentEnv(rt.runId)
+  const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId)
   rt.log(`\n▶ follow-up (${model}): ${oneLine(prompt, 100)}\n`)
   await rt.sandbox.ensureUp()
   await writeAgentConfig(rt, null, bareModel)
@@ -176,8 +185,9 @@ async function runWithOutput(
 
   let message = `${prompt}\n\n${outputInstruction(shape, outPath)}`
   let lastError = ''
+  const continueFirst = hasConversation(rt)
   for (let attempt = 1; attempt <= MAX_OUTPUT_ATTEMPTS; attempt++) {
-    const text = await runOpencode(rt, dir, model, env, message, attempt > 1)
+    const text = await runOpencode(rt, dir, model, env, message, attempt > 1 || continueFirst)
     const read = await readOutputFile(rt, outPath)
     if (read.ok) {
       const parsed = schema.safeParse(read.value)

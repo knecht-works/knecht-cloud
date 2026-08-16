@@ -1,6 +1,7 @@
 // Requests to a preview host (shared/utils/preview-host.ts) are served
-// entirely from that run's isolated ddev environment (see preview-proxy.ts);
-// the reserved `ide` label is the run's web IDE instead (ide-proxy.ts).
+// entirely from that session's isolated ddev environment (see
+// preview-proxy.ts); the reserved `ide` label is the session's web IDE
+// instead (ide-proxy.ts).
 // Everything else falls through to the normal Knecht app.
 export default defineEventHandler(async (event) => {
   const host = (event.node.req.headers.host ?? '').split(':')[0] ?? ''
@@ -8,7 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!ref) return
 
   if (isIdeLabel(ref.label)) {
-    return proxyRunIde(event, ref.runId)
+    return proxyRunIde(event, ref.sessionId)
   }
-  await proxyRunPreview(event, ref.runId, ref.label)
+  await proxyRunPreview(event, ref.sessionId, ref.label)
 })

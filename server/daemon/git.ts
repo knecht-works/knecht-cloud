@@ -4,11 +4,12 @@ import { execa } from 'execa'
 import type { Project } from '../db/schema'
 import { bridgeBaseUrl, bridgeToken } from '../utils/agent-bridge'
 import { getBotIdentity } from '../utils/github-app'
-import { normalizeSharedFolder, runCheckoutDir } from '../utils/storage'
+import { normalizeSharedFolder, sessionCheckoutDir } from '../utils/storage'
 
-// Prepare an isolated working directory for a run (projects.md §9): a
-// self-contained shallow clone per run. Self-contained matters: the checkout
-// is bind-mounted into the run's web container, and only a real clone (not a
+// Prepare an isolated working directory for a session (projects.md §9): a
+// self-contained shallow clone per session, reused by every run and follow-up
+// in it. Self-contained matters: the checkout
+// is bind-mounted into the session's web container, and only a real clone (not a
 // worktree, whose .git pointer would dangle at an unmounted host path) lets
 // plain git work inside the sandbox: the web IDE's source control, the
 // terminal, the agent. The clone's local git config wires that up
@@ -21,14 +22,14 @@ import { normalizeSharedFolder, runCheckoutDir } from '../utils/storage'
 // the remote URL (it would go stale) and NEVER streamed to the run log; git
 // output is captured quietly here and any error is redacted before it
 // surfaces.
-export async function prepareRunCheckout(
+export async function prepareSessionCheckout(
   project: Project,
-  runId: number,
+  sessionId: number,
   token: string,
   onLog: (line: string) => void,
   branch: string = project.defaultBranch,
 ): Promise<string> {
-  const dir = runCheckoutDir(runId)
+  const dir = sessionCheckoutDir(sessionId)
   const url = `https://github.com/${project.fullName}.git`
 
   try {
@@ -41,7 +42,7 @@ export async function prepareRunCheckout(
     }
 
     shieldGeneratedFiles(dir, project.sharedFolders)
-    await configureCheckout(dir, runId)
+    await configureCheckout(dir, sessionId)
     return dir
   }
   catch (e) {
@@ -56,7 +57,7 @@ export async function prepareRunCheckout(
 // credential` helper, mounted into every web container), and a branch created
 // in the IDE pushes without upstream ceremony. All local config in the run's
 // own .git, so it survives container recreates and never enters a commit.
-async function configureCheckout(dir: string, runId: number): Promise<void> {
+async function configureCheckout(dir: string, sessionId: number): Promise<void> {
   const identity = (await getBotIdentity()) ?? FALLBACK_IDENTITY
   await git(['-C', dir, 'config', 'user.name', identity.name])
   await git(['-C', dir, 'config', 'user.email', identity.email])
@@ -65,7 +66,7 @@ async function configureCheckout(dir: string, runId: number): Promise<void> {
   // No resolvable bridge (docker-less dev): local git still works, push/fetch
   // from inside the sandbox just has no credentials.
   if (!base) return
-  const env = `KNECHT_BRIDGE_URL=${base}/agent-bridge KNECHT_BRIDGE_TOKEN=${bridgeToken(runId)} KNECHT_RUN_ID=${runId}`
+  const env = `KNECHT_BRIDGE_URL=${base}/agent-bridge KNECHT_BRIDGE_TOKEN=${bridgeToken(sessionId)} KNECHT_RUN_ID=${sessionId}`
   await git(['-C', dir, 'config', 'credential.helper', `!${env} knecht-git credential`])
 }
 

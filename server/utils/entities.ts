@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
-import type { Project, Run, Trigger, WorkflowRow } from '../db/schema'
+import type { Project, Run, Session, Trigger, WorkflowRow } from '../db/schema'
 
 // Row lookups shared by the API routes and the daemon. The `get*` variants
 // return undefined for a missing row (delete routes stay idempotent); the
@@ -24,6 +24,21 @@ export function requireRun(id: number): Run {
   const run = getRun(id)
   if (!run) throw createError({ statusCode: 404, statusMessage: 'Run not found' })
   return run
+}
+
+export function getSession(id: number): Session | undefined {
+  return db.select().from(schema.sessions).where(eq(schema.sessions.id, id)).get()
+}
+
+export function requireSession(id: number): Session {
+  const session = getSession(id)
+  if (!session) throw createError({ statusCode: 404, statusMessage: 'Session not found' })
+  return session
+}
+
+// A run's session: the env, checkout and conversation live there.
+export function requireRunSession(run: Run): Session {
+  return requireSession(run.sessionId)
 }
 
 export function requireTrigger(id: number): Trigger {

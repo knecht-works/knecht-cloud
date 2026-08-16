@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { ENV_STATES } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import type { Step } from '../../shared/utils/workflow'
@@ -89,7 +89,95 @@ export const projects = sqliteTable('projects', {
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
 
-// A single execution of a workflow against one project. The in-process serial
+// The container for one object's working state (ADR 0006): one checkout, one
+// environment, one shared agent conversation, accumulating runs and follow-ups
+// while the object is open. Object sessions mirror their GitHub issue/PR
+// (closed with it, revived on reopen; ONE row per object, forever). Events
+// without an object (push, schedule, manual) run in an implicit one-shot
+// session that closes when its single run finishes.
+//
+// The env's physical names stay on the historical `run-` prefix
+// (projects/run-<id> checkouts, knecht-run-<id> ddev projects, archives/
+// run-<id>): the migration seeded one session per pre-existing run with the
+// SAME id, so live envs and archives of upgraded installs keep working. The
+// id in those names is the SESSION id.
+export const sessions = sqliteTable('sessions', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  projectId: integer('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+
+  // The external item this session belongs to. Null kind = a one-shot
+  // session without an object.
+  objectKind: text('object_kind', { enum: ['issue', 'pull_request'] }),
+  objectNumber: integer('object_number'),
+  objectUrl: text('object_url'),
+  objectTitle: text('object_title'),
+
+  // Mirrors the object: 'open' while the issue/PR is open, 'closed' when it
+  // closes (and back on reopen). One-shot sessions close when their run
+  // finishes. Display state only; events on a closed object still land here.
+  status: text('status', { enum: ['open', 'closed'] })
+    .notNull()
+    .default('open'),
+
+  // The branch the session's checkout is on: pinned at creation (the
+  // triggering event's branch or the project default), synced back after the
+  // agent worked with plain git.
+  branch: text('branch'),
+  // The checkout's HEAD, captured when the env is archived (includes commits
+  // made in the session). Restoring an archived env checks out exactly this.
+  commitSha: text('commit_sha'),
+
+  // The session's isolated ddev environment: 'down' (not booted / expired),
+  // 'up' (running, previewable), 'stopped' (idle-stopped, volumes kept,
+  // rebootable), 'archived' (sandbox + checkout deleted, but the DB export,
+  // checkout patch and .knecht state are kept so it can be restored exactly;
+  // see daemon/envs.ts). The env is a cache: reclaiming it never ends the
+  // session.
+  envState: text('env_state', { enum: ENV_STATES })
+    .notNull()
+    .default('down'),
+  // ALL hostnames the session's ddev environment serves (primary first), read
+  // from .ddev/config.yaml at boot: the same set the preview proxy maps to
+  // per-session origins. The UI builds its preview host switcher from this.
+  previewHosts: text('preview_hosts', { mode: 'json' })
+    .$type<string[]>()
+    .notNull()
+    .default(sql`'[]'`),
+  // Whether the ddev-start step finished (boot, DB import AND its setup
+  // commands): only then is the site actually browsable. Also the guard that
+  // keeps a second run in the session from re-importing the DB dump over the
+  // session's live database.
+  previewReady: integer('preview_ready', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  // The project's urlMode PINNED at checkout time: the env baked into this
+  // session's environment either was or wasn't translated, and the proxy must
+  // match that forever, whatever the project setting changes to later.
+  urlMode: text('url_mode', { enum: ['env', 'rewrite'] }),
+  // Last time the preview was accessed; the idle-stopper stops envs that have
+  // been quiet longer than the idle timeout.
+  previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  closedAt: integer('closed_at', { mode: 'timestamp' }),
+}, table => [
+  // One session per object: every trigger firing and mention on the object
+  // flows into it. (One-shot sessions have null object columns; SQLite treats
+  // NULLs as distinct in unique indexes, so they never collide.)
+  uniqueIndex('sessions_object_idx').on(table.projectId, table.objectKind, table.objectNumber),
+  // The dispatcher and the env reapers filter by project and env state.
+  index('sessions_project_id_idx').on(table.projectId),
+  index('sessions_env_state_idx').on(table.envState),
+])
+
+export type Session = typeof sessions.$inferSelect
+export type NewSession = typeof sessions.$inferInsert
+
+// A single execution of a workflow inside a session. The in-process serial
 // runner (server/daemon/runner.ts) owns the row: it flips status and appends to
 // `log` as blocks run. The UI polls the row for live status/log.
 // On a daemon restart, any run left 'running' is reset to 'failed'; a retry
@@ -99,6 +187,12 @@ export const runs = sqliteTable('runs', {
   projectId: integer('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
+  // The session this run executes in. Runs never outlive their session.
+  // NOTE: the cascade is declarative only (PRAGMA foreign_keys is off); the
+  // session/run delete routes clean up explicitly.
+  sessionId: integer('session_id')
+    .notNull()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
   // The workflow's name at run time, kept as denormalized display history: it
   // survives renames and deletion of the workflow itself.
   workflow: text('workflow').notNull(),
@@ -121,12 +215,9 @@ export const runs = sqliteTable('runs', {
   // runs from before this was recorded). Links a run back to its automation.
   triggerId: integer('trigger_id')
     .references(() => triggers.id, { onDelete: 'set null' }),
-  // The branch the run works on: the project's default branch at checkout,
+  // The branch the run works on: the session's checkout branch at start,
   // replaced by the branch a `create-branch` step creates.
   branch: text('branch'),
-  // The checkout's HEAD, captured when the env is archived (includes commits
-  // the run itself made). Restoring an archived env checks out exactly this.
-  commitSha: text('commit_sha'),
   // The pull request a `create-pr` step opened, if the run opened one.
   prUrl: text('pr_url'),
   // Event data a GitHub webhook delivery seeded the run with (issue title/body,
@@ -139,37 +230,6 @@ export const runs = sqliteTable('runs', {
   // Null on runs from before pinning existed.
   steps: text('steps', { mode: 'json' }).$type<Step[]>(),
   log: text('log').notNull().default(''),
-  // The run's isolated ddev environment: 'down' (not booted / expired), 'up'
-  // (running, previewable), 'stopped' (idle-stopped, volumes kept, rebootable),
-  // 'archived' (sandbox + checkout deleted, but the run's DB export + checkout
-  // patch are kept so it can be restored exactly; see daemon/envs.ts).
-  envState: text('env_state', { enum: ENV_STATES })
-    .notNull()
-    .default('down'),
-  // ALL hostnames the run's ddev environment serves (primary first), read from
-  // .ddev/config.yaml at boot: the same set the preview proxy maps to per-run
-  // origins. The UI builds its preview host switcher from this list.
-  previewHosts: text('preview_hosts', { mode: 'json' })
-    .$type<string[]>()
-    .notNull()
-    .default(sql`'[]'`),
-  // Whether the run's ddev-start step finished (boot, DB import AND its setup
-  // commands): only then is the site actually browsable, so the UI shows the
-  // preview when this is set AND envState is 'up'. envState alone flips 'up'
-  // the moment the containers run, mid-boot. Stays set for the run's lifetime
-  // (stop/reboot/archive/restore don't rebuild the site).
-  previewReady: integer('preview_ready', { mode: 'boolean' })
-    .notNull()
-    .default(false),
-  // The project's urlMode PINNED at checkout time: the env baked into this
-  // run's environment either was or wasn't translated, and the proxy must
-  // match that forever, whatever the project setting changes to later. Null
-  // on runs from before the setting existed = 'rewrite' (their env is
-  // verbatim).
-  urlMode: text('url_mode', { enum: ['env', 'rewrite'] }),
-  // Last time the preview was accessed; the idle-stopper stops envs that have
-  // been quiet longer than the idle timeout.
-  previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),
   startedAt: integer('started_at', { mode: 'timestamp' }),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -182,6 +242,8 @@ export const runs = sqliteTable('runs', {
   index('runs_status_idx').on(table.status),
   // The workflow pages join runs to their workflow by id.
   index('runs_workflow_id_idx').on(table.workflowId),
+  // The dispatcher's per-session serialization and the session timeline.
+  index('runs_session_id_idx').on(table.sessionId),
 ])
 
 export type Run = typeof runs.$inferSelect
@@ -230,14 +292,20 @@ export const runSteps = sqliteTable('run_steps', {
   index('run_steps_run_id_idx').on(table.runId),
 ])
 
-// A follow-up prompt sent to a FINISHED run: the agent continues the run's
-// opencode session inside the run's existing sandbox (rebooted first if it was
+// A follow-up prompt sent to a session: the agent continues the session's
+// conversation inside the existing sandbox (rebooted first if it was
 // idle-stopped or archived). Queued rows wait for a dispatcher slot when their
 // env must be revived; a follow-up on an 'up' env executes immediately (its
 // RAM is already spent). Execution is recorded as a run_steps row with
-// origin 'followup', so the run timeline shows the full conversation.
+// origin 'followup' on the anchor run (`runId`, the session's newest run at
+// creation time), so a run timeline shows the conversation.
 export const followups = sqliteTable('followups', {
   id: integer('id').primaryKey({ autoIncrement: true }),
+  sessionId: integer('session_id')
+    .notNull()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
+  // The run whose timeline displays this follow-up (run_steps rows need a
+  // run). Not the executor's key: env + conversation come from the session.
   runId: integer('run_id')
     .notNull()
     .references(() => runs.id, { onDelete: 'cascade' }),
@@ -255,8 +323,9 @@ export const followups = sqliteTable('followups', {
     .default(sql`(unixepoch())`),
 }, table => [
   // The run detail page lists a run's follow-ups; the dispatcher claims queued
-  // ones by status.
+  // ones by status and serializes per session.
   index('followups_run_id_idx').on(table.runId),
+  index('followups_session_id_idx').on(table.sessionId),
   index('followups_status_idx').on(table.status),
 ])
 

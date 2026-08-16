@@ -162,6 +162,13 @@
       "when": 1786703125158,
       "tag": "0022_clear-models-on-provider-switch",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1786878195653,
+      "tag": "0023_sessions",
+      "breakpoints": true
     }
   ]
 }

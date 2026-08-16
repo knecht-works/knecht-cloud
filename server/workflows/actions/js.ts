@@ -39,7 +39,7 @@ export const jsAction = defineAction({
     try {
       const hostFile = join(dir, 'step.mjs')
       await writeFile(hostFile, script)
-      const inSandbox = `/tmp/knecht-js-${rt.runId}.mjs`
+      const inSandbox = `/tmp/knecht-js-${rt.sessionId}.mjs`
       await rt.sandbox.copyIn(hostFile, inSandbox)
       const { code, tail } = await rt.sandbox.stream(['bash', '-lc', `node ${inSandbox}`])
       if (code !== 0) throw new ActionError(`js step exited with code ${code}`, { exitCode: code })

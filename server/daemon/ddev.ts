@@ -4,7 +4,7 @@ import { parse, stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
 import { previewHostname, previewLabel } from '../../shared/utils/preview-host'
 import { dashboardOrigin } from '../utils/origin'
-import { normalizeSharedFolder, projectSharedDir, runSandboxName, toolsDir } from '../utils/storage'
+import { normalizeSharedFolder, projectSharedDir, sessionSandboxName, toolsDir } from '../utils/storage'
 import { WEB_PROJECT_DIR } from './sandbox'
 
 export type UrlMode = 'env' | 'rewrite'
@@ -47,14 +47,14 @@ export interface SharedFolderConfig {
   folders: string[]
 }
 
-export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], runId: number, urlMode: UrlMode = 'env', shared?: SharedFolderConfig): number {
+export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], sessionId: number, urlMode: UrlMode = 'env', shared?: SharedFolderConfig): number {
   const doc: {
     name: string
     web_environment?: string[]
-  } = { name: runSandboxName(runId) }
+  } = { name: sessionSandboxName(sessionId) }
   if (envVars.length) {
     const translate = urlMode === 'env'
-      ? envUrlTranslator(readDdevHosts(checkoutDir), runId)
+      ? envUrlTranslator(readDdevHosts(checkoutDir), sessionId)
       : (v: string) => v
     // Strip a layer of surrounding quotes: a value like `"https://x"` (quotes
     // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
@@ -161,7 +161,7 @@ function composeOverride(sharedMounts: { host: string, dest: string }[] = []): R
 // preview hostname. Longest host first, so a host containing another as a
 // suffix is never half-translated. Without a configured base origin there is
 // nothing to translate towards; values pass through unchanged.
-function envUrlTranslator(hosts: DdevHosts, runId: number): (value: string) => string {
+function envUrlTranslator(hosts: DdevHosts, sessionId: number): (value: string) => string {
   const base = dashboardOrigin()
   if (!base || !hosts.all.length) return v => v
   const origin = new URL(base)
@@ -173,8 +173,8 @@ function envUrlTranslator(hosts: DdevHosts, runId: number): (value: string) => s
         host,
         // URL forms need the full origin (scheme + port); a remaining bare
         // host (e.g. a cookie-domain var) must stay a plain hostname.
-        previewOrigin: `${origin.protocol}//${previewHostname(runId, origin.host, label)}`,
-        previewBare: previewHostname(runId, origin.hostname, label),
+        previewOrigin: `${origin.protocol}//${previewHostname(sessionId, origin.host, label)}`,
+        previewBare: previewHostname(sessionId, origin.hostname, label),
       }
     })
   return (value: string) => {

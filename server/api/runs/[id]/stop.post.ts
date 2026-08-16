@@ -1,23 +1,23 @@
 import { stopEnv } from '../../../daemon/envs'
-import { hasActiveFollowup } from '../../../daemon/followups'
+import { requireSession } from '../../../utils/entities'
+import { sessionHasActiveWork } from '../../../utils/sessions'
+import { withSessionEnv } from '../../../utils/run-view'
 
-// POST /api/runs/:id/stop → step the run's environment down NOW instead of
-// waiting for the idle reaper: the database is exported on the way down,
+// POST /api/runs/:id/stop → step the session's environment down NOW instead
+// of waiting for the idle reaper: the database is exported on the way down,
 // containers are removed, volumes and checkout are kept, so a reboot is
 // quick. Together with archive/reboot this lets an operator walk an env
 // through every lifecycle state on demand.
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
   const run = requireRun(id)
-  if (run.status === 'queued' || run.status === 'running') {
-    throw createError({ statusCode: 409, statusMessage: 'The run is still executing; cancel it first.' })
+  const session = requireSession(run.sessionId)
+  if (sessionHasActiveWork(session.id)) {
+    throw createError({ statusCode: 409, statusMessage: 'The session is still executing work; wait for it or cancel it first.' })
   }
-  if (hasActiveFollowup(id)) {
-    throw createError({ statusCode: 409, statusMessage: 'A follow-up is still executing in this environment.' })
-  }
-  if (run.envState !== 'up') {
+  if (session.envState !== 'up') {
     throw createError({ statusCode: 409, statusMessage: 'Only a running environment can be stopped.' })
   }
-  await stopEnv(id)
-  return getRun(id)
+  await stopEnv(session.id)
+  return withSessionEnv(requireRun(id))
 })

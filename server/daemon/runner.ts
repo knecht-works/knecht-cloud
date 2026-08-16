@@ -6,21 +6,23 @@ import { COMPOSITE_CHILD_KEYS, defaultStepTimeout, isComposite, isCompositeType,
 import { getWorkflow } from '../workflows'
 import { actionFor, type ActionError, type ActionRuntime, type RegisteredAction } from '../workflows/actions'
 import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
-import { runSandboxName } from '../utils/storage'
+import { sessionSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
 import { addJiraComment } from '../utils/jira'
-import { prepareRunCheckout } from './git'
+import { prepareSessionCheckout } from './git'
 import { readDdevHosts, writeDdevConfig } from './ddev'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
 import { ensureEnvUp } from './envs'
 
-// The in-process serial runner (tech-stack.md §4). Each run gets its OWN
-// environment: an isolated git checkout that boots as a uniquely-named ddev
-// project on the host daemon, with a freshly-imported DB. Project-facing
-// steps (bash/agent) exec INSIDE the run's web container; ddev commands and
-// git steps run host-side (daemon/sandbox.ts). The run row tracks both the
-// run status and the environment state (envState), which the preview proxy
-// and the idle-stopper read. SSE is deferred: the UI polls the row.
+// The in-process serial runner (tech-stack.md §4). Each run executes inside
+// its SESSION's environment (ADR 0006): an isolated git checkout that boots
+// as a uniquely-named ddev project on the host daemon. The session's first
+// run clones and boots; later runs and follow-ups reuse the same checkout,
+// env and agent conversation. Project-facing steps (bash/agent) exec INSIDE
+// the session's web container; ddev commands and git steps run host-side
+// (daemon/sandbox.ts). The run row tracks the run status; the session row
+// tracks the environment state (envState), which the preview proxy and the
+// idle-stopper read. SSE is deferred: the UI polls the rows.
 //
 // Execution is engine-generic (workflow-engine-plan.md D3–D5): the step
 // sequence is PINNED onto the run row at start; each step gets a run_steps row
@@ -88,6 +90,12 @@ export function startRun(runId: number, project: Project): Promise<void> {
 async function execRun(runId: number, project: Project): Promise<void> {
   const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()
   if (!run) return
+  const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()
+  if (!session) {
+    appendLog(runId, `\nSession ${run.sessionId} no longer exists\n`)
+    finish(runId, 'failed')
+    return
+  }
 
   // Pin the definition: from here on the run executes this snapshot, immune to
   // workflow edits (and to the workflow being deleted mid-queue). Draft test
@@ -141,52 +149,69 @@ async function execRun(runId: number, project: Project): Promise<void> {
       log(`\n↻ Retrying from step ${resume.fromIndex + 1}\n`)
     }
 
+    const sessionId = session.id
     log(`▶ Preparing isolated checkout\n`)
     const token = await getInstallationToken(project.owner, project.name)
-    const dir = await prepareRunCheckout(project, runId, token, log, run.branch ?? project.defaultBranch)
+    const dir = await prepareSessionCheckout(project, sessionId, token, log, session.branch ?? run.branch ?? project.defaultBranch)
 
     // Read the repo's own ddev host set and store it (the proxy serves the
-    // whole set (readDdevHosts) under per-run preview origins; the UI builds
-    // its host switcher from the stored list). The project's urlMode is
-    // pinned onto the run: the env written below either is or isn't
-    // translated, and the proxy must match that for the run's lifetime.
+    // whole set (readDdevHosts) under per-session preview origins; the UI
+    // builds its host switcher from the stored list). The project's urlMode
+    // is pinned onto the session on its FIRST run: the env baked into the
+    // session's environment either was or wasn't translated, and the proxy
+    // must match that for the session's lifetime.
     const hosts = readDdevHosts(dir)
-    db.update(schema.runs)
-      .set({ previewHosts: hosts.all, urlMode: project.urlMode })
-      .where(eq(schema.runs.id, runId))
+    const urlMode = session.urlMode ?? project.urlMode
+    db.update(schema.sessions)
+      .set({ previewHosts: hosts.all, urlMode, branch: session.branch ?? run.branch ?? project.defaultBranch })
+      .where(eq(schema.sessions.id, sessionId))
       .run()
 
-    const injected = writeDdevConfig(dir, project.envVars, runId, project.urlMode, { projectId: project.id, folders: project.sharedFolders })
-    log(`Environment: ${runSandboxName(runId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
+    const injected = writeDdevConfig(dir, project.envVars, sessionId, urlMode, { projectId: project.id, folders: project.sharedFolders })
+    log(`Environment: ${sessionSandboxName(sessionId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
 
     const ctx = createContext(runId, project, run.inputs ?? {})
     replayOutputs(runId, ctx)
     const rt: ActionRuntime = {
       runId,
+      sessionId,
       project,
       checkoutDir: dir,
       ctx,
       log,
       signal: controller.signal,
       sandbox: {
-        ensureUp: () => ensureEnvUp(runId),
-        stream: (command, opts) => streamInSandbox(runId, command, log, opts?.env, controller.signal),
-        copyIn: (hostPath, sandboxPath) => copyIntoSandbox(runId, hostPath, sandboxPath),
+        ensureUp: () => ensureEnvUp(sessionId),
+        stream: (command, opts) => streamInSandbox(sessionId, command, log, opts?.env, controller.signal),
+        copyIn: (hostPath, sandboxPath) => copyIntoSandbox(sessionId, hostPath, sandboxPath),
       },
     }
     await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
     finish(runId, 'success')
+    closeObjectlessSession(session.id)
     await handBackToJira(runId, run.trigger, run.inputs, log)
   }
   catch (e) {
     const cancelled = controller.signal.aborted
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
     finish(runId, cancelled ? 'cancelled' : 'failed')
+    closeObjectlessSession(session.id)
   }
   finally {
     controllers.delete(runId)
   }
+}
+
+// A one-shot session (no object) mirrors its single run: it closes when the
+// run reaches a terminal state. Closed is a display state, not a gate:
+// dashboard follow-ups still land on it. Object sessions close with their
+// object instead (webhook close events).
+function closeObjectlessSession(sessionId: number): void {
+  db.update(schema.sessions)
+    .set({ status: 'closed', closedAt: new Date() })
+    .where(and(eq(schema.sessions.id, sessionId), isNull(schema.sessions.objectKind)))
+    .run()
 }
 
 // Rebuild the context a resumed run's already-executed steps had produced:
@@ -374,7 +399,7 @@ function runActionTimed(
     signal,
     sandbox: {
       ...rt.sandbox,
-      stream: (command, opts) => streamInSandbox(rt.runId, command, rt.log, opts?.env, signal),
+      stream: (command, opts) => streamInSandbox(rt.sessionId, command, rt.log, opts?.env, signal),
     },
   }
   return new Promise((resolve, reject) => {
@@ -415,13 +440,14 @@ function capOutputs(outputs: Record<string, unknown> | undefined): Record<string
 // gets the full stream regardless.
 const STREAM_TAIL_CHARS = 128 * 1024
 
-// Run a command in the sandbox, streaming its stdout/stderr into the run log
-// (routed through the run's logger, so it also lands in the current step's
-// row) while capturing a tail for the caller. Resolves with the exit code:
-// never rejects on a non-zero exit, the caller decides. Exported: the
-// follow-up executor builds its ActionRuntime on the same streaming.
-export function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
-  const sub = execInSandbox(runId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
+// Run a command in the session's sandbox, streaming its stdout/stderr into
+// the run log (routed through the run's logger, so it also lands in the
+// current step's row) while capturing a tail for the caller. Resolves with
+// the exit code: never rejects on a non-zero exit, the caller decides.
+// Exported: the follow-up executor builds its ActionRuntime on the same
+// streaming.
+export function streamInSandbox(sessionId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
+  const sub = execInSandbox(sessionId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
   // Chunk list instead of string concat: re-slicing a full 128 KB string per
   // stdout event would make chatty commands quadratic.
   const chunks: string[] = []

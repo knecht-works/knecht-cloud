@@ -465,7 +465,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
          inside the frame with its revival action instead of a separate card. -->
     <KPreviewBrowser
       v-if="hasBootStep"
-      :run-id="run.id"
+      :session-id="run.sessionId"
       :hosts="run.previewHosts ?? []"
       :online="previewOnline"
       :booting="isLive"

@@ -4,6 +4,7 @@ import type { IssueAction, Trigger } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import { getWorkflowRow } from './entities'
 import { isGithubAppConfigured } from './github-credentials'
+import { resolveSession, type SessionObject } from './sessions'
 import { getTriggerSource } from './trigger-sources'
 
 // Display + firing logic for triggers, shared by the API and the scheduler.
@@ -130,11 +131,13 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
 
 // What a webhook delivery overrides on the runs it starts: the subset of the
 // trigger's projects to fire (the delivery's repo), the branch to check out
-// (push/PR branch instead of the default) and the event data for {{ inputs.* }}.
+// (push/PR branch instead of the default), the event data for {{ inputs.* }}
+// and the object whose session the run joins (ADR 0006).
 export interface FireOverrides {
   projectIds?: number[]
   branch?: string | null
   inputs?: Record<string, string>
+  object?: SessionObject | null
 }
 
 // Queue the trigger's workflow against each of its projects (one run each; the
@@ -157,15 +160,20 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
 
   const runIds: number[] = []
   for (const project of projects) {
+    // The run joins its object's session (finding or creating it); events
+    // without an object get a fresh one-shot session. The session's branch
+    // wins once it exists: the checkout is already on it.
+    const session = resolveSession(project, opts.object ?? null, opts.branch ?? null)
     const run = db
       .insert(schema.runs)
       .values({
         projectId: project.id,
+        sessionId: session.id,
         workflow: workflow.name,
         workflowId: workflow.id,
         trigger: t.source,
         triggerId: t.id,
-        branch: opts.branch ?? project.defaultBranch,
+        branch: session.branch ?? opts.branch ?? project.defaultBranch,
         inputs: opts.inputs ?? null,
       })
       .returning()

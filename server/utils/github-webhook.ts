@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Trigger } from '../db/schema'
+import type { SessionObject } from './sessions'
 
 // Logic for the GitHub App webhook receiver (server/api/github/webhook.post.ts):
 // verify the delivery against the app's webhook secret, then match it against a
@@ -49,6 +50,9 @@ export interface GithubPayload {
 export interface GithubMatch {
   branch: string | null
   inputs: Record<string, string>
+  // The object the delivery is about (ADR 0006): the run joins this object's
+  // session. Null (push) = a one-shot session.
+  object: SessionObject | null
 }
 
 // PR activity that counts as "the PR changed": opening, reopening and every
@@ -82,6 +86,7 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
         body: '',
         url: payload.head_commit?.url ?? '',
       },
+      object: null,
     }
   }
 
@@ -100,6 +105,7 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
         body: payload.pull_request?.body ?? '',
         url: payload.pull_request?.html_url ?? '',
       },
+      object: githubObject('pull_request', payload),
     }
   }
 
@@ -116,8 +122,22 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
         body: payload.issue?.body ?? '',
         url: payload.issue?.html_url ?? '',
       },
+      object: githubObject('issue', payload),
     }
   }
 
   return null
+}
+
+// The object a delivery is about, for session resolution. Null when the
+// payload carries no usable number (external input; defensive).
+export function githubObject(kind: SessionObject['kind'], payload: GithubPayload): SessionObject | null {
+  const subject = kind === 'issue' ? payload.issue : payload.pull_request
+  if (typeof subject?.number !== 'number') return null
+  return {
+    kind,
+    number: subject.number,
+    url: subject.html_url,
+    title: subject.title ?? undefined,
+  }
 }
