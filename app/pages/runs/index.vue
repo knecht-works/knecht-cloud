@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { runWorkspacePath } from '#shared/utils/routes'
 
-// Global run history: every execution across all projects, newest first.
-// A run drills into /runs/:id; the list itself polls while anything is live.
+// Global run history: every execution across all projects, newest first,
+// grouped by session so runs on the same issue/PR read as one piece of work.
+// A run drills into its project workspace; the list polls while anything is
+// live.
 const { data: runs, refresh } = await useFetch('/api/runs', { default: () => [] })
 
 const anyLive = computed(() => (runs.value ?? []).some(r => isLiveStatus(r.status)))
@@ -16,14 +18,15 @@ const metrics = computed(() => {
     total: list.length,
     running: list.filter(r => isLiveStatus(r.status)).length,
     rate: completed.length ? Math.round((success / completed.length) * 100) : 0,
-    automated: list.filter(r => r.triggerId !== null).length,
+    // Distinct sessions whose environment is up: what is occupying the host.
+    liveEnvs: new Set(list.filter(r => r.envState === 'up').map(r => r.sessionId)).size,
   }
 })
 
-// How the run started: a configured trigger's source, else a manual start.
-function origin(r: NonNullable<typeof runs.value>[number]) {
-  return triggerSourceMeta(r.trigger ?? 'manual')
-}
+// Session groups (utils/dashboard.ts) with the newest run exposed as `head`:
+// the header row reads the project off it.
+const sessionGroups = computed(() =>
+  groupRunsBySession(runs.value ?? []).map(g => ({ ...g, head: g.runs[0]! })))
 </script>
 
 <template>
@@ -51,8 +54,9 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
         accent="var(--primary)"
       />
       <KMetric
-        :value="metrics.automated"
-        label="Automated"
+        :value="metrics.liveEnvs"
+        label="Live environments"
+        accent="var(--primary)"
       />
     </div>
 
@@ -77,48 +81,81 @@ function origin(r: NonNullable<typeof runs.value>[number]) {
       </div>
     </div>
 
-    <!-- Run list -->
+    <!-- Run list, grouped by session: an issue/PR session gets a header row
+         (object, title, project, thread link) with its runs nested under it;
+         one-shot runs (manual, push, schedule) stay plain rows. -->
     <div
       v-else
       class="k-card overflow-hidden"
     >
-      <NuxtLink
-        v-for="(r, i) in runs"
-        :key="r.id"
-        :to="runWorkspacePath(r.projectId, r.id)"
-        class="flex items-center gap-3 px-4.5 py-3 transition-colors hover:bg-(--surface-glass)"
-        :class="i ? 'border-t border-muted' : ''"
+      <div
+        v-for="(g, gi) in sessionGroups"
+        :key="g.sessionId"
+        :class="gi ? 'border-t border-muted' : ''"
       >
-        <KStatusDot
-          :color="RUN_STATUS_META[r.status].dot"
-          :pulse="RUN_STATUS_META[r.status].pulse"
-          :size="6"
-        />
-        <span class="k-mono truncate text-xs text-default">{{ r.workflow }}</span>
-        <span class="k-mono text-2xs text-dimmed">#{{ r.id }}</span>
-        <span class="k-mono hidden min-w-0 truncate text-2xs text-muted md:block">{{ r.project }}</span>
-
-        <UTooltip
-          :text="origin(r).label"
-          class="ml-auto flex-none"
+        <div
+          v-if="g.object"
+          class="flex items-center gap-2 px-4.5 pb-1 pt-3"
         >
           <UIcon
-            :name="origin(r).icon"
-            class="size-3.5"
-            :style="{ color: origin(r).color }"
+            :name="g.object.closed ? sessionObjectMeta(g.object.kind).closedIcon : sessionObjectMeta(g.object.kind).icon"
+            class="size-3.5 flex-none"
+            :style="{ color: g.object.closed ? 'var(--text-dimmed)' : sessionObjectMeta(g.object.kind).color }"
           />
-        </UTooltip>
-        <span
-          class="k-mono w-16 flex-none text-right text-2xs"
-          :style="{ color: RUN_STATUS_META[r.status].text }"
-        >{{ RUN_STATUS_META[r.status].label }}</span>
-        <span class="k-mono w-14 flex-none text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
-        <span class="k-mono hidden w-16 flex-none text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
-        <UIcon
-          name="i-lucide-chevron-right"
-          class="size-4 flex-none text-dimmed"
-        />
-      </NuxtLink>
+          <span class="k-mono flex-none text-2xs text-dimmed">#{{ g.object.number }}</span>
+          <UTooltip :text="g.object.title ?? ''">
+            <span
+              class="k-mono min-w-0 truncate text-2xs"
+              :class="g.object.closed ? 'text-dimmed' : 'text-muted'"
+            >{{ g.object.title }}</span>
+          </UTooltip>
+          <span class="ml-auto flex flex-none items-center gap-2">
+            <NuxtLink
+              :to="`/projects/${g.head.projectId}`"
+              class="k-mono hidden text-2xs text-dimmed transition-colors hover:text-muted md:block"
+            >{{ g.head.project }}</NuxtLink>
+            <KStatusDot
+              v-if="g.object.live"
+              color="primary"
+              :size="5"
+            />
+            <a
+              v-if="g.object.url"
+              :href="g.object.url"
+              target="_blank"
+              class="flex text-dimmed transition-colors hover:text-muted"
+              :aria-label="`Open ${g.object.kind === 'issue' ? 'issue' : 'pull request'} #${g.object.number} on GitHub`"
+            >
+              <UIcon
+                name="i-lucide-arrow-up-right"
+                class="size-3.5"
+              />
+            </a>
+          </span>
+        </div>
+        <NuxtLink
+          v-for="r in g.runs"
+          :key="r.id"
+          :to="runWorkspacePath(r.projectId, r.id)"
+          class="flex items-center gap-3 py-3 pr-4.5 transition-colors hover:bg-(--surface-glass)"
+          :class="g.object ? 'pl-8' : 'pl-4.5'"
+        >
+          <KStatusDot
+            :color="RUN_STATUS_META[r.status].dot"
+            :pulse="RUN_STATUS_META[r.status].pulse"
+            :size="6"
+          />
+          <span class="k-mono truncate text-xs text-default">{{ r.workflow }}</span>
+          <span class="k-mono text-2xs text-dimmed">#{{ r.id }}</span>
+          <span
+            v-if="!g.object"
+            class="k-mono hidden min-w-0 truncate text-2xs text-muted md:block"
+          >{{ r.project }}</span>
+
+          <span class="k-mono ml-auto w-14 flex-none text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
+          <span class="k-mono hidden w-16 flex-none text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
+        </NuxtLink>
+      </div>
     </div>
   </div>
 </template>

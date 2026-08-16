@@ -61,22 +61,68 @@ export function triggerSourceMeta(source: string): TriggerSourceMeta {
 }
 
 // Session-object presentation: the issue or PR a session works on. Drives the
-// session groups in the runs sidebar and the run header's object chip.
+// session groups in the run lists and the run header's object chip. A closed
+// object switches to its closed icon (GitHub's pattern) instead of a text
+// label.
 export type SessionObjectKind = 'issue' | 'pull_request'
 
 interface SessionObjectMeta {
   icon: string
+  closedIcon: string
   label: string
   color: string
 }
 
 const SESSION_OBJECT_META: Record<SessionObjectKind, SessionObjectMeta> = {
-  issue: { icon: 'i-lucide-circle-dot', label: 'Issue', color: 'var(--text-primary)' },
-  pull_request: { icon: 'i-lucide-git-pull-request', label: 'PR', color: 'var(--accent-violet)' },
+  issue: { icon: 'i-lucide-circle-dot', closedIcon: 'i-lucide-circle-check', label: 'Issue', color: 'var(--text-primary)' },
+  pull_request: { icon: 'i-lucide-git-pull-request', closedIcon: 'i-lucide-git-pull-request-closed', label: 'PR', color: 'var(--accent-violet)' },
 }
 
 export function sessionObjectMeta(kind: SessionObjectKind): SessionObjectMeta {
   return SESSION_OBJECT_META[kind]
+}
+
+// Runs grouped by session for the run lists: runs on the same issue/PR
+// collect under one object header, one-shot runs (no object) stay plain
+// rows. Sessions are ordered by their newest run (the list arrives newest
+// first and Map preserves first-seen order); WITHIN a session the runs are
+// flipped to chronological order, so a session reads top-down like the story
+// of the work.
+interface SessionRunRow {
+  sessionId: number
+  objectKind: SessionObjectKind | null
+  objectNumber: number | null
+  objectTitle: string | null
+  objectUrl: string | null
+  sessionStatus: 'open' | 'closed'
+  envState: 'down' | 'up' | 'stopped' | 'archived'
+}
+
+export function groupRunsBySession<T extends SessionRunRow>(runs: T[]) {
+  const bySession = new Map<number, T[]>()
+  for (const r of runs) {
+    const group = bySession.get(r.sessionId)
+    if (group) group.push(r)
+    else bySession.set(r.sessionId, [r])
+  }
+  return [...bySession.values()].map((groupRuns) => {
+    const head = groupRuns[0]!
+    groupRuns.reverse()
+    return {
+      sessionId: head.sessionId,
+      object: head.objectKind
+        ? {
+            kind: head.objectKind,
+            number: head.objectNumber,
+            title: head.objectTitle,
+            url: head.objectUrl,
+            closed: head.sessionStatus === 'closed',
+            live: head.envState === 'up',
+          }
+        : null,
+      runs: groupRuns,
+    }
+  })
 }
 
 // Framework presentation, keyed by the DDEV project `type` read from the repo's
