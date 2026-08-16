@@ -60,6 +60,25 @@ export function triggerSourceMeta(source: string): TriggerSourceMeta {
   return TRIGGER_SOURCE_META[source] ?? { icon: 'i-lucide-zap', label: source, color: 'var(--accent-violet)' }
 }
 
+// Session-object presentation: the issue or PR a session works on. Drives the
+// session groups in the runs sidebar and the run header's object chip.
+export type SessionObjectKind = 'issue' | 'pull_request'
+
+interface SessionObjectMeta {
+  icon: string
+  label: string
+  color: string
+}
+
+const SESSION_OBJECT_META: Record<SessionObjectKind, SessionObjectMeta> = {
+  issue: { icon: 'i-lucide-circle-dot', label: 'Issue', color: 'var(--text-primary)' },
+  pull_request: { icon: 'i-lucide-git-pull-request', label: 'PR', color: 'var(--accent-violet)' },
+}
+
+export function sessionObjectMeta(kind: SessionObjectKind): SessionObjectMeta {
+  return SESSION_OBJECT_META[kind]
+}
+
 // Framework presentation, keyed by the DDEV project `type` read from the repo's
 // `.ddev/config.yaml`. Drives the label + accent colour across the dashboard.
 interface FrameworkMeta {
