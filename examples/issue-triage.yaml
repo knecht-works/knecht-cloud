@@ -1,0 +1,50 @@
+# An issue triage system in one workflow: every new issue boots the site,
+# the agent reproduces and investigates the report, labels the issue with the
+# repo's existing labels and answers the reporter in the thread (asking back
+# when the report is missing details). The issue's session stays warm, so a
+# team member can steer the follow-up right in the thread by mentioning
+# Knecht (for example "@<your-app> please fix it"), with the full triage
+# context intact.
+#
+# Setup:
+#   1. Import this via Workflows -> Import, connect a trigger:
+#      GitHub -> issues -> opened, on your project.
+#   2. Optionally pick it as the project's starter workflow (project
+#      settings -> Mentions), so mentioning Knecht on issues it has not
+#      triaged yet works too.
+#   3. Labels the agent should use (e.g. bug, question, needs-reproduction)
+#      must already exist in the repo: Knecht never creates labels.
+#
+# Import via Workflows -> Import, or POST /api/workflows/import.
+version: 1
+name: Issue triage
+description: Reproduce, label and answer every new issue on the live site.
+steps:
+  - type: ddev-start
+    id: boot
+    label: Boot the site
+
+  - type: ai
+    id: triage
+    label: Triage the issue
+    prompt: |
+      A new issue was opened on this project:
+
+      Title: {{ inputs.title }}
+
+      {{ inputs.body }}
+
+      Triage it against the running site and the code:
+
+      1. Try to reproduce what the issue describes, on the booted preview
+         and in the code. Look for the root cause, do not fix anything yet.
+      2. Decide what this is: a real bug, intended behavior, a question, or
+         a report missing the details needed to reproduce it.
+      3. Apply the repository's existing labels that fit, with knecht-label.
+      4. Answer in the thread with knecht-reply: what you found (with file
+         references if you located the cause), or the concrete questions the
+         reporter needs to answer. Write for the person who opened the
+         issue: short, concrete, no internal jargon.
+    output: |
+      verdict: string
+      summary: string

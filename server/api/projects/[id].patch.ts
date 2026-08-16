@@ -32,6 +32,10 @@ const bodySchema = z.object({
   // Project-level agent instructions, layered on top of the instance ones
   // (materialized by server/workflows/actions/ai.ts).
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
+  // Mentions (ADR 0007): the @-mention switch and the workflow that boots a
+  // session when a mentioned object has none yet. Null clears the starter.
+  mentionsEnabled: z.boolean().optional(),
+  starterWorkflowId: z.number().int().nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {

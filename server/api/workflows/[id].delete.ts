@@ -17,6 +17,9 @@ export default defineEventHandler((event) => {
       tx.delete(schema.triggers).where(eq(schema.triggers.workflowId, id)).run()
     }
     tx.update(schema.runs).set({ workflowId: null }).where(eq(schema.runs.workflowId, id)).run()
+    // A project pointing at it as its mention starter loses the pointer (the
+    // next mention gets the setup hint again).
+    tx.update(schema.projects).set({ starterWorkflowId: null }).where(eq(schema.projects.starterWorkflowId, id)).run()
     tx.delete(schema.workflows).where(eq(schema.workflows.id, id)).run()
   })
 

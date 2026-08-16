@@ -80,7 +80,12 @@ export function dispatchRuns(): void {
     capacity--
   }
 
-  // Runs first (they are the primary work), follow-ups fill what's left.
+  // Runs first (they are the primary work), follow-ups fill what's left. A
+  // session with a run still WAITING for a slot also blocks its follow-ups:
+  // a mention's starter run must boot the env before the mention prompt runs.
+  for (const { run } of queued) {
+    if (!active.has(run.id)) busy.add(run.sessionId)
+  }
   const queuedFollowups = db
     .select({ id: schema.followups.id, sessionId: schema.followups.sessionId })
     .from(schema.followups)

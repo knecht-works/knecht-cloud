@@ -3,6 +3,7 @@ import { db, schema } from '../../db'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { fireTrigger } from '../../utils/triggers'
 import { githubObject, matchGithubEvent, verifyGithubSignature, type GithubPayload } from '../../utils/github-webhook'
+import { handleMention } from '../../utils/mentions'
 import { syncObjectStatus } from '../../utils/sessions'
 import { tryParseJson } from '../../utils/json'
 
@@ -38,6 +39,14 @@ export default defineEventHandler(async (event) => {
   if (!project) {
     console.log(`github webhook: ${delivered} from ${payload.repository?.full_name ?? 'unknown repo'} → no matching project`)
     return { ok: true, skipped: 'no matching project' }
+  }
+
+  // @mentions in issue/PR comments execute as follow-ups on the object's
+  // session (ADR 0007); nothing else consumes issue_comment deliveries.
+  if (delivered === 'issue_comment') {
+    const outcome = await handleMention(project, payload)
+    console.log(`github webhook: issue_comment from ${project.fullName} → ${outcome}`)
+    return { ok: true, outcome }
   }
 
   // Sessions mirror their object (ADR 0006): a closed issue/PR closes its
