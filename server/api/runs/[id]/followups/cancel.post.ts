@@ -23,6 +23,18 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 409, statusMessage: 'No follow-up is running' })
   }
 
+  // A cancelled mention follow-up takes its anchor run with it: that run row
+  // exists only as the mention's face in the run list, and nothing else would
+  // ever move it out of queued/running (daemon/followups.ts drives it).
+  db.update(schema.runs)
+    .set({ status: 'cancelled', finishedAt: new Date() })
+    .where(and(
+      eq(schema.runs.sessionId, run.sessionId),
+      eq(schema.runs.kind, 'mention'),
+      inArray(schema.runs.status, ['queued', 'running']),
+    ))
+    .run()
+
   cancelFollowup(run.sessionId)
   return { cancelled: true }
 })

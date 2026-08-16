@@ -17,8 +17,16 @@ vi.mock('../../server/daemon/runner', () => ({
     })
   },
 }))
+const startedFollowups: number[] = []
 vi.mock('../../server/daemon/followups', () => ({
-  startFollowup: async () => {},
+  // Flip the row like the real executor's claim does: the .finally()
+  // re-dispatch must not find it 'queued' again (endless loop otherwise).
+  startFollowup: async (id: number) => {
+    startedFollowups.push(id)
+    const { db, schema } = await import('../../server/db')
+    const { eq } = await import('drizzle-orm')
+    db.update(schema.followups).set({ status: 'success' }).where(eq(schema.followups.id, id)).run()
+  },
 }))
 
 const { dispatchRuns } = await import('../../server/daemon/dispatcher')
@@ -51,5 +59,21 @@ describe('dispatchRuns per-session serialization', () => {
     expect(started).toEqual([first.id, other.id, second.id])
     await finish(other.id)
     await finish(second.id)
+  })
+
+  it('a mention run goes to its follow-up, never the runner, and never blocks it', async () => {
+    const { db, schema } = await import('../../server/db')
+    const project = makeProject()
+    const run = makeRun(project, [], { kind: 'mention', workflow: 'Mention', trigger: 'mention' })
+    const followup = db.insert(schema.followups).values({
+      sessionId: run.sessionId,
+      runId: run.id,
+      prompt: 'do it',
+      origin: 'mention',
+    }).returning({ id: schema.followups.id }).get()
+
+    dispatchRuns()
+    expect(started).not.toContain(run.id)
+    expect(startedFollowups).toContain(followup.id)
   })
 })

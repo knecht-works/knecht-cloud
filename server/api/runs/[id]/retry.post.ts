@@ -23,6 +23,11 @@ export default defineEventHandler((event) => {
   if (run.status !== 'failed' && run.status !== 'cancelled') {
     throw createError({ statusCode: 409, statusMessage: 'Only failed or cancelled runs can be retried' })
   }
+  // A mention run has no steps to resume: its work is the comment that
+  // created it, so re-asking happens on the thread.
+  if (run.kind === 'mention') {
+    throw createError({ statusCode: 409, statusMessage: 'A mention run cannot be retried. Mention Knecht on the thread again instead.' })
+  }
   // A retry and a follow-up would share the session's sandbox; one at a time
   // (the dispatcher serializes anyway, this just gives a clear message).
   if (hasActiveFollowup(session.id)) {

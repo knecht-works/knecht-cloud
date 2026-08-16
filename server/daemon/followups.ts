@@ -74,17 +74,31 @@ export async function startFollowup(followupId: number): Promise<void> {
       return
     }
 
+    // A mention drives its own run row (kind 'mention', utils/mentions.ts):
+    // the runner never touches it, so the executor mirrors the follow-up's
+    // lifecycle onto it. Dashboard follow-ups anchor an already-finished run
+    // and leave its status alone.
+    const mirrorsRun = followup.origin === 'mention' && run.kind === 'mention'
+    if (mirrorsRun) {
+      db.update(schema.runs)
+        .set({ status: 'running', startedAt: new Date() })
+        .where(and(eq(schema.runs.id, run.id), eq(schema.runs.status, 'queued')))
+        .run()
+    }
+
     const controller = new AbortController()
     controllers.set(session.id, controller)
     try {
       const reply = await execFollowup(followup, session, run, project, controller)
       finishFollowup(followupId, 'success')
+      if (mirrorsRun) finishMentionRun(run.id, 'success')
       await postMentionReply(followup, session, project, reply)
     }
     catch (e) {
       const cancelled = controller.signal.aborted
       appendLog(run.id, cancelled ? `\n✗ Follow-up cancelled\n` : `\n✗ Follow-up failed: ${(e as Error).message}\n`)
       finishFollowup(followupId, 'failed', cancelled ? 'Cancelled' : (e as Error).message)
+      if (mirrorsRun) finishMentionRun(run.id, cancelled ? 'cancelled' : 'failed')
       if (!cancelled) {
         await postMentionReply(followup, session, project, `I could not finish this: ${(e as Error).message}`)
       }
@@ -102,7 +116,7 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
   // Offset BEFORE the banner: the banner and the env-revive output below
   // belong to this follow-up's log segment on the dashboard.
   const logStart = runLogBytes(run.id)
-  appendLog(run.id, `\n▶ Follow-up${followup.requestedBy ? ` (by ${followup.requestedBy})` : ''}\n`)
+  appendLog(run.id, `\n▶ ${followup.origin === 'mention' ? 'Mention' : 'Follow-up'}${followup.requestedBy ? ` (by ${followup.requestedBy})` : ''}\n`)
 
   // Revive the session's environment the same way POST /api/runs/:id/reboot
   // does; an 'up' env just gets its idle clock reset.
@@ -242,6 +256,16 @@ async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRun
   catch {
     // No checkout, no sync.
   }
+}
+
+// Close out a mention's run row alongside its follow-up. Guarded on the
+// non-terminal statuses so a user cancel (which flips the row first,
+// api/runs/[id]/cancel.post.ts) is never overwritten.
+function finishMentionRun(runId: number, status: 'success' | 'failed' | 'cancelled'): void {
+  db.update(schema.runs)
+    .set({ status, finishedAt: new Date() })
+    .where(and(eq(schema.runs.id, runId), inArray(schema.runs.status, ['queued', 'running'])))
+    .run()
 }
 
 function finishFollowup(id: number, status: 'success' | 'failed', error?: string): void {

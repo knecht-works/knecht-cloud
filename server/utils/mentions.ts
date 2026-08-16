@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
@@ -13,10 +13,13 @@ import type { GithubPayload } from './github-webhook'
 // comment text is the whole instruction; nothing is inferred beyond it. Only
 // instance members may mention Knecht; Knecht reacts with 👀 immediately and
 // posts the follow-up's answer in the thread when it finishes
-// (daemon/followups.ts). If the object has no session (or its env is gone),
-// the project's starter workflow provides one first and the mention prompt
-// runs as its first follow-up; without a configured starter workflow Knecht
-// replies with a setup hint instead.
+// (daemon/followups.ts). Every mention gets its OWN run row (kind 'mention')
+// as the follow-up's anchor: its work shows up as its own entry in the run
+// list with its own timeline, never inside whatever workflow ran last on the
+// object. If the object has no session (or its env is gone), the project's
+// starter workflow provides one first and the mention run queues behind it;
+// without a configured starter workflow Knecht replies with a setup hint
+// instead.
 
 // The instance's app slug: the name that must be @-mentioned. Read once from
 // the stored GitHub App row (the manifest flow saved it).
@@ -84,34 +87,39 @@ export async function handleMention(project: Project, payload: GithubPayload): P
       trigger: 'mention',
       branch: session.branch ?? project.defaultBranch,
     }).returning().get()
-    queueMentionFollowup(session, run.id, body, author)
+    queueMentionRun(project, session, body, author)
     dispatchRuns()
-    return `queued starter run ${run.id} + follow-up on session ${session.id}`
+    return `queued starter run ${run.id} + mention run on session ${session.id}`
   }
 
-  const anchor = db
-    .select({ id: schema.runs.id })
-    .from(schema.runs)
-    .where(eq(schema.runs.sessionId, session.id))
-    .orderBy(desc(schema.runs.id))
-    .get()
-  if (!anchor) return 'ignored (session has no runs)'
   // Always through the dispatcher: it serializes per session, so a mention
   // landing while the session is busy simply waits in order (ADR 0006), and
   // two rapid mentions can never run in parallel.
-  queueMentionFollowup(session, anchor.id, body, author)
+  const runId = queueMentionRun(project, session, body, author)
   dispatchRuns()
-  return `queued follow-up on session ${session.id}`
+  return `queued mention run ${runId} on session ${session.id}`
 }
 
-function queueMentionFollowup(session: Session, runId: number, prompt: string, requestedBy: string): number {
-  return db.insert(schema.followups).values({
+// The mention's own run row plus the follow-up that drives it. The run is an
+// anchor, not runner work: the dispatcher skips kind 'mention' and the
+// follow-up executor mirrors its status (daemon/followups.ts).
+function queueMentionRun(project: Project, session: Session, prompt: string, requestedBy: string): number {
+  const runId = db.insert(schema.runs).values({
+    projectId: project.id,
+    sessionId: session.id,
+    workflow: 'Mention',
+    kind: 'mention',
+    trigger: 'mention',
+    branch: session.branch ?? project.defaultBranch,
+  }).returning({ id: schema.runs.id }).get().id
+  db.insert(schema.followups).values({
     sessionId: session.id,
     runId,
     prompt,
     requestedBy,
     origin: 'mention',
-  }).returning({ id: schema.followups.id }).get().id
+  }).run()
+  return runId
 }
 
 // The one-time setup hint: a mention arrived but no starter workflow can

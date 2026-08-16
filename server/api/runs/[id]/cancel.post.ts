@@ -1,5 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../../../db'
+import { cancelFollowup } from '../../../daemon/followups'
 import { cancelRun } from '../../../daemon/runner'
 import { withSessionEnv } from '../../../utils/run-view'
 
@@ -10,7 +11,7 @@ import { withSessionEnv } from '../../../utils/run-view'
 // previewable and retryable. Cancelling a queued run just dequeues it.
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
-  requireRun(id)
+  const run = requireRun(id)
 
   const cancelled = db
     .update(schema.runs)
@@ -21,6 +22,20 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 409, statusMessage: 'Run already finished' })
   }
 
-  cancelRun(id)
+  // A mention run is driven by its follow-up, not the runner: stopping it
+  // means stopping that follow-up (dequeue if queued, abort if executing).
+  if (run.kind === 'mention') {
+    db.update(schema.followups)
+      .set({ status: 'failed', error: 'Cancelled', finishedAt: new Date() })
+      .where(and(
+        eq(schema.followups.runId, id),
+        inArray(schema.followups.status, ['queued', 'running']),
+      ))
+      .run()
+    cancelFollowup(run.sessionId)
+  }
+  else {
+    cancelRun(id)
+  }
   return withSessionEnv(requireRun(id))
 })
