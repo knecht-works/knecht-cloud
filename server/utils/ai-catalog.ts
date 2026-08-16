@@ -1,4 +1,4 @@
-import { AI_PROVIDERS, type AiModel, type AiProviderId, langdockBaseUrl } from '../../shared/utils/ai'
+import { AI_PROVIDERS, type AiModel, type AiProviderId, langdockAnthropicBaseUrl, langdockBaseUrl } from '../../shared/utils/ai'
 import type { Settings } from '../db/schema'
 import { decrypt } from './crypto'
 
@@ -69,21 +69,33 @@ async function opencodeModels(provider: AiProviderId, key: string): Promise<AiMo
     .sort((a, b) => a.id.localeCompare(b.id))
 }
 
+// Langdock lists its catalog per compatibility route: Claude models on the
+// Anthropic route, everything else on the OpenAI one. Merge both so the picker
+// shows the workspace's full set; one route without models for this workspace
+// (a vendor disabled in the Langdock console) must not sink the other.
 async function langdockModels(region: Settings['aiRegion'], key: string): Promise<AiModel[]> {
-  const data = await fetchModelList(`${langdockBaseUrl(region)}/models`, key, 'Langdock')
-  return data
-    .map(m => ({ id: m.id, name: m.name ?? m.id, provider: 'Langdock' }))
-    .sort((a, b) => a.id.localeCompare(b.id))
+  const results = await Promise.allSettled([
+    fetchModelList(`${langdockBaseUrl(region)}/models`, key, 'Langdock'),
+    fetchModelList(`${langdockAnthropicBaseUrl(region)}/models`, key, 'Langdock'),
+  ])
+  const lists = results.filter(r => r.status === 'fulfilled').map(r => r.value)
+  if (!lists.length) throw (results[0] as PromiseRejectedResult).reason
+  const byId = new Map<string, AiModel>()
+  for (const m of lists.flat()) {
+    if (!byId.has(m.id)) byId.set(m.id, { id: m.id, name: m.name ?? m.display_name ?? m.id, provider: 'Langdock' })
+  }
+  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id))
 }
 
-// Both live sources speak the OpenAI /models shape: { data: [{ id, ... }] }.
-async function fetchModelList(url: string, key: string, label: string): Promise<{ id: string, name?: string }[]> {
+// Both list shapes are { data: [{ id, ... }] }; the OpenAI-style sources name
+// a model via `name`, the Anthropic route via `display_name`.
+async function fetchModelList(url: string, key: string, label: string): Promise<{ id: string, name?: string, display_name?: string }[]> {
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${key}` },
     signal: AbortSignal.timeout(15_000),
   })
   if (!res.ok) throw new Error(`${label} responded ${res.status}`)
-  const data = await res.json() as { data?: { id: string, name?: string }[] }
+  const data = await res.json() as { data?: { id: string, name?: string, display_name?: string }[] }
   if (!data.data?.length) throw new Error(`${label} returned no models`)
   return data.data
 }

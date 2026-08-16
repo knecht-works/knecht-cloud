@@ -24,11 +24,16 @@ export type AiProviderId = typeof AI_PROVIDERS[number]['id']
 export const LANGDOCK_REGIONS = ['eu', 'us'] as const
 export type LangdockRegion = typeof LANGDOCK_REGIONS[number]
 
-// The OpenAI-compatible route. Langdock also has an Anthropic-compatible one;
-// this one carries the full catalog and caches prompts automatically, so it is
-// the only route Knecht uses.
+// The OpenAI-compatible route, carrying everything except Claude models.
 export function langdockBaseUrl(region: LangdockRegion): string {
   return `https://api.langdock.com/openai/${region}/v1`
+}
+
+// The Anthropic-compatible route: Claude models are served (and listed) here.
+// The user only ever picks a model; server/utils/opencode-config.ts routes it
+// to the right endpoint by name.
+export function langdockAnthropicBaseUrl(region: LangdockRegion): string {
+  return `https://api.langdock.com/anthropic/${region}/v1`
 }
 
 // Stored model names are bare, without a provider prefix: the

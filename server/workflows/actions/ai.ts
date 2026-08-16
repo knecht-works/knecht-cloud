@@ -10,7 +10,7 @@ import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
 import { bridgeEnv } from '../../utils/agent-bridge'
 import { persistAgentMemory, seedAgentMemory } from '../../utils/agent-memory'
-import { buildAgentRules, buildOpencodeConfig } from '../../utils/opencode-config'
+import { agentModelRef, buildAgentRules, buildOpencodeConfig } from '../../utils/opencode-config'
 import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
@@ -124,7 +124,9 @@ async function resolveAgentEnv(
   if (!envNames) {
     throw new Error(`Unsupported provider '${provider}'. Supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
   }
-  const model = `${provider}/${bare}`
+  // agentModelRef maps a langdock Claude model to the langdock-anthropic
+  // provider block the generated config declares for the Anthropic route.
+  const model = agentModelRef(provider, bare)
   if (!MODEL_RE.test(model)) {
     throw new Error(`Invalid model '${model}': not shell-safe`)
   }
