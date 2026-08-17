@@ -2,6 +2,7 @@ import { rmSync } from 'node:fs'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
 import { teardownSession } from '../../daemon/envs'
+import { cancelFollowupWork } from '../../daemon/followups'
 import { cancelRun } from '../../daemon/runner'
 import { sessionArchiveDir } from '../../utils/storage'
 
@@ -19,8 +20,12 @@ export default defineEventHandler(async (event) => {
 
   // A still-executing run must stop before its rows go away: without the
   // abort, the runner races the delete and can recreate the sandbox for a
-  // row that no longer exists (an orphan container nothing ever reaps).
-  cancelRun(id)
+  // row that no longer exists (an orphan container nothing ever reaps). A
+  // mention run is driven by the follow-up executor instead of the runner;
+  // left running it would work against the deleted rows and could still post
+  // its reply on the thread.
+  if (run.kind === 'mention') cancelFollowupWork(run.sessionId, id)
+  else cancelRun(id)
 
   // FKs are declarative only (PRAGMA foreign_keys off): clean up explicitly.
   db.delete(schema.runSteps).where(eq(schema.runSteps.runId, id)).run()
