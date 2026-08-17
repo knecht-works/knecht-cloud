@@ -36,9 +36,13 @@ const isLive = computed(() => isLiveStatus(run.value?.status))
 
 // A boot step in the pinned sequence means a preview is coming; without one
 // (a workflow that never boots an env) the preview frame isn't rendered at
-// all.
-const hasBootStep = computed(() =>
-  stepsInclude((run.value?.steps ?? []) as Step[], 'ddev-start'))
+// all. A mention run has no steps of its own but works in the session's
+// environment (booted by a starter or earlier run), so its preview shows as
+// long as that environment still exists.
+const hasBootStep = computed(() => {
+  if (run.value?.kind === 'mention') return run.value.envState !== 'down'
+  return stepsInclude((run.value?.steps ?? []) as Step[], 'ddev-start')
+})
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
 
 // Browsable only once the boot step finished (previewReady), not the moment
@@ -70,7 +74,11 @@ const meta = computed(() => {
   const trigger = r.trigger ? triggerSourceMeta(r.trigger) : null
   const object = r.objectKind ? sessionObjectMeta(r.objectKind) : null
   return [
-    object && { icon: object.icon, text: `${object.label} #${r.objectNumber}`, href: r.objectUrl ?? undefined },
+    object && {
+      icon: r.sessionStatus === 'closed' ? object.closedIcon : object.icon,
+      text: `${object.label} #${r.objectNumber}`,
+      href: r.objectUrl ?? undefined,
+    },
     { icon: 'i-lucide-workflow', text: r.workflow, href: r.workflowId ? `/workflows/${r.workflowId}` : undefined },
     trigger && { icon: trigger.icon, text: trigger.label },
     r.branch && { icon: 'i-lucide-git-branch', text: r.branch },
