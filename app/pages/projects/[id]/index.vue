@@ -456,42 +456,10 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
               :key="g.sessionId"
               :class="gi ? 'border-t border-muted' : ''"
             >
-              <div
+              <KSessionGroupHeader
                 v-if="g.object"
-                class="flex items-center gap-2 px-4.5 pb-1 pt-3"
-              >
-                <UIcon
-                  :name="g.object.closed ? sessionObjectMeta(g.object.kind).closedIcon : sessionObjectMeta(g.object.kind).icon"
-                  class="size-3.5 flex-none"
-                  :style="{ color: g.object.closed ? 'var(--text-dimmed)' : sessionObjectMeta(g.object.kind).color }"
-                />
-                <span class="k-mono flex-none text-2xs text-dimmed">#{{ g.object.number }}</span>
-                <UTooltip :text="g.object.title ?? ''">
-                  <span
-                    class="k-mono min-w-0 truncate text-2xs"
-                    :class="g.object.closed ? 'text-dimmed' : 'text-muted'"
-                  >{{ g.object.title }}</span>
-                </UTooltip>
-                <span class="ml-auto flex flex-none items-center gap-2">
-                  <KStatusDot
-                    v-if="g.object.live"
-                    color="primary"
-                    :size="5"
-                  />
-                  <a
-                    v-if="g.object.url"
-                    :href="g.object.url"
-                    target="_blank"
-                    class="flex text-dimmed transition-colors hover:text-muted"
-                    :aria-label="`Open ${g.object.kind === 'issue' ? 'issue' : 'pull request'} #${g.object.number} on GitHub`"
-                  >
-                    <UIcon
-                      name="i-lucide-arrow-up-right"
-                      class="size-3.5"
-                    />
-                  </a>
-                </span>
-              </div>
+                :object="g.object"
+              />
               <NuxtLink
                 v-for="r in g.runs"
                 :key="r.id"

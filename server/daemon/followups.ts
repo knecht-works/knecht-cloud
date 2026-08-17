@@ -12,7 +12,7 @@ import { agentRepliedSince, withSessionLinks } from '../utils/sessions'
 import { currentBranch } from './git'
 import { appendLog, runLogBytes, streamInSandbox } from './runner'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
-import { ensureEnvUp, rebootEnv, rehydrateEnv } from './envs'
+import { ensureEnvUp, reviveEnv } from './envs'
 
 // Execute a follow-up: a free-form prompt continuing a session's
 // conversation. The session's EXISTING sandbox is reused, never recreated:
@@ -118,11 +118,9 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
   const logStart = runLogBytes(run.id)
   appendLog(run.id, `\n▶ ${followup.origin === 'mention' ? 'Mention' : 'Follow-up'}${followup.requestedBy ? ` (by ${followup.requestedBy})` : ''}\n`)
 
-  // Revive the session's environment the same way POST /api/runs/:id/reboot
-  // does; an 'up' env just gets its idle clock reset.
-  if (session.envState === 'archived') await rehydrateEnv(session.id)
-  else if (session.envState === 'stopped') await rebootEnv(session.id)
-  else await ensureEnvUp(session.id)
+  // Revive the session's environment (daemon/envs.ts owns the ladder); an
+  // 'up' env just gets its idle clock reset.
+  await reviveEnv(session.id)
 
   // The follow-up's own timeline row, appended after the anchor run's pinned
   // workflow steps (and any earlier follow-ups). The runner's resume logic
@@ -260,12 +258,40 @@ async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRun
 
 // Close out a mention's run row alongside its follow-up. Guarded on the
 // non-terminal statuses so a user cancel (which flips the row first,
-// api/runs/[id]/cancel.post.ts) is never overwritten.
+// cancelFollowupWork below) is never overwritten.
 function finishMentionRun(runId: number, status: 'success' | 'failed' | 'cancelled'): void {
   db.update(schema.runs)
     .set({ status, finishedAt: new Date() })
     .where(and(eq(schema.runs.id, runId), inArray(schema.runs.status, ['queued', 'running'])))
     .run()
+}
+
+// The cancel twin of finishMentionRun, for the API routes (cancel and delete):
+// flip the matching queued/running follow-ups to failed/'Cancelled', take
+// their mention anchor runs with them (those rows exist only as the mention's
+// face in the run list; nothing else would ever move them out of
+// queued/running), then abort the executor if this session's follow-up is in
+// flight in this process. `runId` narrows the cancel to one mention run;
+// without it the session's whole follow-up queue goes. Returns the number of
+// follow-up rows flipped.
+export function cancelFollowupWork(sessionId: number, runId?: number): number {
+  const flipped = db.update(schema.followups)
+    .set({ status: 'failed', error: 'Cancelled', finishedAt: new Date() })
+    .where(and(
+      runId === undefined ? eq(schema.followups.sessionId, sessionId) : eq(schema.followups.runId, runId),
+      inArray(schema.followups.status, ['queued', 'running']),
+    ))
+    .run()
+  db.update(schema.runs)
+    .set({ status: 'cancelled', finishedAt: new Date() })
+    .where(and(
+      runId === undefined ? eq(schema.runs.sessionId, sessionId) : eq(schema.runs.id, runId),
+      eq(schema.runs.kind, 'mention'),
+      inArray(schema.runs.status, ['queued', 'running']),
+    ))
+    .run()
+  cancelFollowup(sessionId)
+  return flipped.changes
 }
 
 function finishFollowup(id: number, status: 'success' | 'failed', error?: string): void {

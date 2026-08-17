@@ -123,6 +123,8 @@ function composeOverride(sharedMounts: { host: string, dest: string }[] = []): R
     { host: join(tools, 'knecht-git'), dest: '/usr/local/bin/knecht-git' },
     { host: join(tools, 'knecht-reply'), dest: '/usr/local/bin/knecht-reply' },
     { host: join(tools, 'knecht-label'), dest: '/usr/local/bin/knecht-label' },
+    // Sourced by knecht-reply/knecht-label, not on PATH.
+    { host: join(tools, 'knecht-bridge-lib'), dest: '/usr/local/lib/knecht-bridge-lib' },
     // Shadows the stock in-container ddev shim, which silently no-ops
     // (`ddev composer install` would exit 0 without installing anything).
     { host: join(tools, 'ddev-shim'), dest: '/usr/local/bin/ddev' },
