@@ -1,6 +1,7 @@
 import { desc, eq } from 'drizzle-orm'
 import { stepsInclude } from '../../../shared/utils/workflow'
 import { db, schema } from '../../db'
+import { runSessionColumns } from '../../utils/run-view'
 
 // The list/poll endpoints only ever show recent history; the cap keeps the
 // synchronous sqlite read bounded as runs accumulate.
@@ -21,19 +22,11 @@ export default defineEventHandler((event) => {
       workflow: schema.runs.workflow,
       workflowId: schema.runs.workflowId,
       status: schema.runs.status,
-      // Env fields come from the run's session (ADR 0006), flattened in under
-      // their historical names so the dashboard keeps working unchanged.
-      envState: schema.sessions.envState,
+      // Env + object fields come from the run's session (ADR 0006), flattened
+      // in under their historical names so the dashboard keeps working
+      // unchanged; the shared fragment keeps list and detail identical.
+      ...runSessionColumns,
       steps: schema.runs.steps,
-      previewHosts: schema.sessions.previewHosts,
-      previewReady: schema.sessions.previewReady,
-      // The session's object (issue/PR), so the UI can group runs by session
-      // and link the thread. All null for one-shot sessions.
-      objectKind: schema.sessions.objectKind,
-      objectNumber: schema.sessions.objectNumber,
-      objectTitle: schema.sessions.objectTitle,
-      objectUrl: schema.sessions.objectUrl,
-      sessionStatus: schema.sessions.status,
       trigger: schema.runs.trigger,
       triggerId: schema.runs.triggerId,
       startedAt: schema.runs.startedAt,

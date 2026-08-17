@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
+import { runSessionColumns } from '../../utils/run-view'
 
 // GET /api/runs/:id → a single run incl. its log, for the detail page's poll.
 export default defineEventHandler((event) => {
@@ -15,18 +16,10 @@ export default defineEventHandler((event) => {
       workflowId: schema.runs.workflowId,
       status: schema.runs.status,
       kind: schema.runs.kind,
-      // Env fields come from the run's session (ADR 0006), flattened in under
-      // their historical names so the dashboard keeps working unchanged.
-      envState: schema.sessions.envState,
-      previewHosts: schema.sessions.previewHosts,
-      previewReady: schema.sessions.previewReady,
-      // The session's object (issue/PR), so the run header can name the
-      // thread the session works on. All null for one-shot sessions.
-      objectKind: schema.sessions.objectKind,
-      objectNumber: schema.sessions.objectNumber,
-      objectTitle: schema.sessions.objectTitle,
-      objectUrl: schema.sessions.objectUrl,
-      sessionStatus: schema.sessions.status,
+      // Env + object fields come from the run's session (ADR 0006), flattened
+      // in under their historical names so the dashboard keeps working
+      // unchanged; the shared fragment keeps list and detail identical.
+      ...runSessionColumns,
       trigger: schema.runs.trigger,
       triggerId: schema.runs.triggerId,
       branch: schema.runs.branch,

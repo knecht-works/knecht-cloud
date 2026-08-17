@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Shared scaffolding for the bridge CLIs (knecht-reply, knecht-label): the
+# availability checks and the POST to the Knecht host's agent-bridge endpoint
+# (server/routes/agent-bridge.post.ts). Sourced by the CLIs, never executed;
+# mounted at /usr/local/lib/knecht-bridge-lib (server/daemon/ddev.ts).
+
+# require_bridge <tool>: the CLI only works in a run with a configured bridge
+# and an object-bound session; exits with the agent-facing explanation.
+require_bridge() {
+  [ -n "${KNECHT_BRIDGE_URL:-}" ] && [ -n "${KNECHT_BRIDGE_TOKEN:-}" ] && [ -n "${KNECHT_RUN_ID:-}" ] || {
+    echo "$1 is not available in this run (bridge not configured)" >&2
+    exit 1
+  }
+  [ -n "${KNECHT_OBJECT:-}" ] || {
+    echo "$1 is not available: this session does not belong to an issue or pull request" >&2
+    exit 1
+  }
+}
+
+# json_escape <text>: the text as a JSON string literal (node is in the image
+# for the js step).
+json_escape() {
+  node -e 'console.log(JSON.stringify(process.argv[1] ?? ""))' "$1"
+}
+
+# bridge_post <json>: POST the payload to the bridge, print the response, exit
+# 0 on 2xx and 1 otherwise.
+bridge_post() {
+  local response code
+  response="$(mktemp)"
+  trap 'rm -f "$response"' EXIT
+  code="$(curl -sS -o "$response" -w '%{http_code}' \
+    -X POST "$KNECHT_BRIDGE_URL" \
+    -H 'content-type: application/json' \
+    -H "x-knecht-run-id: $KNECHT_RUN_ID" \
+    -H "x-knecht-token: $KNECHT_BRIDGE_TOKEN" \
+    --data "$1")"
+  cat "$response"
+  case "$code" in
+    2*) exit 0 ;;
+    *) exit 1 ;;
+  esac
+}

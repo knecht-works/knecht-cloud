@@ -1,6 +1,6 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../../../db'
-import { cancelFollowup } from '../../../daemon/followups'
+import { cancelFollowupWork } from '../../../daemon/followups'
 import { cancelRun } from '../../../daemon/runner'
 import { withSessionEnv } from '../../../utils/run-view'
 
@@ -25,14 +25,7 @@ export default defineEventHandler((event) => {
   // A mention run is driven by its follow-up, not the runner: stopping it
   // means stopping that follow-up (dequeue if queued, abort if executing).
   if (run.kind === 'mention') {
-    db.update(schema.followups)
-      .set({ status: 'failed', error: 'Cancelled', finishedAt: new Date() })
-      .where(and(
-        eq(schema.followups.runId, id),
-        inArray(schema.followups.status, ['queued', 'running']),
-      ))
-      .run()
-    cancelFollowup(run.sessionId)
+    cancelFollowupWork(run.sessionId, id)
   }
   else {
     cancelRun(id)

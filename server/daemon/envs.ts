@@ -127,6 +127,18 @@ export async function rehydrateEnv(sessionId: number): Promise<void> {
   markUp(sessionId)
 }
 
+// Bring a session's env back for new work, from whatever rung of the ladder
+// it sits on: 'archived' needs the full restore, 'stopped' restarts its
+// containers, anything else just makes sure the stack is up (an 'up' env
+// gets its idle clock reset). The one revive path shared by the follow-up
+// executor and POST /api/runs/:id/reboot.
+export async function reviveEnv(sessionId: number): Promise<void> {
+  const state = getSessionRow(sessionId)?.envState
+  if (state === 'archived') await rehydrateEnv(sessionId)
+  else if (state === 'stopped') await rebootEnv(sessionId)
+  else await ensureEnvUp(sessionId)
+}
+
 // Re-run the boot commands (composer install and friends) after a restore:
 // the archive keeps only git-visible state plus the DB export and .knecht,
 // so everything gitignored (vendor/, node_modules/, a generated .env) died
