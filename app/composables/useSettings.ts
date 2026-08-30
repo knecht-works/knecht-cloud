@@ -9,21 +9,15 @@ export interface DashboardSettings {
   archiveRetentionDays: number
   maxConcurrentRuns: number
   aiProvider: string
-  /** Langdock region (eu/us); present for every provider, used by langdock. */
   aiRegion: string
-  /** Default agent model; null after a provider switch until a new one is picked. */
   aiModel: string | null
-  /** Optional faster model for the agent's internal small tasks; null = main model. */
   aiSubtaskModel?: string | null
-  /** Instance-level agent instructions, layered into every agent run. */
   agentInstructions: string
-  /** Whether a provider API key is stored (the key itself never leaves the server). */
   aiKeyConfigured?: boolean
-  /** Masked recognition preview of the stored key (first 8 + last 4 visible). */
   aiKeyPreview?: string
   sshTarget?: string | null
-  /** What an empty sshTarget falls back to (root@<base domain> on servers). */
   sshTargetDefault?: string | null
+  autoUpdate: boolean
 }
 
 export function useSettings() {

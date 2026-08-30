@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `auto_update` integer DEFAULT false NOT NULL;

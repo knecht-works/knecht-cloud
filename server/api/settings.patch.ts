@@ -29,6 +29,7 @@ const bodySchema = z.object({
   // Instance-level agent instructions.
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
   sshTarget: z.string().trim().regex(SSH_TARGET_RE).max(200).nullable().optional(),
+  autoUpdate: z.boolean().optional(),
 })
 
 export default defineEventHandler(async (event) => {

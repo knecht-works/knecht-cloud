@@ -470,6 +470,11 @@ export const settings = sqliteTable('settings', {
   // BUILD the run page's copy-pasteable SSH command and the Open-in-VS-Code
   // link; Knecht itself never connects anywhere with it and manages no keys.
   sshTarget: text('ssh_target'),
+
+  // Install new releases automatically (server/plugins/auto-update.ts): during
+  // the night maintenance window, and only while no run is active. Off by
+  // default; updating swaps the running code for every member.
+  autoUpdate: integer('auto_update', { mode: 'boolean' }).notNull().default(false),
 })
 
 export type Settings = typeof settings.$inferSelect
