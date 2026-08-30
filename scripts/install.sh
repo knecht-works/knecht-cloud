@@ -6,9 +6,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | bash
 #
 # Non-interactive: KNECHT_DOMAIN=knecht.example.com bash install.sh
-# Settings preset: any further KNECHT_* var (e.g. KNECHT_AUTO_UPDATE=true,
-# KNECHT_AI_KEY=sk-...) is carried into the generated .env; it pins that
-# dashboard setting and locks its field in the UI (see .env.example).
+# Settings preset: any further KNECHT_* var (e.g. KNECHT_AUTO_UPDATE_CRON=
+# "0 3 * * *", KNECHT_AI_KEY=sk-...) is carried into the generated .env; it
+# pins that dashboard setting and locks its field in the UI (see .env.example).
 # Testing only: KNECHT_REF=<branch/tag> checks out that ref instead of the
 # latest release. A v-tag (e.g. a pre-release like v0.3.0-rc.1) also pins the
 # image to that tag; any other ref (branch, sha) pins `latest`.
