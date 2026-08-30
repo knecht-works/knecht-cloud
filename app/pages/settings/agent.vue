@@ -161,6 +161,7 @@ async function removeAiKey() {
                   v-model="aiProvider"
                   :items="PROVIDER_ITEMS"
                   value-key="id"
+                  :disabled="isPreset(settings, 'aiProvider')"
                   class="flex-1"
                 />
                 <USelect
@@ -169,9 +170,16 @@ async function removeAiKey() {
                   :items="REGION_ITEMS"
                   value-key="id"
                   aria-label="Langdock region"
+                  :disabled="isPreset(settings, 'aiRegion')"
                   class="w-20"
                 />
               </div>
+              <p
+                v-if="isPreset(settings, 'aiProvider')"
+                class="k-mono mt-2 text-2xs text-dimmed"
+              >
+                Preset by the installation.
+              </p>
               <p
                 v-if="aiProvider === 'langdock'"
                 class="mt-2 text-xs leading-normal text-muted"
@@ -190,6 +198,7 @@ async function removeAiKey() {
                   v-model="aiKey"
                   type="password"
                   :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
+                  :disabled="isPreset(settings, 'aiKey')"
                   class="flex-1"
                 />
                 <UButton
@@ -198,10 +207,10 @@ async function removeAiKey() {
                   size="xs"
                   label="Save"
                   :loading="savingAiKey"
-                  :disabled="!aiKey.trim()"
+                  :disabled="!aiKey.trim() || isPreset(settings, 'aiKey')"
                 />
                 <UButton
-                  v-if="settings?.aiKeyConfigured"
+                  v-if="settings?.aiKeyConfigured && !isPreset(settings, 'aiKey')"
                   type="button"
                   color="error"
                   variant="ghost"
@@ -212,6 +221,12 @@ async function removeAiKey() {
                   @click="removeAiKey"
                 />
               </form>
+              <p
+                v-if="isPreset(settings, 'aiKey')"
+                class="k-mono mt-2 text-2xs text-dimmed"
+              >
+                Preset by the installation.
+              </p>
             </div>
             <div class="sm:col-span-2">
               <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Default model</span>
@@ -220,6 +235,7 @@ async function removeAiKey() {
                   v-if="aiModelsError"
                   v-model="aiModel"
                   placeholder="claude-sonnet-4-5"
+                  :disabled="isPreset(settings, 'aiModel')"
                   :color="saveError ? 'error' : undefined"
                   :highlight="!!saveError"
                   class="w-full sm:max-w-md"
@@ -231,6 +247,7 @@ async function removeAiKey() {
                   value-key="id"
                   :filter-fields="['label', 'description']"
                   :loading="aiModelsStatus === 'pending'"
+                  :disabled="isPreset(settings, 'aiModel')"
                   placeholder="claude-sonnet-4-5"
                   class="w-full sm:max-w-md"
                 />
@@ -240,6 +257,12 @@ async function removeAiKey() {
                 class="mt-2 text-xs leading-normal text-error"
               >
                 {{ saveError }}
+              </p>
+              <p
+                v-if="isPreset(settings, 'aiModel')"
+                class="k-mono mt-2 text-2xs text-dimmed"
+              >
+                Preset by the installation.
               </p>
               <p class="mt-2 text-xs leading-normal text-muted">
                 Only the selected provider's models are offered. For OpenCode the list comes
@@ -253,6 +276,7 @@ async function removeAiKey() {
                   v-if="aiModelsError"
                   :model-value="aiSubtaskModel === NO_SUBTASK_MODEL ? '' : aiSubtaskModel"
                   placeholder="None, the main model handles everything"
+                  :disabled="isPreset(settings, 'aiSubtaskModel')"
                   class="w-full sm:max-w-md"
                   @update:model-value="aiSubtaskModel = ($event as string).trim() || NO_SUBTASK_MODEL"
                 />
@@ -263,10 +287,17 @@ async function removeAiKey() {
                   value-key="id"
                   :filter-fields="['label', 'description']"
                   :loading="aiModelsStatus === 'pending'"
+                  :disabled="isPreset(settings, 'aiSubtaskModel')"
                   placeholder="None"
                   class="w-full sm:max-w-md"
                 />
               </div>
+              <p
+                v-if="isPreset(settings, 'aiSubtaskModel')"
+                class="k-mono mt-2 text-2xs text-dimmed"
+              >
+                Preset by the installation.
+              </p>
               <p class="mt-2 text-xs leading-normal text-muted">
                 A faster model the agent uses for its internal small tasks and
                 exploration subagents. Runs get quicker and cheaper; the main
@@ -307,9 +338,16 @@ async function removeAiKey() {
           autoresize
           :maxrows="16"
           :maxlength="AGENT_INSTRUCTIONS_MAX"
+          :disabled="isPreset(settings, 'agentInstructions')"
           placeholder="Always answer in German. Never touch anything under legacy/."
           class="w-full"
         />
+        <p
+          v-if="isPreset(settings, 'agentInstructions')"
+          class="k-mono mt-2 text-2xs text-dimmed"
+        >
+          Preset by the installation.
+        </p>
         <p class="mt-2 text-xs leading-normal text-muted">
           Saved automatically and given to the agent on every run.
         </p>

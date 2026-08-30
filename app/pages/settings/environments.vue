@@ -87,6 +87,7 @@ watch(form, () => {
             type="number"
             :min="SETTINGS_LIMITS[f.key].min"
             :max="SETTINGS_LIMITS[f.key].max"
+            :disabled="isPreset(settings, f.key)"
             :color="errors[f.key] ? 'error' : undefined"
             :highlight="!!errors[f.key]"
             class="w-24"
@@ -98,6 +99,12 @@ watch(form, () => {
           class="mt-2 text-xs leading-normal text-error"
         >
           {{ errors[f.key] }}
+        </p>
+        <p
+          v-if="isPreset(settings, f.key)"
+          class="k-mono mt-2 text-2xs text-dimmed"
+        >
+          Preset by the installation.
         </p>
         <p class="mt-2 text-xs leading-normal text-muted">
           {{ f.hint }}

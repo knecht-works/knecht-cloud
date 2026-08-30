@@ -64,10 +64,17 @@ watch(sshTarget, () => {
     <UInput
       v-model="sshTarget"
       :placeholder="settings?.sshTargetDefault ?? 'knecht@my-server.com'"
+      :disabled="isPreset(settings, 'sshTarget')"
       :color="fieldError ? 'error' : undefined"
       :highlight="!!fieldError"
       class="k-mono w-full max-w-sm"
     />
+    <p
+      v-if="isPreset(settings, 'sshTarget')"
+      class="k-mono mt-2 text-2xs text-dimmed"
+    >
+      Preset by the installation.
+    </p>
     <p
       v-if="fieldError"
       class="mt-2 text-xs leading-normal text-error"

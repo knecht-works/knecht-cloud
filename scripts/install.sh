@@ -6,6 +6,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | bash
 #
 # Non-interactive: KNECHT_DOMAIN=knecht.example.com bash install.sh
+# Settings preset: any further KNECHT_* var (e.g. KNECHT_AUTO_UPDATE=true,
+# KNECHT_AI_KEY=sk-...) is carried into the generated .env; it pins that
+# dashboard setting and locks its field in the UI (see .env.example).
 # Testing only: KNECHT_REF=<branch/tag> checks out that ref instead of the
 # latest release. A v-tag (e.g. a pre-release like v0.3.0-rc.1) also pins the
 # image to that tag; any other ref (branch, sha) pins `latest`.
@@ -127,6 +130,16 @@ KNECHT_INSTALL_DIR=$INSTALL_DIR
 KNECHT_VERSION=$IMAGE_TAG
 COMPOSE_PROFILES=prod
 EOF
+
+  # Settings preset: any other KNECHT_* var in the installer's environment is
+  # carried into .env. Each maps to a settings column (KNECHT_AUTO_UPDATE ->
+  # autoUpdate, ...): the value overrides the dashboard setting and its field
+  # is locked in the UI. Installer control vars and keys written above are
+  # excluded, so this stays additive.
+  env | grep '^KNECHT_' \
+    | grep -vE '^KNECHT_(DOMAIN|REF|BASE_DOMAIN|PROJECTS|DATA_DIR|DB_PATH|INSTALL_DIR|VERSION)=' \
+    | sort >> "$INSTALL_DIR/.env" || true
+
   chmod 600 "$INSTALL_DIR/.env"
 fi
 
