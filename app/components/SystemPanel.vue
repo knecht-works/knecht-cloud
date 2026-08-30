@@ -77,7 +77,7 @@ async function runUpdate() {
   <KPanel
     title="Host · Sandbox"
     icon="i-lucide-server"
-    accent="var(--text-primary)"
+    accent="var(--primary)"
   >
     <template #action>
       <UButton

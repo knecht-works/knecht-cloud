@@ -85,6 +85,7 @@ async function disconnect() {
   <KPanel
     title="Jira"
     icon="i-simple-icons-jira"
+    accent="var(--color-jira)"
   >
     <template #action>
       <span

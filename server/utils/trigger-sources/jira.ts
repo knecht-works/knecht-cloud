@@ -13,9 +13,6 @@ import type { TriggerSourceDef, PollMatch } from './index'
 
 const configSchema = z.object({
   projectKey: z.string().trim().min(1),
-  // Exactly one condition: the label a ticket gains, the status it reaches, or
-  // "assigned to the connected account" (the poll runs as that account, so the
-  // JQL is simply currentUser()).
   label: z.string().trim().min(1).optional(),
   status: z.string().trim().min(1).optional(),
   assignee: z.literal(true).optional(),

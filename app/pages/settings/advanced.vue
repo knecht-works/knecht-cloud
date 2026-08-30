@@ -45,6 +45,7 @@ watch(sshTarget, () => {
   <KPanel
     title="Remote access"
     icon="i-lucide-terminal"
+    accent="var(--primary)"
   >
     <template #action>
       <KSaveStatus
