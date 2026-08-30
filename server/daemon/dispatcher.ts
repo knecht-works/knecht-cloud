@@ -50,6 +50,14 @@ function busySessions(): Set<number> {
   return busy
 }
 
+// Whether any run or follow-up is executing right now (including work this
+// process just claimed but that hasn't flipped to 'running' yet). Auto-update
+// (server/plugins/auto-update.ts) uses this: restarting the container fails
+// running work, while 'queued' rows survive and start after the update.
+export function hasRunningWork(): boolean {
+  return busySessions().size > 0
+}
+
 export function dispatchRuns(): void {
   // The queue is tiny by construction (a single-instance tool); fetching all
   // queued rows keeps the claim logic trivial. Mention runs are excluded on
