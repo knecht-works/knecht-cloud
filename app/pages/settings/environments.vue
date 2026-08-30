@@ -63,6 +63,7 @@ watch(form, () => {
   <KPanel
     title="Environments"
     icon="i-lucide-box"
+    accent="var(--primary)"
   >
     <template #action>
       <KSaveStatus

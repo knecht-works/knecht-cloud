@@ -64,6 +64,7 @@ async function remove(login: string) {
   <KPanel
     title="Access"
     icon="i-lucide-users"
+    accent="var(--primary)"
   >
     <template #action>
       <span class="k-mono text-2xs text-dimmed">

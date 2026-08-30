@@ -127,6 +127,9 @@
   --ui-border: var(--border-default);
   --ui-border-muted: var(--border-muted);
   --ui-border-accented: var(--border-accented);
+
+  /* Trigger brand colors */
+  --color-jira: rgb(87, 157, 255);
 }
 
 /* The product ships in a single dark theme. */

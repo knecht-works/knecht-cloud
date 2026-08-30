@@ -59,6 +59,7 @@ async function runGc() {
     <KPanel
       title="Automatic updates"
       icon="i-lucide-arrow-up-circle"
+      accent="var(--primary)"
       class="mt-4.5"
     >
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -79,6 +80,7 @@ async function runGc() {
     <KPanel
       title="Cleanup"
       icon="i-lucide-trash-2"
+      accent="var(--primary)"
       class="mt-4.5"
     >
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
