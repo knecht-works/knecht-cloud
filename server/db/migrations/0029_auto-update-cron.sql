@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `auto_update_cron` text DEFAULT '' NOT NULL;

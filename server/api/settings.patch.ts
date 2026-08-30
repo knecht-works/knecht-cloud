@@ -3,6 +3,7 @@ import { AI_PROVIDERS, type AiProviderId, LANGDOCK_REGIONS, MODEL_NAME_RE } from
 import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS, SSH_TARGET_RE } from '#shared/utils/settings-limits'
 import { getSettings, publicSettings, type SettingsPatch, updateSettings } from '../utils/settings'
 import { settingsPreset } from '../utils/settings-preset'
+import { isValidCron } from '../utils/cron'
 import { loadModelCatalog } from '../utils/ai-catalog'
 import { encrypt } from '../utils/crypto'
 
@@ -30,7 +31,8 @@ const bodySchema = z.object({
   // Instance-level agent instructions.
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
   sshTarget: z.string().trim().regex(SSH_TARGET_RE).max(200).nullable().optional(),
-  autoUpdate: z.boolean().optional(),
+  // 5-field cron schedule for automatic updates; '' turns them off.
+  autoUpdateCron: z.string().trim().max(100).optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -45,6 +47,9 @@ export default defineEventHandler(async (event) => {
   const preset = Object.keys(result.data).find(f => settingsPreset().keys.includes(f))
   if (preset) {
     throw createError({ statusCode: 400, statusMessage: `The setting '${preset}' is preset by the installation.` })
+  }
+  if (result.data.autoUpdateCron && !isValidCron(result.data.autoUpdateCron)) {
+    throw createError({ statusCode: 400, statusMessage: 'Not a valid cron schedule (5 fields, e.g. "0 3 * * *").' })
   }
   const { aiKey, ...patch } = result.data
   const settingsPatch: SettingsPatch = {

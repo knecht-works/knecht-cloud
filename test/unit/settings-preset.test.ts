@@ -11,7 +11,7 @@ beforeAll(() => {
 describe('presetEnvName', () => {
   it('derives KNECHT_SNAKE_CASE from the column key', () => {
     expect(presetEnvName('idleStopMinutes')).toBe('KNECHT_IDLE_STOP_MINUTES')
-    expect(presetEnvName('autoUpdate')).toBe('KNECHT_AUTO_UPDATE')
+    expect(presetEnvName('autoUpdateCron')).toBe('KNECHT_AUTO_UPDATE_CRON')
     expect(presetEnvName('aiProvider')).toBe('KNECHT_AI_PROVIDER')
     expect(presetEnvName('sshTarget')).toBe('KNECHT_SSH_TARGET')
   })
@@ -27,23 +27,22 @@ describe('buildSettingsPreset', () => {
   it('parses values by the column type', () => {
     const p = buildSettingsPreset({
       KNECHT_MAX_CONCURRENT_RUNS: '3',
-      KNECHT_AUTO_UPDATE: 'true',
+      KNECHT_AUTO_UPDATE_CRON: '0 3 * * *',
       KNECHT_AI_PROVIDER: 'anthropic',
     })
-    expect(p.overrides).toEqual({ maxConcurrentRuns: 3, autoUpdate: true, aiProvider: 'anthropic' })
-    expect(p.keys.sort()).toEqual(['aiProvider', 'autoUpdate', 'maxConcurrentRuns'])
+    expect(p.overrides).toEqual({ maxConcurrentRuns: 3, autoUpdateCron: '0 3 * * *', aiProvider: 'anthropic' })
+    expect(p.keys.sort()).toEqual(['aiProvider', 'autoUpdateCron', 'maxConcurrentRuns'])
   })
 
   it('ignores unparsable and empty values instead of failing', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const p = buildSettingsPreset({
       KNECHT_MAX_CONCURRENT_RUNS: 'many',
-      KNECHT_AUTO_UPDATE: 'yes',
       KNECHT_SSH_TARGET: '',
     })
     expect(p.overrides).toEqual({})
     expect(p.keys).toEqual([])
-    expect(error).toHaveBeenCalledTimes(2)
+    expect(error).toHaveBeenCalledTimes(1)
     error.mockRestore()
   })
 

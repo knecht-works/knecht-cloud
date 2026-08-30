@@ -17,7 +17,8 @@ export interface DashboardSettings {
   aiKeyPreview?: string
   sshTarget?: string | null
   sshTargetDefault?: string | null
-  autoUpdate: boolean
+  /** 5-field cron schedule for automatic updates; '' = off. */
+  autoUpdateCron: string
   /** Fields pinned by the installation's env preset; their controls are disabled. */
   presetKeys: string[]
 }

@@ -4,21 +4,20 @@
 const toast = useToast()
 const toastError = useToastError()
 
-// Automatic updates: the toggle for the nightly self-update
-// (server/plugins/auto-update.ts). Saved immediately; patchSettings merges
-// the echo in place.
+// Automatic updates: the cron schedule for the self-update
+// (server/plugins/auto-update.ts). Autosaved; the server validates the
+// expression, a rejected one shows up via the save status.
 const { data: settings } = useSettings()
-const autoUpdateSaving = ref(false)
-async function toggleAutoUpdate() {
-  if (!settings.value || autoUpdateSaving.value) return
-  autoUpdateSaving.value = true
-  try {
-    await patchSettings(settings, { autoUpdate: !settings.value.autoUpdate })
-  }
-  finally {
-    autoUpdateSaving.value = false
-  }
-}
+const autoUpdateCron = ref('')
+watch(settings, (s) => {
+  if (s) autoUpdateCron.value = s.autoUpdateCron
+}, { immediate: true })
+const { state: cronSaveState, error: cronSaveError, schedule: scheduleCron } = useAutosave(() =>
+  patchSettings(settings, { autoUpdateCron: autoUpdateCron.value.trim() }))
+watch(autoUpdateCron, () => {
+  if (autoUpdateCron.value.trim() === (settings.value?.autoUpdateCron ?? '')) return
+  scheduleCron()
+})
 
 // Cleanup: on-demand reconcile GC. Reclaims leftovers whose DB row is gone
 // (orphaned sandboxes, checkouts, archives, dump folders) plus superseded DB
@@ -62,26 +61,33 @@ async function runGc() {
       accent="var(--primary)"
       class="mt-4.5"
     >
+      <template #action>
+        <KSaveStatus
+          :state="cronSaveState"
+          :error-text="cronSaveError"
+        />
+      </template>
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div class="max-w-2xl">
-          <p class="text-2sm leading-relaxed text-muted">
-            Installs new releases automatically, between 03:00 and 06:00 server time
-            and only while no run is active.
-          </p>
+        <p class="max-w-2xl text-2sm leading-relaxed text-muted">
+          Installs new releases on this schedule (cron, server time), only while
+          no run is active. For example <span class="k-mono text-xs text-toned">0 3 * * *</span>
+          updates nightly at 03:00. Leave it empty to update only via the button above.
+        </p>
+        <div class="flex-none">
+          <UInput
+            v-model="autoUpdateCron"
+            placeholder="0 3 * * *"
+            :disabled="isPreset(settings, 'autoUpdateCron')"
+            aria-label="Automatic update schedule"
+            class="k-mono w-40"
+          />
           <p
-            v-if="isPreset(settings, 'autoUpdate')"
+            v-if="isPreset(settings, 'autoUpdateCron')"
             class="k-mono mt-2 text-2xs text-dimmed"
           >
             Preset by the installation.
           </p>
         </div>
-        <KToggle
-          :active="settings?.autoUpdate ?? false"
-          :disabled="!settings || autoUpdateSaving || isPreset(settings, 'autoUpdate')"
-          aria-label="Automatic updates"
-          class="flex-none"
-          @toggle="toggleAutoUpdate()"
-        />
       </div>
     </KPanel>
 

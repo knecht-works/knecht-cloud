@@ -471,10 +471,10 @@ export const settings = sqliteTable('settings', {
   // link; Knecht itself never connects anywhere with it and manages no keys.
   sshTarget: text('ssh_target'),
 
-  // Install new releases automatically (server/plugins/auto-update.ts): during
-  // the night maintenance window, and only while no run is active. Off by
-  // default; updating swaps the running code for every member.
-  autoUpdate: integer('auto_update', { mode: 'boolean' }).notNull().default(false),
+  // Install new releases automatically (server/plugins/auto-update.ts) on this
+  // cron schedule (5-field, utils/cron.ts), only while no run is active. Empty
+  // = off (the default); updating swaps the running code for every member.
+  autoUpdateCron: text('auto_update_cron').notNull().default(''),
 })
 
 export type Settings = typeof settings.$inferSelect
