@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { AI_PROVIDERS, type AiProviderId, LANGDOCK_REGIONS, MODEL_NAME_RE } from '#shared/utils/ai'
 import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS, SSH_TARGET_RE } from '#shared/utils/settings-limits'
 import { getSettings, publicSettings, type SettingsPatch, updateSettings } from '../utils/settings'
+import { settingsPreset } from '../utils/settings-preset'
 import { loadModelCatalog } from '../utils/ai-catalog'
 import { encrypt } from '../utils/crypto'
 
@@ -37,6 +38,13 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     const field = result.error.issues[0]?.path.join('.')
     throw createError({ statusCode: 400, statusMessage: field ? `Invalid value for ${field}` : 'Invalid settings' })
+  }
+  // Fields pinned by the installation's env preset are read-only: the write
+  // would be shadowed on every read anyway, and silently accepting it would
+  // lie to the caller.
+  const preset = Object.keys(result.data).find(f => settingsPreset().keys.includes(f))
+  if (preset) {
+    throw createError({ statusCode: 400, statusMessage: `The setting '${preset}' is preset by the installation.` })
   }
   const { aiKey, ...patch } = result.data
   const settingsPatch: SettingsPatch = {

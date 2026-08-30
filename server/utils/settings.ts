@@ -2,12 +2,19 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { decrypt } from './crypto'
 import { defaultSshTarget } from './ssh'
+import { settingsPreset } from './settings-preset'
 import type { Settings } from '../db/schema'
 
 // Instance settings live in a single row (id = 1). Read through this helper so
 // callers never deal with the row's absence: it self-seeds with the schema
-// defaults on first access.
+// defaults on first access. Values preset by the installation
+// (settings-preset.ts) override the row on EVERY read, so all consumers see
+// them without knowing presets exist.
 export function getSettings(): Settings {
+  return { ...settingsRow(), ...settingsPreset().overrides }
+}
+
+function settingsRow(): Settings {
   const existing = db.select().from(schema.settings).where(eq(schema.settings.id, 1)).get()
   if (existing) return existing
   db.insert(schema.settings).values({ id: 1 }).onConflictDoNothing().run()
@@ -35,6 +42,9 @@ export function publicSettings(settings: Settings) {
     aiKeyPreview: aiKeyEnc ? encKeyPreview(aiKeyEnc) : undefined,
     // What an empty sshTarget falls back to, so the UI can say so.
     sshTargetDefault: defaultSshTarget(),
+    // Fields pinned by the installation's env preset: PATCH rejects them and
+    // the settings pages disable their controls.
+    presetKeys: settingsPreset().keys,
   }
 }
 

@@ -18,20 +18,32 @@ export interface DashboardSettings {
   sshTarget?: string | null
   sshTargetDefault?: string | null
   autoUpdate: boolean
+  /** Fields pinned by the installation's env preset; their controls are disabled. */
+  presetKeys: string[]
 }
 
 export function useSettings() {
   return useFetch<DashboardSettings>('/api/settings', { key: 'settings', lazy: true })
 }
 
+// Whether a field is pinned by the installation's env preset (KNECHT_* vars,
+// server/utils/settings-preset.ts). Pages disable those controls.
+export function isPreset(settings: DashboardSettings | undefined | null, key: string): boolean {
+  return settings?.presetKeys.includes(key) ?? false
+}
+
 // PATCH a slice of the settings and merge the server echo into the loaded row
 // IN PLACE: reassigning the ref would re-fire the pages' settings watchers
 // and reset fields the user is still editing to the echo.
+// Preset fields are stripped from the body first: the pages' autosaves send
+// whole field groups, and the server rejects any preset field in a patch.
 export async function patchSettings(
   settings: Ref<DashboardSettings | undefined | null>,
   body: Record<string, unknown>,
 ): Promise<void> {
-  const updated = await $fetch<DashboardSettings>('/api/settings', { method: 'PATCH', body })
+  const filtered = Object.fromEntries(Object.entries(body).filter(([k]) => !isPreset(settings.value, k)))
+  if (!Object.keys(filtered).length) return
+  const updated = await $fetch<DashboardSettings>('/api/settings', { method: 'PATCH', body: filtered })
   if (settings.value) Object.assign(settings.value, updated)
   else settings.value = updated
 }

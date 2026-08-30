@@ -63,13 +63,21 @@ async function runGc() {
       class="mt-4.5"
     >
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p class="max-w-2xl text-2sm leading-relaxed text-muted">
-          Installs new releases automatically, between 03:00 and 06:00 server time
-          and only while no run is active.
-        </p>
+        <div class="max-w-2xl">
+          <p class="text-2sm leading-relaxed text-muted">
+            Installs new releases automatically, between 03:00 and 06:00 server time
+            and only while no run is active.
+          </p>
+          <p
+            v-if="isPreset(settings, 'autoUpdate')"
+            class="k-mono mt-2 text-2xs text-dimmed"
+          >
+            Preset by the installation.
+          </p>
+        </div>
         <KToggle
           :active="settings?.autoUpdate ?? false"
-          :disabled="!settings || autoUpdateSaving"
+          :disabled="!settings || autoUpdateSaving || isPreset(settings, 'autoUpdate')"
           aria-label="Automatic updates"
           class="flex-none"
           @toggle="toggleAutoUpdate()"
