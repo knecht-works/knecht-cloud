@@ -482,7 +482,7 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
     >
       <template v-if="run.envState === 'stopped'">
         <p class="max-w-100 text-2sm text-muted">
-          The environment was stopped after being idle. Reboot it to preview again.
+          The environment is stopped. Reboot it to preview again.
         </p>
         <UButton
           color="primary"

@@ -11,7 +11,7 @@ import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/
 import { joinBootCommands, runSetupCommands } from '../workflows/actions/ddev-start'
 import { writeDdevConfig } from './ddev'
 import { prepareSessionCheckout } from './git'
-import { envStackRunning, execInSandbox, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
+import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
 
 // Lifecycle of the per-session environments: the ONE place that moves
 // envState. Envs walk down a retention ladder that trades disk for restore
@@ -164,6 +164,39 @@ async function rerunBootSetup(sessionId: number, project: Project): Promise<void
     const { exitCode } = await execInSandbox(sessionId, ['bash', '-lc', command], { reject: false })
     return exitCode ?? 1
   })
+}
+
+// Make reality match envState after a daemon boot: a host reboot kills the
+// containers of every 'up' env (they have no restart policy, deliberately:
+// projects bring unknown add-on services, so per-container policies could
+// only ever cover part of a stack and would leave it half-up). envState is
+// the desired state and this is its restore pass: every 'up' session gets an
+// unconditional `ddev start`, which merges ALL of the project's compose
+// files and therefore revives every service, add-ons included; on a stack
+// that is already running it is a cheap no-op. A session whose start fails
+// (broken volume, missing checkout) is downgraded to 'stopped', the honest
+// state, where the workspace offers the Reboot button. Sessions already
+// 'stopped'/'archived'/'down' are not touched: the retention ladder and a
+// deliberate stop survive reboots unchanged. Most recently used first, so
+// the previews someone is waiting for come back first.
+export async function reconcileEnvStates(): Promise<void> {
+  const up = db
+    .select({ id: schema.sessions.id })
+    .from(schema.sessions)
+    .where(eq(schema.sessions.envState, 'up'))
+    .orderBy(desc(schema.sessions.previewLastSeen))
+    .all()
+  for (const { id } of up) {
+    try {
+      await startEnvStack(id)
+      markUp(id)
+    }
+    catch (err) {
+      forgetPreview(id)
+      db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, id)).run()
+      console.error(`[envs] boot restore of session ${id} failed, marked stopped:`, err)
+    }
+  }
 }
 
 // The env is up and previewable now, even if later steps fail. Also resets
