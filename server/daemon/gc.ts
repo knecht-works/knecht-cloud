@@ -87,7 +87,8 @@ function reapOrphanArchives(liveSessions: Set<number>): string[] {
 }
 
 // Uploaded dumps live under dataDir()/dumps/<projectId>; a deleted project's
-// whole folder is a leftover (project deletion never removed it).
+// whole folder is a leftover (its delete removes it in the background, this
+// catches what that missed).
 function reapOrphanDumpDirs(liveProjects: Set<number>): string[] {
   return removeMatching(join(dataDir(), 'dumps'), /^(\d+)$/, id => !liveProjects.has(id))
 }
