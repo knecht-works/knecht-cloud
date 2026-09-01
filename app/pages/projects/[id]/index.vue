@@ -177,12 +177,23 @@ const menuItems = [{
   color: 'error' as const,
   onSelect: () => { confirmDisconnect.value = true },
 }]
+// Runs still executing or waiting: the delete aborts them, so the modal
+// says so instead of hiding it in the generic list.
+const activeRunCount = computed(() =>
+  projectRuns.value.filter(r => r.status === 'running' || r.status === 'queued').length)
+const disconnectDescription = computed(() => {
+  const active = activeRunCount.value
+  const abort = active
+    ? ` ${active === 1 ? '1 run is' : `${active} runs are`} still active and will be cancelled.`
+    : ''
+  return `Removes ${project.value?.fullName} from Knecht: all its runs, sessions and preview environments, uploaded DB dumps, shared folders and agent memory.${abort} The GitHub repo itself is not touched.`
+})
 const removing = ref(false)
 async function removeProject() {
   removing.value = true
   try {
     await $fetch(`/api/projects/${id}`, { method: 'DELETE' })
-    toast.add({ title: 'Project disconnected', color: 'success' })
+    toast.add({ title: 'Project disconnected', description: 'Its environments are being removed in the background.', color: 'success' })
     await navigateTo('/projects')
   }
   catch (e) {
@@ -548,7 +559,7 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
     <KConfirmModal
       v-model:open="confirmDisconnect"
       title="Disconnect project"
-      :description="`Removes ${project.fullName} from Knecht along with all its runs, environments and checkouts. The GitHub repo itself is not touched.`"
+      :description="disconnectDescription"
       confirm-label="Disconnect"
       :loading="removing"
       @confirm="removeProject"
