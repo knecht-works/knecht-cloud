@@ -5,9 +5,13 @@ import { z } from 'zod'
 import type { Step } from '../../../shared/utils/workflow'
 import { db, schema } from '../../db'
 import { projectDumpDir } from '../../utils/storage'
-import { previewOrigin } from '../../utils/origin'
 import { detectPreviewFavicon } from '../../utils/favicon'
+import { getSessionRow } from '../../utils/entities'
+import { sessionPreviewUrl } from '../../utils/preview-target'
+import { readDdevConfig } from '../../daemon/ddev'
 import { defineAction, type ActionRuntime } from './types'
+
+const yamlParams = z.object({ commands: z.string().optional() })
 
 export const ddevStartAction = defineAction({
   type: 'ddev-start',
@@ -15,11 +19,16 @@ export const ddevStartAction = defineAction({
     commands: z.string().optional(),
   },
   // Keep the bare `- ddev-start` literal working alongside the params form
-  // (the derived default would only accept the object form).
+  // (the derived default would only accept the object form). `boot` is the
+  // same step under the name that fits repos without ddev; both normalize to
+  // the one type the runner and the restore path key on.
   yaml: z.union([
     z.literal('ddev-start').transform((): Step => ({ type: 'ddev-start' })),
-    z.object({ 'ddev-start': z.object({ commands: z.string().optional() }) })
+    z.literal('boot').transform((): Step => ({ type: 'ddev-start' })),
+    z.object({ 'ddev-start': yamlParams })
       .transform(({ 'ddev-start': p }): Step => ({ type: 'ddev-start', ...p })),
+    z.object({ boot: yamlParams })
+      .transform(({ boot: p }): Step => ({ type: 'ddev-start', ...p })),
   ]),
   legacyKey: 'preview',
   async run(step, rt) {
@@ -35,12 +44,19 @@ export const ddevStartAction = defineAction({
     // runs first in the session does the real work.
     if (sessionBooted(rt.sessionId)) {
       rt.log(`Environment already booted in this session: nothing to do\n`)
-      const url = previewOrigin(rt.sessionId)
-      return url ? { url } : undefined
+      return previewOutputs(rt)
+    }
+    // Only stacks with a db container import the dump: a generated
+    // environment has none (nor has a tracked config that omits the db), and
+    // a dump configured for it is a setup error worth a plain message before
+    // a whole stack boots for nothing.
+    const hasDb = readDdevConfig(rt.checkoutDir)?.hasDb ?? true
+    if (!hasDb && rt.project.dbDumpPath) {
+      throw new Error('A database dump is configured, but this environment has no database container. Remove the dump or give the environment a database.')
     }
     const { code } = await rt.sandbox.stream(['ddev', 'start'])
     if (code !== 0) throw new Error(`ddev start exited with code ${code}`)
-    await importDb(rt)
+    if (hasDb) await importDb(rt)
     // The project's own boot commands first (how THIS project boots, from the
     // project settings), then the step's workflow-specific extras. Together
     // they are what a restore later re-runs (daemon/envs.ts). Each group is
@@ -50,20 +66,29 @@ export const ddevStartAction = defineAction({
     await runSetupCommands(rt.project.bootCommands, exec, rt.log)
     if (step.commands?.trim()) rt.log(`\nAdditional setup commands (this workflow's boot step):\n`)
     await runSetupCommands(step.commands, exec, rt.log)
-    // Boot, DB import and the setup commands are through: the site is actually
-    // browsable now, so THIS is what makes the preview visible in the UI
-    // (envState 'up' alone only means the containers run).
+    // Boot, DB import and the setup commands are through: the session is
+    // booted, which is what previewReady records (envState 'up' alone only
+    // means the containers run). For an environment with a preview target
+    // this is also the moment the site becomes browsable in the UI; a
+    // headless one sets it just the same, so the next run skips the boot.
     db.update(schema.sessions).set({ previewReady: true }).where(eq(schema.sessions.id, rt.sessionId)).run()
+    const outputs = previewOutputs(rt)
     // The repo scan found no favicon for this project: the running site is
     // the second chance (icons generated at build time or served by the CMS).
     // Fire-and-forget; failures just keep the generic project icon.
-    if (!rt.project.favicon) void detectPreviewFavicon(rt.sessionId, rt.project)
-    // Expose the preview URL to later blocks (e.g. a PR body). Mirrors the
-    // per-session origin the preview proxy serves.
-    const previewUrl = previewOrigin(rt.sessionId)
-    return previewUrl ? { url: previewUrl } : undefined
+    if (outputs && !rt.project.favicon) void detectPreviewFavicon(rt.sessionId, rt.project)
+    return outputs
   },
 })
+
+// The preview URL for later blocks (e.g. a PR body), mirroring the
+// per-session origin the preview proxy serves; nothing for an environment
+// without one (utils/preview-target.ts).
+function previewOutputs(rt: ActionRuntime): { url: string } | undefined {
+  const session = getSessionRow(rt.sessionId)
+  const url = session && sessionPreviewUrl(session)
+  return url ? { url } : undefined
+}
 
 // Project boot commands + the step's extras as one command list; either side
 // may be empty. Exported so the archive restore rebuilds with the same set.

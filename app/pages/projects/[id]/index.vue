@@ -112,7 +112,7 @@ const mascotLine = computed(() => {
   if (r.status === 'running' || r.status === 'queued') return `Working on ${r.workflow} right now.`
   if (r.status === 'failed') return 'The last run failed. Open it to see why.'
   if (!r.hasBootStep) return 'This workflow works without a preview environment.'
-  if (r.envState === 'up') return 'The preview is live and ready to inspect.'
+  if (r.envState === 'up') return r.hasPreviewTarget ? 'The preview is live and ready to inspect.' : 'The environment is up. Open the terminal or the IDE to work in it.'
   return 'Idle. Trigger a workflow to boot a fresh environment.'
 })
 

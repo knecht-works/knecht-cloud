@@ -1,7 +1,7 @@
 import { desc, eq } from 'drizzle-orm'
 import { stepsInclude } from '../../../shared/utils/workflow'
 import { db, schema } from '../../db'
-import { runSessionColumns } from '../../utils/run-view'
+import { runSessionColumns, withPreviewTarget } from '../../utils/run-view'
 
 // The list/poll endpoints only ever show recent history; the cap keeps the
 // synchronous sqlite read bounded as runs accumulate.
@@ -45,5 +45,5 @@ export default defineEventHandler((event) => {
   // The steps blob stays server-side; the list only says whether the run's
   // workflow boots a preview environment (drives the preview/mascot UI).
   return query.orderBy(desc(schema.runs.id)).limit(LIST_LIMIT).all()
-    .map(({ steps, ...r }) => ({ ...r, hasBootStep: stepsInclude(steps ?? [], 'ddev-start') }))
+    .map(({ steps, ...r }) => ({ ...withPreviewTarget(r), hasBootStep: stepsInclude(steps ?? [], 'ddev-start') }))
 })

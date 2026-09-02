@@ -3,7 +3,7 @@ import { defineStep } from './define'
 export const ddevStartStep = defineStep({
   type: 'ddev-start',
   label: 'Boot project',
-  hint: 'Start the ddev stack + import the DB',
+  hint: 'Starts the environment, imports the database when the project has one, runs the boot commands',
   kind: 'det',
   icon: 'i-lucide-play',
   group: 'Deterministic',
@@ -14,5 +14,5 @@ export const ddevStartStep = defineStep({
     { path: 'url', hint: 'The booted environment\'s preview URL' },
   ],
   make: () => ({ type: 'ddev-start' }),
-  meta: step => ({ detail: step.commands?.trim() ? `DDEV starts web + database, then: ${step.commands.trim().split('\n').join(' · ')}` : 'DDEV starts web + database' }),
+  meta: step => ({ detail: step.commands?.trim() ? `Boots the environment, then: ${step.commands.trim().split('\n').join(' · ')}` : 'Boots the environment' }),
 })

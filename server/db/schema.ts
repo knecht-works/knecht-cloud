@@ -2,18 +2,29 @@ import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { ENV_STATES } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
+import type { EnvKind, ResolvedFields } from '../../shared/utils/env-spec'
 import type { Step } from '../../shared/utils/workflow'
 
-// The DDEV environment spec, read from the repo's `.ddev/config.yaml` (+ the
-// `packageManager` field of its `package.json`). Shown read-only on the project
-// detail page. Null until resolved; resolved alongside `framework`.
+// The environment spec resolved from the repo at connect time: from its
+// `.ddev/config.yaml` when it ships one (source 'ddev'), otherwise detected
+// from composer.json/.nvmrc and friends (source 'generated', see
+// server/utils/env-detect.ts), plus the `packageManager` field of its
+// `package.json`. Shown on the project's settings page. Null until resolved;
+// resolved alongside `framework`. Rows resolved before detection existed
+// carry no source: they were all ddev projects.
 export interface DdevEnv {
+  source?: EnvKind
   webserver: string | null // e.g. 'nginx-fpm'
   phpVersion: string | null // e.g. '8.3'
   dbType: string | null // e.g. 'mariadb'
   dbVersion: string | null // e.g. '10.11'
   nodeVersion: string | null // e.g. '20'
   packageManager: string | null // e.g. 'pnpm@9.1.0'
+  // What detection derived, with the file each value came from, and what it
+  // could not use: the settings page resolves the project's overrides
+  // against this (resolveEnv) to show "PHP 8.2 from composer.json".
+  detected?: Partial<ResolvedFields>
+  warnings?: string[]
 }
 
 export const projects = sqliteTable('projects', {

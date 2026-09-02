@@ -2,7 +2,7 @@ import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
 import { hostname } from 'node:os'
 import { execa } from 'execa'
 import { getSessionRow } from './entities'
-import { previewOrigin } from './origin'
+import { sessionPreviewUrl } from './preview-target'
 
 // The agent bridge: how in-sandbox git gets its push/fetch credentials and
 // how a PR is opened from inside a session's sandbox. The sandbox holds only
@@ -98,12 +98,11 @@ export async function bridgeEnv(sessionId: number): Promise<Record<string, strin
   if (session?.objectKind && session.objectNumber) {
     env.KNECHT_OBJECT = `${session.objectKind === 'issue' ? 'issue' : 'pull request'} #${session.objectNumber}`
   }
-  // Once the environment is booted, the agent knows its own preview URL, so
-  // prose can reference it naturally ("see it live at ..."). The guaranteed
-  // links live in the host-side comment footer (utils/sessions.ts), not here.
-  if (session?.previewReady) {
-    const preview = previewOrigin(sessionId)
-    if (preview) env.KNECHT_PREVIEW_URL = preview
-  }
+  // Once an environment with a preview is booted, the agent knows its own
+  // preview URL, so prose can reference it naturally ("see it live at ...").
+  // The guaranteed links live in the host-side comment footer
+  // (utils/sessions.ts), not here.
+  const preview = session && sessionPreviewUrl(session)
+  if (preview) env.KNECHT_PREVIEW_URL = preview
   return env
 }

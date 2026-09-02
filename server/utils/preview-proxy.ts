@@ -35,8 +35,11 @@ import { sessionCheckoutDir } from './storage'
 //   origin (cross-site links included), so what the browser loads always
 //   points back here (not at the unreachable *.ddev.site).
 //
-// Either way the target is the run's web container at :80 over plain HTTP
-// (its nginx serves any Host header; daemon/sandbox.ts).
+// Either way the target is the run's web container over plain HTTP: its
+// nginx on :80 (serves any Host header; daemon/sandbox.ts), or, for a
+// generated environment running a dev server, the port pinned on the
+// session. A generated environment serves no hostname of its own, so the
+// preview host itself is the app host and passes through unchanged.
 //
 // Access is login-gated (projects.md §8): the request must carry a valid Knecht
 // session, sent cross-subdomain via the base-domain cookie. Logged out: a
@@ -120,10 +123,11 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
 
+  const url = getRequestURL(event)
   const hosts = sessionHosts(sessionId)
   const appHost = label
     ? hosts.all.find(h => previewLabel(h) === label)
-    : hosts.primary
+    : hosts.primary ?? url.host
   if (!appHost) {
     throw createError({ statusCode: 404, statusMessage: 'Unknown preview host' })
   }
@@ -139,7 +143,6 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     .where(eq(schema.sessions.id, sessionId))
     .run()
 
-  const url = getRequestURL(event)
   const baseHost = stripPreviewPrefix(url.host)
   // 'env' sessions boot with their env already translated to the preview
   // origins; sessions from before the setting existed (null) carry a
@@ -184,7 +187,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     const upstream = httpRequest(
       {
         host: sandboxAddr,
-        port: 80,
+        port: env.previewPort ?? 80,
         method: req.method,
         path: `${url.pathname}${url.search}`,
         headers,
@@ -250,7 +253,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     })
     req.pipe(upstream)
   }).catch((e: NodeJS.ErrnoException) => {
-    // The sandbox is up but nothing answers on :80 yet: the inner router
+    // The sandbox is up but nothing answers on the port yet: the web server
     // appears a few moments into `ddev start` (or the boot failed). Surface a
     // clean "not ready" instead of a raw socket error.
     if (e?.code === 'ECONNREFUSED' || e?.code === 'EHOSTUNREACH' || e?.code === 'ETIMEDOUT') {
@@ -292,7 +295,8 @@ function rewriteUrls(
 }
 
 // The project's ddev host set, read from the run's checkout once and cached:
-// it is fixed for the run's lifetime.
+// it is fixed for the run's lifetime. An empty set (a generated environment)
+// is re-read on every request, which is one small file.
 const hostsCache = new Map<number, DdevHosts>()
 
 function sessionHosts(sessionId: number): DdevHosts {
