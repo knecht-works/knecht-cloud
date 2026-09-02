@@ -9,7 +9,7 @@ import { getProject, getSessionRow } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
 import { joinBootCommands, runSetupCommands } from '../workflows/actions/ddev-start'
-import { writeDdevConfig } from './ddev'
+import { configureSessionEnv, readDdevConfig } from './ddev'
 import { prepareSessionCheckout } from './git'
 import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
 
@@ -52,7 +52,7 @@ export async function rebootEnv(sessionId: number): Promise<void> {
   const project = session && getProject(session.projectId)
   const dir = sessionCheckoutDir(sessionId)
   if (session && project && existsSync(dir)) {
-    writeDdevConfig(dir, project.envVars, sessionId, session.urlMode ?? 'rewrite', { projectId: project.id, folders: project.sharedFolders })
+    warnEnv(sessionId, configureSessionEnv(dir, project, sessionId, session.urlMode ?? 'rewrite').warnings)
   }
   await startEnvStack(sessionId)
   markUp(sessionId)
@@ -109,7 +109,7 @@ export async function rehydrateEnv(sessionId: number): Promise<void> {
   if (existsSync(stateArchive) && !existsSync(join(dir, '.knecht'))) {
     await execa('tar', ['-xzf', stateArchive, '-C', dir])
   }
-  writeDdevConfig(dir, project.envVars, sessionId, session.urlMode ?? 'rewrite', { projectId: project.id, folders: project.sharedFolders })
+  warnEnv(sessionId, configureSessionEnv(dir, project, sessionId, session.urlMode ?? 'rewrite').warnings)
 
   await startEnvStack(sessionId)
   try {
@@ -125,6 +125,13 @@ export async function rehydrateEnv(sessionId: number): Promise<void> {
     throw e
   }
   markUp(sessionId)
+}
+
+// Reboots and restores have no run log to carry the detectors' warnings (the
+// first boot logs them, daemon/runner.ts): the server log gets them instead,
+// so a checkout whose files changed since the boot does not fail silently.
+function warnEnv(sessionId: number, warnings: string[]): void {
+  for (const warning of warnings) console.warn(`[envs] session ${sessionId}: ${warning}`)
 }
 
 // Bring a session's env back for new work, from whatever rung of the ladder
@@ -236,8 +243,10 @@ export async function stopEnv(sessionId: number): Promise<void> {
 // captures the latest state, each stop overwrites the previous export. The
 // ddev CLI runs host-side, so it writes the archive file directly.
 // Best-effort: a session whose ddev never came up has nothing to export, and
-// that must not block the stop.
+// that must not block the stop. A stack without a db container (a generated
+// environment) is skipped outright instead of paying a failing ddev call.
 async function exportSessionDb(sessionId: number): Promise<void> {
+  if (readDdevConfig(sessionCheckoutDir(sessionId))?.hasDb === false) return
   try {
     mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
     await execInSandbox(sessionId, ['ddev', 'export-db', `--file=${join(sessionArchiveDir(sessionId), 'db.sql.gz')}`])

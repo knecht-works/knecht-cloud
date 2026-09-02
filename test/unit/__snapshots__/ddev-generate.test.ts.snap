@@ -1,0 +1,103 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`configureSessionEnv > ddev-tracked: a repo with its own config gets only the overrides, unchanged 1`] = `
+"=== .ddev/config.knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-7
+web_environment:
+  - PRIMARY_SITE_URL=http://7.preview.knecht.test
+  - X=1
+
+=== .ddev/config.yaml ===
+name: demo
+additional_hostnames: [alpha]
+
+=== .ddev/docker-compose.knecht.yaml ===
+#ddev-silent-no-warn
+services:
+  web:
+    mem_limit: 2g
+    pids_limit: 2048
+    networks:
+      knecht-ingress: {}
+  db:
+    mem_limit: 1g
+networks:
+  knecht-ingress:
+    external: true
+
+=== .ddev/mysql/00-knecht-lowmem.cnf ===
+#ddev-silent-no-warn
+[mysqld]
+innodb-buffer-pool-size = 256M
+performance_schema = OFF
+max-connections = 30
+tmp-table-size = 16M
+max-heap-table-size = 16M
+key-buffer-size = 8M
+"
+`;
+
+exports[`configureSessionEnv > generated-plain: a repo without anything gets a headless php project with defaults 1`] = `
+"=== .ddev/config.knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-42
+
+=== .ddev/config.yaml ===
+#knecht-generated
+name: knecht-run-42
+type: php
+docroot: ""
+webserver_type: generic
+php_version: "8.4"
+nodejs_version: "22"
+omit_containers:
+  - db
+disable_settings_management: true
+
+=== .ddev/docker-compose.knecht.yaml ===
+#ddev-silent-no-warn
+services:
+  web:
+    mem_limit: 2g
+    pids_limit: 2048
+    networks:
+      knecht-ingress: {}
+networks:
+  knecht-ingress:
+    external: true
+"
+`;
+
+exports[`configureSessionEnv > generated-with-versions: detected versions and an override land in config.yaml 1`] = `
+"=== .ddev/config.knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-42
+web_environment:
+  - APP_ENV=dev
+
+=== .ddev/config.yaml ===
+#knecht-generated
+name: knecht-run-42
+type: php
+docroot: ""
+webserver_type: generic
+php_version: "8.2"
+nodejs_version: "20"
+omit_containers:
+  - db
+disable_settings_management: true
+
+=== .ddev/docker-compose.knecht.yaml ===
+#ddev-silent-no-warn
+services:
+  web:
+    mem_limit: 2g
+    pids_limit: 2048
+    networks:
+      knecht-ingress: {}
+networks:
+  knecht-ingress:
+    external: true
+"
+`;

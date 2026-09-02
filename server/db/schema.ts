@@ -84,6 +84,17 @@ export const projects = sqliteTable('projects', {
   // so one generic workflow can serve projects that boot differently.
   bootCommands: text('boot_commands').notNull().default(''),
 
+  // Environment overrides for repos WITHOUT their own `.ddev/config.yaml`
+  // (shared/utils/env-spec.ts): each null means "use what Knecht detected
+  // from the repo's files". Ignored for repos that ship a ddev config, whose
+  // committed file is the truth. `devServer` is a command that serves the
+  // app (e.g. 'npm run dev'); `previewPort` the port it listens on, which
+  // is also what makes a generated environment previewable at all.
+  phpVersion: text('php_version'),
+  nodeVersion: text('node_version'),
+  devServer: text('dev_server'),
+  previewPort: integer('preview_port'),
+
   // Mentions (@<app slug> in an issue/PR comment, ADR 0007): on by default,
   // the opt-out lives under the project's Advanced settings.
   mentionsEnabled: integer('mentions_enabled', { mode: 'boolean' }).notNull().default(true),
@@ -173,6 +184,12 @@ export const sessions = sqliteTable('sessions', {
   // session's environment either was or wasn't translated, and the proxy must
   // match that forever, whatever the project setting changes to later.
   urlMode: text('url_mode', { enum: ['env', 'rewrite'] }),
+  // The project's previewPort PINNED at first boot, for the same reason as
+  // urlMode: the container was built to serve this port, and the preview
+  // proxy reads the port live, so a later settings change must not point it
+  // at a port the running container does not serve. Null: the web server's
+  // :80 (every repo with its own ddev config).
+  previewPort: integer('preview_port'),
   // Last time the preview was accessed; the idle-stopper stops envs that have
   // been quiet longer than the idle timeout.
   previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),

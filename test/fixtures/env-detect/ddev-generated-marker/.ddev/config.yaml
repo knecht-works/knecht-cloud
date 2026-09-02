@@ -1,0 +1,6 @@
+#knecht-generated
+name: knecht-run-42
+type: php
+webserver_type: generic
+omit_containers: [db]
+php_version: "8.4"
