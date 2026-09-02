@@ -17,6 +17,8 @@ import { isMember, memberCount } from './members'
 //   h3's ws route resolution (the cached `websocket.resolve` every crossws
 //   adapter consults, dev and prod) and returns pipe-through hooks for IDE
 //   origins; everything else falls through to the normal route resolution.
+//   The same pipe serves a generated environment's dev server (its HMR
+//   socket) on the session's plain preview origin.
 //
 // Both legs gate on the same session + membership check as app previews and
 // bump the idle clock, so an open IDE keeps its environment alive.
@@ -158,10 +160,27 @@ function upgradeHost(source: { headers?: unknown, request?: { headers?: unknown 
   return String((headers as Record<string, unknown>).host ?? '')
 }
 
-function ideSessionRef(source: { headers?: unknown, request?: { headers?: unknown } }): number | null {
+// What an upgrade on a preview origin pipes to: the IDE server on its
+// reserved label, or the session's dev server when the session has a pinned
+// preview port (a generated environment's Vite/Nuxt HMR socket). App previews
+// of repos with their own web server get no websocket leg. Null for anything
+// else, which then resolves as a normal ws route.
+interface WsTarget {
+  sessionId: number
+  port: number
+}
+
+function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }): WsTarget | null {
   const host = upgradeHost(source).split(':')[0] ?? ''
   const ref = parsePreviewHost(host)
-  return ref?.label === IDE_LABEL ? ref.sessionId : null
+  if (!ref) return null
+  if (ref.label === IDE_LABEL) return { sessionId: ref.sessionId, port: IDE_PORT }
+  if (ref.label) return null
+  const port = db.select({ previewPort: schema.sessions.previewPort })
+    .from(schema.sessions)
+    .where(eq(schema.sessions.id, ref.sessionId))
+    .get()?.previewPort
+  return port == null ? null : { sessionId: ref.sessionId, port }
 }
 
 interface Pipe {
@@ -175,9 +194,10 @@ interface Pipe {
 }
 const pipes = new Map<string, Pipe>()
 
-// crossws hooks piping every frame between the browser and the container's
-// IDE server. Frame types must be preserved: the workbench protocol is binary.
-const ideWsHooks = {
+// crossws hooks piping every frame between the browser and the container
+// (the IDE server or the dev server). Frame types must be preserved: the
+// workbench protocol is binary.
+const pipeWsHooks = {
   async upgrade(request: { headers?: unknown, url?: string }) {
     const session = await getUserSession(request as Parameters<typeof getUserSession>[0])
     if (!session?.user) {
@@ -186,18 +206,19 @@ const ideWsHooks = {
     if (memberCount() > 0 && !isMember(session.user.login)) {
       throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
     }
-    const sessionId = ideSessionRef(request)
-    const env = sessionId === null
+    const target = wsTarget(request)
+    const env = target === null
       ? null
-      : db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+      : db.select().from(schema.sessions).where(eq(schema.sessions.id, target.sessionId)).get()
     if (!env || env.envState !== 'up') {
       throw createError({ statusCode: 409, statusMessage: 'Environment is not running' })
     }
   },
 
   async open(peer: { id: string, request?: { url?: string, headers?: unknown }, send: (data: unknown) => void, close: (code?: number, reason?: string) => void }) {
-    const sessionId = ideSessionRef(peer.request ?? {})
-    if (sessionId === null) return peer.close(1011, 'Environment is not running')
+    const target = wsTarget(peer.request ?? {})
+    if (target === null) return peer.close(1011, 'Environment is not running')
+    const { sessionId, port } = target
     // Register the pipe BEFORE the awaited resolvePreview: crossws does not
     // await this hook, so the workbench's earliest frames (a reconnect after a
     // Knecht restart, cold ipCache) can arrive mid-await. With the pipe present
@@ -218,7 +239,7 @@ const ideWsHooks = {
         return '/'
       }
     })()
-    const backend = new WebSocket(`ws://${ip}:${IDE_PORT}${path}`)
+    const backend = new WebSocket(`ws://${ip}:${port}${path}`)
     backend.binaryType = 'arraybuffer'
     pipe.backend = backend
     backend.onopen = () => {
@@ -229,7 +250,7 @@ const ideWsHooks = {
       peer.send(typeof e.data === 'string' ? e.data : new Uint8Array(e.data))
     }
     backend.onclose = () => peer.close()
-    backend.onerror = () => peer.close(1011, 'IDE connection failed')
+    backend.onerror = () => peer.close(1011, 'Upstream connection failed')
   },
 
   message(peer: { id: string }, message: { rawData?: unknown, text: () => string, uint8Array: () => Uint8Array }) {
@@ -252,14 +273,15 @@ const ideWsHooks = {
   },
 }
 
-// Intercept h3's cached websocket route resolution: IDE-origin upgrades get
-// the pipe-through hooks, everything else (the run terminal, future ws
-// routes) resolves normally. Called once from a nitro plugin.
+// Intercept h3's cached websocket route resolution: upgrades on a preview
+// origin with a pipe target (the IDE, a dev server) get the pipe-through
+// hooks, everything else (the run terminal, future ws routes) resolves
+// normally. Called once from a nitro plugin.
 export function wrapWebsocketResolve(h3App: { websocket: { resolve: (info: never) => unknown } }): void {
   const ws = h3App.websocket
   const original = ws.resolve.bind(ws)
   ws.resolve = (info: never) => {
-    if (ideSessionRef(info) !== null) return ideWsHooks
+    if (wsTarget(info) !== null) return pipeWsHooks
     return original(info)
   }
 }

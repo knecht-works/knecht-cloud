@@ -15,6 +15,7 @@ export const runSessionColumns = {
   previewReady: schema.sessions.previewReady,
   previewPort: schema.sessions.previewPort,
   projectEnv: schema.projects.ddevEnv,
+  projectDevServer: schema.projects.devServer,
   projectPreviewPort: schema.projects.previewPort,
   objectKind: schema.sessions.objectKind,
   objectNumber: schema.sessions.objectNumber,
@@ -28,17 +29,18 @@ interface PreviewTargetRow {
   previewHosts: string[]
   previewPort: number | null
   projectEnv: DdevEnv | null
+  projectDevServer: string | null
   projectPreviewPort: number | null
 }
 
 // Turn a row selected with runSessionColumns into the payload: the project
 // columns become the one `hasPreviewTarget` flag the workspace renders its
 // preview frame on.
-export function withPreviewTarget<R extends PreviewTargetRow>(row: R): Omit<R, 'projectEnv' | 'projectPreviewPort'> & { hasPreviewTarget: boolean } {
-  const { projectEnv, projectPreviewPort, ...rest } = row
+export function withPreviewTarget<R extends PreviewTargetRow>(row: R): Omit<R, 'projectEnv' | 'projectDevServer' | 'projectPreviewPort'> & { hasPreviewTarget: boolean } {
+  const { projectEnv, projectDevServer, projectPreviewPort, ...rest } = row
   return {
     ...rest,
-    hasPreviewTarget: hasPreviewTarget(row, { ddevEnv: projectEnv, previewPort: projectPreviewPort }),
+    hasPreviewTarget: hasPreviewTarget(row, { ddevEnv: projectEnv, devServer: projectDevServer, previewPort: projectPreviewPort }),
   }
 }
 

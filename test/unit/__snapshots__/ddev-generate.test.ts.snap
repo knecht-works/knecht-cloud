@@ -69,6 +69,43 @@ networks:
 "
 `;
 
+exports[`configureSessionEnv > generated-with-devserver: the daemon and the preview env 1`] = `
+"=== .ddev/config.knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-42
+web_extra_daemons:
+  - name: dev
+    command: bash -lc 'npm run dev'
+    directory: /var/www/html
+web_environment:
+  - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
+
+=== .ddev/config.yaml ===
+#knecht-generated
+name: knecht-run-42
+type: php
+docroot: ""
+webserver_type: generic
+php_version: "8.4"
+nodejs_version: "22"
+omit_containers:
+  - db
+disable_settings_management: true
+
+=== .ddev/docker-compose.knecht.yaml ===
+#ddev-silent-no-warn
+services:
+  web:
+    mem_limit: 2g
+    pids_limit: 2048
+    networks:
+      knecht-ingress: {}
+networks:
+  knecht-ingress:
+    external: true
+"
+`;
+
 exports[`configureSessionEnv > generated-with-versions: detected versions and an override land in config.yaml 1`] = `
 "=== .ddev/config.knecht.yaml ===
 #ddev-silent-no-warn

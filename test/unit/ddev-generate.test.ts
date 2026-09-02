@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { configureSessionEnv, readDdevConfig } from '../../server/daemon/ddev'
+import { configureSessionEnv, devDaemonCommand, readDdevConfig } from '../../server/daemon/ddev'
 import type { SessionEnvProject } from '../../server/daemon/ddev'
 
 // What ends up in `.ddev/` for each kind of repo, byte for byte: the tracked
@@ -42,7 +42,9 @@ function ddevTree(dir: string): string {
     }
   }
   walk('')
-  return files.map(f => `=== .ddev/${f} ===\n${readFileSync(join(root, f), 'utf8')}`).join('\n')
+  return files
+    .map(f => `=== .ddev/${f} ===\n${readFileSync(join(root, f), 'utf8')}`)
+    .join('\n')
 }
 
 describe('configureSessionEnv', () => {
@@ -81,11 +83,53 @@ describe('configureSessionEnv', () => {
     expect(ddevTree(dir)).toMatchSnapshot()
   })
 
+  it('generated-with-devserver: the daemon and the preview env', () => {
+    const dir = repo({ 'mise.toml': '[tools]\nnode = "22"\n' })
+    const { env, devServerPort } = configureSessionEnv(dir, project({ devServer: 'npm run dev', previewPort: 3000 }), 42, 'env')
+    expect(env.previewPort).toEqual({ value: 3000, source: 'setting' })
+    expect(devServerPort).toBe(3000)
+    expect(ddevTree(dir)).toMatchSnapshot()
+  })
+
+  it('a dev server without a port, a port without a command, or a repo with its own ddev config: no daemon, no port', () => {
+    const noPort = repo()
+    expect(configureSessionEnv(noPort, project({ devServer: 'npm run dev' }), 42, 'env').devServerPort).toBeNull()
+    expect(ddevTree(noPort)).not.toContain('web_extra_daemons')
+    const noCommand = repo()
+    expect(configureSessionEnv(noCommand, project({ previewPort: 3000 }), 42, 'env').devServerPort).toBeNull()
+    expect(ddevTree(noCommand)).not.toContain('web_extra_daemons')
+    expect(existsSync(join(noCommand, '.ddev', 'web-build', 'Dockerfile.knecht'))).toBe(false)
+    const tracked = repo({ '.ddev/config.yaml': 'name: demo\n' })
+    expect(configureSessionEnv(tracked, project({ devServer: 'npm run dev', previewPort: 3000 }), 7, 'env').devServerPort).toBeNull()
+    expect(ddevTree(tracked)).not.toContain('web_extra_daemons')
+  })
+
   it('a config Knecht generated on an earlier boot is rewritten, not treated as the repo\'s', () => {
     const dir = repo({ 'composer.json': '{ "require": { "php": "8.2.*" } }' })
     configureSessionEnv(dir, project(), 42, 'env')
     const { env } = configureSessionEnv(dir, project({ nodeVersion: '18' }), 42, 'env')
     expect(env.source).toBe('generated')
     expect(readDdevConfig(dir)).toMatchObject({ generated: true, hasDb: false, phpVersion: '8.2', nodeVersion: '18', hosts: ['knecht-run-42.ddev.site'] })
+  })
+
+  it('reports whether the environment definition changed since the last write', () => {
+    const dir = repo({ 'package.json': '{}' })
+    expect(configureSessionEnv(dir, project(), 42, 'env').changed).toBe(true)
+    expect(configureSessionEnv(dir, project(), 42, 'env').changed).toBe(false)
+    expect(configureSessionEnv(dir, project({ phpVersion: '8.2' }), 42, 'env').changed).toBe(true)
+    expect(configureSessionEnv(dir, project({ phpVersion: '8.2', devServer: 'npm run dev', previewPort: 3000 }), 42, 'env').changed).toBe(true)
+    expect(configureSessionEnv(dir, project({ phpVersion: '8.2', devServer: 'npm run dev', previewPort: 3000 }), 42, 'env').changed).toBe(false)
+    expect(configureSessionEnv(dir, project({ phpVersion: '8.2' }), 42, 'env').changed).toBe(true)
+  })
+})
+
+describe('devDaemonCommand', () => {
+  it('wraps the command in a login shell and survives both quoting layers', () => {
+    expect(devDaemonCommand('npm run dev')).toBe(`bash -lc 'npm run dev'`)
+    // Single quotes close and reopen the inner string ('\\''); that backslash,
+    // double quotes and $ are then escaped once more for ddev's outer
+    // `bash -c "..."`, which unescapes them before the inner bash sees them.
+    expect(devDaemonCommand(`node -e 'console.log("$HOME")'`))
+      .toBe(String.raw`bash -lc 'node -e '\\''console.log(\"\$HOME\")'\\'''`)
   })
 })

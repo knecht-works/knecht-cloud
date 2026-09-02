@@ -10,6 +10,7 @@ import { getInstallationToken } from '../utils/github-app'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
 import { joinBootCommands, runSetupCommands } from '../workflows/actions/ddev-start'
 import { configureSessionEnv, readDdevConfig } from './ddev'
+import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
 import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
 
@@ -52,10 +53,27 @@ export async function rebootEnv(sessionId: number): Promise<void> {
   const project = session && getProject(session.projectId)
   const dir = sessionCheckoutDir(sessionId)
   if (session && project && existsSync(dir)) {
-    warnEnv(sessionId, configureSessionEnv(dir, project, sessionId, session.urlMode ?? 'rewrite').warnings)
+    pinDevServerPort(sessionId, configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
   }
   await startEnvStack(sessionId)
   markUp(sessionId)
+}
+
+// configureSessionEnv for the paths without a run log: the detectors'
+// warnings go to the server log instead, so a checkout whose files changed
+// since the boot does not fail silently. Returns the dev server port the
+// container was just built for.
+function configureEnv(dir: string, project: Project, sessionId: number, urlMode: 'env' | 'rewrite'): number | null {
+  const { warnings, devServerPort } = configureSessionEnv(dir, project, sessionId, urlMode)
+  for (const warning of warnings) console.warn(`[envs] session ${sessionId}: ${warning}`)
+  return devServerPort
+}
+
+// The pin the preview proxy, the ws pipe and the boot step's dev server
+// restart read: re-set on every boot path, so it always matches the
+// container that was just built (daemon/ddev.ts configureSessionEnv).
+function pinDevServerPort(sessionId: number, port: number | null): void {
+  db.update(schema.sessions).set({ previewPort: port }).where(eq(schema.sessions.id, sessionId)).run()
 }
 
 // Restore an archived env exactly: unpack the archived .git and reset the
@@ -109,12 +127,19 @@ export async function rehydrateEnv(sessionId: number): Promise<void> {
   if (existsSync(stateArchive) && !existsSync(join(dir, '.knecht'))) {
     await execa('tar', ['-xzf', stateArchive, '-C', dir])
   }
-  warnEnv(sessionId, configureSessionEnv(dir, project, sessionId, session.urlMode ?? 'rewrite').warnings)
+  const devServerPort = configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite')
+  pinDevServerPort(sessionId, devServerPort)
 
   await startEnvStack(sessionId)
   try {
     await importArchivedDb(sessionId, project)
     await rerunBootSetup(sessionId, project)
+    // The dev server's daemon died while node_modules were still missing
+    // (daemon/dev-server.ts): same restart as the boot step.
+    if (devServerPort !== null) {
+      await restartDevServer(async command => (await execInSandbox(sessionId, command, { reject: false })).exitCode ?? 1)
+      await waitForDevServer(sessionId, devServerPort)
+    }
   }
   catch (e) {
     // A half-restored stack must not keep running under envState 'archived':
@@ -125,13 +150,6 @@ export async function rehydrateEnv(sessionId: number): Promise<void> {
     throw e
   }
   markUp(sessionId)
-}
-
-// Reboots and restores have no run log to carry the detectors' warnings (the
-// first boot logs them, daemon/runner.ts): the server log gets them instead,
-// so a checkout whose files changed since the boot does not fail silently.
-function warnEnv(sessionId: number, warnings: string[]): void {
-  for (const warning of warnings) console.warn(`[envs] session ${sessionId}: ${warning}`)
 }
 
 // Bring a session's env back for new work, from whatever rung of the ladder

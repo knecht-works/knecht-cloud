@@ -38,8 +38,8 @@ const { data: repos, status: reposStatus, execute: loadRepos } = useFetch('/api/
 
 const selected = ref()
 const connecting = ref(false)
-// Connect failures (no .ddev config, repo already connected, ...) render
-// inline in the repo step, where the user is looking, instead of a toast.
+// Connect failures (repo already connected, unreadable, ...) render inline
+// in the repo step, where the user is looking, instead of a toast.
 const connectError = ref<string | null>(null)
 
 // The branch the project will work on (checkout + PR base). Defaults to the
@@ -223,9 +223,9 @@ watch(open, (isOpen) => {
           class="w-full"
         />
         <p class="text-xs text-dimmed">
-          The repo must contain a <span class="k-mono">.ddev/config.yaml</span>. Framework, PHP and
-          database are read from it automatically. Runs check out the selected branch and open PRs
-          against it.
+          A repo with a <span class="k-mono">.ddev/config.yaml</span> is booted from it (framework, PHP and
+          database are read automatically); any other repo gets an environment generated from its
+          files. Runs check out the selected branch and open PRs against it.
         </p>
         <p
           v-if="connectError"

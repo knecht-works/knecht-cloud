@@ -12,7 +12,7 @@ import { getInstallationToken } from '../utils/github-app'
 import { addJiraComment } from '../utils/jira'
 import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
-import { copyIntoSandbox, execInSandbox } from './sandbox'
+import { copyIntoSandbox, execInSandbox, startEnvStack } from './sandbox'
 import { ensureEnvUp } from './envs'
 
 // The in-process serial runner (tech-stack.md §4). Each run executes inside
@@ -159,24 +159,33 @@ async function execRun(runId: number, project: Project): Promise<void> {
     // files (a repo without its own ddev config gets one generated here), then
     // store the host set the environment serves (the proxy serves the whole
     // set under per-session preview origins; the UI builds its host switcher
-    // from the stored list). The project's urlMode and previewPort are pinned
-    // onto the session on its FIRST run: the env baked into the session's
-    // environment either was or wasn't translated, and the container serves
-    // the port it was built for, so the proxy must match both for the
-    // session's lifetime.
+    // from the stored list). The project's urlMode is pinned onto the session
+    // on its FIRST run: the env baked into the session's environment either
+    // was or wasn't translated, and the proxy must match that for the
+    // session's lifetime. The dev server port is pinned on EVERY boot
+    // (reboot and restore do the same): it describes the container just
+    // built, which the proxy and the boot step's restart read live.
     const urlMode = session.urlMode ?? project.urlMode
-    const { env, warnings, injected } = configureSessionEnv(dir, project, sessionId, urlMode)
+    const { env, warnings, injected, devServerPort, changed } = configureSessionEnv(dir, project, sessionId, urlMode)
     db.update(schema.sessions)
       .set({
         previewHosts: env.hosts.value,
         urlMode,
-        previewPort: session.previewPort ?? env.previewPort.value,
+        previewPort: devServerPort,
         branch: session.branch ?? run.branch ?? project.defaultBranch,
       })
       .where(eq(schema.sessions.id, sessionId))
       .run()
     log(`Environment: ${sessionSandboxName(sessionId)} (${formatEnvSummary(env)}, +${injected} env var(s))\n`)
     for (const warning of warnings) log(`Warning: ${warning}\n`)
+    // The environment definition changed since the containers were built
+    // (a new dev server command, a PHP override): a running stack keeps the
+    // old one until ddev reconciles it, so apply it now. ensureUp later
+    // starts only what is not running and would leave it stale.
+    if (changed && session.envState === 'up') {
+      log(`Environment definition changed: applying it\n`)
+      await startEnvStack(sessionId)
+    }
 
     const ctx = createContext(runId, project, run.inputs ?? {})
     replayOutputs(runId, ctx)

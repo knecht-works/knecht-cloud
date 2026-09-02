@@ -2,6 +2,8 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, expect, it, vi } from 'vitest'
 import type { Step } from '../../shared/utils/workflow'
 import { checkoutDirOf } from '../helpers/local-sandbox'
+import { eq } from 'drizzle-orm'
+import { db, schema } from '../../server/db'
 import { getRun, getSteps, makeProject, makeRun, requeue } from '../helpers/db'
 
 // The engine contract, tested front to back: a pinned step sequence goes in,
@@ -16,9 +18,10 @@ vi.mock('../../server/daemon/git', async (importOriginal) => {
   // running against the fake checkout's real repo.
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
+const startEnvStack = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('../../server/daemon/sandbox', async () => {
   const { execInSandbox, copyIntoSandbox } = await import('../helpers/local-sandbox')
-  return { execInSandbox, copyIntoSandbox }
+  return { execInSandbox, copyIntoSandbox, startEnvStack }
 })
 vi.mock('../../server/daemon/envs', () => ({ ensureEnvUp: async () => {} }))
 vi.mock('../../server/utils/github-app', () => ({
@@ -51,6 +54,19 @@ describe('runner', () => {
     // The second step's params were rendered against the first step's outputs.
     expect(steps[1]!.params?.command).toBe('echo got: hello')
     expect(steps[1]!.outputs?.stdout).toBe('got: hello')
+  })
+
+  it('applies a changed environment definition to a session whose stack is already up', async () => {
+    const step: Step = { type: 'bash', id: 'noop', command: 'true' }
+    const { project, run } = await execute([step])
+    expect(startEnvStack).not.toHaveBeenCalled()
+    db.update(schema.sessions).set({ envState: 'up' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    // Same settings: the files are unchanged, the running stack is left alone.
+    await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, project)
+    expect(startEnvStack).not.toHaveBeenCalled()
+    // A PHP override changed the generated config: the stack is reconciled.
+    await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, { ...project, phpVersion: '8.2' })
+    expect(startEnvStack).toHaveBeenCalledWith(run.sessionId)
   })
 
   it('fails the run at a failing step and does not execute later steps', async () => {
@@ -228,7 +244,7 @@ describe('runner', () => {
     expect(commit.outputs?.sha).toMatch(/^[0-9a-f]{40}$/)
     // The commit really exists in the worktree's repo.
     const { execa } = await import('execa')
-    const { stdout } = await execa('git', ['-C', checkoutDirOf(run.id), 'log', '-1', '--format=%s %an'])
+    const { stdout } = await execa('git', ['-C', checkoutDirOf(run.sessionId), 'log', '-1', '--format=%s %an'])
     expect(stdout).toBe(`Test change (run ${run.id}) Knecht Test`)
   })
 })

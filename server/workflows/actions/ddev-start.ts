@@ -9,6 +9,7 @@ import { detectPreviewFavicon } from '../../utils/favicon'
 import { getSessionRow } from '../../utils/entities'
 import { sessionPreviewUrl } from '../../utils/preview-target'
 import { readDdevConfig } from '../../daemon/ddev'
+import { restartDevServer, waitForDevServer } from '../../daemon/dev-server'
 import { defineAction, type ActionRuntime } from './types'
 
 const yamlParams = z.object({ commands: z.string().optional() })
@@ -44,6 +45,11 @@ export const ddevStartAction = defineAction({
     // runs first in the session does the real work.
     if (sessionBooted(rt.sessionId)) {
       rt.log(`Environment already booted in this session: nothing to do\n`)
+      // A dev server starts with its container and only answers once it is
+      // up (a stopped env revived by ensureUp, a stack rebuilt for a changed
+      // definition): wait for it so the run's preview is browsable.
+      const port = getSessionRow(rt.sessionId)?.previewPort
+      if (port != null) await waitForDevServer(rt.sessionId, port)
       return previewOutputs(rt)
     }
     // Only stacks with a db container import the dump: a generated
@@ -66,6 +72,15 @@ export const ddevStartAction = defineAction({
     await runSetupCommands(rt.project.bootCommands, exec, rt.log)
     if (step.commands?.trim()) rt.log(`\nAdditional setup commands (this workflow's boot step):\n`)
     await runSetupCommands(step.commands, exec, rt.log)
+    // A generated environment with a dev server (the port was pinned on the
+    // session at checkout): its daemon died before the boot commands
+    // installed its dependencies, restart it now and wait for the port.
+    const port = getSessionRow(rt.sessionId)?.previewPort
+    if (port != null) {
+      rt.log(`\n▶ Starting the dev server on port ${port}\n`)
+      await restartDevServer(async command => (await rt.sandbox.stream(command)).code)
+      await waitForDevServer(rt.sessionId, port)
+    }
     // Boot, DB import and the setup commands are through: the session is
     // booted, which is what previewReady records (envState 'up' alone only
     // means the containers run). For an environment with a preview target
