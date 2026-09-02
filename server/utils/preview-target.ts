@@ -1,3 +1,4 @@
+import { projectDetectedEnv } from '../../shared/utils/env-spec'
 import type { Project, Session } from '../db/schema'
 import { getProject } from './entities'
 import { previewOrigin } from './origin'
@@ -13,15 +14,14 @@ import { previewOrigin } from './origin'
 // The session's pinned hosts/port are the truth once it booted; before its
 // first boot (and after an expired archive) the project's connect-time
 // detection decides, so the workspace shows the frame from the first second
-// of a ddev project's first run. Projects resolved before detection existed
-// carry no source and were all ddev projects.
+// of a ddev project's first run.
 export function hasPreviewTarget(
   session: Pick<Session, 'previewHosts' | 'previewPort' | 'envState'>,
   project: Pick<Project, 'ddevEnv' | 'previewPort'>,
 ): boolean {
   if (session.previewHosts.length > 0 || session.previewPort != null) return true
   if (session.envState !== 'down') return false
-  return project.previewPort != null || (project.ddevEnv?.source ?? 'ddev') === 'ddev'
+  return project.previewPort != null || projectDetectedEnv(project.ddevEnv).source === 'ddev'
 }
 
 // The session's preview URL, or null when it has none to advertise: not

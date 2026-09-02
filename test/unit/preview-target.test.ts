@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { hasPreviewTarget } from '../../server/utils/preview-target'
 
-const ddevProject = { ddevEnv: { source: 'ddev' as const, webserver: 'nginx-fpm', phpVersion: null, dbType: null, dbVersion: null, nodeVersion: null, packageManager: null }, previewPort: null }
-const generatedProject = { ...ddevProject, ddevEnv: { ...ddevProject.ddevEnv, source: 'generated' as const } }
+const env = { webserver: 'nginx-fpm', phpVersion: null, dbType: null, dbVersion: null, nodeVersion: null, packageManager: null }
+const ddevProject = { ddevEnv: { ...env, detected: { source: 'ddev' as const, fields: {}, warnings: [] } }, previewPort: null }
+const generatedProject = { ddevEnv: { ...env, detected: { source: 'generated' as const, fields: {}, warnings: [] } }, previewPort: null }
 const unbooted = { previewHosts: [], previewPort: null, envState: 'down' as const }
 
 describe('hasPreviewTarget', () => {
@@ -20,7 +21,7 @@ describe('hasPreviewTarget', () => {
   })
 
   it('projects resolved before detection existed were all ddev projects', () => {
-    expect(hasPreviewTarget(unbooted, { ddevEnv: { ...ddevProject.ddevEnv, source: undefined }, previewPort: null })).toBe(true)
+    expect(hasPreviewTarget(unbooted, { ddevEnv: env, previewPort: null })).toBe(true)
     expect(hasPreviewTarget(unbooted, { ddevEnv: null, previewPort: null })).toBe(true)
   })
 })

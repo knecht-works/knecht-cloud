@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
+import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
 
 // The project's configuration, split off the workspace page: everything here
 // is set up once (env, database dump, persistent folders) and rarely touched
@@ -11,8 +12,15 @@ const id = Number(route.params.id)
 
 const { data: project } = await useFetch(`/api/projects/${id}`)
 
-// ── Environment spec (read-only, resolved from the repo's .ddev config) ────
-const envSpec = computed(() => {
+// ── Environment ────────────────────────────────────────────────────────────
+// What the repo resolves to (server/utils/framework.ts, on the default
+// branch; each run's log shows the session branch's). A repo with its own
+// ddev config is described read-only: that file is the truth. Any other repo
+// gets its environment generated from what its files say, and PHP/Node can
+// be overridden here when the detection is wrong (empty = detected).
+const detectedEnv = computed(() => projectDetectedEnv(project.value?.ddevEnv))
+const envSource = computed(() => detectedEnv.value.source)
+const ddevSpec = computed(() => {
   const e = project.value?.ddevEnv
   if (!e) return []
   return [
@@ -23,6 +31,46 @@ const envSpec = computed(() => {
     { label: 'Package manager', value: e.packageManager?.replace('@', ' ') ?? null },
   ].filter(r => r.value)
 })
+
+const phpOverride = ref<string | null>(project.value?.phpVersion ?? null)
+const nodeOverride = ref<string | null>(project.value?.nodeVersion ?? null)
+// The same resolution the boot does, so the card shows exactly what a run
+// will get: setting > detected > default.
+const resolvedEnv = computed(() => resolveEnv(detectedEnv.value, {
+  phpVersion: phpOverride.value,
+  nodeVersion: nodeOverride.value,
+  devServer: project.value?.devServer ?? null,
+  previewPort: project.value?.previewPort ?? null,
+}))
+// Each version dropdown leads with the "not overridden" choice, worded by
+// what it means: what a repo file said, or the default because none did.
+function versionItems(field: 'phpVersion' | 'nodeVersion', versions: readonly string[]) {
+  const detected = detectedEnv.value.fields[field]
+  const label = detected
+    ? `Detected: ${detected.value} (${sourceLabel(detected.source)})`
+    : `Default: ${ENV_DEFAULTS[field]}`
+  // A detected version outside the list (a mise.toml pin like 22.4) is still
+  // shown on its entry; only the overrides are limited to the list.
+  return [{ label, value: null as string | null }, ...versions.map(v => ({ label: v, value: v }))]
+}
+const phpItems = computed(() => versionItems('phpVersion', [...DDEV_PHP_VERSIONS].reverse()))
+const nodeItems = computed(() => versionItems('nodeVersion', NODE_LTS_MAJORS))
+// Save one field right away, rolling the local value back when the PATCH
+// fails.
+async function saveField<T>(field: Ref<T>, value: T, body: Record<string, unknown>) {
+  if (field.value === value) return
+  const previous = field.value
+  field.value = value
+  try {
+    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
+  }
+  catch (e) {
+    field.value = previous
+    toastError('Failed to save', e)
+  }
+}
+const setPhpOverride = (value: string | null) => saveField(phpOverride, value, { phpVersion: value })
+const setNodeOverride = (value: string | null) => saveField(nodeOverride, value, { nodeVersion: value })
 
 // ── Env variables (.env textarea, auto-saved) ──────────────────────────────
 // Edited as raw `KEY=value` lines (parseEnvText / envVarsToText helpers); parsed
@@ -313,8 +361,12 @@ async function toggleMentions() {
 
             <!-- Deliberately tucked away: the default (env) is right for strictly
                env-based projects and should never need touching. The escape
-               hatch exists for projects with hard-coded/DB-stored URLs. -->
-            <div class="mt-4">
+               hatch exists for projects with hard-coded/DB-stored URLs. Only
+               a repo with its own web server has base URLs to speak of. -->
+            <div
+              v-if="envSource === 'ddev'"
+              class="mt-4"
+            >
               <button
                 type="button"
                 class="k-mono flex items-center gap-1.5 text-2xs text-dimmed transition-colors hover:text-muted"
@@ -448,34 +500,74 @@ async function toggleMentions() {
       </div>
 
       <div class="flex flex-col gap-4.5">
-        <!-- Read-only: what the repo's .ddev config resolves to. -->
         <KPanel
-          title="Environment · DDEV"
+          title="Environment"
           icon="i-lucide-database"
         >
-          <dl
-            v-if="envSpec.length"
-            class="flex flex-col gap-2"
-          >
-            <div
-              v-for="row in envSpec"
-              :key="row.label"
-              class="flex items-center justify-between gap-3"
-            >
-              <dt class="k-mono text-2xs text-dimmed">
-                {{ row.label }}
-              </dt>
-              <dd class="k-mono text-xs text-toned">
-                {{ row.value }}
-              </dd>
-            </div>
-          </dl>
           <p
-            v-else
+            v-if="!project.ddevEnv"
             class="k-mono text-2xs text-dimmed"
           >
             Resolving environment…
           </p>
+          <!-- The repo ships its own ddev config: read-only, that file is the truth. -->
+          <div
+            v-else-if="envSource === 'ddev'"
+            class="flex flex-col gap-2"
+          >
+            <div
+              v-for="row in ddevSpec"
+              :key="row.label"
+              class="flex items-center justify-between gap-3"
+            >
+              <span class="k-mono text-2xs text-dimmed">{{ row.label }}</span>
+              <span class="k-mono text-xs text-toned">{{ row.value }}</span>
+            </div>
+          </div>
+          <!-- No ddev config in the repo: Knecht generates the environment.
+               Each row says where its value comes from; PHP and Node can be
+               overridden, empty means detected. -->
+          <div
+            v-else
+            class="flex flex-col gap-3"
+          >
+            <div>
+              <div class="k-label mb-1.5">
+                PHP
+              </div>
+              <USelectMenu
+                :model-value="phpItems.find(i => i.value === phpOverride)"
+                :items="phpItems"
+                :search-input="false"
+                class="w-full"
+                @update:model-value="(item: { value: string | null } | undefined) => setPhpOverride(item?.value ?? null)"
+              />
+            </div>
+            <div>
+              <div class="k-label mb-1.5">
+                Node
+              </div>
+              <USelectMenu
+                :model-value="nodeItems.find(i => i.value === nodeOverride)"
+                :items="nodeItems"
+                :search-input="false"
+                class="w-full"
+                @update:model-value="(item: { value: string | null } | undefined) => setNodeOverride(item?.value ?? null)"
+              />
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="k-mono text-2xs text-dimmed">Dev server</span>
+              <span class="k-mono text-xs text-toned">{{ resolvedEnv.devServer.value ?? 'none' }}</span>
+            </div>
+            <p
+              v-for="warning in detectedEnv.warnings"
+              :key="warning"
+              class="k-mono text-2xs"
+              style="color: var(--status-warning, var(--accent-orange))"
+            >
+              {{ warning }}
+            </p>
+          </div>
         </KPanel>
 
         <KPanel
@@ -508,7 +600,10 @@ async function toggleMentions() {
           </div>
         </KPanel>
 
+        <!-- Only an environment with a database container can import a dump
+             (the boot step applies the same rule). -->
         <KPanel
+          v-if="resolvedEnv.hasDb.value"
           title="Database dump"
           icon="i-lucide-hard-drive-download"
         >

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import semver from 'semver'
 import { parse } from 'yaml'
-import { DDEV_DEFAULT_NODE, DDEV_DEFAULT_PHP, DDEV_PHP_VERSIONS, type DetectedEnv, type EnvSource, type ResolvedFields } from '../../shared/utils/env-spec'
+import { DDEV_DEFAULT_NODE, DDEV_DEFAULT_PHP, DDEV_PHP_VERSIONS, NODE_LTS_MAJORS, type DetectedEnv, type EnvSource, type ResolvedFields } from '../../shared/utils/env-spec'
 
 // Derive a project's environment spec (shared/utils/env-spec.ts) from the
 // files it commonly ships (ENV_DETECT_FILES). Pure: the caller supplies
@@ -67,6 +67,8 @@ export function detectEnv(readFile: ReadFile): DetectedEnv {
     const cfg = parseDdevConfig(ddev)
     if (!cfg) {
       warnings.push('.ddev/config.yaml could not be parsed; ddev may refuse to start')
+      // ddev's own default: a db container unless omitted.
+      fields.hasDb = { value: true, source: '.ddev/config.yaml' }
       return { source: 'ddev', fields, warnings }
     }
     fields.hasDb = { value: cfg.hasDb, source: '.ddev/config.yaml' }
@@ -187,11 +189,6 @@ export function normalizePhpConstraint(constraint: string): string | null {
 
 // ── Node ───────────────────────────────────────────────────────────────────
 
-// The Node majors an open-ended constraint (`>=20`) may resolve to. When the
-// ddev default satisfies the constraint it wins (the stable fallback stays the
-// fallback); otherwise the highest listed LTS that does.
-const NODE_LTS_MAJORS = ['18', '20', '22', '24']
-
 // nvm's LTS code names (`.nvmrc`: lts/iron).
 const NODE_LTS_NAMES: Record<string, string> = {
   hydrogen: '18',
@@ -276,7 +273,8 @@ export function normalizeNodeVersion(raw: string): string | null {
 }
 
 // `engines.node` is a range (`>=20`, `^22.0.0`, `20.x`): the ddev default
-// when it satisfies the range, else the highest known LTS major that does.
+// when it satisfies the range (the stable fallback stays the fallback), else
+// the highest LTS major (NODE_LTS_MAJORS) that does.
 export function normalizeNodeConstraint(constraint: string): string | null {
   if (!semver.validRange(constraint)) return null
   if (semver.satisfies(`${DDEV_DEFAULT_NODE}.0.0`, constraint)) return DDEV_DEFAULT_NODE

@@ -32,24 +32,18 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'Repo is already connected' })
   }
 
-  // Resolve the framework + version + DDEV environment from the repo at
-  // connect time. A repo we CAN read but that has no `.ddev/config.yaml`
-  // (meta null) can never boot: reject right here instead of letting the
-  // first run fail. An unreadable repo (App not installed, rate limit) stays
-  // best-effort: nulls now, backfilled by the GET handlers later.
-  let meta: ProjectMeta | null | undefined
+  // Resolve the framework + version + environment from the repo at connect
+  // time (a repo without its own ddev config gets one generated at boot, so
+  // every readable repo connects). An unreadable repo (App not installed,
+  // rate limit) stays best-effort: nulls now, backfilled by the GET handlers
+  // later.
+  let meta: ProjectMeta | undefined
   try {
     const octokit = await getInstallationClient(result.data.owner, result.data.name)
     meta = await resolveProjectMeta(octokit, result.data.owner, result.data.name, result.data.defaultBranch)
   }
   catch {
     // Couldn't look: connect anyway, the backfill retries.
-  }
-  if (meta === null) {
-    throw createError({
-      statusCode: 422,
-      statusMessage: `The repo has no .ddev/config.yaml on '${result.data.defaultBranch}'. Knecht needs a DDEV config to boot the project.`,
-    })
   }
 
   return db.insert(schema.projects).values({ ...result.data, ...meta }).returning().get()

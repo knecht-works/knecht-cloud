@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
+import { DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN } from '#shared/utils/env-spec'
 import { db, schema } from '../../db'
 
 // PATCH /api/projects/:id → update the editable per-project config.
@@ -40,14 +41,28 @@ const bodySchema = z.object({
   // session when a mentioned object has none yet. Null clears the starter.
   mentionsEnabled: z.boolean().optional(),
   starterWorkflowId: z.number().int().nullable().optional(),
+  // Environment overrides for repos without their own ddev config
+  // (shared/utils/env-spec.ts); null clears one back to the detected value.
+  // Ignored at boot for repos that ship a ddev config.
+  phpVersion: z.enum(DDEV_PHP_VERSIONS).nullable().optional(),
+  nodeVersion: z.string().regex(NODE_VERSION_PATTERN, 'Node version is a major or major.minor').nullable().optional(),
+  devServer: z.string().trim().max(500).transform(v => v || null).nullable().optional(),
+  previewPort: z.number().int().min(1).max(65535).nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
+  const project = requireProject(id)
 
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid project config' })
+  }
+  // A dev server is only useful with the port it listens on: the port is
+  // what makes the generated environment previewable at all.
+  const next = { ...project, ...result.data }
+  if (next.devServer && next.previewPort == null) {
+    throw createError({ statusCode: 400, statusMessage: 'A dev server needs a preview port' })
   }
 
   const updated = db
