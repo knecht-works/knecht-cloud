@@ -5,6 +5,19 @@ import { parse } from 'yaml'
 import { describe, expect, it, vi } from 'vitest'
 import { readDdevHosts, writeDdevConfig } from '../../server/daemon/ddev'
 import { normalizeSharedFolder } from '../../server/utils/storage'
+import { resolveEnv, type ResolvedEnv } from '../../shared/utils/env-spec'
+
+// A repo with its own ddev config, as the runner resolves it before writing.
+function tracked(hosts: string[] = []): ResolvedEnv {
+  return resolveEnv({
+    source: 'ddev',
+    fields: {
+      hosts: { value: hosts, source: '.ddev/config.yaml' },
+      hasDb: { value: true, source: '.ddev/config.yaml' },
+    },
+    warnings: [],
+  }, { phpVersion: null, nodeVersion: null, devServer: null, previewPort: null })
+}
 
 function checkout(configYaml?: string): string {
   const dir = mkdtempSync(join(tmpdir(), 'knecht-ddev-'))
@@ -16,11 +29,16 @@ function checkout(configYaml?: string): string {
 describe('writeDdevConfig', () => {
   it('renames the project per run and injects env vars with one quote layer stripped', () => {
     const dir = checkout()
-    const written = writeDdevConfig(dir, [
-      { key: 'PRIMARY_SITE_URL', value: '"https://demo.ddev.site"' },
-      { key: 'PLAIN', value: 'value' },
-      { key: 'HALF', value: '"unbalanced' },
-    ], 7, 'rewrite')
+    const written = writeDdevConfig(dir, {
+      sessionId: 7,
+      env: tracked(),
+      urlMode: 'rewrite',
+      envVars: [
+        { key: 'PRIMARY_SITE_URL', value: '"https://demo.ddev.site"' },
+        { key: 'PLAIN', value: 'value' },
+        { key: 'HALF', value: '"unbalanced' },
+      ],
+    })
     expect(written).toBe(3)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
     expect(doc.name).toBe('knecht-run-7')
@@ -35,12 +53,17 @@ describe('writeDdevConfig', () => {
     vi.stubEnv('KNECHT_BASE_URL', 'http://lvh.me:3333')
     try {
       const dir = checkout('name: demo\nadditional_hostnames: [alpha]')
-      writeDdevConfig(dir, [
-        { key: 'PRIMARY_SITE_URL', value: 'https://demo.ddev.site' },
-        { key: 'ALPHA_SITE_URL', value: 'https://alpha.ddev.site/en' },
-        { key: 'COOKIE_DOMAIN', value: 'demo.ddev.site' },
-        { key: 'OTHER', value: 'https://example.com/x' },
-      ], 7, 'env')
+      writeDdevConfig(dir, {
+        sessionId: 7,
+        env: tracked(['demo.ddev.site', 'alpha.ddev.site']),
+        urlMode: 'env',
+        envVars: [
+          { key: 'PRIMARY_SITE_URL', value: 'https://demo.ddev.site' },
+          { key: 'ALPHA_SITE_URL', value: 'https://alpha.ddev.site/en' },
+          { key: 'COOKIE_DOMAIN', value: 'demo.ddev.site' },
+          { key: 'OTHER', value: 'https://example.com/x' },
+        ],
+      })
       const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
       expect(doc.web_environment).toEqual([
         'PRIMARY_SITE_URL=http://7.preview.lvh.me:3333',
@@ -56,14 +79,14 @@ describe('writeDdevConfig', () => {
 
   it('omits web_environment entirely without env vars', () => {
     const dir = checkout()
-    expect(writeDdevConfig(dir, [], 7)).toBe(0)
+    expect(writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
     expect(doc.web_environment).toBeUndefined()
   })
 
   it('writes the compose override: ingress network and resource caps', () => {
     const dir = checkout()
-    writeDdevConfig(dir, [], 7)
+    writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
     const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.knecht.yaml'), 'utf8'))
     expect(compose.services.web.networks).toEqual({ 'knecht-ingress': {} })
     expect(compose.services.web.mem_limit).toBeDefined()
@@ -73,7 +96,7 @@ describe('writeDdevConfig', () => {
 
   it('writes the low-memory db config into the mysql includedir', () => {
     const dir = checkout()
-    writeDdevConfig(dir, [], 7)
+    writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
     const cnf = readFileSync(join(dir, '.ddev', 'mysql', '00-knecht-lowmem.cnf'), 'utf8')
     expect(cnf).toContain('#ddev-silent-no-warn')
     expect(cnf).toContain('innodb-buffer-pool-size = 256M')
@@ -85,7 +108,7 @@ describe('writeDdevConfig', () => {
     vi.stubEnv('KNECHT_DATA_DIR', data)
     try {
       const dir = checkout()
-      writeDdevConfig(dir, [], 7, 'env', { projectId: 5, folders: ['web/uploads', '/etc', ''] })
+      writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env', shared: { projectId: 5, folders: ['web/uploads', '/etc', ''] } })
       const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.knecht.yaml'), 'utf8'))
       const host = join(data, 'shared', '5', 'web/uploads')
       expect(compose.services.web.volumes).toContain(`${host}:/var/www/html/web/uploads`)
@@ -138,5 +161,9 @@ describe('readDdevHosts', () => {
   it('degrades to nulls on a missing or nameless config', () => {
     expect(readDdevHosts(checkout())).toEqual({ primary: null, all: [] })
     expect(readDdevHosts(checkout('webserver_type: nginx-fpm'))).toEqual({ primary: null, all: [] })
+  })
+
+  it('serves no host for a config Knecht generated: the proxy passes the preview host through', () => {
+    expect(readDdevHosts(checkout('#knecht-generated\nname: knecht-run-7\n'))).toEqual({ primary: null, all: [] })
   })
 })

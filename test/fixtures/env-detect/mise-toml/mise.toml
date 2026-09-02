@@ -1,0 +1,5 @@
+[tools]
+node = "22"
+
+[tasks.dev]
+run = "nuxt dev --host 0.0.0.0 --port 3000"

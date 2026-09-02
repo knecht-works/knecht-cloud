@@ -1,8 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parse, stringify } from 'yaml'
+import { stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
+import { resolveEnv, type EnvOverrides, type ResolvedEnv } from '../../shared/utils/env-spec'
 import { previewHostname, previewLabel } from '../../shared/utils/preview-host'
+import { checkoutReader, detectEnv, GENERATED_MARKER, parseDdevConfig, type DdevConfigFile } from '../utils/env-detect'
 import { dashboardOrigin } from '../utils/origin'
 import { normalizeSharedFolder, projectSharedDir, sessionSandboxName, toolsDir } from '../utils/storage'
 import { WEB_PROJECT_DIR } from './sandbox'
@@ -16,11 +18,60 @@ const WEB_MEM_LIMIT = '2g'
 const DB_MEM_LIMIT = '1g'
 const WEB_PIDS_LIMIT = 2048
 
-// Write the per-run ddev overrides (`.ddev/config.knecht.yaml`,
-// `.ddev/docker-compose.knecht.yaml` and `.ddev/mysql/00-knecht-lowmem.cnf`).
-// ddev merges all `.ddev/config.*.yaml` and `.ddev/docker-compose.*.yaml`
-// files, so this injects everything run-specific without touching the repo's
-// tracked config:
+export interface SessionEnvProject extends EnvOverrides {
+  id: number
+  envVars: EnvVar[]
+  sharedFolders: string[]
+}
+
+// Derive a session's environment from its checkout plus the project's
+// settings and write the ddev files for it. THE entry point for every boot
+// (first run, reboot, restore): detection runs against the checkout every
+// time and nothing about the spec is stored, so the checkout and the settings
+// stay the only truth (a committed `.ddev/config.yaml` takes over on the next
+// boot). Returns the resolved env for the run log, the detectors' warnings
+// and how many env vars were injected.
+export function configureSessionEnv(checkoutDir: string, project: SessionEnvProject, sessionId: number, urlMode: UrlMode): { env: ResolvedEnv, warnings: string[], injected: number } {
+  const detected = detectEnv(checkoutReader(checkoutDir))
+  const env = resolveEnv(detected, project)
+  const injected = writeDdevConfig(checkoutDir, {
+    sessionId,
+    env,
+    envVars: project.envVars,
+    urlMode,
+    shared: { projectId: project.id, folders: project.sharedFolders },
+  })
+  return { env, warnings: detected.warnings, injected }
+}
+
+export interface SharedFolderConfig {
+  projectId: number
+  folders: string[]
+}
+
+export interface DdevConfigInput {
+  sessionId: number
+  env: ResolvedEnv
+  envVars: EnvVar[]
+  urlMode: UrlMode
+  shared?: SharedFolderConfig
+}
+
+// Write the per-session ddev files into the checkout.
+//
+// A repo WITHOUT its own `.ddev/config.yaml` (env.source 'generated') first
+// gets one, marked with GENERATED_MARKER so the next boot and git.ts recognize
+// it as Knecht's: a plain `php` project with NO web server (webserver_type
+// generic: php-cli, composer and node are there, nginx/php-fpm are not started
+// for a repo that has no website), no db container, php/node pinned from the
+// resolved spec, and ddev's settings management off so it never writes
+// framework files into the checkout.
+//
+// Every project then gets the per-run overrides (`.ddev/config.knecht.yaml`,
+// `.ddev/docker-compose.knecht.yaml` and, for stacks with a db,
+// `.ddev/mysql/00-knecht-lowmem.cnf`). ddev merges all `.ddev/config.*.yaml`
+// and `.ddev/docker-compose.*.yaml` files, so this injects everything
+// run-specific without touching the repo's tracked config:
 //   - `name`: knecht-run-<id>. All runs share ONE docker daemon, so container/
 //     volume/network names must be unique per run; nothing routes by hostname
 //     (the router is omitted, the preview proxy targets the web container's IP
@@ -42,19 +93,28 @@ const WEB_PIDS_LIMIT = 2048
 // them; the preview proxy maps the project's own hostnames to per-run preview
 // origins instead of touching the project. Returns how many env vars were
 // written.
-export interface SharedFolderConfig {
-  projectId: number
-  folders: string[]
-}
-
-export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], sessionId: number, urlMode: UrlMode = 'env', shared?: SharedFolderConfig): number {
+export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, urlMode, shared }: DdevConfigInput): number {
+  const ddevDir = join(checkoutDir, '.ddev')
+  if (env.source === 'generated') {
+    mkdirSync(ddevDir, { recursive: true })
+    writeFileSync(join(ddevDir, 'config.yaml'), `${GENERATED_MARKER}\n` + stringify({
+      name: sessionSandboxName(sessionId),
+      type: 'php',
+      docroot: '',
+      webserver_type: 'generic',
+      php_version: env.phpVersion.value,
+      nodejs_version: env.nodeVersion.value,
+      omit_containers: ['db'],
+      disable_settings_management: true,
+    }))
+  }
   const doc: {
     name: string
     web_environment?: string[]
   } = { name: sessionSandboxName(sessionId) }
   if (envVars.length) {
     const translate = urlMode === 'env'
-      ? envUrlTranslator(readDdevHosts(checkoutDir), sessionId)
+      ? envUrlTranslator(env.hosts.value, sessionId)
       : (v: string) => v
     // Strip a layer of surrounding quotes: a value like `"https://x"` (quotes
     // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
@@ -64,9 +124,9 @@ export function writeDdevConfig(checkoutDir: string, envVars: EnvVar[], sessionI
   // The marker comment silences ddev's "custom configuration detected"
   // warning, which would otherwise open every run log.
   const marker = '#ddev-silent-no-warn\n'
-  writeFileSync(join(checkoutDir, '.ddev', 'config.knecht.yaml'), marker + stringify(doc))
-  writeFileSync(join(checkoutDir, '.ddev', 'docker-compose.knecht.yaml'), marker + stringify(composeOverride(shared ? sharedFolderMounts(shared) : [])))
-  writeLowmemDbConfig(checkoutDir, marker)
+  writeFileSync(join(ddevDir, 'config.knecht.yaml'), marker + stringify(doc))
+  writeFileSync(join(ddevDir, 'docker-compose.knecht.yaml'), marker + stringify(composeOverride(env.hasDb.value, shared ? sharedFolderMounts(shared) : [])))
+  if (env.hasDb.value) writeLowmemDbConfig(checkoutDir, marker)
   return envVars.length
 }
 
@@ -115,8 +175,10 @@ function sharedFolderMounts(shared: SharedFolderConfig): { host: string, dest: s
 // mounts are host paths, so they only work because the tools dir follows the
 // same-path convention (mounted byte-identically into the Knecht container);
 // each mount is included only when the file actually exists: a missing bind
-// source would make docker create a root-owned DIRECTORY in its place.
-function composeOverride(sharedMounts: { host: string, dest: string }[] = []): Record<string, unknown> {
+// source would make docker create a root-owned DIRECTORY in its place. The db
+// cap is only written for stacks that have a db: a service entry without an
+// image is a compose error when ddev omits the container.
+function composeOverride(hasDb: boolean, sharedMounts: { host: string, dest: string }[] = []): Record<string, unknown> {
   const tools = toolsDir()
   const toolMounts = [
     { host: join(tools, 'opencode'), dest: '/usr/local/bin/opencode' },
@@ -149,7 +211,7 @@ function composeOverride(sharedMounts: { host: string, dest: string }[] = []): R
         networks: { 'knecht-ingress': {} },
         ...(volumes.length ? { volumes } : {}),
       },
-      db: { mem_limit: DB_MEM_LIMIT },
+      ...(hasDb ? { db: { mem_limit: DB_MEM_LIMIT } } : {}),
     },
     networks: {
       'knecht-ingress': { external: true },
@@ -165,14 +227,15 @@ function composeOverride(sharedMounts: { host: string, dest: string }[] = []): R
 // preview hostname. Longest host first, so a host containing another as a
 // suffix is never half-translated. Without a configured base origin there is
 // nothing to translate towards; values pass through unchanged.
-function envUrlTranslator(hosts: DdevHosts, sessionId: number): (value: string) => string {
+function envUrlTranslator(hosts: string[], sessionId: number): (value: string) => string {
   const base = dashboardOrigin()
-  if (!base || !hosts.all.length) return v => v
+  if (!base || !hosts.length) return v => v
   const origin = new URL(base)
-  const mappings = [...hosts.all]
+  const primary = hosts[0]
+  const mappings = [...hosts]
     .sort((a, b) => b.length - a.length)
     .map((host) => {
-      const label = host === hosts.primary ? undefined : previewLabel(host)
+      const label = host === primary ? undefined : previewLabel(host)
       return {
         host,
         // URL forms need the full origin (scheme + port); a remaining bare
@@ -201,35 +264,28 @@ function unquote(v: string): string {
   return v
 }
 
+// The checkout's `.ddev/config.yaml`, tracked or generated, or null when
+// there is none (yet). What the lifecycle reads back after a boot: whether the
+// stack has a db to export/import, whether the config is Knecht's own.
+export function readDdevConfig(checkoutDir: string): DdevConfigFile | null {
+  const text = checkoutReader(checkoutDir)('.ddev/config.yaml')
+  return text === null ? null : parseDdevConfig(text)
+}
+
 // ALL hostnames the project's ddev environment serves, read from the tracked
 // `.ddev/config.yaml` (NOT our override): the primary `<name>.<tld>` plus
 // every additional_hostnames/additional_fqdns entry. These are the hosts the
 // pasted .env points at (Craft multisite: one per site); the preview proxy
-// gives each one its own per-run preview origin and maps between the two.
+// gives each one its own per-run preview origin and maps between the two. A
+// config Knecht generated serves no hostname of its own: empty, so the proxy
+// falls back to passing the preview host through.
 export interface DdevHosts {
   primary: string | null
   all: string[]
 }
 
 export function readDdevHosts(checkoutDir: string): DdevHosts {
-  try {
-    const cfg = parse(readFileSync(join(checkoutDir, '.ddev', 'config.yaml'), 'utf8')) as {
-      name?: string
-      project_tld?: string
-      additional_hostnames?: string[]
-      additional_fqdns?: string[]
-    }
-    if (!cfg?.name) return { primary: null, all: [] }
-    const tld = cfg.project_tld || 'ddev.site'
-    const primary = `${cfg.name}.${tld}`
-    const all = [
-      primary,
-      ...(cfg.additional_hostnames ?? []).map(h => `${h}.${tld}`),
-      ...(cfg.additional_fqdns ?? []),
-    ]
-    return { primary, all }
-  }
-  catch {
-    return { primary: null, all: [] }
-  }
+  const cfg = readDdevConfig(checkoutDir)
+  if (!cfg || cfg.generated) return { primary: null, all: [] }
+  return { primary: cfg.hosts[0] ?? null, all: cfg.hosts }
 }

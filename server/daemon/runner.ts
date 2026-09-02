@@ -6,11 +6,12 @@ import { COMPOSITE_CHILD_KEYS, defaultStepTimeout, isComposite, isCompositeType,
 import { getWorkflow } from '../workflows'
 import { actionFor, type ActionError, type ActionRuntime, type RegisteredAction } from '../workflows/actions'
 import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
+import { formatEnvSummary } from '../../shared/utils/env-spec'
 import { sessionSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
 import { addJiraComment } from '../utils/jira'
 import { prepareSessionCheckout } from './git'
-import { readDdevHosts, writeDdevConfig } from './ddev'
+import { configureSessionEnv } from './ddev'
 import { copyIntoSandbox, execInSandbox } from './sandbox'
 import { ensureEnvUp } from './envs'
 
@@ -154,21 +155,28 @@ async function execRun(runId: number, project: Project): Promise<void> {
     const token = await getInstallationToken(project.owner, project.name)
     const dir = await prepareSessionCheckout(project, sessionId, token, log, session.branch ?? run.branch ?? project.defaultBranch)
 
-    // Read the repo's own ddev host set and store it (the proxy serves the
-    // whole set (readDdevHosts) under per-session preview origins; the UI
-    // builds its host switcher from the stored list). The project's urlMode
-    // is pinned onto the session on its FIRST run: the env baked into the
-    // session's environment either was or wasn't translated, and the proxy
-    // must match that for the session's lifetime.
-    const hosts = readDdevHosts(dir)
+    // Derive the environment from the checkout + settings and write the ddev
+    // files (a repo without its own ddev config gets one generated here), then
+    // store the host set the environment serves (the proxy serves the whole
+    // set under per-session preview origins; the UI builds its host switcher
+    // from the stored list). The project's urlMode and previewPort are pinned
+    // onto the session on its FIRST run: the env baked into the session's
+    // environment either was or wasn't translated, and the container serves
+    // the port it was built for, so the proxy must match both for the
+    // session's lifetime.
     const urlMode = session.urlMode ?? project.urlMode
+    const { env, warnings, injected } = configureSessionEnv(dir, project, sessionId, urlMode)
     db.update(schema.sessions)
-      .set({ previewHosts: hosts.all, urlMode, branch: session.branch ?? run.branch ?? project.defaultBranch })
+      .set({
+        previewHosts: env.hosts.value,
+        urlMode,
+        previewPort: session.previewPort ?? env.previewPort.value,
+        branch: session.branch ?? run.branch ?? project.defaultBranch,
+      })
       .where(eq(schema.sessions.id, sessionId))
       .run()
-
-    const injected = writeDdevConfig(dir, project.envVars, sessionId, urlMode, { projectId: project.id, folders: project.sharedFolders })
-    log(`Environment: ${sessionSandboxName(sessionId)} (host ${hosts.primary ?? '?'}, +${injected} env var(s))\n`)
+    log(`Environment: ${sessionSandboxName(sessionId)} (${formatEnvSummary(env)}, +${injected} env var(s))\n`)
+    for (const warning of warnings) log(`Warning: ${warning}\n`)
 
     const ctx = createContext(runId, project, run.inputs ?? {})
     replayOutputs(runId, ctx)

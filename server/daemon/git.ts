@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { execa } from 'execa'
 import type { Project } from '../db/schema'
 import { bridgeBaseUrl, bridgeToken } from '../utils/agent-bridge'
+import { checkoutReader, repoShipsDdevConfig } from '../utils/env-detect'
 import { getBotIdentity } from '../utils/github-app'
 import { normalizeSharedFolder, sessionCheckoutDir } from '../utils/storage'
 
@@ -148,16 +149,19 @@ export async function pushBranch(dir: string, branch: string, token: string): Pr
 // the agent's state dir (`.knecht/`: opencode config + session DB). The git
 // blocks run `git add -A`, so without this they would be committed and pushed
 // in the opened PR. The ignores go in the clone's `info/exclude`, so the
-// generated files can never enter a commit. The project's shared folders join
-// the list: their contents (uploads) surface inside the checkout via the bind
+// generated files can never enter a commit. For a repo without its own
+// `.ddev/config.yaml` (Knecht generates the whole ddev project, and ddev
+// itself drops more files into `.ddev/` on start) the entire directory is
+// excluded instead of single paths. The project's shared folders join the
+// list: their contents (uploads) surface inside the checkout via the bind
 // mount and must never be committed even when the repo forgot to git-ignore
 // them. Idempotent.
 function shieldGeneratedFiles(dir: string, sharedFolders: string[]): void {
   const exclude = join(dir, '.git', 'info', 'exclude')
   const patterns = [
-    '/.ddev/config.knecht.yaml',
-    '/.ddev/docker-compose.knecht.yaml',
-    '/.ddev/mysql/00-knecht-lowmem.cnf',
+    ...(repoShipsDdevConfig(checkoutReader(dir)('.ddev/config.yaml'))
+      ? ['/.ddev/config.knecht.yaml', '/.ddev/docker-compose.knecht.yaml', '/.ddev/mysql/00-knecht-lowmem.cnf']
+      : ['/.ddev/']),
     '/.knecht/',
     ...sharedFolders.map(normalizeSharedFolder).filter(p => p !== null).map(p => `/${p}/`),
   ]

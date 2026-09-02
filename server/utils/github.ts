@@ -1,32 +1,6 @@
 import type { Octokit } from 'octokit'
-import { parse } from 'yaml'
+import { parseDdevConfig, type DdevConfigFile } from './env-detect'
 import { FAVICON_MAX_BYTES, FAVICON_MIME_BY_EXT } from './favicon'
-
-// The DDEV project type + environment spec parsed from a repo's
-// `.ddev/config.yaml` (https://docs.ddev.com/en/stable/users/configuration/config/).
-// `type` is the framework (e.g. 'typo3', 'wordpress', 'craftcms'). Best-effort:
-// every field is null if the file/repo can't be read.
-export interface DdevConfig {
-  type: string | null
-  webserver: string | null
-  phpVersion: string | null
-  dbType: string | null
-  dbVersion: string | null
-  nodeVersion: string | null
-}
-
-const EMPTY_DDEV_CONFIG: DdevConfig = {
-  type: null,
-  webserver: null,
-  phpVersion: null,
-  dbType: null,
-  dbVersion: null,
-  nodeVersion: null,
-}
-
-// DDEV applies its config defaults when a field is omitted; the only one we can
-// safely assume is the webserver (nginx-fpm). The rest stay null when absent.
-const str = (v: unknown): string | null => (v == null ? null : String(v))
 
 // A repo file's text content via the contents API. Returns null when the path
 // isn't a file or the response has no inline content; throws when the file is
@@ -43,16 +17,18 @@ async function readRepoFile(
   return Buffer.from(data.content, 'base64').toString('utf8')
 }
 
-// The parsed config, or null when the repo has no usable `.ddev/config.yaml`
-// on the ref (a definite 404, or the path isn't a readable file): the project
-// can never boot. Every other failure (App not installed, rate limit, network)
-// throws, so callers can tell "couldn't look" from "missing".
+// The parsed config (utils/env-detect.ts parseDdevConfig), or null when the
+// repo has no `.ddev/config.yaml` on the ref (a definite 404, or the path
+// isn't a readable file). A file that exists but does not parse yields the
+// empty shape: the project may still boot (ddev is more lenient), just
+// without resolved metadata. Every other failure (App not installed, rate
+// limit, network) throws, so callers can tell "couldn't look" from "missing".
 export async function fetchDdevConfig(
   octokit: Octokit,
   owner: string,
   repo: string,
   ref?: string,
-): Promise<DdevConfig | null> {
+): Promise<DdevConfigFile | null> {
   let content: string | null
   try {
     content = await readRepoFile(octokit, owner, repo, '.ddev/config.yaml', ref)
@@ -62,29 +38,19 @@ export async function fetchDdevConfig(
     throw e
   }
   if (content === null) return null
-  try {
-    const cfg = parse(content) as {
-      type?: string
-      webserver_type?: string
-      php_version?: string | number
-      nodejs_version?: string | number
-      database?: { type?: string, version?: string | number }
-    } | null
-    if (!cfg) return EMPTY_DDEV_CONFIG
-    return {
-      type: cfg.type ?? null,
-      webserver: cfg.webserver_type ?? 'nginx-fpm',
-      phpVersion: str(cfg.php_version),
-      dbType: cfg.database?.type ?? null,
-      dbVersion: str(cfg.database?.version),
-      nodeVersion: str(cfg.nodejs_version),
-    }
-  }
-  catch {
-    // The file exists but doesn't parse: the project can still boot (ddev may
-    // be more lenient), just without resolved metadata.
-    return EMPTY_DDEV_CONFIG
-  }
+  return parseDdevConfig(content) ?? UNPARSEABLE_DDEV_CONFIG
+}
+
+const UNPARSEABLE_DDEV_CONFIG: DdevConfigFile = {
+  generated: false,
+  type: null,
+  webserver: 'nginx-fpm',
+  hosts: [],
+  hasDb: true,
+  dbType: null,
+  dbVersion: null,
+  phpVersion: null,
+  nodeVersion: null,
 }
 
 // The Corepack `packageManager` field from a repo's `package.json` (e.g.
