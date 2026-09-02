@@ -24,6 +24,21 @@ const WEB_PIDS_LIMIT = 2048
 // Corepack; bun is added to the image when the repo uses it).
 export const DEV_DAEMON_GROUP = 'webextradaemons'
 
+// ddev mounts one host-wide cache volume into every web container and already
+// points Composer, npm and Corepack at it. These point the other package
+// managers there too, so a host downloads every package once and later
+// installs run from the cache. pnpm 9 and 10 only read the npm-style name,
+// which makes npm itself warn about an unknown option on every call, so that
+// one is reserved for repos that use pnpm.
+const DDEV_GLOBAL_CACHE = '/mnt/ddev-global-cache'
+const PACKAGE_CACHE_ENV = [
+  `pnpm_config_store_dir=${DDEV_GLOBAL_CACHE}/pnpm-store`,
+  `YARN_CACHE_FOLDER=${DDEV_GLOBAL_CACHE}/yarn`,
+  `YARN_GLOBAL_FOLDER=${DDEV_GLOBAL_CACHE}/yarn-berry`,
+  `BUN_INSTALL_CACHE_DIR=${DDEV_GLOBAL_CACHE}/bun`,
+]
+const PNPM_LEGACY_STORE_ENV = `npm_config_store_dir=${DDEV_GLOBAL_CACHE}/pnpm-store`
+
 export interface SessionEnvProject extends EnvOverrides {
   id: number
   envVars: EnvVar[]
@@ -84,10 +99,9 @@ export interface DdevConfigInput {
 // it as Knecht's: a plain `php` project with NO web server (webserver_type
 // generic: php-cli, composer and node are there, nginx/php-fpm are not started
 // for a repo that has no website), no db container, php/node pinned from the
-// resolved spec, Corepack enabled so pnpm and yarn work (the download prompt
-// is silenced through the env, nothing may wait for a TTY under supervisord),
-// bun added to the web image when the repo uses it, and ddev's settings
-// management off so it never writes framework files into the checkout.
+// resolved spec, Corepack enabled so pnpm and yarn work, bun added to the web
+// image when the repo uses it, and ddev's settings management off so it never
+// writes framework files into the checkout.
 //
 // Every project then gets the per-run overrides (`.ddev/config.knecht.yaml`,
 // `.ddev/docker-compose.knecht.yaml` and, for stacks with a db,
@@ -105,7 +119,8 @@ export interface DdevConfigInput {
 //     its URLs from the env natively renders preview links and the proxy can
 //     pass responses through untouched. In 'rewrite' mode the values go in
 //     VERBATIM and the proxy maps the two worlds per response. YAML sidesteps
-//     the comma-escaping of `ddev config --web-environment`.
+//     the comma-escaping of `ddev config --web-environment`. The package
+//     manager cache paths (PACKAGE_CACHE_ENV) follow the project's vars.
 //   - compose override: the web container joins the `knecht-ingress` network
 //     (how the preview proxy reaches it), gets the agent tools (opencode +
 //     knecht-git) bind-mounted read-only from the host tools dir, the
@@ -149,7 +164,8 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
   // covers projects whose env vars were saved before the parser stripped them.
   const environment = envVars.map(e => `${e.key}=${translate(unquote(e.value))}`)
-  if (env.source === 'generated') environment.push('COREPACK_ENABLE_DOWNLOAD_PROMPT=0')
+  environment.push(...PACKAGE_CACHE_ENV)
+  if (env.packageManager.value.name === 'pnpm') environment.push(PNPM_LEGACY_STORE_ENV)
   if (devServer !== null) {
     // KNECHT_PREVIEW_URL: the preview contract, what a Vite/Nuxt dev server
     // puts into its allowedHosts.

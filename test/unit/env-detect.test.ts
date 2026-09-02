@@ -111,6 +111,13 @@ describe('detectEnv', () => {
       expect(warnings).toEqual([expect.stringContaining('deno@2.0.0')])
     })
 
+    it('is detected for a repo with its own ddev config as well', () => {
+      const read = (path: string) => path === '.ddev/config.yaml' ? 'name: demo\n' : path === 'pnpm-lock.yaml' ? '' : null
+      const { source, fields } = detectEnv(read)
+      expect(source).toBe('ddev')
+      expect(fields.packageManager).toEqual({ value: { name: 'pnpm', version: null }, source: 'pnpm-lock.yaml' })
+    })
+
     it('finds none without a field or a lockfile', () => {
       expect(detectEnv(fixture('engines-node')).fields.packageManager).toBeUndefined()
     })
