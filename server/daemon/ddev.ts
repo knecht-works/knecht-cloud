@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
@@ -20,7 +20,8 @@ const WEB_PIDS_LIMIT = 2048
 
 // The dev server of a generated environment (projects.devServer) runs under
 // ddev's supervisord as an extra daemon, on the toolchain the ddev image
-// ships (PHP, Node at nodejs_version, Composer, npm, yarn, corepack).
+// ships (PHP, Node at nodejs_version, Composer, npm, plus pnpm and yarn via
+// Corepack; bun is added to the image when the repo uses it).
 export const DEV_DAEMON_GROUP = 'webextradaemons'
 
 export interface SessionEnvProject extends EnvOverrides {
@@ -83,8 +84,10 @@ export interface DdevConfigInput {
 // it as Knecht's: a plain `php` project with NO web server (webserver_type
 // generic: php-cli, composer and node are there, nginx/php-fpm are not started
 // for a repo that has no website), no db container, php/node pinned from the
-// resolved spec, and ddev's settings management off so it never writes
-// framework files into the checkout.
+// resolved spec, Corepack enabled so pnpm and yarn work (the download prompt
+// is silenced through the env, nothing may wait for a TTY under supervisord),
+// bun added to the web image when the repo uses it, and ddev's settings
+// management off so it never writes framework files into the checkout.
 //
 // Every project then gets the per-run overrides (`.ddev/config.knecht.yaml`,
 // `.ddev/docker-compose.knecht.yaml` and, for stacks with a db,
@@ -129,8 +132,10 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
       php_version: env.phpVersion.value,
       nodejs_version: env.nodeVersion.value,
       omit_containers: ['db'],
+      corepack_enable: true,
       disable_settings_management: true,
     })) || changed
+    changed = writeBunImageFile(ddevDir, env) || changed
   }
   const doc: {
     name: string
@@ -144,6 +149,7 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
   // covers projects whose env vars were saved before the parser stripped them.
   const environment = envVars.map(e => `${e.key}=${translate(unquote(e.value))}`)
+  if (env.source === 'generated') environment.push('COREPACK_ENABLE_DOWNLOAD_PROMPT=0')
   if (devServer !== null) {
     // KNECHT_PREVIEW_URL: the preview contract, what a Vite/Nuxt dev server
     // puts into its allowedHosts.
@@ -172,6 +178,13 @@ function syncFile(path: string, text: string): boolean {
   return true
 }
 
+// True when there was a file to remove.
+function removeFile(path: string): boolean {
+  if (!existsSync(path)) return false
+  rmSync(path)
+  return true
+}
+
 // The dev server an environment runs, or null: only generated environments
 // (a repo's own ddev config serves its site itself), and only a command
 // together with the port the preview proxy targets. The ONE gate behind the
@@ -189,6 +202,20 @@ function devServerFor(env: ResolvedEnv): { command: string, port: number } | nul
 export function devDaemonCommand(devServer: string): string {
   const inner = `bash -lc '${devServer.replace(/'/g, `'\\''`)}'`
   return inner.replace(/[\\"$`]/g, m => `\\${m}`)
+}
+
+// bun is not in ddev's web image. ddev appends every `.ddev/web-build/
+// Dockerfile.*` to the project's image build, and bun is an npm package with
+// a prebuilt binary, so one `npm install -g` line adds it; Docker caches the
+// layer, so only the first bun session on a host downloads it. A repo that
+// does not use bun loses the file from an earlier boot, so no stale layer
+// survives a switch back to npm.
+function writeBunImageFile(ddevDir: string, env: ResolvedEnv): boolean {
+  const dockerfile = join(ddevDir, 'web-build', 'Dockerfile.knecht')
+  const { name, version } = env.packageManager.value
+  if (name !== 'bun') return removeFile(dockerfile)
+  mkdirSync(join(ddevDir, 'web-build'), { recursive: true })
+  return syncFile(dockerfile, `RUN npm install -g bun@${version ?? 'latest'}\n`)
 }
 
 // ddev's db image ships a my.cnf sized for ONE comfortable dev machine

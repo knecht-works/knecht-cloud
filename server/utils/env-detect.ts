@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import semver from 'semver'
 import { parse } from 'yaml'
-import { DDEV_DEFAULT_NODE, DDEV_DEFAULT_PHP, DDEV_PHP_VERSIONS, NODE_LTS_MAJORS, type DetectedEnv, type EnvSource, type ResolvedFields } from '../../shared/utils/env-spec'
+import { DDEV_DEFAULT_NODE, DDEV_DEFAULT_PHP, DDEV_PHP_VERSIONS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type DetectedEnv, type EnvSource, type PackageManagerName, type ResolvedFields } from '../../shared/utils/env-spec'
 
 // Derive a project's environment spec (shared/utils/env-spec.ts) from the
 // files it commonly ships (ENV_DETECT_FILES). Pure: the caller supplies
@@ -29,6 +29,11 @@ export const ENV_DETECT_FILES: EnvFile[] = [
   '.tool-versions',
   '.nvmrc',
   'package.json',
+  'pnpm-lock.yaml',
+  'yarn.lock',
+  'bun.lock',
+  'bun.lockb',
+  'package-lock.json',
 ]
 
 // First line of a `.ddev/config.yaml` Knecht wrote itself (daemon/ddev.ts).
@@ -82,6 +87,8 @@ export function detectEnv(readFile: ReadFile): DetectedEnv {
   if (php) fields.phpVersion = php
   const node = detectNode(readFile, warnings)
   if (node) fields.nodeVersion = node
+  const pm = detectPackageManager(readFile, warnings)
+  if (pm) fields.packageManager = pm
   return { source: 'generated', fields, warnings }
 }
 
@@ -281,3 +288,54 @@ export function normalizeNodeConstraint(constraint: string): string | null {
   const best = semver.maxSatisfying(NODE_LTS_MAJORS.map(v => `${v}.0.0`), constraint)
   return best ? best.split('.')[0]! : null
 }
+
+// ── Package manager ────────────────────────────────────────────────────────
+
+// The lockfiles that name a package manager by their presence, in the order
+// the first one wins.
+const LOCKFILES: { source: EnvSource, name: PackageManagerName }[] = [
+  { source: 'pnpm-lock.yaml', name: 'pnpm' },
+  { source: 'yarn.lock', name: 'yarn' },
+  { source: 'bun.lock', name: 'bun' },
+  { source: 'bun.lockb', name: 'bun' },
+  { source: 'package-lock.json', name: 'npm' },
+]
+
+// The Corepack `packageManager` field (`pnpm@9.1.0`, Corepack itself appends
+// `+sha512.<hash>`, which is dropped) wins because it pins the version;
+// otherwise the lockfile says which manager wrote it. A version that is not
+// a plain semver never reaches the bun Dockerfile: the name stays, the
+// version does not.
+function detectPackageManager(readFile: ReadFile, warnings: string[]): ResolvedFields['packageManager'] | null {
+  const pkg = readFile('package.json')
+  if (pkg !== null) {
+    let field: unknown
+    try {
+      field = (JSON.parse(pkg) as { packageManager?: unknown }).packageManager
+    }
+    catch {
+      warnings.push('package.json could not be parsed, using npm')
+      field = undefined
+    }
+    if (typeof field === 'string' && field.trim()) {
+      const [name, spec] = field.trim().split('@')
+      if (!isPackageManager(name)) {
+        warnings.push(`package.json names package manager '${field}', which Knecht does not know, using npm`)
+        return null
+      }
+      let version = spec?.split('+')[0] || null
+      if (version && !semver.valid(version)) {
+        warnings.push(`package.json pins ${name} to '${spec}', which is not a version, using ${name} without a pin`)
+        version = null
+      }
+      return { value: { name, version }, source: 'package.json' }
+    }
+  }
+  for (const { source, name } of LOCKFILES) {
+    if (readFile(source) !== null) return { value: { name, version: null }, source }
+  }
+  return null
+}
+
+const isPackageManager = (name: string | undefined): name is PackageManagerName =>
+  PACKAGE_MANAGERS.includes(name as PackageManagerName)

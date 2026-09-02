@@ -65,6 +65,57 @@ describe('detectEnv', () => {
     })
   })
 
+  describe('package manager', () => {
+    it('reads name and version from the packageManager field', () => {
+      const { fields, warnings } = detectEnv(fixture('pm-field-pnpm'))
+      expect(fields.packageManager).toEqual({ value: { name: 'pnpm', version: '9.1.0' }, source: 'package.json' })
+      expect(warnings).toEqual([])
+    })
+
+    it('drops the integrity hash Corepack appends to the version', () => {
+      const { fields, warnings } = detectEnv(fixture('pm-field-hash'))
+      expect(fields.packageManager).toEqual({ value: { name: 'yarn', version: '1.22.22' }, source: 'package.json' })
+      expect(warnings).toEqual([])
+    })
+
+    it('keeps the name but not a pin that is no version', () => {
+      const { fields, warnings } = detectEnv(fixture('pm-field-bad-version'))
+      expect(fields.packageManager).toEqual({ value: { name: 'bun', version: null }, source: 'package.json' })
+      expect(warnings).toEqual([expect.stringContaining('latest')])
+    })
+
+    it('warns about a broken package.json even when Node came from another file', () => {
+      const { fields, warnings } = detectEnv(fixture('pm-broken-json'))
+      expect(fields.nodeVersion).toEqual({ value: '20', source: '.nvmrc' })
+      expect(fields.packageManager).toEqual({ value: { name: 'pnpm', version: null }, source: 'pnpm-lock.yaml' })
+      expect(warnings).toEqual(['package.json could not be parsed, using npm'])
+    })
+
+    it.each([
+      ['pm-lock-yarn', 'yarn', 'yarn.lock'],
+      ['pm-lock-bun', 'bun', 'bun.lock'],
+      ['pm-lock-npm', 'npm', 'package-lock.json'],
+    ])('%s: the lockfile names %s', (dir, expected, source) => {
+      const { fields, warnings } = detectEnv(fixture(dir))
+      expect(fields.packageManager).toEqual({ value: { name: expected, version: null }, source })
+      expect(warnings).toEqual([])
+    })
+
+    it('lets the packageManager field win over a lockfile', () => {
+      expect(detectEnv(fixture('pm-field-bun-lock-pnpm')).fields.packageManager).toEqual({ value: { name: 'bun', version: '1.2.3' }, source: 'package.json' })
+    })
+
+    it('leaves the default with a warning for a package manager Knecht does not know', () => {
+      const { fields, warnings } = detectEnv(fixture('pm-field-unknown'))
+      expect(fields.packageManager).toBeUndefined()
+      expect(warnings).toEqual([expect.stringContaining('deno@2.0.0')])
+    })
+
+    it('finds none without a field or a lockfile', () => {
+      expect(detectEnv(fixture('engines-node')).fields.packageManager).toBeUndefined()
+    })
+  })
+
   describe('.ddev/config.yaml', () => {
     it('a tracked config makes the project a ddev one: hosts, database, versions from the file', () => {
       const { source, fields, warnings } = detectEnv(fixture('ddev-tracked'))

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
-import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
+import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
 
 // The project's configuration, split off the workspace page: everything here
 // is set up once (env, database dump, persistent folders) and rarely touched
@@ -55,6 +55,9 @@ function versionItems(field: 'phpVersion' | 'nodeVersion', versions: readonly st
 }
 const phpItems = computed(() => versionItems('phpVersion', [...DDEV_PHP_VERSIONS].reverse()))
 const nodeItems = computed(() => versionItems('nodeVersion', NODE_LTS_MAJORS))
+// The package manager is read-only: the repo's package.json or lockfile is
+// the truth, and the boot commands are what call it.
+const packageManagerLabel = computed(() => `${formatPackageManager(resolvedEnv.value.packageManager.value)} (${sourceLabel(resolvedEnv.value.packageManager.source)})`)
 // Save one field right away, rolling the local value back when the PATCH
 // fails.
 async function saveField<T>(field: Ref<T>, value: T, body: Record<string, unknown>) {
@@ -582,6 +585,10 @@ async function toggleMentions() {
                 class="w-full"
                 @update:model-value="(item: { value: string | null } | undefined) => setNodeOverride(item?.value ?? null)"
               />
+            </div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="k-label">Package manager</span>
+              <span class="k-mono text-xs text-toned">{{ packageManagerLabel }}</span>
             </div>
             <div>
               <div class="mb-1.5 flex items-center justify-between gap-3">

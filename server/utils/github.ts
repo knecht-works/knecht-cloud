@@ -3,8 +3,10 @@ import { ENV_DETECT_FILES, type ReadFile } from './env-detect'
 import { FAVICON_MAX_BYTES, FAVICON_MIME_BY_EXT } from './favicon'
 
 // A repo file's text content via the contents API. Returns null when the path
-// isn't a file or the response has no inline content; throws when the file is
-// missing (callers catch, matching the getContent 404).
+// isn't a file; throws when the file is missing (callers catch, matching the
+// getContent 404). A file over 1 MB comes back without inline content and
+// reads as an empty string: it exists, which is all a lockfile has to say
+// (env-detect.ts), and the JSON callers fail on it like on any broken file.
 async function readRepoFile(
   octokit: Octokit,
   owner: string,
@@ -13,7 +15,8 @@ async function readRepoFile(
   ref?: string,
 ): Promise<string | null> {
   const { data } = await octokit.rest.repos.getContent({ owner, repo, path, ref })
-  if (Array.isArray(data) || data.type !== 'file' || !('content' in data) || !data.content) return null
+  if (Array.isArray(data) || data.type !== 'file') return null
+  if (!('content' in data) || !data.content) return ''
   return Buffer.from(data.content, 'base64').toString('utf8')
 }
 

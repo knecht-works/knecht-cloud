@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -89,6 +89,27 @@ describe('configureSessionEnv', () => {
     expect(env.previewPort).toEqual({ value: 3000, source: 'setting' })
     expect(devServerPort).toBe(3000)
     expect(ddevTree(dir)).toMatchSnapshot()
+  })
+
+  it('generated-with-bun: the repo\'s bun goes into the web image at the pinned version', () => {
+    const dir = repo({ 'package.json': '{ "packageManager": "bun@1.2.3" }', 'bun.lock': '{}' })
+    const { env } = configureSessionEnv(dir, project(), 42, 'env')
+    expect(env.packageManager).toEqual({ value: { name: 'bun', version: '1.2.3' }, source: 'package.json' })
+    expect(ddevTree(dir)).toMatchSnapshot()
+  })
+
+  it('bun without a pinned version installs latest, and the image file goes away when the repo stops using bun', () => {
+    const dir = repo({ 'bun.lock': '{}' })
+    configureSessionEnv(dir, project(), 42, 'env')
+    const dockerfile = join(dir, '.ddev', 'web-build', 'Dockerfile.knecht')
+    expect(readFileSync(dockerfile, 'utf8')).toBe('RUN npm install -g bun@latest\n')
+    expect(configureSessionEnv(dir, project(), 42, 'env').changed).toBe(false)
+    rmSync(join(dir, 'bun.lock'))
+    writeFileSync(join(dir, 'pnpm-lock.yaml'), '')
+    const { env, changed } = configureSessionEnv(dir, project(), 42, 'env')
+    expect(env.packageManager).toEqual({ value: { name: 'pnpm', version: null }, source: 'pnpm-lock.yaml' })
+    expect(changed).toBe(true)
+    expect(existsSync(dockerfile)).toBe(false)
   })
 
   it('a dev server without a port, a port without a command, or a repo with its own ddev config: no daemon, no port', () => {
