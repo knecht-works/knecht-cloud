@@ -65,6 +65,11 @@ export function detectEnv(readFile: ReadFile): DetectedEnv {
   const warnings: string[] = []
   const fields: Partial<ResolvedFields> = {}
 
+  // The repo's package manager, whoever provides the ddev config: the boot
+  // points its store at the host cache (daemon/ddev.ts) for every project.
+  const pm = detectPackageManager(readFile, warnings)
+  if (pm) fields.packageManager = pm
+
   const ddev = readFile('.ddev/config.yaml')
   if (repoShipsDdevConfig(ddev)) {
     // The repo's own config: Knecht never writes over a file it did not
@@ -87,8 +92,6 @@ export function detectEnv(readFile: ReadFile): DetectedEnv {
   if (php) fields.phpVersion = php
   const node = detectNode(readFile, warnings)
   if (node) fields.nodeVersion = node
-  const pm = detectPackageManager(readFile, warnings)
-  if (pm) fields.packageManager = pm
   return { source: 'generated', fields, warnings }
 }
 

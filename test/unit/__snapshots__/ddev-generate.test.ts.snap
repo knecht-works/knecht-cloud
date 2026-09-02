@@ -7,6 +7,10 @@ name: knecht-run-7
 web_environment:
   - PRIMARY_SITE_URL=http://7.preview.knecht.test
   - X=1
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
 
 === .ddev/config.yaml ===
 name: demo
@@ -43,7 +47,10 @@ exports[`configureSessionEnv > generated-plain: a repo without anything gets a h
 #ddev-silent-no-warn
 name: knecht-run-42
 web_environment:
-  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
 
 === .ddev/config.yaml ===
 #knecht-generated
@@ -77,7 +84,10 @@ exports[`configureSessionEnv > generated-with-bun: the repo's bun goes into the 
 #ddev-silent-no-warn
 name: knecht-run-42
 web_environment:
-  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
 
 === .ddev/config.yaml ===
 #knecht-generated
@@ -118,7 +128,10 @@ web_extra_daemons:
     command: bash -lc 'npm run dev'
     directory: /var/www/html
 web_environment:
-  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
   - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
 
 === .ddev/config.yaml ===
@@ -154,7 +167,10 @@ exports[`configureSessionEnv > generated-with-versions: detected versions and an
 name: knecht-run-42
 web_environment:
   - APP_ENV=dev
-  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
 
 === .ddev/config.yaml ===
 #knecht-generated

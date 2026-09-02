@@ -26,6 +26,14 @@ function checkout(configYaml?: string): string {
   return dir
 }
 
+// The package manager caches every run shares on the host (daemon/ddev.ts).
+const cacheEnv = [
+  'pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store',
+  'YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn',
+  'YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry',
+  'BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun',
+]
+
 describe('writeDdevConfig', () => {
   it('renames the project per run and injects env vars with one quote layer stripped', () => {
     const dir = checkout()
@@ -46,6 +54,7 @@ describe('writeDdevConfig', () => {
       'PRIMARY_SITE_URL=https://demo.ddev.site',
       'PLAIN=value',
       'HALF="unbalanced',
+      ...cacheEnv,
     ])
   })
 
@@ -70,6 +79,7 @@ describe('writeDdevConfig', () => {
         'ALPHA_SITE_URL=http://alpha--7.preview.lvh.me:3333/en',
         'COOKIE_DOMAIN=7.preview.lvh.me',
         'OTHER=https://example.com/x',
+        ...cacheEnv,
       ])
     }
     finally {
@@ -77,11 +87,11 @@ describe('writeDdevConfig', () => {
     }
   })
 
-  it('omits web_environment entirely without env vars', () => {
+  it('writes only the cache paths without env vars', () => {
     const dir = checkout()
     expect(writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' }).injected).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
-    expect(doc.web_environment).toBeUndefined()
+    expect(doc.web_environment).toEqual(cacheEnv)
   })
 
   it('writes the compose override: ingress network and resource caps', () => {

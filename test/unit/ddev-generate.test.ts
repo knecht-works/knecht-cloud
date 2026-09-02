@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { parse } from 'yaml'
 import { configureSessionEnv, devDaemonCommand, readDdevConfig } from '../../server/daemon/ddev'
 import type { SessionEnvProject } from '../../server/daemon/ddev'
 
@@ -110,6 +111,17 @@ describe('configureSessionEnv', () => {
     expect(env.packageManager).toEqual({ value: { name: 'pnpm', version: null }, source: 'pnpm-lock.yaml' })
     expect(changed).toBe(true)
     expect(existsSync(dockerfile)).toBe(false)
+  })
+
+  it('a repo using pnpm also gets the npm-style store path pnpm 9 and 10 read, other repos do not', () => {
+    const readEnv = (dir: string) => parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8')).web_environment as string[]
+    const pnpm = repo({ 'pnpm-lock.yaml': '' })
+    configureSessionEnv(pnpm, project(), 42, 'env')
+    expect(readEnv(pnpm)).toContain('npm_config_store_dir=/mnt/ddev-global-cache/pnpm-store')
+    const npm = repo({ 'package-lock.json': '{}' })
+    configureSessionEnv(npm, project(), 42, 'env')
+    expect(readEnv(npm)).not.toContain('npm_config_store_dir=/mnt/ddev-global-cache/pnpm-store')
+    expect(readEnv(npm)).toContain('pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store')
   })
 
   it('a dev server without a port, a port without a command, or a repo with its own ddev config: no daemon, no port', () => {
