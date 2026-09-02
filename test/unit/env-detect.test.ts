@@ -91,7 +91,8 @@ describe('detectEnv', () => {
     it('keeps an unparseable tracked config a ddev project, with a warning and nothing else', () => {
       const { source, fields, warnings } = detectEnv(fixture('ddev-broken'))
       expect(source).toBe('ddev')
-      expect(fields).toEqual({})
+      // ddev's own default stands in for the unreadable file.
+      expect(fields).toEqual({ hasDb: { value: true, source: '.ddev/config.yaml' } })
       expect(warnings).toEqual([expect.stringContaining('.ddev/config.yaml could not be parsed')])
     })
   })

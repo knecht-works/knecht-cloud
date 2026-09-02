@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type DetectedEnv, type EnvOverrides, formatEnvSummary, resolveEnv, sourceLabel } from '../../shared/utils/env-spec'
+import { type DetectedEnv, type EnvOverrides, formatEnvSummary, projectDetectedEnv, resolveEnv, sourceLabel } from '../../shared/utils/env-spec'
 
 const none: EnvOverrides = { phpVersion: null, nodeVersion: null, devServer: null, previewPort: null }
 
@@ -85,5 +85,19 @@ describe('sourceLabel', () => {
     expect(sourceLabel('default')).toBe('default')
     expect(sourceLabel('setting')).toBe('from setting')
     expect(sourceLabel('composer.json')).toBe('from composer.json')
+  })
+})
+
+describe('projectDetectedEnv', () => {
+  it('hands back the stored detection', () => {
+    expect(projectDetectedEnv({ detected: generated })).toBe(generated)
+  })
+
+  it('treats rows from before detection existed as ddev projects with a database', () => {
+    for (const env of [null, undefined, {}]) {
+      const detected = projectDetectedEnv(env)
+      expect(detected.source).toBe('ddev')
+      expect(resolveEnv(detected, none).hasDb.value).toBe(true)
+    }
   })
 })

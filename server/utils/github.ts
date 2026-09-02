@@ -1,5 +1,5 @@
 import type { Octokit } from 'octokit'
-import { parseDdevConfig, type DdevConfigFile } from './env-detect'
+import { ENV_DETECT_FILES, type ReadFile } from './env-detect'
 import { FAVICON_MAX_BYTES, FAVICON_MIME_BY_EXT } from './favicon'
 
 // A repo file's text content via the contents API. Returns null when the path
@@ -17,40 +17,27 @@ async function readRepoFile(
   return Buffer.from(data.content, 'base64').toString('utf8')
 }
 
-// The parsed config (utils/env-detect.ts parseDdevConfig), or null when the
-// repo has no `.ddev/config.yaml` on the ref (a definite 404, or the path
-// isn't a readable file). A file that exists but does not parse yields the
-// empty shape: the project may still boot (ddev is more lenient), just
-// without resolved metadata. Every other failure (App not installed, rate
-// limit, network) throws, so callers can tell "couldn't look" from "missing".
-export async function fetchDdevConfig(
+// A `ReadFile` (utils/env-detect.ts) over a repo ref: the files detection
+// may look at are fetched up front, concurrently, so detectEnv stays
+// synchronous and runs the same code as on a checkout. Missing files read as
+// null; every other failure (App not installed, rate limit, network)
+// rejects, so callers can tell "couldn't look" from "the repo has none".
+export async function repoReader(
   octokit: Octokit,
   owner: string,
   repo: string,
   ref?: string,
-): Promise<DdevConfigFile | null> {
-  let content: string | null
-  try {
-    content = await readRepoFile(octokit, owner, repo, '.ddev/config.yaml', ref)
-  }
-  catch (e) {
-    if ((e as { status?: number }).status === 404) return null
-    throw e
-  }
-  if (content === null) return null
-  return parseDdevConfig(content) ?? UNPARSEABLE_DDEV_CONFIG
-}
-
-const UNPARSEABLE_DDEV_CONFIG: DdevConfigFile = {
-  generated: false,
-  type: null,
-  webserver: 'nginx-fpm',
-  hosts: [],
-  hasDb: true,
-  dbType: null,
-  dbVersion: null,
-  phpVersion: null,
-  nodeVersion: null,
+): Promise<ReadFile> {
+  const files = new Map(await Promise.all(ENV_DETECT_FILES.map(async (path): Promise<[string, string | null]> => {
+    try {
+      return [path, await readRepoFile(octokit, owner, repo, path, ref)]
+    }
+    catch (e) {
+      if ((e as { status?: number }).status === 404) return [path, null]
+      throw e
+    }
+  })))
+  return path => files.get(path) ?? null
 }
 
 // The Corepack `packageManager` field from a repo's `package.json` (e.g.

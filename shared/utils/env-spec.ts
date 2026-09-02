@@ -76,6 +76,12 @@ export interface EnvOverrides {
 export const DDEV_PHP_VERSIONS = ['5.6', '7.0', '7.1', '7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4'] as const
 export const DDEV_DEFAULT_PHP = '8.4'
 export const DDEV_DEFAULT_NODE = '22'
+// The Node majors offered as overrides and resolved from open-ended
+// constraints (`engines.node: >=20`): the LTS lines, newest first.
+export const NODE_LTS_MAJORS = ['24', '22', '20', '18'] as const
+
+// A Node override as ddev's `nodejs_version` takes it: major or major.minor.
+export const NODE_VERSION_PATTERN = /^\d+(\.\d+)?$/
 
 export const ENV_DEFAULTS: EnvSpec = {
   phpVersion: DDEV_DEFAULT_PHP,
@@ -84,6 +90,18 @@ export const ENV_DEFAULTS: EnvSpec = {
   hosts: [],
   devServer: null,
   previewPort: null,
+}
+
+// The detection stored on a project at connect time (projects.ddevEnv),
+// which is what the settings card and every "does this project have a
+// database / a preview" question resolve against. Rows resolved before
+// detection existed were all ddev projects with a database.
+export function projectDetectedEnv(env: { detected?: DetectedEnv } | null | undefined): DetectedEnv {
+  return env?.detected ?? {
+    source: 'ddev',
+    fields: { hasDb: { value: true, source: '.ddev/config.yaml' } },
+    warnings: [],
+  }
 }
 
 // Setting > detection > default. For a 'ddev' project the overrides are
