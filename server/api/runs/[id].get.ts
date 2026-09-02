@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { runSessionColumns } from '../../utils/run-view'
+import { runSessionColumns, withPreviewTarget } from '../../utils/run-view'
 
 // GET /api/runs/:id → a single run incl. its log, for the detail page's poll.
 export default defineEventHandler((event) => {
@@ -40,5 +40,5 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 404, statusMessage: 'Run not found' })
   }
 
-  return run
+  return withPreviewTarget(run)
 })

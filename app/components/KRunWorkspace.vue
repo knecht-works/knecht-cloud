@@ -469,67 +469,45 @@ usePollWhile(() => isLive.value || followupActive.value, () => Promise.all([
       </div>
     </div>
 
-    <!-- The preview anchors the workspace whenever the workflow boots an env;
-         a workflow without a boot step gets no preview frame at all. While it
-         is offline, the env's lifecycle state (stopped/archived/gone) renders
-         inside the frame with its revival action instead of a separate card. -->
+    <!-- The preview anchors the workspace whenever the workflow boots an env
+         that serves something (a repo with its own ddev config, or a dev
+         server on a preview port); a workflow without a boot step gets no
+         preview frame at all. While it is offline, the env's lifecycle state
+         (stopped/archived/gone) renders inside the frame with its revival
+         action instead of a separate card. -->
     <KPreviewBrowser
-      v-if="hasBootStep"
+      v-if="hasBootStep && run.hasPreviewTarget"
       :session-id="run.sessionId"
       :hosts="run.previewHosts ?? []"
       :online="previewOnline"
       :booting="isLive"
     >
-      <template v-if="run.envState === 'stopped'">
-        <p class="max-w-100 text-2sm text-muted">
-          The environment is stopped. Reboot it to preview again.
-        </p>
-        <UButton
-          color="primary"
-          label="Reboot"
-          icon="i-lucide-power"
-          :loading="rebooting"
-          @click="reboot"
-        />
-      </template>
-      <template v-else-if="run.envState === 'archived'">
-        <p class="max-w-100 text-2sm text-muted">
-          This environment was archived. Its exact code state and database are kept,
-          and restoring rebuilds it in a few minutes.
-        </p>
-        <UButton
-          color="primary"
-          label="Restore"
-          icon="i-lucide-archive-restore"
-          :loading="rebooting"
-          @click="reboot"
-        />
-      </template>
-      <template v-else-if="run.envState === 'down'">
-        <p class="max-w-100 text-2sm text-muted">
-          This run's environment and its archive are gone, so there is nothing left to
-          restore. Run the workflow again to get a fresh environment.
-        </p>
-        <UTooltip
-          text="The workflow was deleted"
-          :disabled="!!run.workflowId"
-        >
-          <UButton
-            color="primary"
-            label="Run again"
-            icon="i-lucide-play"
-            :loading="restarting"
-            :disabled="!run.workflowId"
-            @click="runAgain"
-          />
-        </UTooltip>
-      </template>
-      <template v-else>
-        <p class="max-w-70 text-2sm text-muted">
-          The boot step didn't finish, so this run has no preview. Retry the run to boot it.
-        </p>
-      </template>
+      <KEnvLifecycle
+        :env-state="run.envState"
+        :workflow-id="run.workflowId"
+        :reviving="rebooting"
+        :restarting="restarting"
+        @revive="reboot"
+        @run-again="runAgain"
+      />
     </KPreviewBrowser>
+    <!-- A headless environment (nothing to browse) still walks the same
+         lifecycle: its revival action gets a plain card instead of a frame,
+         and nothing at all while it is up (the terminal and the IDE are in
+         the header). -->
+    <div
+      v-else-if="hasBootStep && run.envState !== 'up' && !isLive"
+      class="k-card flex flex-col items-center gap-3 p-5 text-center"
+    >
+      <KEnvLifecycle
+        :env-state="run.envState"
+        :workflow-id="run.workflowId"
+        :reviving="rebooting"
+        :restarting="restarting"
+        @revive="reboot"
+        @run-again="runAgain"
+      />
+    </div>
 
     <div
       v-if="run.status === 'failed'"

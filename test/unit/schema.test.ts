@@ -13,6 +13,12 @@ describe('parseWorkflow (YAML authoring sugar)', () => {
     expect(steps[1]).toMatchObject({ type: 'ddev-start', commands: expect.stringContaining('composer install') })
   })
 
+  it('accepts `boot` as an alias for ddev-start in both forms', () => {
+    const { steps } = parseWorkflow('name: b\nsteps:\n  - boot\n  - boot:\n      commands: npm ci\n')
+    expect(steps[0]).toMatchObject({ type: 'ddev-start' })
+    expect(steps[1]).toMatchObject({ type: 'ddev-start', commands: 'npm ci' })
+  })
+
   it('maps bash continue-on-error onto the step error policy', () => {
     expect(steps[2]).toMatchObject({ type: 'bash', command: 'echo hello', continueOnError: true })
   })

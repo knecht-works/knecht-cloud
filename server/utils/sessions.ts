@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
-import { previewOrigin } from './origin'
+import { sessionPreviewUrl } from './preview-target'
 
 // Session resolution (ADR 0006): an object (GitHub issue or PR) has at most
 // ONE session per project, forever; every trigger firing and mention on the
@@ -109,7 +109,7 @@ export function withSessionLinks(text: string, sessionId: number): string {
   const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
   if (!session) return text
   const links: string[] = []
-  const preview = session.previewReady ? previewOrigin(sessionId) : null
+  const preview = sessionPreviewUrl(session)
   if (preview) links.push(`**Preview:** ${preview}`)
   if (session.objectKind !== 'pull_request') {
     const run = db

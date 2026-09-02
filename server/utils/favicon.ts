@@ -4,6 +4,8 @@ import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import { readDdevHosts } from '../daemon/ddev'
 import { resolvePreview } from '../daemon/sandbox'
+import { getSessionRow } from './entities'
+import { sessionPreviewUrl } from './preview-target'
 import { sessionCheckoutDir } from './storage'
 
 // Fallback favicon source for projects whose repo scan found none: once a
@@ -32,10 +34,15 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
   if (project.favicon) return
   try {
     const addr = await resolvePreview(sessionId)
-    const hosts = readDdevHosts(sessionCheckoutDir(sessionId))
-    if (!addr || !hosts.primary) return
+    const session = getSessionRow(sessionId)
+    const preview = session && sessionPreviewUrl(session)
+    if (!addr || !preview) return
+    // The site's own hostname; a generated environment has none, its dev
+    // server answers to the preview host on the session's pinned port.
+    const port = session.previewPort ?? 80
+    const primary = readDdevHosts(sessionCheckoutDir(sessionId)).primary ?? new URL(preview).host
 
-    const page = await fetchFrom(addr, hosts.primary, '/', MAX_HTML_BYTES)
+    const page = await fetchFrom(addr, port, primary, '/', MAX_HTML_BYTES)
     const href = page ? iconHref(page.body.toString('utf8')) : null
 
     // A head that inlines its icon as a data URI is already what we store.
@@ -46,8 +53,8 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
     // connects to its address, the hostname only becomes the Host header): a
     // canonical domain the site serves in rewrite mode works, and a CDN host
     // the container doesn't serve just fails the fetch or the image check.
-    const iconUrl = new URL(href ?? '/favicon.ico', `http://${hosts.primary}/`)
-    const icon = await fetchFrom(addr, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
+    const iconUrl = new URL(href ?? '/favicon.ico', `http://${primary}/`)
+    const icon = await fetchFrom(addr, port, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
     if (!icon?.body.byteLength) return
     const mime = icon.contentType?.split(';')[0]?.trim()
       || FAVICON_MIME_BY_EXT[iconUrl.pathname.split('.').pop()?.toLowerCase() ?? '']
@@ -82,12 +89,13 @@ function iconHref(html: string): string | null {
   return appleTouch
 }
 
-// GET a path from the run's web container (plain HTTP on :80, the Host header
-// selects the site, exactly like the preview proxy). Follows same-project
-// redirects a few hops (e.g. / → /en/); resolves null on errors, 4xx/5xx or
-// oversized bodies instead of throwing.
+// GET a path from the run's web container (plain HTTP on the preview port,
+// the Host header selects the site, exactly like the preview proxy). Follows
+// same-project redirects a few hops (e.g. / → /en/); resolves null on errors,
+// 4xx/5xx or oversized bodies instead of throwing.
 async function fetchFrom(
   addr: string,
+  port: number,
   host: string,
   path: string,
   maxBytes: number,
@@ -95,7 +103,7 @@ async function fetchFrom(
 ): Promise<{ body: Buffer, contentType: string | null } | null> {
   const res = await new Promise<{ body: Buffer, contentType: string | null, location: string | null } | null>((resolve) => {
     const req = request(
-      { host: addr, port: 80, path, headers: { host, accept: '*/*' }, timeout: 10_000 },
+      { host: addr, port, path, headers: { host, accept: '*/*' }, timeout: 10_000 },
       (up) => {
         const status = up.statusCode ?? 500
         const location = status >= 300 && status < 400 ? String(up.headers.location ?? '') || null : null
@@ -128,10 +136,10 @@ async function fetchFrom(
   if (!res) return null
   if (res.location && hops > 0) {
     // The redirect target may be absolute (the site's own host, whatever the
-    // scheme) or relative; either way the sandbox serves it on :80.
+    // scheme) or relative; either way the sandbox serves it on the same port.
     try {
       const url = new URL(res.location, `http://${host}${path}`)
-      return fetchFrom(addr, url.hostname, `${url.pathname}${url.search}`, maxBytes, hops - 1)
+      return fetchFrom(addr, port, url.hostname, `${url.pathname}${url.search}`, maxBytes, hops - 1)
     }
     catch {
       return null
