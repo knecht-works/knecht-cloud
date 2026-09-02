@@ -30,10 +30,27 @@ export type EnvSource
     | '.tool-versions'
     | '.nvmrc'
     | 'package.json'
+    | 'pnpm-lock.yaml'
+    | 'yarn.lock'
+    | 'bun.lock'
+    | 'bun.lockb'
+    | 'package-lock.json'
+
+// The Node package manager a repo uses. npm, pnpm and yarn come with the ddev
+// web image (pnpm and yarn via Corepack); bun is installed into the image on
+// demand (daemon/ddev.ts). The version is what `packageManager` in
+// package.json pins, if anything.
+export type PackageManagerName = 'npm' | 'pnpm' | 'yarn' | 'bun'
+export const PACKAGE_MANAGERS: readonly PackageManagerName[] = ['npm', 'pnpm', 'yarn', 'bun']
+export interface PackageManager {
+  name: PackageManagerName
+  version: string | null
+}
 
 export interface EnvSpec {
   phpVersion: string // ddev php_version, e.g. '8.2'
   nodeVersion: string // ddev nodejs_version: major or major.minor
+  packageManager: PackageManager // read from the repo, never overridden
   hasDb: boolean // whether the stack has a db container
   hosts: string[] // hostnames the repo's ddev config serves, primary first
   devServer: string | null // a command that serves the app, e.g. 'npm run dev' (generated only)
@@ -86,6 +103,7 @@ export const NODE_VERSION_PATTERN = /^\d+(\.\d+)?$/
 export const ENV_DEFAULTS: EnvSpec = {
   phpVersion: DDEV_DEFAULT_PHP,
   nodeVersion: DDEV_DEFAULT_NODE,
+  packageManager: { name: 'npm', version: null },
   hasDb: false,
   hosts: [],
   devServer: null,
@@ -118,6 +136,7 @@ export function resolveEnv(detected: DetectedEnv, overrides: EnvOverrides): Reso
     source: detected.source,
     phpVersion: override('phpVersion'),
     nodeVersion: override('nodeVersion'),
+    packageManager: detect('packageManager'),
     hasDb: detect('hasDb'),
     hosts: detect('hosts'),
     devServer: override('devServer'),
@@ -131,9 +150,15 @@ export function sourceLabel(source: EnvSource): string {
   return source === 'default' ? 'default' : `from ${source}`
 }
 
+// "pnpm 9.1.0" or just "pnpm": the package manager with the version the repo
+// pins, as the run log and the settings card show it.
+export function formatPackageManager({ name, version }: PackageManager): string {
+  return version ? `${name} ${version}` : name
+}
+
 // One line describing the environment a session boots with, for the run log
 // next to the environment name:
-//   generated: PHP 8.2 from composer.json, Node 22 from .nvmrc, no database, no dev server
+//   generated: PHP 8.2 from composer.json, Node 22 from .nvmrc, pnpm from pnpm-lock.yaml, no database, no dev server
 //   from .ddev/config.yaml: hosts demo.ddev.site, alpha.ddev.site
 export function formatEnvSummary(env: ResolvedEnv): string {
   if (env.source === 'ddev') {
@@ -146,6 +171,7 @@ export function formatEnvSummary(env: ResolvedEnv): string {
   return [
     `generated: PHP ${env.phpVersion.value} ${sourceLabel(env.phpVersion.source)}`,
     `Node ${env.nodeVersion.value} ${sourceLabel(env.nodeVersion.source)}`,
+    `${formatPackageManager(env.packageManager.value)} ${sourceLabel(env.packageManager.source)}`,
     env.hasDb.value ? 'database' : 'no database',
     devServer,
   ].join(', ')

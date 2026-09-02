@@ -42,6 +42,8 @@ exports[`configureSessionEnv > generated-plain: a repo without anything gets a h
 "=== .ddev/config.knecht.yaml ===
 #ddev-silent-no-warn
 name: knecht-run-42
+web_environment:
+  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 === .ddev/config.yaml ===
 #knecht-generated
@@ -53,6 +55,7 @@ php_version: "8.4"
 nodejs_version: "22"
 omit_containers:
   - db
+corepack_enable: true
 disable_settings_management: true
 
 === .ddev/docker-compose.knecht.yaml ===
@@ -69,6 +72,43 @@ networks:
 "
 `;
 
+exports[`configureSessionEnv > generated-with-bun: the repo's bun goes into the web image at the pinned version 1`] = `
+"=== .ddev/config.knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-42
+web_environment:
+  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
+=== .ddev/config.yaml ===
+#knecht-generated
+name: knecht-run-42
+type: php
+docroot: ""
+webserver_type: generic
+php_version: "8.4"
+nodejs_version: "22"
+omit_containers:
+  - db
+corepack_enable: true
+disable_settings_management: true
+
+=== .ddev/docker-compose.knecht.yaml ===
+#ddev-silent-no-warn
+services:
+  web:
+    mem_limit: 2g
+    pids_limit: 2048
+    networks:
+      knecht-ingress: {}
+networks:
+  knecht-ingress:
+    external: true
+
+=== .ddev/web-build/Dockerfile.knecht ===
+RUN npm install -g bun@1.2.3
+"
+`;
+
 exports[`configureSessionEnv > generated-with-devserver: the daemon and the preview env 1`] = `
 "=== .ddev/config.knecht.yaml ===
 #ddev-silent-no-warn
@@ -78,6 +118,7 @@ web_extra_daemons:
     command: bash -lc 'npm run dev'
     directory: /var/www/html
 web_environment:
+  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
   - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
 
 === .ddev/config.yaml ===
@@ -90,6 +131,7 @@ php_version: "8.4"
 nodejs_version: "22"
 omit_containers:
   - db
+corepack_enable: true
 disable_settings_management: true
 
 === .ddev/docker-compose.knecht.yaml ===
@@ -112,6 +154,7 @@ exports[`configureSessionEnv > generated-with-versions: detected versions and an
 name: knecht-run-42
 web_environment:
   - APP_ENV=dev
+  - COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 
 === .ddev/config.yaml ===
 #knecht-generated
@@ -123,6 +166,7 @@ php_version: "8.2"
 nodejs_version: "20"
 omit_containers:
   - db
+corepack_enable: true
 disable_settings_management: true
 
 === .ddev/docker-compose.knecht.yaml ===
