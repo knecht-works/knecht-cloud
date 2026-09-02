@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
 import { resolveEnv, type EnvOverrides, type ResolvedEnv } from '../../shared/utils/env-spec'
 import { previewHostname, previewLabel } from '../../shared/utils/preview-host'
 import { checkoutReader, detectEnv, GENERATED_MARKER, parseDdevConfig, type DdevConfigFile } from '../utils/env-detect'
-import { dashboardOrigin } from '../utils/origin'
+import { dashboardOrigin, previewOrigin } from '../utils/origin'
 import { normalizeSharedFolder, projectSharedDir, sessionSandboxName, toolsDir } from '../utils/storage'
 import { WEB_PROJECT_DIR } from './sandbox'
 
@@ -18,6 +18,11 @@ const WEB_MEM_LIMIT = '2g'
 const DB_MEM_LIMIT = '1g'
 const WEB_PIDS_LIMIT = 2048
 
+// The dev server of a generated environment (projects.devServer) runs under
+// ddev's supervisord as an extra daemon, on the toolchain the ddev image
+// ships (PHP, Node at nodejs_version, Composer, npm, yarn, corepack).
+export const DEV_DAEMON_GROUP = 'webextradaemons'
+
 export interface SessionEnvProject extends EnvOverrides {
   id: number
   envVars: EnvVar[]
@@ -29,19 +34,33 @@ export interface SessionEnvProject extends EnvOverrides {
 // (first run, reboot, restore): detection runs against the checkout every
 // time and nothing about the spec is stored, so the checkout and the settings
 // stay the only truth (a committed `.ddev/config.yaml` takes over on the next
-// boot). Returns the resolved env for the run log, the detectors' warnings
-// and how many env vars were injected.
-export function configureSessionEnv(checkoutDir: string, project: SessionEnvProject, sessionId: number, urlMode: UrlMode): { env: ResolvedEnv, warnings: string[], injected: number } {
+// boot). Returns the resolved env for the run log, the detectors' warnings,
+// how many env vars were injected, the port a dev server daemon was
+// actually written for (null: none), and whether any of the files differ
+// from what the checkout had before (so a caller with a running container
+// knows it was built from an older definition). The caller pins the port on
+// the session right away: the preview proxy and the boot's restart read the
+// pin live, and it must describe the container that was just built, not a
+// setting from an earlier boot.
+export interface SessionEnvResult {
+  env: ResolvedEnv
+  warnings: string[]
+  injected: number
+  devServerPort: number | null
+  changed: boolean
+}
+
+export function configureSessionEnv(checkoutDir: string, project: SessionEnvProject, sessionId: number, urlMode: UrlMode): SessionEnvResult {
   const detected = detectEnv(checkoutReader(checkoutDir))
   const env = resolveEnv(detected, project)
-  const injected = writeDdevConfig(checkoutDir, {
+  const written = writeDdevConfig(checkoutDir, {
     sessionId,
     env,
     envVars: project.envVars,
     urlMode,
     shared: { projectId: project.id, folders: project.sharedFolders },
   })
-  return { env, warnings: detected.warnings, injected }
+  return { env, warnings: detected.warnings, ...written }
 }
 
 export interface SharedFolderConfig {
@@ -92,13 +111,18 @@ export interface DdevConfigInput {
 // The hostnames and the URLs in the env vars stay exactly as the repo ships
 // them; the preview proxy maps the project's own hostnames to per-run preview
 // origins instead of touching the project. Returns how many env vars were
-// written.
-export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, urlMode, shared }: DdevConfigInput): number {
+// written, the dev server's port when its daemon was written, and whether
+// any file differs from the checkout's previous state (every write below
+// goes through syncFile/removeFile, which only touch a file that differs).
+export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, urlMode, shared }: DdevConfigInput): Pick<SessionEnvResult, 'injected' | 'devServerPort' | 'changed'> {
   const ddevDir = join(checkoutDir, '.ddev')
+  const name = sessionSandboxName(sessionId)
+  const devServer = devServerFor(env)
+  let changed = false
   if (env.source === 'generated') {
     mkdirSync(ddevDir, { recursive: true })
-    writeFileSync(join(ddevDir, 'config.yaml'), `${GENERATED_MARKER}\n` + stringify({
-      name: sessionSandboxName(sessionId),
+    changed = syncFile(join(ddevDir, 'config.yaml'), `${GENERATED_MARKER}\n` + stringify({
+      name,
       type: 'php',
       docroot: '',
       webserver_type: 'generic',
@@ -106,28 +130,65 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
       nodejs_version: env.nodeVersion.value,
       omit_containers: ['db'],
       disable_settings_management: true,
-    }))
+    })) || changed
   }
   const doc: {
     name: string
     web_environment?: string[]
-  } = { name: sessionSandboxName(sessionId) }
-  if (envVars.length) {
-    const translate = urlMode === 'env'
-      ? envUrlTranslator(env.hosts.value, sessionId)
-      : (v: string) => v
-    // Strip a layer of surrounding quotes: a value like `"https://x"` (quotes
-    // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
-    // covers projects whose env vars were saved before the parser stripped them.
-    doc.web_environment = envVars.map(e => `${e.key}=${translate(unquote(e.value))}`)
+    web_extra_daemons?: { name: string, command: string, directory: string }[]
+  } = { name }
+  const translate = urlMode === 'env'
+    ? envUrlTranslator(env.hosts.value, sessionId)
+    : (v: string) => v
+  // Strip a layer of surrounding quotes: a value like `"https://x"` (quotes
+  // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
+  // covers projects whose env vars were saved before the parser stripped them.
+  const environment = envVars.map(e => `${e.key}=${translate(unquote(e.value))}`)
+  if (devServer !== null) {
+    // KNECHT_PREVIEW_URL: the preview contract, what a Vite/Nuxt dev server
+    // puts into its allowedHosts.
+    const preview = previewOrigin(sessionId)
+    if (preview) environment.push(`KNECHT_PREVIEW_URL=${preview}`)
+    doc.web_extra_daemons = [{ name: 'dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR }]
   }
+  if (environment.length) doc.web_environment = environment
   // The marker comment silences ddev's "custom configuration detected"
   // warning, which would otherwise open every run log.
   const marker = '#ddev-silent-no-warn\n'
-  writeFileSync(join(ddevDir, 'config.knecht.yaml'), marker + stringify(doc))
-  writeFileSync(join(ddevDir, 'docker-compose.knecht.yaml'), marker + stringify(composeOverride(env.hasDb.value, shared ? sharedFolderMounts(shared) : [])))
-  if (env.hasDb.value) writeLowmemDbConfig(checkoutDir, marker)
-  return envVars.length
+  changed = syncFile(join(ddevDir, 'config.knecht.yaml'), marker + stringify(doc)) || changed
+  changed = syncFile(join(ddevDir, 'docker-compose.knecht.yaml'), marker + stringify(composeOverride({
+    hasDb: env.hasDb.value,
+    sharedMounts: shared ? sharedFolderMounts(shared) : [],
+  }))) || changed
+  if (env.hasDb.value) changed = writeLowmemDbConfig(checkoutDir, marker) || changed
+  return { injected: envVars.length, devServerPort: devServer?.port ?? null, changed }
+}
+
+// Write `text` to `path` unless the file already holds it; true when the
+// file was created or its content differs.
+function syncFile(path: string, text: string): boolean {
+  if (existsSync(path) && readFileSync(path, 'utf8') === text) return false
+  writeFileSync(path, text)
+  return true
+}
+
+// The dev server an environment runs, or null: only generated environments
+// (a repo's own ddev config serves its site itself), and only a command
+// together with the port the preview proxy targets. The ONE gate behind the
+// daemon, its image files and the port pinned on the session.
+function devServerFor(env: ResolvedEnv): { command: string, port: number } | null {
+  if (env.source !== 'generated' || !env.devServer.value || env.previewPort.value === null) return null
+  return { command: env.devServer.value, port: env.previewPort.value }
+}
+
+// The supervisord program line for the dev server. ddev wraps the value in
+// `bash -c "<command>; ..."` (double quotes), and the project's command runs
+// under `bash -lc` so the login shell applies the image's profile and any
+// homeadditions hooks the repo ships. Both quoting layers are escaped here,
+// so a command with quotes or `$` survives.
+export function devDaemonCommand(devServer: string): string {
+  const inner = `bash -lc '${devServer.replace(/'/g, `'\\''`)}'`
+  return inner.replace(/[\\"$`]/g, m => `\\${m}`)
 }
 
 // ddev's db image ships a my.cnf sized for ONE comfortable dev machine
@@ -140,10 +201,10 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
 // deliberate `.ddev/mysql` tuning overrides ours, not the other way around.
 // 256M pool: barely-more RSS for small DBs (pool pages allocate on demand)
 // but keeps multi-GB dump imports and previews reasonable.
-function writeLowmemDbConfig(checkoutDir: string, marker: string): void {
+function writeLowmemDbConfig(checkoutDir: string, marker: string): boolean {
   const dir = join(checkoutDir, '.ddev', 'mysql')
   mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, '00-knecht-lowmem.cnf'), `${marker}[mysqld]
+  return syncFile(join(dir, '00-knecht-lowmem.cnf'), `${marker}[mysqld]
 innodb-buffer-pool-size = 256M
 performance_schema = OFF
 max-connections = 30
@@ -178,7 +239,7 @@ function sharedFolderMounts(shared: SharedFolderConfig): { host: string, dest: s
 // source would make docker create a root-owned DIRECTORY in its place. The db
 // cap is only written for stacks that have a db: a service entry without an
 // image is a compose error when ddev omits the container.
-function composeOverride(hasDb: boolean, sharedMounts: { host: string, dest: string }[] = []): Record<string, unknown> {
+function composeOverride({ hasDb, sharedMounts }: { hasDb: boolean, sharedMounts: { host: string, dest: string }[] }): Record<string, unknown> {
   const tools = toolsDir()
   const toolMounts = [
     { host: join(tools, 'opencode'), dest: '/usr/local/bin/opencode' },

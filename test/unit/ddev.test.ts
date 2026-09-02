@@ -39,7 +39,7 @@ describe('writeDdevConfig', () => {
         { key: 'HALF', value: '"unbalanced' },
       ],
     })
-    expect(written).toBe(3)
+    expect(written.injected).toBe(3)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
     expect(doc.name).toBe('knecht-run-7')
     expect(doc.web_environment).toEqual([
@@ -79,7 +79,7 @@ describe('writeDdevConfig', () => {
 
   it('omits web_environment entirely without env vars', () => {
     const dir = checkout()
-    expect(writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).toBe(0)
+    expect(writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' }).injected).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
     expect(doc.web_environment).toBeUndefined()
   })

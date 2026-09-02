@@ -72,6 +72,34 @@ async function saveField<T>(field: Ref<T>, value: T, body: Record<string, unknow
 const setPhpOverride = (value: string | null) => saveField(phpOverride, value, { phpVersion: value })
 const setNodeOverride = (value: string | null) => saveField(nodeOverride, value, { nodeVersion: value })
 
+// The dev server: a command that serves the app (run under a login shell
+// in the web container) and the port it listens on, which is what
+// gives a generated environment a preview at all. Saved together: the server
+// rejects a command without a port.
+const devServer = ref(project.value?.devServer ?? '')
+const previewPort = ref(project.value?.previewPort == null ? '' : String(project.value.previewPort))
+const previewPortNumber = computed(() => /^\d+$/.test(previewPort.value.trim()) ? Number(previewPort.value.trim()) : null)
+// A port is only stored together with its command: clearing the command
+// clears the port too (a stored port alone would still count as a preview).
+const devServerBody = computed(() => {
+  const command = devServer.value.trim() || null
+  return { devServer: command, previewPort: command ? previewPortNumber.value : null }
+})
+const { state: devState, error: devError, schedule: scheduleDev, invalid: devInvalid } = useAutosave(async () => {
+  const body = devServerBody.value
+  await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
+  // The watcher compares against the project: keep it at the saved value,
+  // or a second edit back to the original would count as unchanged.
+  if (project.value) project.value = { ...project.value, ...body }
+})
+watch([devServer, previewPort], () => {
+  const { devServer: command, previewPort: port } = devServerBody.value
+  if (command && port === null) return devInvalid('Add the port the dev server listens on')
+  if (port !== null && (port < 1 || port > 65535)) return devInvalid('The port must be between 1 and 65535')
+  if (command === (project.value?.devServer ?? null) && port === (project.value?.previewPort ?? null)) return
+  scheduleDev()
+})
+
 // ── Env variables (.env textarea, auto-saved) ──────────────────────────────
 // Edited as raw `KEY=value` lines (parseEnvText / envVarsToText helpers); parsed
 // and persisted (debounced) on change, so there's no save button.
@@ -555,9 +583,36 @@ async function toggleMentions() {
                 @update:model-value="(item: { value: string | null } | undefined) => setNodeOverride(item?.value ?? null)"
               />
             </div>
-            <div class="flex items-center justify-between gap-3">
-              <span class="k-mono text-2xs text-dimmed">Dev server</span>
-              <span class="k-mono text-xs text-toned">{{ resolvedEnv.devServer.value ?? 'none' }}</span>
+            <div>
+              <div class="mb-1.5 flex items-center justify-between gap-3">
+                <span class="k-label">Dev server</span>
+                <KSaveStatus
+                  v-if="devState !== 'idle'"
+                  :state="devState"
+                  :error-text="devError"
+                />
+              </div>
+              <UInput
+                v-model="devServer"
+                placeholder="npm run dev"
+                size="sm"
+                class="w-full"
+                :ui="{ base: 'k-mono text-xs' }"
+              />
+              <UInput
+                v-if="devServer.trim()"
+                v-model="previewPort"
+                placeholder="Port, e.g. 3000"
+                inputmode="numeric"
+                size="sm"
+                class="mt-2 w-full"
+                :ui="{ base: 'k-mono text-xs' }"
+              />
+              <p class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed">
+                Optional. Serves the preview: the command must listen on 0.0.0.0, and the
+                preview URL is available to it as <span class="text-muted">KNECHT_PREVIEW_URL</span>.
+                Without it the environment has no preview.
+              </p>
             </div>
             <p
               v-for="warning in detectedEnv.warnings"

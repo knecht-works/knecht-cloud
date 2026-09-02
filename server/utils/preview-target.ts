@@ -17,11 +17,13 @@ import { previewOrigin } from './origin'
 // of a ddev project's first run.
 export function hasPreviewTarget(
   session: Pick<Session, 'previewHosts' | 'previewPort' | 'envState'>,
-  project: Pick<Project, 'ddevEnv' | 'previewPort'>,
+  project: Pick<Project, 'ddevEnv' | 'devServer' | 'previewPort'>,
 ): boolean {
   if (session.previewHosts.length > 0 || session.previewPort != null) return true
   if (session.envState !== 'down') return false
-  return project.previewPort != null || projectDetectedEnv(project.ddevEnv).source === 'ddev'
+  // The same gate the boot applies (daemon/ddev.ts): a dev server needs
+  // both its command and its port.
+  return (project.devServer != null && project.previewPort != null) || projectDetectedEnv(project.ddevEnv).source === 'ddev'
 }
 
 // The session's preview URL, or null when it has none to advertise: not
