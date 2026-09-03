@@ -5,6 +5,12 @@ export default defineNuxtConfig({
   devtools: { enabled: true },
 
   app: {
+    // Not the default /_nuxt/: previewed Nuxt projects ship their own /_nuxt/
+    // assets through the per-session preview proxy (server/middleware/preview.ts),
+    // and both Vite's dev middleware and Nitro's static handler claim the
+    // dashboard's asset prefix before any server middleware runs. A shared
+    // prefix would make the dashboard answer (404 / ENOENT) for preview assets.
+    buildAssetsDir: '/_knecht/',
     head: {
       link: [
         { rel: 'icon', type: 'image/png', href: '/favicon/favicon-96x96.png', sizes: '96x96' },
