@@ -54,3 +54,25 @@ export function execInSandbox(runId: number, command: string[], options?: Option
 export async function copyIntoSandbox(runId: number, hostPath: string, sandboxPath: string): Promise<void> {
   await copyFile(hostPath, mapSandboxPath(runId, sandboxPath))
 }
+
+const STREAM_TAIL_CHARS = 128 * 1024
+
+// Replaces daemon/sandbox streamInSandbox: same behavior, built on this
+// file's fake execInSandbox instead of a real docker exec.
+export function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
+  const sub = execInSandbox(runId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
+  const chunks: string[] = []
+  let size = 0
+  const capture = (d: Buffer) => {
+    const text = d.toString()
+    log(text)
+    chunks.push(text)
+    size += text.length
+    while (size > STREAM_TAIL_CHARS && chunks.length > 1) {
+      size -= chunks.shift()!.length
+    }
+  }
+  sub.stdout?.on('data', capture)
+  sub.stderr?.on('data', capture)
+  return sub.then(r => ({ code: r.exitCode ?? 1, tail: chunks.join('').slice(-STREAM_TAIL_CHARS) }))
+}
