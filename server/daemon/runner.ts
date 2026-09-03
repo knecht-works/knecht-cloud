@@ -12,7 +12,7 @@ import { getInstallationToken } from '../utils/github-app'
 import { addJiraComment } from '../utils/jira'
 import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
-import { copyIntoSandbox, execInSandbox, startEnvStack } from './sandbox'
+import { copyIntoSandbox, execInSandbox, startEnvStack, streamInSandbox } from './sandbox'
 import { ensureEnvUp } from './envs'
 
 // The in-process serial runner (tech-stack.md §4). Each run executes inside
@@ -450,37 +450,6 @@ function capOutputs(outputs: Record<string, unknown> | undefined): Record<string
     throw new Error(`Step outputs too large (${size} bytes > ${MAX_OUTPUT_BYTES}): keep large data in the sandbox filesystem and pass a path instead`)
   }
   return outputs
-}
-
-// How much command output the runner keeps in memory for the action to
-// inspect (bash `stdout` output, the js step's result marker). The run log
-// gets the full stream regardless.
-const STREAM_TAIL_CHARS = 128 * 1024
-
-// Run a command in the session's sandbox, streaming its stdout/stderr into
-// the run log (routed through the run's logger, so it also lands in the
-// current step's row) while capturing a tail for the caller. Resolves with
-// the exit code: never rejects on a non-zero exit, the caller decides.
-// Exported: the follow-up executor builds its ActionRuntime on the same
-// streaming.
-export function streamInSandbox(sessionId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
-  const sub = execInSandbox(sessionId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
-  // Chunk list instead of string concat: re-slicing a full 128 KB string per
-  // stdout event would make chatty commands quadratic.
-  const chunks: string[] = []
-  let size = 0
-  const capture = (d: Buffer) => {
-    const text = d.toString()
-    log(text)
-    chunks.push(text)
-    size += text.length
-    while (size > STREAM_TAIL_CHARS && chunks.length > 1) {
-      size -= chunks.shift()!.length
-    }
-  }
-  sub.stdout?.on('data', capture)
-  sub.stderr?.on('data', capture)
-  return sub.then(r => ({ code: r.exitCode ?? 1, tail: chunks.join('').slice(-STREAM_TAIL_CHARS) }))
 }
 
 // Exported: the follow-up executor and the agent bridge append to the same
