@@ -166,7 +166,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     // (reboot and restore do the same): it describes the container just
     // built, which the proxy and the boot step's restart read live.
     const urlMode = session.urlMode ?? project.urlMode
-    const { env, warnings, injected, devServerPort, changed } = configureSessionEnv(dir, project, sessionId, urlMode)
+    const { env, warnings, injected, devServerPort, changed } = await configureSessionEnv(dir, project, sessionId, urlMode)
     db.update(schema.sessions)
       .set({
         previewHosts: env.hosts.value,
