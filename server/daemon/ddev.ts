@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
 import { resolveEnv, type EnvOverrides, type ResolvedEnv } from '../../shared/utils/env-spec'
-import { previewHostname, previewLabel } from '../../shared/utils/preview-host'
+import { PREVIEW_FORWARD_PORT, previewHostname, previewLabel } from '../../shared/utils/preview-host'
 import { checkoutReader, detectEnv, GENERATED_MARKER, parseDdevConfig, type DdevConfigFile } from '../utils/env-detect'
 import { dashboardOrigin, previewOrigin } from '../utils/origin'
 import { normalizeSharedFolder, projectSharedDir, sessionSandboxName, toolsDir } from '../utils/storage'
@@ -27,14 +27,11 @@ export const DEV_DAEMON_GROUP = 'webextradaemons'
 // A dev server started with its defaults binds localhost only, which the
 // preview proxy cannot reach from outside the container. So next to the dev
 // server runs `knecht-forward` (sandbox/knecht-forward, mounted with the
-// other tools), which accepts on every interface at this port and forwards
-// to 127.0.0.1:<previewPort>. Everything that talks to a session's dev server
-// from the host targets this port, never the pinned one (previewTargetPort).
-export const PREVIEW_FORWARD_PORT = 41000
-
-// The container port the host reaches a session's preview on: the forwarder
-// for a dev server (the session has a pinned previewPort), the web server's
-// :80 for a repo with its own ddev config.
+// other tools), which accepts on every interface at PREVIEW_FORWARD_PORT and
+// forwards to 127.0.0.1:<previewPort>. Everything that talks to a session's
+// dev server from the host targets that port, never the pinned one: the
+// forwarder for a dev server (the session has a pinned previewPort), the
+// web server's :80 for a repo with its own ddev config.
 export function previewTargetPort(previewPort: number | null): number {
   return previewPort == null ? 80 : PREVIEW_FORWARD_PORT
 }

@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 import { DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN } from '#shared/utils/env-spec'
+import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 import { db, schema } from '../../db'
 
 // PATCH /api/projects/:id → update the editable per-project config.
@@ -63,6 +64,10 @@ export default defineEventHandler(async (event) => {
   const next = { ...project, ...result.data }
   if (next.devServer && next.previewPort == null) {
     throw createError({ statusCode: 400, statusMessage: 'A dev server needs a preview port' })
+  }
+  // The forwarder's own port: it would forward to itself.
+  if (next.previewPort === PREVIEW_FORWARD_PORT) {
+    throw createError({ statusCode: 400, statusMessage: `Port ${PREVIEW_FORWARD_PORT} is reserved for the preview` })
   }
 
   const updated = db
