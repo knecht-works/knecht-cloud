@@ -8,7 +8,7 @@ import { type AiProviderId, MODEL_NAME_RE, stripLegacyModelPrefix } from '../../
 import { getSettings } from '../../utils/settings'
 import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
-import { bridgeEnv } from '../../utils/agent-bridge'
+import { bridgeEnv } from '../../utils/knecht-env'
 import { persistAgentMemory, seedAgentMemory } from '../../utils/agent-memory'
 import { agentModelRef, buildAgentRules, buildOpencodeConfig } from '../../utils/opencode-config'
 import { readSandboxAsset } from '../../utils/sandbox-assets'

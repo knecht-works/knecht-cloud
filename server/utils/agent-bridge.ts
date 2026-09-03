@@ -1,8 +1,6 @@
 import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
 import { hostname } from 'node:os'
 import { execa } from 'execa'
-import { getSessionRow } from './entities'
-import { sessionPreviewUrl } from './preview-target'
 
 // The agent bridge: how in-sandbox git gets its push/fetch credentials and
 // how a PR is opened from inside a session's sandbox. The sandbox holds only
@@ -78,31 +76,4 @@ async function resolveBase(): Promise<string | null> {
     // Network not created yet or docker unavailable.
   }
   return null
-}
-
-// The env vars that hand the bridge to the agent process (docker exec -e).
-// Empty when the bridge address can't be resolved: the knecht-git CLI then
-// reports the tools as unavailable instead of hanging.
-export async function bridgeEnv(sessionId: number): Promise<Record<string, string>> {
-  const base = await bridgeBaseUrl()
-  if (!base) return {}
-  const env: Record<string, string> = {
-    KNECHT_BRIDGE_URL: `${base}/agent-bridge`,
-    KNECHT_BRIDGE_TOKEN: bridgeToken(sessionId),
-    KNECHT_RUN_ID: String(sessionId),
-  }
-  // Sessions with an object also get the reply tools (knecht-reply,
-  // knecht-label): the marker tells the CLIs (and the agent, via AGENTS.md)
-  // what they would post on. Enforcement stays host-side in the bridge.
-  const session = getSessionRow(sessionId)
-  if (session?.objectKind && session.objectNumber) {
-    env.KNECHT_OBJECT = `${session.objectKind === 'issue' ? 'issue' : 'pull request'} #${session.objectNumber}`
-  }
-  // Once an environment with a preview is booted, the agent knows its own
-  // preview URL, so prose can reference it naturally ("see it live at ...").
-  // The guaranteed links live in the host-side comment footer
-  // (utils/sessions.ts), not here.
-  const preview = session && sessionPreviewUrl(session)
-  if (preview) env.KNECHT_PREVIEW_URL = preview
-  return env
 }

@@ -5,7 +5,8 @@ import type { EnvVar } from '../../shared/utils/env'
 import { resolveEnv, type EnvOverrides, type ResolvedEnv } from '../../shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT, previewHostname, previewLabel } from '../../shared/utils/preview-host'
 import { checkoutReader, detectEnv, GENERATED_MARKER, parseDdevConfig, type DdevConfigFile } from '../utils/env-detect'
-import { dashboardOrigin, previewOrigin } from '../utils/origin'
+import { sessionEnv } from '../utils/knecht-env'
+import { dashboardOrigin } from '../utils/origin'
 import { normalizeSharedFolder, projectSharedDir, sessionSandboxName, toolsDir } from '../utils/storage'
 import { WEB_PROJECT_DIR } from './sandbox'
 
@@ -125,10 +126,11 @@ export interface DdevConfigInput {
 //     (the router is omitted, the preview proxy targets the web container's IP
 //     directly), so the project's own hostnames stay valid inward and the
 //     rename is invisible to the app.
-//   - `web_environment`: the project's configured env vars (projects.md §4).
-//     A value may reference the session's KNECHT_PREVIEW_URL or an earlier
-//     line as `$NAME` / `${NAME}`, the way a .env file expands; a name
-//     nothing defines stays as written.
+//   - `web_environment`: the project's configured env vars (projects.md §4)
+//     plus the session's KNECHT_* variables (utils/knecht-env.ts) whenever
+//     the environment has a preview to point at. A value may reference one
+//     of those or an earlier line as `$NAME` / `${NAME}`, the way a .env
+//     file expands; a name nothing defines stays as written.
 //     In 'env' urlMode (the default) every ddev-host URL in the VALUES is
 //     translated to its per-run preview origin, so a project that derives all
 //     its URLs from the env natively renders preview links and the proxy can
@@ -181,26 +183,31 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // Every `$` still there after the references are expanded is escaped for
   // docker compose, which would otherwise interpolate it against the HOST
   // environment and turn an unset name into an empty string.
-  const preview = previewOrigin(sessionId)
-  const known = new Map<string, string>()
-  if (preview) known.set('KNECHT_PREVIEW_URL', preview)
+  // A repo's own ddev config serves its hosts, a generated environment only
+  // serves anything through its dev server: without either there is no
+  // preview and the session variables would point at nothing. The same rule
+  // hasPreviewTarget (utils/preview-target.ts) applies to project rows.
+  const hasPreview = env.source === 'ddev' || devServer !== null
+  const session = hasPreview ? sessionEnv(sessionId, env.hosts.value) : {}
+  const known = new Map(Object.entries(session))
   const environment: string[] = []
   for (const e of envVars) {
     const value = translate(expandEnvRefs(unquote(e.value), known))
     known.set(e.key, value)
     environment.push(`${e.key}=${value.replace(/\$/g, () => '$$')}`)
   }
+  // A project's own line for a session variable wins: written on purpose.
+  environment.push(...Object.entries(session)
+    .filter(([key]) => !envVars.some(e => e.key === key))
+    .map(([key, value]) => `${key}=${value}`))
   environment.push(...PACKAGE_CACHE_ENV)
   if (env.packageManager.value.name === 'pnpm') environment.push(PNPM_LEGACY_STORE_ENV)
   if (devServer !== null) {
-    // KNECHT_PREVIEW_URL: the preview contract, what a Vite/Nuxt dev server
-    // puts into its allowedHosts. Vite also reads the preview host from
-    // __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS (5.4.12/6.0.9 and up), so an
-    // untouched Vite project serves the preview without a config change.
-    if (preview) {
-      environment.push(`KNECHT_PREVIEW_URL=${preview}`)
-      environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(preview).hostname}`)
-    }
+    // Vite reads the preview host from __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
+    // (5.4.12/6.0.9 and up), so an untouched Vite project serves the preview
+    // without putting KNECHT_PREVIEW_URL into its allowedHosts itself.
+    const preview = session.KNECHT_PREVIEW_URL
+    if (preview) environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(preview).hostname}`)
     doc.web_extra_daemons = [
       { name: 'dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR },
       { name: 'forward', command: `knecht-forward ${PREVIEW_FORWARD_PORT} ${devServer.port}`, directory: WEB_PROJECT_DIR },
