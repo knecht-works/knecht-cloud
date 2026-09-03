@@ -139,6 +139,17 @@ export interface DdevConfigInput {
 //     VERBATIM and the proxy maps the two worlds per response. YAML sidesteps
 //     the comma-escaping of `ddev config --web-environment`. The package
 //     manager cache paths (PACKAGE_CACHE_ENV) follow the project's vars.
+//   - `host_*_port`: "0", so docker picks a free host port. A repo may pin
+//     `host_db_port: 3306` for a developer's GUI client; on Knecht the second
+//     parallel run of that project would fail to start on the taken port,
+//     and nothing here needs a fixed host port (everything reaches the
+//     containers over the network). ddev ignores an EMPTY override for
+//     these (empty means unset in its merge), "0" it takes.
+//   - `XDEBUG_MODE=off` in the environment: a repo with `xdebug_enabled:
+//     true` makes every request wait for a debugger on host.docker.internal
+//     that nothing runs. ddev's merge ignores `xdebug_enabled: false` (a zero
+//     value), while the env variable outranks the ini ddev writes, for
+//     php-fpm and the CLI alike. A project's own XDEBUG_MODE line wins.
 //   - compose override: the web container joins the `knecht-ingress` network
 //     (how the preview proxy reaches it), gets the agent tools (opencode +
 //     knecht-git) bind-mounted read-only from the host tools dir, the
@@ -180,9 +191,13 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   }
   const doc: {
     name: string
+    host_db_port: string
+    host_webserver_port: string
+    host_https_port: string
+    host_mailpit_port: string
     web_environment?: string[]
     web_extra_daemons?: { name: string, command: string, directory: string }[]
-  } = { name }
+  } = { name, host_db_port: '0', host_webserver_port: '0', host_https_port: '0', host_mailpit_port: '0' }
   const translate = urlMode === 'env'
     ? envUrlTranslator(env.hosts.value, sessionId)
     : (v: string) => v
@@ -198,7 +213,7 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // hasPreviewTarget (utils/preview-target.ts) applies to project rows.
   const hasPreview = env.source === 'ddev' || devServer !== null
   const session = hasPreview ? sessionEnv(sessionId, env.hosts.value) : {}
-  Object.assign(session, ddevUrlEnv(env.hosts.value, session.KNECHT_PREVIEW_URL, translate))
+  Object.assign(session, ddevUrlEnv(env.hosts.value, session.KNECHT_PREVIEW_URL, translate), { XDEBUG_MODE: 'off' })
   const known = new Map(Object.entries(session))
   const environment: string[] = []
   for (const e of envVars) {

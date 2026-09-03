@@ -42,6 +42,7 @@ const previewDdevEnv = [
   'DDEV_PRIMARY_URL_PORT=80',
   'DDEV_SCHEME=http',
   'DDEV_HOSTNAME=7.preview.knecht.test',
+  'XDEBUG_MODE=off',
 ]
 
 describe('writeDdevConfig', () => {
@@ -98,6 +99,7 @@ describe('writeDdevConfig', () => {
         'DDEV_PRIMARY_URL_PORT=3333',
         'DDEV_SCHEME=http',
         'DDEV_HOSTNAME=7.preview.lvh.me,alpha--7.preview.lvh.me',
+        'XDEBUG_MODE=off',
         ...cacheEnv,
       ])
     }
@@ -111,6 +113,14 @@ describe('writeDdevConfig', () => {
     expect(writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' }).injected).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', ...previewDdevEnv, ...cacheEnv])
+  })
+
+  it('frees pinned host ports and switches xdebug off, unless the project says otherwise', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [{ key: 'XDEBUG_MODE', value: 'debug' }], urlMode: 'env' })
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
+    expect([doc.host_db_port, doc.host_webserver_port, doc.host_https_port, doc.host_mailpit_port]).toEqual(['0', '0', '0', '0'])
+    expect(doc.web_environment.filter((l: string) => l.startsWith('XDEBUG_MODE'))).toEqual(['XDEBUG_MODE=debug'])
   })
 
   it('writes the compose override: ingress network and resource caps', () => {
