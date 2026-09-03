@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 import { describe, expect, it, vi } from 'vitest'
-import { readDdevHosts, writeDdevConfig } from '../../server/daemon/ddev'
+import { previewTargetPort, readDdevHosts, writeDdevConfig } from '../../server/daemon/ddev'
 import { normalizeSharedFolder } from '../../server/utils/storage'
 import { resolveEnv, type ResolvedEnv } from '../../shared/utils/env-spec'
 
@@ -175,5 +175,12 @@ describe('readDdevHosts', () => {
 
   it('serves no host for a config Knecht generated: the proxy passes the preview host through', () => {
     expect(readDdevHosts(checkout('#knecht-generated\nname: knecht-run-7\n'))).toEqual({ primary: null, all: [] })
+  })
+})
+
+describe('previewTargetPort', () => {
+  it('reaches a dev server through the forwarder and a ddev web server on :80', () => {
+    expect(previewTargetPort(3000)).toBe(41000)
+    expect(previewTargetPort(null)).toBe(80)
   })
 })

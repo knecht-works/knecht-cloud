@@ -1,5 +1,6 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import { DEV_DAEMON_GROUP, PREVIEW_FORWARD_PORT } from './ddev'
+import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
+import { DEV_DAEMON_GROUP } from './ddev'
 import { resolvePreview } from './sandbox'
 
 // The dev server of a generated environment runs under ddev's supervisord

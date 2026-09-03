@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
+import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 
 // The project's configuration, split off the workspace page: everything here
 // is set up once (env, database dump, persistent folders) and rarely touched
@@ -99,6 +100,7 @@ watch([devServer, previewPort], () => {
   const { devServer: command, previewPort: port } = devServerBody.value
   if (command && port === null) return devInvalid('Add the port the dev server listens on')
   if (port !== null && (port < 1 || port > 65535)) return devInvalid('The port must be between 1 and 65535')
+  if (port === PREVIEW_FORWARD_PORT) return devInvalid(`Port ${PREVIEW_FORWARD_PORT} is reserved for the preview`)
   if (command === (project.value?.devServer ?? null) && port === (project.value?.previewPort ?? null)) return
   scheduleDev()
 })

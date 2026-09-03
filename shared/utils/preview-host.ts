@@ -49,3 +49,9 @@ export function previewHostname(sessionId: number, baseHost: string, label?: str
 export function previewLabel(ddevHost: string): string {
   return ddevHost.replace(/\.ddev\.site$/, '').replaceAll('.', '-')
 }
+
+// The container port a dev server's preview is reached on: not the port the
+// server listens on (that may be localhost only) but the forwarder next to
+// it (daemon/ddev.ts). A project must not pick it as its preview port, or
+// the forwarder would forward to itself.
+export const PREVIEW_FORWARD_PORT = 41000
