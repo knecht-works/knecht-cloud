@@ -12,7 +12,7 @@ import { getInstallationToken } from '../utils/github-app'
 import { addJiraComment } from '../utils/jira'
 import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
-import { copyIntoSandbox, execInSandbox, startEnvStack, streamInSandbox } from './sandbox'
+import { copyIntoSandbox, startEnvStack, streamInSandbox } from './sandbox'
 import { ensureEnvUp } from './envs'
 
 // The in-process serial runner (tech-stack.md §4). Each run executes inside
