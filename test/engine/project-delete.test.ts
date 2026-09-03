@@ -18,8 +18,8 @@ vi.mock('../../server/daemon/git', async (importOriginal) => {
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
 vi.mock('../../server/daemon/sandbox', async () => {
-  const { execInSandbox, copyIntoSandbox } = await import('../helpers/local-sandbox')
-  return { execInSandbox, copyIntoSandbox }
+  const { execInSandbox, copyIntoSandbox, streamInSandbox } = await import('../helpers/local-sandbox')
+  return { execInSandbox, copyIntoSandbox, streamInSandbox }
 })
 const tornDown: number[] = []
 vi.mock('../../server/daemon/envs', () => ({
