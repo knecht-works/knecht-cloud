@@ -617,7 +617,8 @@ async function toggleMentions() {
               />
               <p class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed">
                 Optional. Serves the preview: the command must listen on 0.0.0.0, and the
-                preview URL is available to it as <span class="text-muted">KNECHT_PREVIEW_URL</span>.
+                preview URL is available to it as <span class="text-muted">KNECHT_PREVIEW_URL</span>
+                (Vite-based dev servers such as Vite and Nuxt allow the preview host by themselves, other servers need it in their allowed hosts).
                 Without it the environment has no preview.
               </p>
             </div>
