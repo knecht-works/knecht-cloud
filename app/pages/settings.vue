@@ -24,7 +24,7 @@ function isActive(to: string) {
       sub="Access, agent and environment configuration."
     >
       <template #actions>
-        <AppSearch />
+        <KAppSearch />
       </template>
     </KTopBar>
 
