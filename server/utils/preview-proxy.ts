@@ -2,7 +2,7 @@ import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
-import { readDdevHosts, type DdevHosts } from '../daemon/ddev'
+import { previewTargetPort, readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
 import { sessionCheckoutDir } from './storage'
@@ -187,7 +187,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     const upstream = httpRequest(
       {
         host: sandboxAddr,
-        port: env.previewPort ?? 80,
+        port: previewTargetPort(env.previewPort),
         method: req.method,
         path: `${url.pathname}${url.search}`,
         headers,

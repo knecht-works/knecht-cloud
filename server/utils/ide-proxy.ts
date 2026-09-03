@@ -2,6 +2,7 @@ import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
+import { previewTargetPort } from '../daemon/ddev'
 import { IDE_DEFAULT_SETTINGS, IDE_PORT } from '../daemon/ide'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
@@ -180,7 +181,7 @@ function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }
     .from(schema.sessions)
     .where(eq(schema.sessions.id, ref.sessionId))
     .get()?.previewPort
-  return port == null ? null : { sessionId: ref.sessionId, port }
+  return port == null ? null : { sessionId: ref.sessionId, port: previewTargetPort(port) }
 }
 
 interface Pipe {

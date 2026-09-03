@@ -127,6 +127,9 @@ web_extra_daemons:
   - name: dev
     command: bash -lc 'npm run dev'
     directory: /var/www/html
+  - name: forward
+    command: knecht-forward 41000 3000
+    directory: /var/www/html
 web_environment:
   - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
   - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn

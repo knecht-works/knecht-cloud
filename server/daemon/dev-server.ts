@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import { DEV_DAEMON_GROUP } from './ddev'
+import { DEV_DAEMON_GROUP, PREVIEW_FORWARD_PORT } from './ddev'
 import { resolvePreview } from './sandbox'
 
 // The dev server of a generated environment runs under ddev's supervisord
@@ -25,15 +25,16 @@ export async function restartDevServer(exec: (command: string[]) => Promise<numb
   if (code !== 0) throw new Error(`Could not restart the dev server (supervisorctl exited with code ${code})`)
 }
 
-// Poll the container on the preview port until anything answers (a status
-// code of any kind: the app is up, what it says is its business).
+// Poll the container through the forwarder until anything answers (a status
+// code of any kind: the app is up, what it says is its business). Going
+// through the forwarder checks the same path the preview proxy takes.
 export async function waitForDevServer(sessionId: number, port: number): Promise<void> {
   const deadline = Date.now() + DEV_SERVER_TIMEOUT_MS
   while (Date.now() < deadline) {
     const ip = await resolvePreview(sessionId)
     if (ip) {
       try {
-        await fetch(`http://${ip}:${port}/`, { signal: AbortSignal.timeout(POLL_MS), redirect: 'manual' })
+        await fetch(`http://${ip}:${PREVIEW_FORWARD_PORT}/`, { signal: AbortSignal.timeout(POLL_MS), redirect: 'manual' })
         return
       }
       catch {
@@ -42,5 +43,5 @@ export async function waitForDevServer(sessionId: number, port: number): Promise
     }
     await sleep(POLL_MS)
   }
-  throw new Error(`The dev server did not answer on port ${port} within ${DEV_SERVER_TIMEOUT_MS / 1000}s. It must listen on 0.0.0.0, not localhost; check the boot log for its output.`)
+  throw new Error(`The dev server did not answer on port ${port} within ${DEV_SERVER_TIMEOUT_MS / 1000}s; check the boot log for its output.`)
 }

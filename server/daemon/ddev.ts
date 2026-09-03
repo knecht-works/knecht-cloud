@@ -24,6 +24,21 @@ const WEB_PIDS_LIMIT = 2048
 // Corepack; bun is added to the image when the repo uses it).
 export const DEV_DAEMON_GROUP = 'webextradaemons'
 
+// A dev server started with its defaults binds localhost only, which the
+// preview proxy cannot reach from outside the container. So next to the dev
+// server runs `knecht-forward` (sandbox/knecht-forward, mounted with the
+// other tools), which accepts on every interface at this port and forwards
+// to 127.0.0.1:<previewPort>. Everything that talks to a session's dev server
+// from the host targets this port, never the pinned one (previewTargetPort).
+export const PREVIEW_FORWARD_PORT = 41000
+
+// The container port the host reaches a session's preview on: the forwarder
+// for a dev server (the session has a pinned previewPort), the web server's
+// :80 for a repo with its own ddev config.
+export function previewTargetPort(previewPort: number | null): number {
+  return previewPort == null ? 80 : PREVIEW_FORWARD_PORT
+}
+
 // ddev mounts one host-wide cache volume into every web container and already
 // points Composer, npm and Corepack at it. These point the other package
 // managers there too, so a host downloads every package once and later
@@ -176,7 +191,10 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
       environment.push(`KNECHT_PREVIEW_URL=${preview}`)
       environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(preview).hostname}`)
     }
-    doc.web_extra_daemons = [{ name: 'dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR }]
+    doc.web_extra_daemons = [
+      { name: 'dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR },
+      { name: 'forward', command: `knecht-forward ${PREVIEW_FORWARD_PORT} ${devServer.port}`, directory: WEB_PROJECT_DIR },
+    ]
   }
   if (environment.length) doc.web_environment = environment
   // The marker comment silences ddev's "custom configuration detected"
@@ -294,6 +312,7 @@ function composeOverride({ hasDb, sharedMounts }: { hasDb: boolean, sharedMounts
     { host: join(tools, 'knecht-git'), dest: '/usr/local/bin/knecht-git' },
     { host: join(tools, 'knecht-reply'), dest: '/usr/local/bin/knecht-reply' },
     { host: join(tools, 'knecht-label'), dest: '/usr/local/bin/knecht-label' },
+    { host: join(tools, 'knecht-forward'), dest: '/usr/local/bin/knecht-forward' },
     // Sourced by knecht-reply/knecht-label, not on PATH.
     { host: join(tools, 'knecht-bridge-lib'), dest: '/usr/local/lib/knecht-bridge-lib' },
     // Shadows the stock in-container ddev shim, which silently no-ops

@@ -2,7 +2,7 @@ import { request } from 'node:http'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
-import { readDdevHosts } from '../daemon/ddev'
+import { previewTargetPort, readDdevHosts } from '../daemon/ddev'
 import { resolvePreview } from '../daemon/sandbox'
 import { getSessionRow } from './entities'
 import { sessionPreviewUrl } from './preview-target'
@@ -38,8 +38,8 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
     const preview = session && sessionPreviewUrl(session)
     if (!addr || !preview) return
     // The site's own hostname; a generated environment has none, its dev
-    // server answers to the preview host on the session's pinned port.
-    const port = session.previewPort ?? 80
+    // server answers to the preview host.
+    const port = previewTargetPort(session.previewPort)
     const primary = readDdevHosts(sessionCheckoutDir(sessionId)).primary ?? new URL(preview).host
 
     const page = await fetchFrom(addr, port, primary, '/', MAX_HTML_BYTES)
