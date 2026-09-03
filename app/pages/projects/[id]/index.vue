@@ -255,13 +255,18 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
           class="k-mono inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs tracking-wider"
           :style="{ color: fw.color, borderColor: 'color-mix(in oklab, currentColor 35%, transparent)' }"
         >{{ fwLabel }}</span>
-        <span class="flex items-center gap-1.5 text-dimmed">
+        <a
+          :href="`https://github.com/${project.fullName}`"
+          target="_blank"
+          rel="noopener"
+          class="flex items-center gap-1.5 text-dimmed transition-colors hover:text-muted"
+        >
           <UIcon
             name="i-simple-icons-github"
             class="size-3.5"
           />
-          <span class="k-mono text-xs text-muted">{{ project.fullName.split('/')[0] }}</span>
-        </span>
+          <span class="k-mono text-xs text-muted">{{ project.fullName }}</span>
+        </a>
         <UBadge
           :color="project.private ? 'neutral' : 'primary'"
           variant="subtle"
