@@ -9,6 +9,10 @@ may add its own on top of them.
 - Do exactly what the step asks, nothing speculative beyond it.
 - You may read and edit files and run commands in the checkout.
 - Keep changes minimal and focused on the task.
+- Run project tooling the way a developer does locally with ddev: `ddev composer`,
+  `ddev npm`, `ddev craft`, `ddev artisan`, `ddev drush`, and the project's own
+  commands from `.ddev/commands/web`. `ddev describe` shows the preview URLs and
+  the database. Starting, stopping and importing databases are handled by Knecht.
 
 ## Project memory
 

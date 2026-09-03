@@ -1,33 +1,106 @@
 #!/usr/bin/env bash
-# `ddev` inside a Knecht run's web container. Workflows written for plain ddev
-# say `ddev composer install`, `ddev npm run build`, `ddev exec …`: commands
-# here are ALREADY running inside the web container, so tool commands run
-# directly (the stock in-container shim only prints a warning and exits 0,
-# silently skipping the work). Environment-level commands are managed by
-# Knecht host-side and fail loudly instead of pretending.
+# `ddev` inside a Knecht run's web container. Workflow steps, boot commands,
+# the agent and the web terminal all say what a developer types locally:
+# `ddev craft migrate`, `ddev composer install`, `ddev npm run build`. Here
+# these ALREADY run inside the web container, so anything ddev would exec into
+# the container runs directly, resolved the way ddev resolves it:
+#   1. the project's own web command  (.ddev/commands/web/<cmd>)
+#   2. ddev's bundled web commands     (craft, artisan, drush, wp, typo3, ...)
+#   3. a plain executable on PATH      (pnpm, bun, python, ...)
+# Environment-level commands (start, stop, import-db, snapshots) and host
+# commands (.ddev/commands/host) need the host docker daemon: Knecht manages
+# those itself, and they fail loudly here instead of pretending. (The stock
+# in-container shim prints a warning and exits 0, silently skipping the work.)
 set -euo pipefail
-cd /var/www/html
+
+PROJECT_DIR=/var/www/html
+PROJECT_COMMANDS=/mnt/ddev_config/commands
+GLOBAL_COMMANDS=/mnt/ddev-global-cache/global-commands
+
+# ddev commands that only exist host-side. Listed so they never fall through
+# to a same-named binary (`hostname`) or to a confusing "not found".
+HOST_ONLY="start stop restart poweroff delete config import-db export-db import-files snapshot restore-snapshot hostname share auth add-on get clean debug utility logs pull push version list"
+
+cd "$PROJECT_DIR"
 
 cmd="${1:-}"
 shift || true
 
+managed() {
+  echo "'ddev $cmd' is not available inside a Knecht run environment: Knecht manages the environment itself (start, stop, import-db and snapshots run on the host). Tool commands (composer, npm, craft, ...) run directly." >&2
+  exit 1
+}
+
+describe() {
+  echo "Project:  ${DDEV_PROJECT:-?} (type ${DDEV_PROJECT_TYPE:-?}, webserver ${DDEV_WEBSERVER_TYPE:-?})"
+  echo "Root:     $PROJECT_DIR${DDEV_DOCROOT:+ (docroot $DDEV_DOCROOT)}"
+  echo "PHP:      ${DDEV_PHP_VERSION:-?}"
+  if [ -n "${KNECHT_PREVIEW_URL:-}" ]; then
+    echo "Preview:  $KNECHT_PREVIEW_URL"
+    env | grep '^KNECHT_URL_' | sort | sed 's/^KNECHT_URL_\([^=]*\)=\(.*\)/          \2  (\1)/' || true
+  else
+    echo "Preview:  none (this environment has no preview)"
+  fi
+  if [ -n "${DDEV_DATABASE:-}" ]; then
+    local port=3306
+    [ "${DDEV_DATABASE_FAMILY:-}" = postgres ] && port=5432
+    echo "Database: $DDEV_DATABASE at host db:$port, database db, user db, password db"
+  else
+    echo "Database: none"
+  fi
+  echo "Mail:     Mailpit at http://localhost:8025 inside the container"
+}
+
 case "$cmd" in
-  exec)
+  "")
+    echo "usage: ddev <command> [args]" >&2
+    exit 2
+    ;;
+  help | -h | --help)
+    echo "ddev inside a Knecht run: 'ddev <tool> ...' runs the tool in this container (composer, npm, craft, artisan, drush, wp, project commands from .ddev/commands/web). 'ddev describe' shows the preview URLs and the database. 'ddev exec <cmd>' runs any command."
+    ;;
+  exec | .)
     [ $# -gt 0 ] || { echo "usage: ddev exec <command>" >&2; exit 2; }
     if [ $# -eq 1 ]; then exec bash -lc "$1"; else exec "$@"; fi
     ;;
-  composer|npm|npx|yarn|php|node)
-    exec "$cmd" "$@"
+  ssh)
+    exec bash -l
+    ;;
+  composer)
+    cd "${DDEV_COMPOSER_ROOT:-$PROJECT_DIR}"
+    exec composer "$@"
     ;;
   mysql)
+    if [ "${DDEV_DATABASE_FAMILY:-}" = postgres ]; then
+      echo "this project runs Postgres: use 'ddev psql'" >&2
+      exit 1
+    fi
     exec mysql -udb -pdb -h db db "$@"
     ;;
-  "")
-    echo "usage: ddev <command>" >&2
-    exit 2
+  psql)
+    exec psql -h db -U db db "$@"
+    ;;
+  describe | status)
+    describe
+    ;;
+  launch)
+    [ -n "${KNECHT_PREVIEW_URL:-}" ] || { echo "this environment has no preview" >&2; exit 1; }
+    echo "${KNECHT_PREVIEW_URL}${1:+/${1#/}}"
     ;;
   *)
-    echo "'ddev $cmd' is not available inside a Knecht run environment: Knecht manages the environment itself (start/stop/import-db run on the host). Tool commands (composer, npm, php, …) run directly." >&2
-    exit 1
+    for word in $HOST_ONLY; do [ "$cmd" = "$word" ] && managed; done
+    if [ -x "$PROJECT_COMMANDS/web/$cmd" ]; then
+      exec "$PROJECT_COMMANDS/web/$cmd" "$@"
+    elif [ -x "$GLOBAL_COMMANDS/web/$cmd" ]; then
+      exec "$GLOBAL_COMMANDS/web/$cmd" "$@"
+    elif command -v "$cmd" >/dev/null 2>&1; then
+      exec "$cmd" "$@"
+    elif [ -e "$PROJECT_COMMANDS/host/$cmd" ] || [ -e "$GLOBAL_COMMANDS/host/$cmd" ]; then
+      echo "'ddev $cmd' is a host command (.ddev/commands/host): it runs on a developer's machine, not inside a Knecht run environment." >&2
+      exit 1
+    else
+      echo "'ddev $cmd': no such command in this environment (not a ddev web command, not on PATH)." >&2
+      exit 127
+    fi
     ;;
 esac
