@@ -10,8 +10,8 @@ import { sessionCheckoutDir } from '../utils/storage'
 import { tryParseJson } from '../utils/json'
 import { agentRepliedSince, withSessionLinks } from '../utils/sessions'
 import { currentBranch } from './git'
-import { appendLog, runLogBytes, streamInSandbox } from './runner'
-import { copyIntoSandbox, execInSandbox } from './sandbox'
+import { appendLog, runLogBytes } from './runner'
+import { copyIntoSandbox, execInSandbox, streamInSandbox } from './sandbox'
 import { ensureEnvUp, reviveEnv } from './envs'
 
 // Execute a follow-up: a free-form prompt continuing a session's
