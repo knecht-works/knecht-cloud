@@ -7,6 +7,8 @@ name: knecht-run-7
 web_environment:
   - PRIMARY_SITE_URL=http://7.preview.knecht.test
   - X=1
+  - KNECHT_PREVIEW_URL=http://7.preview.knecht.test
+  - KNECHT_URL_ALPHA=http://alpha--7.preview.knecht.test
   - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
   - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
   - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
@@ -131,11 +133,11 @@ web_extra_daemons:
     command: knecht-forward 41000 3000
     directory: /var/www/html
 web_environment:
+  - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
   - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
   - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
   - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
   - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
-  - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
   - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=42.preview.knecht.test
 
 === .ddev/config.yaml ===

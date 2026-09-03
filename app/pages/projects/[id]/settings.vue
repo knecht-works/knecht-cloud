@@ -380,7 +380,8 @@ async function toggleMentions() {
           <div>
             <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
               One KEY=value per line. Paste a .env. A value may use an earlier line or the
-              session's preview URL as <span class="text-muted">$KNECHT_PREVIEW_URL</span>.
+              session's preview URLs as <span class="text-muted">$KNECHT_PREVIEW_URL</span>
+              and <span class="text-muted">$KNECHT_URL_&lt;LABEL&gt;</span> per additional hostname.
               Changes are saved automatically.
             </p>
             <UTextarea

@@ -54,6 +54,7 @@ describe('writeDdevConfig', () => {
       'PRIMARY_SITE_URL=https://demo.ddev.site',
       'PLAIN=value',
       'HALF="unbalanced',
+      'KNECHT_PREVIEW_URL=http://7.preview.knecht.test',
       ...cacheEnv,
     ])
   })
@@ -79,6 +80,8 @@ describe('writeDdevConfig', () => {
         'ALPHA_SITE_URL=http://alpha--7.preview.lvh.me:3333/en',
         'COOKIE_DOMAIN=7.preview.lvh.me',
         'OTHER=https://example.com/x',
+        'KNECHT_PREVIEW_URL=http://7.preview.lvh.me:3333',
+        'KNECHT_URL_ALPHA=http://alpha--7.preview.lvh.me:3333',
         ...cacheEnv,
       ])
     }
@@ -87,11 +90,11 @@ describe('writeDdevConfig', () => {
     }
   })
 
-  it('writes only the cache paths without env vars', () => {
+  it('writes only the session variables and the cache paths without env vars', () => {
     const dir = checkout()
     expect(writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' }).injected).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
-    expect(doc.web_environment).toEqual(cacheEnv)
+    expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', ...cacheEnv])
   })
 
   it('writes the compose override: ingress network and resource caps', () => {
@@ -186,6 +189,24 @@ describe('previewTargetPort', () => {
 })
 
 describe('env value references', () => {
+  it('lets a project line for a session variable win', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [
+      { key: 'KNECHT_PREVIEW_URL', value: 'https://staging.example.com' },
+    ], urlMode: 'env' })
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+    expect(doc.web_environment.filter((l: string) => l.startsWith('KNECHT_PREVIEW_URL'))).toEqual(['KNECHT_PREVIEW_URL=https://staging.example.com'])
+  })
+
+  it('resolves a per-host session variable', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [
+      { key: 'ALPHA_URL', value: '${KNECHT_URL_ALPHA}/de' },
+    ], urlMode: 'env' })
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+    expect(doc.web_environment[0]).toBe('ALPHA_URL=http://alpha--7.preview.knecht.test/de')
+  })
+
   it('expands $NAME from the session and earlier lines, keeps unknown names and escapes $ for compose', () => {
     const dir = checkout()
     writeDdevConfig(dir, {

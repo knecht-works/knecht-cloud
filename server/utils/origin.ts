@@ -11,13 +11,14 @@ export function dashboardOrigin(): string {
   return domain ? `https://${domain}` : ''
 }
 
-// The preview origin a session's primary host is served under, or null when no
-// base origin is configured.
-export function previewOrigin(sessionId: number): string | null {
+// The preview origin a session's primary host is served under (or, with a
+// label, one of its additional hosts), or null when no base origin is
+// configured.
+export function previewOrigin(sessionId: number, label?: string): string | null {
   const origin = dashboardOrigin()
   if (!origin) return null
   const url = new URL(origin)
-  return `${url.protocol}//${previewHostname(sessionId, url.host)}`
+  return `${url.protocol}//${previewHostname(sessionId, url.host, label)}`
 }
 
 // Append the session's preview link to a PR body: every PR Knecht opens carries

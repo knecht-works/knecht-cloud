@@ -14,7 +14,9 @@ import { previewOrigin } from './origin'
 // The session's pinned hosts/port are the truth once it booted; before its
 // first boot (and after an expired archive) the project's connect-time
 // detection decides, so the workspace shows the frame from the first second
-// of a ddev project's first run.
+// of a ddev project's first run. The boot applies the same rule to the
+// resolved env when it decides whether to export the session's KNECHT_*
+// variables (daemon/ddev.ts, writeDdevConfig).
 export function hasPreviewTarget(
   session: Pick<Session, 'previewHosts' | 'previewPort' | 'envState'>,
   project: Pick<Project, 'ddevEnv' | 'devServer' | 'previewPort'>,
