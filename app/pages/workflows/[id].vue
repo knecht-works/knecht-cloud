@@ -1245,7 +1245,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
       </div>
     </template>
 
-    <TriggerCreateModal
+    <KTriggerCreateModal
       v-model:open="triggerModalOpen"
       :preset-workflow-id="saved?.id"
       :trigger="editingTrigger"

@@ -8,7 +8,7 @@ import { jiraSource } from './jira'
 // its runtime memory in `triggers.state` (both JSON, so no schema migration).
 //
 // Adding a source means: one definition file in this folder (registered in
-// TRIGGER_SOURCES below), one form section in TriggerCreateModal.vue, one
+// TRIGGER_SOURCES below), one form section in KTriggerCreateModal.vue, one
 // TRIGGER_SOURCE_META entry in app/utils/dashboard.ts, and, if it needs
 // credentials, a Settings panel. The triggers API validates `config` against
 // the source's schema, toSummaries renders `eventLabel`, and the generic
