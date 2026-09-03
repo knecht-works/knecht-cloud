@@ -126,6 +126,9 @@ export interface DdevConfigInput {
 //     directly), so the project's own hostnames stay valid inward and the
 //     rename is invisible to the app.
 //   - `web_environment`: the project's configured env vars (projects.md §4).
+//     A value may reference the session's KNECHT_PREVIEW_URL or an earlier
+//     line as `$NAME` / `${NAME}`, the way a .env file expands; a name
+//     nothing defines stays as written.
 //     In 'env' urlMode (the default) every ddev-host URL in the VALUES is
 //     translated to its per-run preview origin, so a project that derives all
 //     its URLs from the env natively renders preview links and the proxy can
@@ -175,7 +178,18 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // Strip a layer of surrounding quotes: a value like `"https://x"` (quotes
   // stored verbatim) breaks ddev's generated docker-compose YAML. Defensive:
   // covers projects whose env vars were saved before the parser stripped them.
-  const environment = envVars.map(e => `${e.key}=${translate(unquote(e.value))}`)
+  // Every `$` still there after the references are expanded is escaped for
+  // docker compose, which would otherwise interpolate it against the HOST
+  // environment and turn an unset name into an empty string.
+  const preview = previewOrigin(sessionId)
+  const known = new Map<string, string>()
+  if (preview) known.set('KNECHT_PREVIEW_URL', preview)
+  const environment: string[] = []
+  for (const e of envVars) {
+    const value = translate(expandEnvRefs(unquote(e.value), known))
+    known.set(e.key, value)
+    environment.push(`${e.key}=${value.replace(/\$/g, () => '$$')}`)
+  }
   environment.push(...PACKAGE_CACHE_ENV)
   if (env.packageManager.value.name === 'pnpm') environment.push(PNPM_LEGACY_STORE_ENV)
   if (devServer !== null) {
@@ -183,7 +197,6 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
     // puts into its allowedHosts. Vite also reads the preview host from
     // __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS (5.4.12/6.0.9 and up), so an
     // untouched Vite project serves the preview without a config change.
-    const preview = previewOrigin(sessionId)
     if (preview) {
       environment.push(`KNECHT_PREVIEW_URL=${preview}`)
       environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(preview).hostname}`)
@@ -378,6 +391,13 @@ function envUrlTranslator(hosts: string[], sessionId: number): (value: string) =
     }
     return value
   }
+}
+
+// Expand `$NAME` and `${NAME}` from `known`; a name it does not hold stays
+// as written (a literal `$` in a password must survive).
+function expandEnvRefs(value: string, known: Map<string, string>): string {
+  return value.replace(/\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)/g, (match, braced: string | undefined, bare: string | undefined) =>
+    known.get(braced ?? bare!) ?? match)
 }
 
 // Strip one layer of matching surrounding quotes (standard .env semantics).

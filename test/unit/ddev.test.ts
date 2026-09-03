@@ -184,3 +184,27 @@ describe('previewTargetPort', () => {
     expect(previewTargetPort(null)).toBe(80)
   })
 })
+
+describe('env value references', () => {
+  it('expands $NAME from the session and earlier lines, keeps unknown names and escapes $ for compose', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, {
+      sessionId: 7,
+      env: tracked(),
+      envVars: [
+        { key: 'APP_URL', value: '$KNECHT_PREVIEW_URL' },
+        { key: 'SITE_URL', value: '${APP_URL}/en' },
+        { key: 'PASS', value: 'pa$$word' },
+        { key: 'OTHER', value: '$UNKNOWN' },
+      ],
+      urlMode: 'env',
+    })
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+    expect(doc.web_environment.slice(0, 4)).toEqual([
+      'APP_URL=http://7.preview.knecht.test',
+      'SITE_URL=http://7.preview.knecht.test/en',
+      'PASS=pa$$$$word',
+      'OTHER=$$UNKNOWN',
+    ])
+  })
+})
