@@ -20,10 +20,14 @@ const WEB_MEM_LIMIT = '2g'
 const DB_MEM_LIMIT = '1g'
 const WEB_PIDS_LIMIT = 2048
 
-// The dev server of a generated environment (projects.devServer) runs under
-// ddev's supervisord as an extra daemon, on the toolchain the ddev image
-// ships (PHP, Node at nodejs_version, Composer, npm, plus pnpm and yarn via
-// Corepack; bun is added to the image when the repo uses it).
+// The project's dev server (projects.devServer) runs under ddev's
+// supervisord as an extra daemon, on the toolchain the ddev image ships
+// (PHP, Node at nodejs_version, Composer, npm, plus pnpm and yarn via
+// Corepack; bun is added to the image when the repo uses it). ddev puts
+// every web_extra_daemons entry into this one group, a repo's own included
+// (ddev merges the lists across its config files), so restarting the group
+// (daemon/dev-server.ts) restarts those too. Knecht's daemons carry a
+// prefix so their names never collide with the repo's.
 export const DEV_DAEMON_GROUP = 'webextradaemons'
 
 // A dev server started with its defaults binds localhost only, which the
@@ -31,11 +35,30 @@ export const DEV_DAEMON_GROUP = 'webextradaemons'
 // server runs `knecht-forward` (sandbox/knecht-forward, mounted with the
 // other tools), which accepts on every interface at PREVIEW_FORWARD_PORT and
 // forwards to 127.0.0.1:<previewPort>. Everything that talks to a session's
-// dev server from the host targets that port, never the pinned one: the
-// forwarder for a dev server (the session has a pinned previewPort), the
-// web server's :80 for a repo with its own ddev config.
-export function previewTargetPort(previewPort: number | null): number {
-  return previewPort == null ? 80 : PREVIEW_FORWARD_PORT
+// dev server from the host targets that port, never the pinned one.
+export interface PreviewSession {
+  previewHosts: string[]
+  previewPort: number | null
+}
+
+// Whether the session's plain preview origin is served by its dev server
+// rather than a web server: a generated environment (no ddev hostnames of
+// its own; a repo's own config always carries `name`, so its host list is
+// never empty) whose project runs a dev server (the port pinned at boot).
+// Both fields are pinned by the runner at the first boot, and the port is
+// re-pinned on every boot path (daemon/envs.ts), so the answer describes the
+// container that is actually running. For a repo with its own ddev config
+// the dev server never replaces the site: it runs next to it, on the dev
+// origin (utils/dev-origin.ts).
+export function devServerIsPreview(session: PreviewSession): boolean {
+  return session.previewHosts.length === 0 && session.previewPort != null
+}
+
+// The container port a preview request targets: the forwarder for the dev
+// origin (`devLabel`) and for a generated environment's plain origin, the
+// web server's :80 for the project's own hostnames.
+export function previewTargetPort(session: PreviewSession, devLabel = false): number {
+  return devLabel || devServerIsPreview(session) ? PREVIEW_FORWARD_PORT : 80
 }
 
 // ddev mounts one host-wide cache volume into every web container and already
@@ -219,7 +242,7 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
   // preview and the session variables would point at nothing. The same rule
   // hasPreviewTarget (utils/preview-target.ts) applies to project rows.
   const hasPreview = env.source === 'ddev' || devServer !== null
-  const session = hasPreview ? sessionEnv(sessionId, env.hosts.value) : {}
+  const session = hasPreview ? sessionEnv(sessionId, env.hosts.value, devServer !== null) : {}
   Object.assign(session, ddevUrlEnv(env.hosts.value, session.KNECHT_PREVIEW_URL, translate), { XDEBUG_MODE: 'off' })
   const known = new Map(Object.entries(session))
   const environment: string[] = []
@@ -235,14 +258,15 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
   environment.push(...PACKAGE_CACHE_ENV)
   if (env.packageManager.value.name === 'pnpm') environment.push(PNPM_LEGACY_STORE_ENV)
   if (devServer !== null) {
-    // Vite reads the preview host from __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
-    // (5.4.12/6.0.9 and up), so an untouched Vite project serves the preview
-    // without putting KNECHT_PREVIEW_URL into its allowedHosts itself.
-    const preview = session.KNECHT_PREVIEW_URL
-    if (preview) environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(preview).hostname}`)
+    // Vite reads the host its preview arrives under from
+    // __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS (5.4.12/6.0.9 and up), so an
+    // untouched Vite project serves it without putting KNECHT_DEV_SERVER_URL
+    // into its allowedHosts itself.
+    const devUrl = session.KNECHT_DEV_SERVER_URL
+    if (devUrl) environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(devUrl).hostname}`)
     doc.web_extra_daemons = [
-      { name: 'dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR },
-      { name: 'forward', command: `knecht-forward ${PREVIEW_FORWARD_PORT} ${devServer.port}`, directory: WEB_PROJECT_DIR },
+      { name: 'knecht-dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR },
+      { name: 'knecht-forward', command: `knecht-forward ${PREVIEW_FORWARD_PORT} ${devServer.port}`, directory: WEB_PROJECT_DIR },
     ]
   }
   if (environment.length) doc.web_environment = environment
@@ -325,12 +349,13 @@ function freeHostPorts(count: number): Promise<number[]> {
   })
 }
 
-// The dev server an environment runs, or null: only generated environments
-// (a repo's own ddev config serves its site itself), and only a command
-// together with the port the preview proxy targets. The ONE gate behind the
-// daemon, its image files and the port pinned on the session.
+// The dev server an environment runs, or null: only a command together with
+// the port the forwarder targets. The ONE gate behind the daemon, its image
+// files and the port pinned on the session. Next to a repo's own web server
+// it is a sidecar (Vite for HMR, a frontend); in a generated environment it
+// is the site.
 function devServerFor(env: ResolvedEnv): { command: string, port: number } | null {
-  if (env.source !== 'generated' || !env.devServer.value || env.previewPort.value === null) return null
+  if (!env.devServer.value || env.previewPort.value === null) return null
   return { command: env.devServer.value, port: env.previewPort.value }
 }
 

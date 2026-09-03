@@ -8,8 +8,10 @@
 // Two kinds of project:
 //   'ddev'       the repo ships its own `.ddev/config.yaml`: it is the truth,
 //                Knecht only reads along (hosts, database) and writes its
-//                per-session overrides next to it. The overrides below are
-//                ignored, the preview is served by the repo's web server.
+//                per-session overrides next to it. The PHP/Node overrides
+//                below are ignored, the preview is served by the repo's web
+//                server; a dev server (a Vite HMR sidecar, a frontend) may
+//                run next to it, on its own preview origin.
 //   'generated'  the repo has no ddev config (a library, a Nuxt module, a
 //                Node project): Knecht writes one from this spec. Every field
 //                starts at a stable default; detectors overwrite single
@@ -53,8 +55,8 @@ export interface EnvSpec {
   packageManager: PackageManager // read from the repo, never overridden
   hasDb: boolean // whether the stack has a db container
   hosts: string[] // hostnames the repo's ddev config serves, primary first
-  devServer: string | null // a command that serves the app, e.g. 'npm run dev' (generated only)
-  previewPort: number | null // the port the dev server listens on; null = no preview
+  devServer: string | null // a command that serves the app, e.g. 'npm run dev'
+  previewPort: number | null // the port the dev server listens on; null = none (and, generated, no preview)
 }
 
 export interface ResolvedField<T> {
@@ -122,20 +124,22 @@ export function projectDetectedEnv(env: { detected?: DetectedEnv } | null | unde
   }
 }
 
-// Setting > detection > default. For a 'ddev' project the overrides are
-// ignored: the committed config.yaml is the truth (and the settings page
-// hides the inputs), so a stale override can never fight the repo.
+// Setting > detection > default. For a 'ddev' project the version overrides
+// are ignored: the committed config.yaml is the truth (and the settings page
+// hides the inputs), so a stale override can never fight the repo. The dev
+// server is a setting for both kinds: no repo file describes it.
 export function resolveEnv(detected: DetectedEnv, overrides: EnvOverrides): ResolvedEnv {
   const detect = <K extends keyof EnvSpec>(key: K): ResolvedField<EnvSpec[K]> =>
     detected.fields[key] ?? { value: ENV_DEFAULTS[key], source: 'default' }
-  const override = <K extends keyof EnvOverrides>(key: K): ResolvedField<EnvSpec[K]> => {
+  const override = <K extends keyof EnvOverrides>(key: K, applies = true): ResolvedField<EnvSpec[K]> => {
     const value = overrides[key] as EnvSpec[K] | null
-    return detected.source === 'generated' && value != null ? { value, source: 'setting' } : detect(key)
+    return applies && value != null ? { value, source: 'setting' } : detect(key)
   }
+  const generated = detected.source === 'generated'
   return {
     source: detected.source,
-    phpVersion: override('phpVersion'),
-    nodeVersion: override('nodeVersion'),
+    phpVersion: override('phpVersion', generated),
+    nodeVersion: override('nodeVersion', generated),
     packageManager: detect('packageManager'),
     hasDb: detect('hasDb'),
     hosts: detect('hosts'),
@@ -159,15 +163,15 @@ export function formatPackageManager({ name, version }: PackageManager): string 
 // One line describing the environment a session boots with, for the run log
 // next to the environment name:
 //   generated: PHP 8.2 from composer.json, Node 22 from .nvmrc, pnpm from pnpm-lock.yaml, no database, no dev server
-//   from .ddev/config.yaml: hosts demo.ddev.site, alpha.ddev.site
+//   from .ddev/config.yaml: hosts demo.ddev.site, alpha.ddev.site, dev server 'npm run dev' on port 5173
 export function formatEnvSummary(env: ResolvedEnv): string {
-  if (env.source === 'ddev') {
-    const hosts = env.hosts.value.length ? `: hosts ${env.hosts.value.join(', ')}` : ''
-    return `from .ddev/config.yaml${hosts}`
-  }
   const devServer = env.devServer.value
     ? `dev server '${env.devServer.value}' on port ${env.previewPort.value ?? '?'}`
     : 'no dev server'
+  if (env.source === 'ddev') {
+    const hosts = env.hosts.value.length ? `: hosts ${env.hosts.value.join(', ')}` : ''
+    return `from .ddev/config.yaml${hosts}${env.devServer.value ? `${hosts ? ',' : ':'} ${devServer}` : ''}`
+  }
   return [
     `generated: PHP ${env.phpVersion.value} ${sourceLabel(env.phpVersion.source)}`,
     `Node ${env.nodeVersion.value} ${sourceLabel(env.nodeVersion.source)}`,

@@ -16,6 +16,9 @@ export default defineEventHandler((event) => {
   // run qualifies; reconstruct and compare so nothing sneaks in around it.
   const ref = parsePreviewHost(domain)
   if (!ref || !getRun(ref.sessionId)) throw createError({ statusCode: 404 })
+  // A dev origin's label is a per-session token (utils/dev-origin.ts): a
+  // guessed one must not spend the quota either.
+  if (looksLikeDevServerLabel(ref.label) && !verifyDevServerLabel(ref.sessionId, ref.label)) throw createError({ statusCode: 404 })
   if (domain !== previewHostname(ref.sessionId, base, ref.label)) throw createError({ statusCode: 404 })
   return 'ok'
 })

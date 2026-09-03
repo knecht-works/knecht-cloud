@@ -163,14 +163,15 @@ host_webserver_port: "<port>"
 host_https_port: "<port>"
 host_mailpit_port: "<port>"
 web_extra_daemons:
-  - name: dev
+  - name: knecht-dev
     command: bash -lc 'npm run dev'
     directory: /var/www/html
-  - name: forward
+  - name: knecht-forward
     command: knecht-forward 41000 3000
     directory: /var/www/html
 web_environment:
   - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
+  - KNECHT_DEV_SERVER_URL=http://42.preview.knecht.test
   - DDEV_PRIMARY_URL=http://42.preview.knecht.test
   - DDEV_PRIMARY_URL_WITHOUT_PORT=http://42.preview.knecht.test
   - DDEV_PRIMARY_URL_PORT=80

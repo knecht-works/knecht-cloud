@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { previewTargetPort, readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
+import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { isMember, memberCount } from './members'
 import { sessionCheckoutDir } from './storage'
 
@@ -36,14 +37,20 @@ import { sessionCheckoutDir } from './storage'
 //   points back here (not at the unreachable *.ddev.site).
 //
 // Either way the target is the run's web container over plain HTTP: its
-// nginx on :80 (serves any Host header; daemon/sandbox.ts), or, for a
-// generated environment running a dev server, the port pinned on the
-// session. A generated environment serves no hostname of its own, so the
-// preview host itself is the app host and passes through unchanged.
+// nginx on :80 (serves any Host header; daemon/sandbox.ts), or the forwarder
+// in front of the project's dev server (daemon/ddev.ts previewTargetPort):
+// on the plain origin of a generated environment, where the dev server IS
+// the site, and on the dev origin `dev-<token>--<sessionId>` next to a repo's
+// own hostnames (utils/dev-origin.ts). Neither has a hostname of its own, so
+// the preview host itself is the app host and passes through unchanged.
 //
 // Access is login-gated (projects.md §8): the request must carry a valid Knecht
 // session, sent cross-subdomain via the base-domain cookie. Logged out: a
-// navigation redirects to login (with return-to); subresources get 401.
+// navigation redirects to login (with return-to); subresources get 401. The
+// dev origin is the one exception: the site's pages load it as module
+// scripts, which the browser fetches WITHOUT cookies across origins, so its
+// hostname carries a per-session token instead and a request on a verified
+// dev label passes the gate. An unverified `dev-` label is no host at all.
 
 // Content types whose bodies we rewrite URLs in. Everything else streams as-is.
 const REWRITABLE = /text\/html|text\/css|javascript|json|xml|svg|text\/plain/i
@@ -83,6 +90,10 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
   // per-boot preview auth token instead of a browser session
   // (utils/preview-fetch.ts); they skip the login gate.
   const internal = isPreviewAuthToken(getRequestHeader(event, PREVIEW_AUTH_HEADER))
+  const devOrigin = looksLikeDevServerLabel(label)
+  if (devOrigin && !verifyDevServerLabel(sessionId, label)) {
+    throw createError({ statusCode: 404, statusMessage: 'Unknown preview host' })
+  }
   const session = await getUserSession(event)
   // Reading the session must never WRITE one: for a request without a session
   // cookie, getUserSession seeds an empty session and emits a domain-scoped
@@ -91,7 +102,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
   // empty cookie would overwrite the operator's live session domain-wide,
   // logging them out of the dashboard.
   removeResponseHeader(event, 'set-cookie')
-  if (!internal) {
+  if (!internal && !devOrigin) {
     if (!session?.user) {
       const reqUrl = getRequestURL(event)
       if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
@@ -125,9 +136,11 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
 
   const url = getRequestURL(event)
   const hosts = sessionHosts(sessionId)
-  const appHost = label
-    ? hosts.all.find(h => previewLabel(h) === label)
-    : hosts.primary ?? url.host
+  const appHost = devOrigin
+    ? url.host
+    : label
+      ? hosts.all.find(h => previewLabel(h) === label)
+      : hosts.primary ?? url.host
   if (!appHost) {
     throw createError({ statusCode: 404, statusMessage: 'Unknown preview host' })
   }
@@ -183,11 +196,13 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     headers['accept-encoding'] = 'identity'
   }
 
+  const corsOrigin = devOrigin ? sessionCorsOrigin(req.headers.origin, sessionId, baseHost) : null
+
   await new Promise<void>((resolve, reject) => {
     const upstream = httpRequest(
       {
         host: sandboxAddr,
-        port: previewTargetPort(env.previewPort),
+        port: previewTargetPort(env, devOrigin),
         method: req.method,
         path: `${url.pathname}${url.search}`,
         headers,
@@ -221,7 +236,14 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
             res.setHeader(key, rewriteUrls(String(value), mappings, url.protocol))
             continue
           }
+          if (corsOrigin && lower === 'access-control-allow-origin') continue
           res.setHeader(key, value)
+        }
+        if (corsOrigin) {
+          res.setHeader('access-control-allow-origin', corsOrigin)
+          const vary = [up.headers.vary].flat().filter(Boolean).map(String)
+          if (!vary.some(v => /\borigin\b/i.test(v))) vary.push('Origin')
+          res.setHeader('vary', vary.join(', '))
         }
 
         if (!buffer) {
@@ -298,6 +320,27 @@ function rewriteUrls(
 // it is fixed for the run's lifetime. An empty set (a generated environment)
 // is re-read on every request, which is one small file.
 const hostsCache = new Map<number, DdevHosts>()
+
+// CORS for the dev origin: the site's pages on the session's other preview
+// origins load it as module scripts, which the browser only runs with an
+// Access-Control-Allow-Origin naming the page's origin. Vite's default policy
+// allows localhost only and a repo's own names its ddev hosts, so the proxy
+// answers for the session's own preview origins (and only those): the dev
+// server needs no config change for it, the way the allowed-host variable
+// spares it one (daemon/ddev.ts). Anonymous requests only, so no
+// credentials header is ever granted.
+function sessionCorsOrigin(origin: string | undefined, sessionId: number, baseHost: string): string | null {
+  if (!origin) return null
+  let host: string
+  try {
+    host = new URL(origin).host
+  }
+  catch {
+    return null
+  }
+  const ref = parsePreviewHost(host)
+  return ref?.sessionId === sessionId && stripPreviewPrefix(host) === baseHost ? origin : null
+}
 
 function sessionHosts(sessionId: number): DdevHosts {
   let hosts = hostsCache.get(sessionId)

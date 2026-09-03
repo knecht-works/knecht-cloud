@@ -2,7 +2,9 @@ import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
-import { previewTargetPort } from '../daemon/ddev'
+import { devServerIsPreview } from '../daemon/ddev'
+import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
+import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { IDE_DEFAULT_SETTINGS, IDE_PORT } from '../daemon/ide'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
@@ -18,8 +20,11 @@ import { isMember, memberCount } from './members'
 //   h3's ws route resolution (the cached `websocket.resolve` every crossws
 //   adapter consults, dev and prod) and returns pipe-through hooks for IDE
 //   origins; everything else falls through to the normal route resolution.
-//   The same pipe serves a generated environment's dev server (its HMR
-//   socket) on the session's plain preview origin.
+//   The same pipe serves the project's dev server (its HMR socket): on the
+//   session's plain preview origin for a generated environment, on the
+//   token-labelled dev origin (utils/dev-origin.ts) next to a repo's own
+//   hostnames. The dev origin's label IS its credential, so that leg skips
+//   the cookie gate the way the HTTP leg does (preview-proxy.ts).
 //
 // Both legs gate on the same session + membership check as app previews and
 // bump the idle clock, so an open IDE keeps its environment alive.
@@ -152,36 +157,53 @@ function injectIdeDefaults(html: string): string {
 
 // ── WebSocket leg ─────────────────────────────────────────────────────────────
 
-// The upgrade request shapes differ per adapter (node vs dev): read the Host
+// The upgrade request shapes differ per adapter (node vs dev): read a
 // header defensively from whatever carries it.
-function upgradeHost(source: { headers?: unknown, request?: { headers?: unknown } }): string {
+function upgradeHeader(source: { headers?: unknown, request?: { headers?: unknown } }, name: string): string {
   const headers = source.headers ?? source.request?.headers
   if (!headers) return ''
-  if (headers instanceof Headers) return headers.get('host') ?? ''
-  return String((headers as Record<string, unknown>).host ?? '')
+  if (headers instanceof Headers) return headers.get(name) ?? ''
+  return String((headers as Record<string, unknown>)[name] ?? '')
+}
+
+function upgradeHost(source: { headers?: unknown, request?: { headers?: unknown } }): string {
+  return upgradeHeader(source, 'host')
+}
+
+// The subprotocols the browser asked for, to be asked of the backend in
+// turn: Vite only completes an HMR upgrade that carries `vite-hmr`.
+function upgradeProtocols(source: { headers?: unknown, request?: { headers?: unknown } }): string[] {
+  return upgradeHeader(source, 'sec-websocket-protocol').split(',').map(p => p.trim()).filter(Boolean)
 }
 
 // What an upgrade on a preview origin pipes to: the IDE server on its
-// reserved label, or the session's dev server when the session has a pinned
-// preview port (a generated environment's Vite/Nuxt HMR socket). App previews
-// of repos with their own web server get no websocket leg. Null for anything
-// else, which then resolves as a normal ws route.
+// reserved label, the dev server behind a verified dev label, or the dev
+// server on the plain origin of a generated environment (daemon/ddev.ts
+// devServerIsPreview). App previews of repos with their own web server get
+// no websocket leg. Null for anything else (an unverified dev label
+// included), which then resolves as a normal ws route.
 interface WsTarget {
   sessionId: number
   port: number
+  // The hostname proved the request (a verified dev label): no cookie gate.
+  byCapability: boolean
 }
 
 function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }): WsTarget | null {
   const host = upgradeHost(source).split(':')[0] ?? ''
   const ref = parsePreviewHost(host)
   if (!ref) return null
-  if (ref.label === IDE_LABEL) return { sessionId: ref.sessionId, port: IDE_PORT }
+  if (ref.label === IDE_LABEL) return { sessionId: ref.sessionId, port: IDE_PORT, byCapability: false }
+  if (looksLikeDevServerLabel(ref.label)) {
+    if (!verifyDevServerLabel(ref.sessionId, ref.label)) return null
+    return { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, byCapability: true }
+  }
   if (ref.label) return null
-  const port = db.select({ previewPort: schema.sessions.previewPort })
+  const session = db.select({ previewHosts: schema.sessions.previewHosts, previewPort: schema.sessions.previewPort })
     .from(schema.sessions)
     .where(eq(schema.sessions.id, ref.sessionId))
-    .get()?.previewPort
-  return port == null ? null : { sessionId: ref.sessionId, port: previewTargetPort(port) }
+    .get()
+  return session && devServerIsPreview(session) ? { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, byCapability: false } : null
 }
 
 interface Pipe {
@@ -200,14 +222,16 @@ const pipes = new Map<string, Pipe>()
 // workbench protocol is binary.
 const pipeWsHooks = {
   async upgrade(request: { headers?: unknown, url?: string }) {
-    const session = await getUserSession(request as Parameters<typeof getUserSession>[0])
-    if (!session?.user) {
-      throw createError({ statusCode: 401, statusMessage: 'Login required' })
-    }
-    if (memberCount() > 0 && !isMember(session.user.login)) {
-      throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
-    }
     const target = wsTarget(request)
+    if (!target?.byCapability) {
+      const session = await getUserSession(request as Parameters<typeof getUserSession>[0])
+      if (!session?.user) {
+        throw createError({ statusCode: 401, statusMessage: 'Login required' })
+      }
+      if (memberCount() > 0 && !isMember(session.user.login)) {
+        throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
+      }
+    }
     const env = target === null
       ? null
       : db.select().from(schema.sessions).where(eq(schema.sessions.id, target.sessionId)).get()
@@ -240,7 +264,7 @@ const pipeWsHooks = {
         return '/'
       }
     })()
-    const backend = new WebSocket(`ws://${ip}:${port}${path}`)
+    const backend = new WebSocket(`ws://${ip}:${port}${path}`, upgradeProtocols(peer.request ?? {}))
     backend.binaryType = 'arraybuffer'
     pipe.backend = backend
     backend.onopen = () => {

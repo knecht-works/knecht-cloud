@@ -58,15 +58,16 @@ describe('resolveEnv', () => {
     expect(env.packageManager).toEqual({ value: { name: 'pnpm', version: null }, source: 'pnpm-lock.yaml' })
   })
 
-  it('ignores every override for a ddev project: the committed config is the truth', () => {
+  it('ignores the version overrides for a ddev project (the committed config is the truth) but keeps its dev server', () => {
     const env = resolveEnv(tracked, { phpVersion: '8.1', nodeVersion: '18', devServer: 'npm run dev', previewPort: 3000 })
     expect(env.source).toBe('ddev')
     expect(env.phpVersion).toEqual({ value: '8.3', source: '.ddev/config.yaml' })
     expect(env.nodeVersion).toEqual({ value: '22', source: 'default' })
     expect(env.hosts.value).toEqual(['demo.ddev.site', 'alpha.ddev.site'])
     expect(env.hasDb).toEqual({ value: true, source: '.ddev/config.yaml' })
-    expect(env.devServer).toEqual({ value: null, source: 'default' })
-    expect(env.previewPort).toEqual({ value: null, source: 'default' })
+    expect(env.devServer).toEqual({ value: 'npm run dev', source: 'setting' })
+    expect(env.previewPort).toEqual({ value: 3000, source: 'setting' })
+    expect(resolveEnv(tracked, none).devServer).toEqual({ value: null, source: 'default' })
   })
 })
 
@@ -95,11 +96,15 @@ describe('formatEnvSummary', () => {
     expect(formatPackageManager({ name: 'npm', version: null })).toBe('npm')
   })
 
-  it('points at the repo config for ddev projects', () => {
+  it('points at the repo config for ddev projects, naming a dev server next to it', () => {
     expect(formatEnvSummary(resolveEnv(tracked, none)))
       .toBe('from .ddev/config.yaml: hosts demo.ddev.site, alpha.ddev.site')
     expect(formatEnvSummary(resolveEnv({ ...tracked, fields: {} }, none)))
       .toBe('from .ddev/config.yaml')
+    expect(formatEnvSummary(resolveEnv(tracked, { ...none, devServer: 'npm run dev', previewPort: 5173 })))
+      .toBe('from .ddev/config.yaml: hosts demo.ddev.site, alpha.ddev.site, dev server \'npm run dev\' on port 5173')
+    expect(formatEnvSummary(resolveEnv({ ...tracked, fields: {} }, { ...none, devServer: 'npm run dev', previewPort: 5173 })))
+      .toBe('from .ddev/config.yaml: dev server \'npm run dev\' on port 5173')
   })
 })
 
