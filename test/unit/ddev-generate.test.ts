@@ -114,7 +114,7 @@ describe('configureSessionEnv', () => {
   })
 
   it('a repo using pnpm also gets the npm-style store path pnpm 9 and 10 read, other repos do not', () => {
-    const readEnv = (dir: string) => parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8')).web_environment as string[]
+    const readEnv = (dir: string) => parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8')).web_environment as string[]
     const pnpm = repo({ 'pnpm-lock.yaml': '' })
     configureSessionEnv(pnpm, project(), 42, 'env')
     expect(readEnv(pnpm)).toContain('npm_config_store_dir=/mnt/ddev-global-cache/pnpm-store')

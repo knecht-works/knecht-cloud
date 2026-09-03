@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import type { Project } from '../db/schema'
+import { KNECHT_COMPOSE_FILE, KNECHT_CONFIG_FILE } from './ddev'
 import { bridgeBaseUrl, bridgeToken } from '../utils/agent-bridge'
 import { checkoutReader, repoShipsDdevConfig } from '../utils/env-detect'
 import { getBotIdentity } from '../utils/github-app'
@@ -144,8 +145,8 @@ export async function pushBranch(dir: string, branch: string, token: string): Pr
 }
 
 // Knecht writes generated files into the checkout: the ddev overrides
-// (`.ddev/config.knecht.yaml` carries the project's env vars, which include
-// SECRETS; `.ddev/docker-compose.knecht.yaml` the run's compose override) and
+// (Knecht's `.ddev/config.zzz-knecht.yaml` carries the project's env vars, which include
+// SECRETS; `.ddev/docker-compose.zzz-knecht.yaml` the run's compose override) and
 // the agent's state dir (`.knecht/`: opencode config + session DB). The git
 // blocks run `git add -A`, so without this they would be committed and pushed
 // in the opened PR. The ignores go in the clone's `info/exclude`, so the
@@ -160,7 +161,7 @@ function shieldGeneratedFiles(dir: string, sharedFolders: string[]): void {
   const exclude = join(dir, '.git', 'info', 'exclude')
   const patterns = [
     ...(repoShipsDdevConfig(checkoutReader(dir)('.ddev/config.yaml'))
-      ? ['/.ddev/config.knecht.yaml', '/.ddev/docker-compose.knecht.yaml', '/.ddev/mysql/00-knecht-lowmem.cnf']
+      ? [`/.ddev/${KNECHT_CONFIG_FILE}`, `/.ddev/${KNECHT_COMPOSE_FILE}`, '/.ddev/mysql/00-knecht-lowmem.cnf']
       : ['/.ddev/']),
     '/.knecht/',
     ...sharedFolders.map(normalizeSharedFolder).filter(p => p !== null).map(p => `/${p}/`),

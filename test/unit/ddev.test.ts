@@ -34,6 +34,16 @@ const cacheEnv = [
   'BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun',
 ]
 
+// ddev's URL variables for a repo without ddev hostnames of its own: the
+// preview is the primary (daemon/ddev.ts ddevUrlEnv).
+const previewDdevEnv = [
+  'DDEV_PRIMARY_URL=http://7.preview.knecht.test',
+  'DDEV_PRIMARY_URL_WITHOUT_PORT=http://7.preview.knecht.test',
+  'DDEV_PRIMARY_URL_PORT=80',
+  'DDEV_SCHEME=http',
+  'DDEV_HOSTNAME=7.preview.knecht.test',
+]
+
 describe('writeDdevConfig', () => {
   it('renames the project per run and injects env vars with one quote layer stripped', () => {
     const dir = checkout()
@@ -48,13 +58,14 @@ describe('writeDdevConfig', () => {
       ],
     })
     expect(written.injected).toBe(3)
-    const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(doc.name).toBe('knecht-run-7')
     expect(doc.web_environment).toEqual([
       'PRIMARY_SITE_URL=https://demo.ddev.site',
       'PLAIN=value',
       'HALF="unbalanced',
       'KNECHT_PREVIEW_URL=http://7.preview.knecht.test',
+      ...previewDdevEnv,
       ...cacheEnv,
     ])
   })
@@ -74,7 +85,7 @@ describe('writeDdevConfig', () => {
           { key: 'OTHER', value: 'https://example.com/x' },
         ],
       })
-      const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+      const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
       expect(doc.web_environment).toEqual([
         'PRIMARY_SITE_URL=http://7.preview.lvh.me:3333',
         'ALPHA_SITE_URL=http://alpha--7.preview.lvh.me:3333/en',
@@ -82,6 +93,11 @@ describe('writeDdevConfig', () => {
         'OTHER=https://example.com/x',
         'KNECHT_PREVIEW_URL=http://7.preview.lvh.me:3333',
         'KNECHT_URL_ALPHA=http://alpha--7.preview.lvh.me:3333',
+        'DDEV_PRIMARY_URL=http://7.preview.lvh.me:3333',
+        'DDEV_PRIMARY_URL_WITHOUT_PORT=http://7.preview.lvh.me',
+        'DDEV_PRIMARY_URL_PORT=3333',
+        'DDEV_SCHEME=http',
+        'DDEV_HOSTNAME=7.preview.lvh.me,alpha--7.preview.lvh.me',
         ...cacheEnv,
       ])
     }
@@ -93,14 +109,14 @@ describe('writeDdevConfig', () => {
   it('writes only the session variables and the cache paths without env vars', () => {
     const dir = checkout()
     expect(writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' }).injected).toBe(0)
-    const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
-    expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', ...cacheEnv])
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
+    expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', ...previewDdevEnv, ...cacheEnv])
   })
 
   it('writes the compose override: ingress network and resource caps', () => {
     const dir = checkout()
     writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
-    const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.knecht.yaml'), 'utf8'))
+    const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
     expect(compose.services.web.networks).toEqual({ 'knecht-ingress': {} })
     expect(compose.services.web.mem_limit).toBeDefined()
     expect(compose.services.db.mem_limit).toBeDefined()
@@ -122,7 +138,7 @@ describe('writeDdevConfig', () => {
     try {
       const dir = checkout()
       writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env', shared: { projectId: 5, folders: ['web/uploads', '/etc', ''] } })
-      const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.knecht.yaml'), 'utf8'))
+      const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
       const host = join(data, 'shared', '5', 'web/uploads')
       expect(compose.services.web.volumes).toContain(`${host}:/var/www/html/web/uploads`)
       // Invalid paths are dropped, and there is no read-only suffix.
@@ -194,7 +210,7 @@ describe('env value references', () => {
     writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [
       { key: 'KNECHT_PREVIEW_URL', value: 'https://staging.example.com' },
     ], urlMode: 'env' })
-    const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(doc.web_environment.filter((l: string) => l.startsWith('KNECHT_PREVIEW_URL'))).toEqual(['KNECHT_PREVIEW_URL=https://staging.example.com'])
   })
 
@@ -203,7 +219,7 @@ describe('env value references', () => {
     writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [
       { key: 'ALPHA_URL', value: '${KNECHT_URL_ALPHA}/de' },
     ], urlMode: 'env' })
-    const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(doc.web_environment[0]).toBe('ALPHA_URL=http://alpha--7.preview.knecht.test/de')
   })
 
@@ -220,12 +236,52 @@ describe('env value references', () => {
       ],
       urlMode: 'env',
     })
-    const doc = parse(readFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'utf8'))
+    const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(doc.web_environment.slice(0, 4)).toEqual([
       'APP_URL=http://7.preview.knecht.test',
       'SITE_URL=http://7.preview.knecht.test/en',
       'PASS=pa$$$$word',
       'OTHER=$$UNKNOWN',
     ])
+  })
+})
+
+describe('ddev URL variables', () => {
+  const read = (dir: string) => (parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8')).web_environment as string[])
+    .filter(l => l.startsWith('DDEV_'))
+
+  it('point at the preview origins in env mode, port and scheme included', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [], urlMode: 'env' })
+    expect(read(dir)).toEqual([
+      'DDEV_PRIMARY_URL=http://7.preview.knecht.test',
+      'DDEV_PRIMARY_URL_WITHOUT_PORT=http://7.preview.knecht.test',
+      'DDEV_PRIMARY_URL_PORT=80',
+      'DDEV_SCHEME=http',
+      'DDEV_HOSTNAME=7.preview.knecht.test,alpha--7.preview.knecht.test',
+    ])
+  })
+
+  it('are what ddev writes locally in rewrite mode', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [], urlMode: 'rewrite' })
+    expect(read(dir)).toEqual([
+      'DDEV_PRIMARY_URL=https://demo.ddev.site',
+      'DDEV_PRIMARY_URL_WITHOUT_PORT=https://demo.ddev.site',
+      'DDEV_PRIMARY_URL_PORT=443',
+      'DDEV_SCHEME=https',
+      'DDEV_HOSTNAME=demo.ddev.site,alpha.ddev.site',
+    ])
+  })
+
+  it('a project line wins and can reference them', () => {
+    const dir = checkout()
+    writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site']), envVars: [
+      { key: 'DDEV_SCHEME', value: 'https' },
+      { key: 'APP_URL', value: '$DDEV_PRIMARY_URL' },
+    ], urlMode: 'env' })
+    const lines = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8')).web_environment as string[]
+    expect(lines.filter(l => l.startsWith('DDEV_SCHEME'))).toEqual(['DDEV_SCHEME=https'])
+    expect(lines).toContain('APP_URL=http://7.preview.knecht.test')
   })
 })

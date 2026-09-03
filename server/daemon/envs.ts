@@ -349,7 +349,7 @@ export async function archiveEnv(sessionId: number): Promise<void> {
 // conversation, which must survive archiving; ADR 0006). The .git tarball is
 // what makes the restore exact: the session's clone IS its object store, so
 // commits that were never pushed would die with the teardown otherwise.
-// `.ddev/config.knecht.yaml` is excluded via the clone's info/exclude and
+// `.ddev/config.zzz-knecht.yaml` is excluded via the clone's info/exclude and
 // regenerated on restore, so no secrets enter the patch.
 async function snapshotCheckout(sessionId: number): Promise<void> {
   const dir = sessionCheckoutDir(sessionId)
