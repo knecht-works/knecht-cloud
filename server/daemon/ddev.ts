@@ -116,11 +116,11 @@ export interface DdevConfigInput {
 // image when the repo uses it, and ddev's settings management off so it never
 // writes framework files into the checkout.
 //
-// Every project then gets the per-run overrides (`.ddev/config.knecht.yaml`,
-// `.ddev/docker-compose.knecht.yaml` and, for stacks with a db,
+// Every project then gets the per-run overrides (KNECHT_CONFIG_FILE,
+// KNECHT_COMPOSE_FILE and, for stacks with a db,
 // `.ddev/mysql/00-knecht-lowmem.cnf`). ddev merges all `.ddev/config.*.yaml`
-// and `.ddev/docker-compose.*.yaml` files, so this injects everything
-// run-specific without touching the repo's tracked config:
+// and `.ddev/docker-compose.*.yaml` files in name order, so this injects
+// everything run-specific without touching the repo's tracked config:
 //   - `name`: knecht-run-<id>. All runs share ONE docker daemon, so container/
 //     volume/network names must be unique per run; nothing routes by hostname
 //     (the router is omitted, the preview proxy targets the web container's IP
@@ -128,9 +128,10 @@ export interface DdevConfigInput {
 //     rename is invisible to the app.
 //   - `web_environment`: the project's configured env vars (projects.md §4)
 //     plus the session's KNECHT_* variables (utils/knecht-env.ts) whenever
-//     the environment has a preview to point at. A value may reference one
-//     of those or an earlier line as `$NAME` / `${NAME}`, the way a .env
-//     file expands; a name nothing defines stays as written.
+//     the environment has a preview to point at, plus ddev's own URL
+//     variables (ddevUrlEnv). A value may reference one of those or an
+//     earlier line as `$NAME` / `${NAME}`, the way a .env file expands; a
+//     name nothing defines stays as written.
 //     In 'env' urlMode (the default) every ddev-host URL in the VALUES is
 //     translated to its per-run preview origin, so a project that derives all
 //     its URLs from the env natively renders preview links and the proxy can
@@ -149,6 +150,14 @@ export interface DdevConfigInput {
 // written, the dev server's port when its daemon was written, and whether
 // any file differs from the checkout's previous state (every write below
 // goes through syncFile/removeFile, which only touch a file that differs).
+// The per-run override files. ddev merges `config.*.yaml` and
+// `docker-compose.*.yaml` in name order and the last file wins for a scalar,
+// so a repo's own committed override (`config.vite.yaml`, an add-on's
+// compose file) must sort BEFORE Knecht's: the `zzz-` prefix puts Knecht last,
+// and what it sets (the name, the environment, the ingress network) holds.
+export const KNECHT_CONFIG_FILE = 'config.zzz-knecht.yaml'
+export const KNECHT_COMPOSE_FILE = 'docker-compose.zzz-knecht.yaml'
+
 export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, urlMode, shared }: DdevConfigInput): Pick<SessionEnvResult, 'injected' | 'devServerPort' | 'changed'> {
   const ddevDir = join(checkoutDir, '.ddev')
   const name = sessionSandboxName(sessionId)
@@ -189,6 +198,7 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // hasPreviewTarget (utils/preview-target.ts) applies to project rows.
   const hasPreview = env.source === 'ddev' || devServer !== null
   const session = hasPreview ? sessionEnv(sessionId, env.hosts.value) : {}
+  Object.assign(session, ddevUrlEnv(env.hosts.value, session.KNECHT_PREVIEW_URL, translate))
   const known = new Map(Object.entries(session))
   const environment: string[] = []
   for (const e of envVars) {
@@ -217,13 +227,36 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // The marker comment silences ddev's "custom configuration detected"
   // warning, which would otherwise open every run log.
   const marker = '#ddev-silent-no-warn\n'
-  changed = syncFile(join(ddevDir, 'config.knecht.yaml'), marker + stringify(doc)) || changed
-  changed = syncFile(join(ddevDir, 'docker-compose.knecht.yaml'), marker + stringify(composeOverride({
+  changed = syncFile(join(ddevDir, KNECHT_CONFIG_FILE), marker + stringify(doc)) || changed
+  changed = syncFile(join(ddevDir, KNECHT_COMPOSE_FILE), marker + stringify(composeOverride({
     hasDb: env.hasDb.value,
     sharedMounts: shared ? sharedFolderMounts(shared) : [],
   }))) || changed
   if (env.hasDb.value) changed = writeLowmemDbConfig(checkoutDir, marker) || changed
   return { injected: envVars.length, devServerPort: devServer?.port ?? null, changed }
+}
+
+// ddev derives DDEV_PRIMARY_URL, DDEV_HOSTNAME and DDEV_SCHEME from its
+// router and leaves ALL of them empty when the router is omitted, which it is
+// on every Knecht host. A project that builds its URLs from them (ddev's own
+// settings files for Drupal, TYPO3 and WordPress do) would point nowhere. So
+// they are written here the way ddev writes them locally, from the repo's
+// ddev hostnames (a generated environment has none: its preview is the
+// primary), and they follow the urlMode like the project's own variables:
+// translated to the preview origins in 'env' mode, verbatim in 'rewrite'
+// mode, where the proxy maps them per response. Port and scheme come from
+// the resulting primary URL, so they match what the browser actually uses.
+function ddevUrlEnv(hosts: string[], preview: string | undefined, translate: (value: string) => string): Record<string, string> {
+  const primary = hosts.length ? translate(`https://${hosts[0]}`) : preview
+  if (!primary) return {}
+  const url = new URL(primary)
+  return {
+    DDEV_PRIMARY_URL: primary,
+    DDEV_PRIMARY_URL_WITHOUT_PORT: `${url.protocol}//${url.hostname}`,
+    DDEV_PRIMARY_URL_PORT: url.port || (url.protocol === 'https:' ? '443' : '80'),
+    DDEV_SCHEME: url.protocol.slice(0, -1),
+    DDEV_HOSTNAME: hosts.length ? hosts.map(translate).join(',') : url.hostname,
+  }
 }
 
 // Write `text` to `path` unless the file already holds it; true when the

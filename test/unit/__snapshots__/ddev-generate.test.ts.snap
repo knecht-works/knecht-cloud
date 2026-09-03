@@ -1,7 +1,11 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`configureSessionEnv > ddev-tracked: a repo with its own config gets only the overrides, unchanged 1`] = `
-"=== .ddev/config.knecht.yaml ===
+"=== .ddev/config.yaml ===
+name: demo
+additional_hostnames: [alpha]
+
+=== .ddev/config.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 name: knecht-run-7
 web_environment:
@@ -9,16 +13,17 @@ web_environment:
   - X=1
   - KNECHT_PREVIEW_URL=http://7.preview.knecht.test
   - KNECHT_URL_ALPHA=http://alpha--7.preview.knecht.test
+  - DDEV_PRIMARY_URL=http://7.preview.knecht.test
+  - DDEV_PRIMARY_URL_WITHOUT_PORT=http://7.preview.knecht.test
+  - DDEV_PRIMARY_URL_PORT=80
+  - DDEV_SCHEME=http
+  - DDEV_HOSTNAME=7.preview.knecht.test,alpha--7.preview.knecht.test
   - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
   - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
   - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
   - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
 
-=== .ddev/config.yaml ===
-name: demo
-additional_hostnames: [alpha]
-
-=== .ddev/docker-compose.knecht.yaml ===
+=== .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 services:
   web:
@@ -45,16 +50,7 @@ key-buffer-size = 8M
 `;
 
 exports[`configureSessionEnv > generated-plain: a repo without anything gets a headless php project with defaults 1`] = `
-"=== .ddev/config.knecht.yaml ===
-#ddev-silent-no-warn
-name: knecht-run-42
-web_environment:
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
-
-=== .ddev/config.yaml ===
+"=== .ddev/config.yaml ===
 #knecht-generated
 name: knecht-run-42
 type: php
@@ -67,7 +63,16 @@ omit_containers:
 corepack_enable: true
 disable_settings_management: true
 
-=== .ddev/docker-compose.knecht.yaml ===
+=== .ddev/config.zzz-knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-42
+web_environment:
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+
+=== .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 services:
   web:
@@ -82,16 +87,7 @@ networks:
 `;
 
 exports[`configureSessionEnv > generated-with-bun: the repo's bun goes into the web image at the pinned version 1`] = `
-"=== .ddev/config.knecht.yaml ===
-#ddev-silent-no-warn
-name: knecht-run-42
-web_environment:
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
-
-=== .ddev/config.yaml ===
+"=== .ddev/config.yaml ===
 #knecht-generated
 name: knecht-run-42
 type: php
@@ -104,7 +100,16 @@ omit_containers:
 corepack_enable: true
 disable_settings_management: true
 
-=== .ddev/docker-compose.knecht.yaml ===
+=== .ddev/config.zzz-knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-42
+web_environment:
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+
+=== .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 services:
   web:
@@ -122,25 +127,7 @@ RUN npm install -g bun@1.2.3
 `;
 
 exports[`configureSessionEnv > generated-with-devserver: the daemon and the preview env 1`] = `
-"=== .ddev/config.knecht.yaml ===
-#ddev-silent-no-warn
-name: knecht-run-42
-web_extra_daemons:
-  - name: dev
-    command: bash -lc 'npm run dev'
-    directory: /var/www/html
-  - name: forward
-    command: knecht-forward 41000 3000
-    directory: /var/www/html
-web_environment:
-  - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
-  - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=42.preview.knecht.test
-
-=== .ddev/config.yaml ===
+"=== .ddev/config.yaml ===
 #knecht-generated
 name: knecht-run-42
 type: php
@@ -153,7 +140,30 @@ omit_containers:
 corepack_enable: true
 disable_settings_management: true
 
-=== .ddev/docker-compose.knecht.yaml ===
+=== .ddev/config.zzz-knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-42
+web_extra_daemons:
+  - name: dev
+    command: bash -lc 'npm run dev'
+    directory: /var/www/html
+  - name: forward
+    command: knecht-forward 41000 3000
+    directory: /var/www/html
+web_environment:
+  - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
+  - DDEV_PRIMARY_URL=http://42.preview.knecht.test
+  - DDEV_PRIMARY_URL_WITHOUT_PORT=http://42.preview.knecht.test
+  - DDEV_PRIMARY_URL_PORT=80
+  - DDEV_SCHEME=http
+  - DDEV_HOSTNAME=42.preview.knecht.test
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+  - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=42.preview.knecht.test
+
+=== .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 services:
   web:
@@ -168,17 +178,7 @@ networks:
 `;
 
 exports[`configureSessionEnv > generated-with-versions: detected versions and an override land in config.yaml 1`] = `
-"=== .ddev/config.knecht.yaml ===
-#ddev-silent-no-warn
-name: knecht-run-42
-web_environment:
-  - APP_ENV=dev
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
-
-=== .ddev/config.yaml ===
+"=== .ddev/config.yaml ===
 #knecht-generated
 name: knecht-run-42
 type: php
@@ -191,7 +191,17 @@ omit_containers:
 corepack_enable: true
 disable_settings_management: true
 
-=== .ddev/docker-compose.knecht.yaml ===
+=== .ddev/config.zzz-knecht.yaml ===
+#ddev-silent-no-warn
+name: knecht-run-42
+web_environment:
+  - APP_ENV=dev
+  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+
+=== .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 services:
   web:
