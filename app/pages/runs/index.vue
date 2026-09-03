@@ -33,7 +33,7 @@ const sessionGroups = computed(() =>
   <div>
     <KTopBar title="Runs">
       <template #actions>
-        <AppSearch />
+        <KAppSearch />
       </template>
     </KTopBar>
 

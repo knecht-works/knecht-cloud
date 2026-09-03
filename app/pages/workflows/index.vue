@@ -127,7 +127,7 @@ const filtered = computed(() =>
   <div>
     <KTopBar title="Workflows">
       <template #actions>
-        <AppSearch />
+        <KAppSearch />
         <input
           ref="importInput"
           type="file"
@@ -200,7 +200,7 @@ const filtered = computed(() =>
       v-else
       class="flex flex-col gap-3"
     >
-      <WorkflowRow
+      <KWorkflowRow
         v-for="w in filtered"
         :id="w.id"
         :key="w.id"

@@ -50,7 +50,7 @@ const open = ref(false)
   <div>
     <KTopBar title="Projects">
       <template #actions>
-        <AppSearch />
+        <KAppSearch />
         <UButton
           icon="i-lucide-plus"
           label="New project"
@@ -95,7 +95,7 @@ const open = ref(false)
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      <ProjectCard
+      <KProjectCard
         v-for="p in filtered"
         :id="p.id"
         :key="p.id"
@@ -131,7 +131,7 @@ const open = ref(false)
       </button>
     </div>
 
-    <ProjectSetupModal
+    <KProjectSetupModal
       v-model:open="open"
       @created="refresh"
     />

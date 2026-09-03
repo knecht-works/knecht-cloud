@@ -49,11 +49,11 @@ async function runGc() {
       sub="Host daemon, sandbox runtime and running containers."
     >
       <template #actions>
-        <AppSearch />
+        <KAppSearch />
       </template>
     </KTopBar>
 
-    <SystemPanel />
+    <KSystemPanel />
 
     <KPanel
       title="Automatic updates"
