@@ -18,7 +18,9 @@ const { data: project } = await useFetch(`/api/projects/${id}`)
 // branch; each run's log shows the session branch's). A repo with its own
 // ddev config is described read-only: that file is the truth. Any other repo
 // gets its environment generated from what its files say, and PHP/Node can
-// be overridden here when the detection is wrong (empty = detected).
+// be overridden here when the detection is wrong (empty = detected). Both
+// kinds may run a dev server: next to the site for a ddev repo, as the site
+// for a generated one.
 const detectedEnv = computed(() => projectDetectedEnv(project.value?.ddevEnv))
 const envSource = computed(() => detectedEnv.value.source)
 const ddevSpec = computed(() => {
@@ -76,10 +78,11 @@ async function saveField<T>(field: Ref<T>, value: T, body: Record<string, unknow
 const setPhpOverride = (value: string | null) => saveField(phpOverride, value, { phpVersion: value })
 const setNodeOverride = (value: string | null) => saveField(nodeOverride, value, { nodeVersion: value })
 
-// The dev server: a command that serves the app (run under a login shell
-// in the web container) and the port it listens on, which is what
-// gives a generated environment a preview at all. Saved together: the server
-// rejects a command without a port.
+// The dev server: a command (run under a login shell in the web container)
+// and the port it listens on. Next to a repo's own web server it is a sidecar
+// the browser reaches at KNECHT_DEV_SERVER_URL; in a generated environment
+// it is what gives the environment a preview at all. Saved together: the
+// server rejects a command without a port.
 const devServer = ref(project.value?.devServer ?? '')
 const previewPort = ref(project.value?.previewPort == null ? '' : String(project.value.previewPort))
 const previewPortNumber = computed(() => /^\d+$/.test(previewPort.value.trim()) ? Number(previewPort.value.trim()) : null)
@@ -546,55 +549,58 @@ async function toggleMentions() {
           >
             Resolving environment…
           </p>
-          <!-- The repo ships its own ddev config: read-only, that file is the truth. -->
-          <div
-            v-else-if="envSource === 'ddev'"
-            class="flex flex-col gap-2"
-          >
-            <div
-              v-for="row in ddevSpec"
-              :key="row.label"
-              class="flex items-center justify-between gap-3"
-            >
-              <span class="k-mono text-2xs text-dimmed">{{ row.label }}</span>
-              <span class="k-mono text-xs text-toned">{{ row.value }}</span>
-            </div>
-          </div>
-          <!-- No ddev config in the repo: Knecht generates the environment.
-               Each row says where its value comes from; PHP and Node can be
-               overridden, empty means detected. -->
           <div
             v-else
             class="flex flex-col gap-3"
           >
-            <div>
-              <div class="k-label mb-1.5">
-                PHP
+            <!-- The repo ships its own ddev config: read-only, that file is the truth. -->
+            <div
+              v-if="envSource === 'ddev'"
+              class="flex flex-col gap-2"
+            >
+              <div
+                v-for="row in ddevSpec"
+                :key="row.label"
+                class="flex items-center justify-between gap-3"
+              >
+                <span class="k-mono text-2xs text-dimmed">{{ row.label }}</span>
+                <span class="k-mono text-xs text-toned">{{ row.value }}</span>
               </div>
-              <USelectMenu
-                :model-value="phpItems.find(i => i.value === phpOverride)"
-                :items="phpItems"
-                :search-input="false"
-                class="w-full"
-                @update:model-value="(item: { value: string | null } | undefined) => setPhpOverride(item?.value ?? null)"
-              />
             </div>
-            <div>
-              <div class="k-label mb-1.5">
-                Node
+            <!-- No ddev config in the repo: Knecht generates the environment.
+                 Each row says where its value comes from; PHP and Node can be
+                 overridden, empty means detected. -->
+            <template v-else>
+              <div>
+                <div class="k-label mb-1.5">
+                  PHP
+                </div>
+                <USelectMenu
+                  :model-value="phpItems.find(i => i.value === phpOverride)"
+                  :items="phpItems"
+                  :search-input="false"
+                  class="w-full"
+                  @update:model-value="(item: { value: string | null } | undefined) => setPhpOverride(item?.value ?? null)"
+                />
               </div>
-              <USelectMenu
-                :model-value="nodeItems.find(i => i.value === nodeOverride)"
-                :items="nodeItems"
-                :search-input="false"
-                class="w-full"
-                @update:model-value="(item: { value: string | null } | undefined) => setNodeOverride(item?.value ?? null)"
-              />
-            </div>
-            <div class="flex items-center justify-between gap-3">
-              <span class="k-label">Package manager</span>
-              <span class="k-mono text-xs text-toned">{{ packageManagerLabel }}</span>
-            </div>
+              <div>
+                <div class="k-label mb-1.5">
+                  Node
+                </div>
+                <USelectMenu
+                  :model-value="nodeItems.find(i => i.value === nodeOverride)"
+                  :items="nodeItems"
+                  :search-input="false"
+                  class="w-full"
+                  @update:model-value="(item: { value: string | null } | undefined) => setNodeOverride(item?.value ?? null)"
+                />
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="k-label">Package manager</span>
+                <span class="k-mono text-xs text-toned">{{ packageManagerLabel }}</span>
+              </div>
+            </template>
+            <!-- Both kinds: a dev server next to the site, or as the site. -->
             <div>
               <div class="mb-1.5 flex items-center justify-between gap-3">
                 <span class="k-label">Dev server</span>
@@ -620,7 +626,18 @@ async function toggleMentions() {
                 class="mt-2 w-full"
                 :ui="{ base: 'k-mono text-xs' }"
               />
-              <p class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed">
+              <p
+                v-if="envSource === 'ddev'"
+                class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed"
+              >
+                The command that starts your dev server, for example
+                <span class="text-muted">npm run dev</span> for Vite hot reloading, and the port it
+                listens on.
+              </p>
+              <p
+                v-else
+                class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed"
+              >
                 Optional. Serves the preview on this port: localhost is fine, and the
                 preview URL is available to it as <span class="text-muted">KNECHT_PREVIEW_URL</span>
                 (Vite-based dev servers such as Vite and Nuxt allow the preview host by themselves, other servers need it in their allowed hosts).

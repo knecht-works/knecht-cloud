@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { configureSessionEnv, devDaemonCommand, readDdevConfig } from '../../server/daemon/ddev'
 import type { SessionEnvProject } from '../../server/daemon/ddev'
+import { devServerLabel } from '../../server/utils/dev-origin'
 
 // What ends up in `.ddev/` for each kind of repo, byte for byte: the tracked
 // case is the regression guard for every existing customer (Knecht must keep
@@ -127,7 +128,7 @@ describe('configureSessionEnv', () => {
     expect(readEnv(npm)).toContain('pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store')
   })
 
-  it('a dev server without a port, a port without a command, or a repo with its own ddev config: no daemon, no port', async () => {
+  it('a dev server without a port, or a port without a command: no daemon, no port', async () => {
     const noPort = repo()
     expect((await configureSessionEnv(noPort, project({ devServer: 'npm run dev' }), 42, 'env')).devServerPort).toBeNull()
     expect(ddevTree(noPort)).not.toContain('web_extra_daemons')
@@ -135,9 +136,32 @@ describe('configureSessionEnv', () => {
     expect((await configureSessionEnv(noCommand, project({ previewPort: 3000 }), 42, 'env')).devServerPort).toBeNull()
     expect(ddevTree(noCommand)).not.toContain('web_extra_daemons')
     expect(existsSync(join(noCommand, '.ddev', 'web-build', 'Dockerfile.knecht'))).toBe(false)
-    const tracked = repo({ '.ddev/config.yaml': 'name: demo\n' })
-    expect((await configureSessionEnv(tracked, project({ devServer: 'npm run dev', previewPort: 3000 }), 7, 'env')).devServerPort).toBeNull()
-    expect(ddevTree(tracked)).not.toContain('web_extra_daemons')
+  })
+
+  it('the dev server of a generated environment is the site: KNECHT_DEV_SERVER_URL is the preview URL', async () => {
+    const dir = repo()
+    await configureSessionEnv(dir, project({ devServer: 'npm run dev', previewPort: 3000 }), 42, 'env')
+    const env = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8')).web_environment as string[]
+    expect(env).toContain('KNECHT_PREVIEW_URL=http://42.preview.knecht.test')
+    expect(env).toContain('KNECHT_DEV_SERVER_URL=http://42.preview.knecht.test')
+    expect(env).toContain('__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=42.preview.knecht.test')
+  })
+
+  it('tracked-with-devserver: a repo with its own ddev config runs the dev server next to its site, on the dev origin', async () => {
+    const dir = repo({ '.ddev/config.yaml': 'name: demo\n' })
+    const { env, devServerPort } = await configureSessionEnv(dir, project({ devServer: 'npm run dev', previewPort: 5173 }), 7, 'env')
+    expect(env.source).toBe('ddev')
+    expect(devServerPort).toBe(5173)
+    // The repo's config is untouched, the daemons go into Knecht's override.
+    expect(readFileSync(join(dir, '.ddev', 'config.yaml'), 'utf8')).toBe('name: demo\n')
+    const knecht = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
+    expect(knecht.web_extra_daemons.map((d: { name: string }) => d.name)).toEqual(['knecht-dev', 'knecht-forward'])
+    const devHost = `${devServerLabel(7)}--7.preview.knecht.test`
+    expect(knecht.web_environment).toContain('KNECHT_PREVIEW_URL=http://7.preview.knecht.test')
+    expect(knecht.web_environment).toContain(`KNECHT_DEV_SERVER_URL=http://${devHost}`)
+    expect(knecht.web_environment).toContain(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${devHost}`)
+    // The site keeps its ddev URL variables: the dev server does not replace it.
+    expect(knecht.web_environment).toContain('DDEV_PRIMARY_URL=http://7.preview.knecht.test')
   })
 
   it('a config Knecht generated on an earlier boot is rewritten, not treated as the repo\'s', async () => {

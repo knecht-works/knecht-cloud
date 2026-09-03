@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 import { describe, expect, it, vi } from 'vitest'
-import { previewTargetPort, readDdevHosts, writeDdevConfig } from '../../server/daemon/ddev'
+import { devServerIsPreview, previewTargetPort, readDdevHosts, writeDdevConfig } from '../../server/daemon/ddev'
 import { normalizeSharedFolder } from '../../server/utils/storage'
 import { resolveEnv, type ResolvedEnv } from '../../shared/utils/env-spec'
 
@@ -210,9 +210,22 @@ describe('readDdevHosts', () => {
 })
 
 describe('previewTargetPort', () => {
-  it('reaches a dev server through the forwarder and a ddev web server on :80', () => {
-    expect(previewTargetPort(3000)).toBe(41000)
-    expect(previewTargetPort(null)).toBe(80)
+  const generated = { previewHosts: [], previewPort: 3000 }
+  const trackedWithDev = { previewHosts: ['demo.ddev.site'], previewPort: 5173 }
+  const trackedPlain = { previewHosts: ['demo.ddev.site'], previewPort: null }
+
+  it('serves a generated environment from its dev server, a repo with its own config from its web server', () => {
+    expect(devServerIsPreview(generated)).toBe(true)
+    expect(devServerIsPreview(trackedWithDev)).toBe(false)
+    expect(devServerIsPreview({ previewHosts: [], previewPort: null })).toBe(false)
+    expect(previewTargetPort(generated)).toBe(41000)
+    expect(previewTargetPort(trackedWithDev)).toBe(80)
+    expect(previewTargetPort(trackedPlain)).toBe(80)
+  })
+
+  it('reaches the dev server through the forwarder on the dev origin, whatever the environment', () => {
+    expect(previewTargetPort(trackedWithDev, true)).toBe(41000)
+    expect(previewTargetPort(generated, true)).toBe(41000)
   })
 })
 

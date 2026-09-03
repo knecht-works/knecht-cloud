@@ -1,5 +1,6 @@
 import { getSessionRow } from './entities'
 import { bridgeBaseUrl, bridgeToken } from './agent-bridge'
+import { devServerOrigin } from './dev-origin'
 import { previewOrigin } from './origin'
 import { previewLabel } from '../../shared/utils/preview-host'
 
@@ -15,6 +16,13 @@ import { previewLabel } from '../../shared/utils/preview-host'
 //   KNECHT_PREVIEW_URL   the primary preview origin of the session
 //   KNECHT_URL_<LABEL>   one per additional hostname of the repo's ddev
 //                        config: the label uppercased, `-` as `_`
+//   KNECHT_DEV_SERVER_URL where a browser reaches the session's dev server,
+//                        when the project runs one: its own origin next to
+//                        a repo's ddev hostnames (utils/dev-origin.ts), the
+//                        primary origin itself in a generated environment,
+//                        where the dev server IS the site. What a repo
+//                        points its asset/HMR URL at
+//                        (`VITE_DEV_SERVER_PUBLIC=$KNECHT_DEV_SERVER_URL`).
 //
 // bridgeEnv: the agent bridge (utils/agent-bridge.ts), passed per exec to
 // the agent process only, never into the container env, because the token
@@ -26,7 +34,8 @@ import { previewLabel } from '../../shared/utils/preview-host'
 //                        belongs to one: switches on knecht-reply/knecht-label
 
 // Empty without a configured base origin: there is nothing to point at.
-export function sessionEnv(sessionId: number, hosts: string[]): Record<string, string> {
+// `hosts` are the repo's ddev hostnames (none for a generated environment).
+export function sessionEnv(sessionId: number, hosts: string[], devServer = false): Record<string, string> {
   const primary = previewOrigin(sessionId)
   if (!primary) return {}
   const env: Record<string, string> = { KNECHT_PREVIEW_URL: primary }
@@ -34,6 +43,7 @@ export function sessionEnv(sessionId: number, hosts: string[]): Record<string, s
     const label = previewLabel(host)
     env[`KNECHT_URL_${label.toUpperCase().replaceAll('-', '_')}`] = previewOrigin(sessionId, label)!
   }
+  if (devServer) env.KNECHT_DEV_SERVER_URL = hosts.length ? devServerOrigin(sessionId)! : primary
   return env
 }
 

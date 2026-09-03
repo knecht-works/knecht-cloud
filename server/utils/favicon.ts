@@ -37,9 +37,9 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
     const session = getSessionRow(sessionId)
     const preview = session && sessionPreviewUrl(session)
     if (!addr || !preview) return
-    // The site's own hostname; a generated environment has none, its dev
-    // server answers to the preview host.
-    const port = previewTargetPort(session.previewPort)
+    // The site's own hostname on the web server; a generated environment
+    // has none, its dev server answers to the preview host.
+    const port = previewTargetPort(session)
     const primary = readDdevHosts(sessionCheckoutDir(sessionId)).primary ?? new URL(preview).host
 
     const page = await fetchFrom(addr, port, primary, '/', MAX_HTML_BYTES)
