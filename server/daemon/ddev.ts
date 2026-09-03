@@ -168,9 +168,14 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   if (env.packageManager.value.name === 'pnpm') environment.push(PNPM_LEGACY_STORE_ENV)
   if (devServer !== null) {
     // KNECHT_PREVIEW_URL: the preview contract, what a Vite/Nuxt dev server
-    // puts into its allowedHosts.
+    // puts into its allowedHosts. Vite also reads the preview host from
+    // __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS (5.4.12/6.0.9 and up), so an
+    // untouched Vite project serves the preview without a config change.
     const preview = previewOrigin(sessionId)
-    if (preview) environment.push(`KNECHT_PREVIEW_URL=${preview}`)
+    if (preview) {
+      environment.push(`KNECHT_PREVIEW_URL=${preview}`)
+      environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(preview).hostname}`)
+    }
     doc.web_extra_daemons = [{ name: 'dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR }]
   }
   if (environment.length) doc.web_environment = environment
