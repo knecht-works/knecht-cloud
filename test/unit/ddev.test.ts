@@ -46,9 +46,9 @@ const previewDdevEnv = [
 ]
 
 describe('writeDdevConfig', () => {
-  it('renames the project per run and injects env vars with one quote layer stripped', () => {
+  it('renames the project per run and injects env vars with one quote layer stripped', async () => {
     const dir = checkout()
-    const written = writeDdevConfig(dir, {
+    const written = await writeDdevConfig(dir, {
       sessionId: 7,
       env: tracked(),
       urlMode: 'rewrite',
@@ -71,11 +71,11 @@ describe('writeDdevConfig', () => {
     ])
   })
 
-  it('translates ddev-host URLs in env values to preview origins in env mode', () => {
+  it('translates ddev-host URLs in env values to preview origins in env mode', async () => {
     vi.stubEnv('KNECHT_BASE_URL', 'http://lvh.me:3333')
     try {
       const dir = checkout('name: demo\nadditional_hostnames: [alpha]')
-      writeDdevConfig(dir, {
+      await writeDdevConfig(dir, {
         sessionId: 7,
         env: tracked(['demo.ddev.site', 'alpha.ddev.site']),
         urlMode: 'env',
@@ -108,24 +108,26 @@ describe('writeDdevConfig', () => {
     }
   })
 
-  it('writes only the session variables and the cache paths without env vars', () => {
+  it('writes only the session variables and the cache paths without env vars', async () => {
     const dir = checkout()
-    expect(writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' }).injected).toBe(0)
+    expect((await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).injected).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', ...previewDdevEnv, ...cacheEnv])
   })
 
-  it('frees pinned host ports and switches xdebug off, unless the project says otherwise', () => {
+  it('frees pinned host ports with real distinct ports (a shared "0" collides in ddev\'s own port bookkeeping) and switches xdebug off, unless the project says otherwise', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [{ key: 'XDEBUG_MODE', value: 'debug' }], urlMode: 'env' })
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [{ key: 'XDEBUG_MODE', value: 'debug' }], urlMode: 'env' })
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
-    expect([doc.host_db_port, doc.host_webserver_port, doc.host_https_port, doc.host_mailpit_port]).toEqual(['0', '0', '0', '0'])
+    const ports = [doc.host_db_port, doc.host_webserver_port, doc.host_https_port, doc.host_mailpit_port]
+    for (const port of ports) expect(port).toMatch(/^\d+$/)
+    expect(new Set(ports).size).toBe(4)
     expect(doc.web_environment.filter((l: string) => l.startsWith('XDEBUG_MODE'))).toEqual(['XDEBUG_MODE=debug'])
   })
 
-  it('writes the compose override: ingress network and resource caps', () => {
+  it('writes the compose override: ingress network and resource caps', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
     const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
     expect(compose.services.web.networks).toEqual({ 'knecht-ingress': {} })
     expect(compose.services.web.mem_limit).toBeDefined()
@@ -133,21 +135,21 @@ describe('writeDdevConfig', () => {
     expect(compose.networks['knecht-ingress']).toEqual({ external: true })
   })
 
-  it('writes the low-memory db config into the mysql includedir', () => {
+  it('writes the low-memory db config into the mysql includedir', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
     const cnf = readFileSync(join(dir, '.ddev', 'mysql', '00-knecht-lowmem.cnf'), 'utf8')
     expect(cnf).toContain('#ddev-silent-no-warn')
     expect(cnf).toContain('innodb-buffer-pool-size = 256M')
     expect(cnf).toContain('performance_schema = OFF')
   })
 
-  it('bind-mounts shared folders writable and creates their host dirs', () => {
+  it('bind-mounts shared folders writable and creates their host dirs', async () => {
     const data = mkdtempSync(join(tmpdir(), 'knecht-data-'))
     vi.stubEnv('KNECHT_DATA_DIR', data)
     try {
       const dir = checkout()
-      writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env', shared: { projectId: 5, folders: ['web/uploads', '/etc', ''] } })
+      await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env', shared: { projectId: 5, folders: ['web/uploads', '/etc', ''] } })
       const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
       const host = join(data, 'shared', '5', 'web/uploads')
       expect(compose.services.web.volumes).toContain(`${host}:/var/www/html/web/uploads`)
@@ -215,27 +217,27 @@ describe('previewTargetPort', () => {
 })
 
 describe('env value references', () => {
-  it('lets a project line for a session variable win', () => {
+  it('lets a project line for a session variable win', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [
       { key: 'KNECHT_PREVIEW_URL', value: 'https://staging.example.com' },
     ], urlMode: 'env' })
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(doc.web_environment.filter((l: string) => l.startsWith('KNECHT_PREVIEW_URL'))).toEqual(['KNECHT_PREVIEW_URL=https://staging.example.com'])
   })
 
-  it('resolves a per-host session variable', () => {
+  it('resolves a per-host session variable', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [
       { key: 'ALPHA_URL', value: '${KNECHT_URL_ALPHA}/de' },
     ], urlMode: 'env' })
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(doc.web_environment[0]).toBe('ALPHA_URL=http://alpha--7.preview.knecht.test/de')
   })
 
-  it('expands $NAME from the session and earlier lines, keeps unknown names and escapes $ for compose', () => {
+  it('expands $NAME from the session and earlier lines, keeps unknown names and escapes $ for compose', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, {
+    await writeDdevConfig(dir, {
       sessionId: 7,
       env: tracked(),
       envVars: [
@@ -260,9 +262,9 @@ describe('ddev URL variables', () => {
   const read = (dir: string) => (parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8')).web_environment as string[])
     .filter(l => l.startsWith('DDEV_'))
 
-  it('point at the preview origins in env mode, port and scheme included', () => {
+  it('point at the preview origins in env mode, port and scheme included', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [], urlMode: 'env' })
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [], urlMode: 'env' })
     expect(read(dir)).toEqual([
       'DDEV_PRIMARY_URL=http://7.preview.knecht.test',
       'DDEV_PRIMARY_URL_WITHOUT_PORT=http://7.preview.knecht.test',
@@ -272,9 +274,9 @@ describe('ddev URL variables', () => {
     ])
   })
 
-  it('are what ddev writes locally in rewrite mode', () => {
+  it('are what ddev writes locally in rewrite mode', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [], urlMode: 'rewrite' })
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site', 'alpha.ddev.site']), envVars: [], urlMode: 'rewrite' })
     expect(read(dir)).toEqual([
       'DDEV_PRIMARY_URL=https://demo.ddev.site',
       'DDEV_PRIMARY_URL_WITHOUT_PORT=https://demo.ddev.site',
@@ -284,9 +286,9 @@ describe('ddev URL variables', () => {
     ])
   })
 
-  it('a project line wins and can reference them', () => {
+  it('a project line wins and can reference them', async () => {
     const dir = checkout()
-    writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site']), envVars: [
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(['demo.ddev.site']), envVars: [
       { key: 'DDEV_SCHEME', value: 'https' },
       { key: 'APP_URL', value: '$DDEV_PRIMARY_URL' },
     ], urlMode: 'env' })

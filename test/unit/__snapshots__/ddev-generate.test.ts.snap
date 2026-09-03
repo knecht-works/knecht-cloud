@@ -8,10 +8,10 @@ additional_hostnames: [alpha]
 === .ddev/config.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 name: knecht-run-7
-host_db_port: "0"
-host_webserver_port: "0"
-host_https_port: "0"
-host_mailpit_port: "0"
+host_db_port: "<port>"
+host_webserver_port: "<port>"
+host_https_port: "<port>"
+host_mailpit_port: "<port>"
 web_environment:
   - PRIMARY_SITE_URL=http://7.preview.knecht.test
   - X=1
@@ -71,10 +71,10 @@ disable_settings_management: true
 === .ddev/config.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 name: knecht-run-42
-host_db_port: "0"
-host_webserver_port: "0"
-host_https_port: "0"
-host_mailpit_port: "0"
+host_db_port: "<port>"
+host_webserver_port: "<port>"
+host_https_port: "<port>"
+host_mailpit_port: "<port>"
 web_environment:
   - XDEBUG_MODE=off
   - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
@@ -113,10 +113,10 @@ disable_settings_management: true
 === .ddev/config.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 name: knecht-run-42
-host_db_port: "0"
-host_webserver_port: "0"
-host_https_port: "0"
-host_mailpit_port: "0"
+host_db_port: "<port>"
+host_webserver_port: "<port>"
+host_https_port: "<port>"
+host_mailpit_port: "<port>"
 web_environment:
   - XDEBUG_MODE=off
   - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
@@ -158,10 +158,10 @@ disable_settings_management: true
 === .ddev/config.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 name: knecht-run-42
-host_db_port: "0"
-host_webserver_port: "0"
-host_https_port: "0"
-host_mailpit_port: "0"
+host_db_port: "<port>"
+host_webserver_port: "<port>"
+host_https_port: "<port>"
+host_mailpit_port: "<port>"
 web_extra_daemons:
   - name: dev
     command: bash -lc 'npm run dev'
@@ -214,10 +214,10 @@ disable_settings_management: true
 === .ddev/config.zzz-knecht.yaml ===
 #ddev-silent-no-warn
 name: knecht-run-42
-host_db_port: "0"
-host_webserver_port: "0"
-host_https_port: "0"
-host_mailpit_port: "0"
+host_db_port: "<port>"
+host_webserver_port: "<port>"
+host_https_port: "<port>"
+host_mailpit_port: "<port>"
 web_environment:
   - APP_ENV=dev
   - XDEBUG_MODE=off

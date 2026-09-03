@@ -53,7 +53,7 @@ export async function rebootEnv(sessionId: number): Promise<void> {
   const project = session && getProject(session.projectId)
   const dir = sessionCheckoutDir(sessionId)
   if (session && project && existsSync(dir)) {
-    pinDevServerPort(sessionId, configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
+    pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
   }
   await startEnvStack(sessionId)
   markUp(sessionId)
@@ -63,8 +63,8 @@ export async function rebootEnv(sessionId: number): Promise<void> {
 // warnings go to the server log instead, so a checkout whose files changed
 // since the boot does not fail silently. Returns the dev server port the
 // container was just built for.
-function configureEnv(dir: string, project: Project, sessionId: number, urlMode: 'env' | 'rewrite'): number | null {
-  const { warnings, devServerPort } = configureSessionEnv(dir, project, sessionId, urlMode)
+async function configureEnv(dir: string, project: Project, sessionId: number, urlMode: 'env' | 'rewrite'): Promise<number | null> {
+  const { warnings, devServerPort } = await configureSessionEnv(dir, project, sessionId, urlMode)
   for (const warning of warnings) console.warn(`[envs] session ${sessionId}: ${warning}`)
   return devServerPort
 }
@@ -127,7 +127,7 @@ export async function rehydrateEnv(sessionId: number): Promise<void> {
   if (existsSync(stateArchive) && !existsSync(join(dir, '.knecht'))) {
     await execa('tar', ['-xzf', stateArchive, '-C', dir])
   }
-  const devServerPort = configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite')
+  const devServerPort = await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite')
   pinDevServerPort(sessionId, devServerPort)
 
   await startEnvStack(sessionId)
