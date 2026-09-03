@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+// Forward TCP connections from every container interface to a port on
+// localhost. A dev server started with its defaults (Vite, Nuxt, Next) binds
+// 127.0.0.1 only, which the preview proxy cannot reach from outside the
+// container; this runs under supervisord next to the dev server (daemon/
+// ddev.ts) and is what the proxy targets instead. A connection while the
+// dev server is down is closed right away, so a health poll keeps polling.
+// Plain CommonJS on purpose: it runs from /usr/local/bin under any Node the
+// project pins.
+const net = require('node:net')
+
+const [listenPort, targetPort] = process.argv.slice(2).map(Number)
+if (!listenPort || !targetPort) {
+  console.error('usage: knecht-forward <listen-port> <target-port>')
+  process.exit(2)
+}
+
+net.createServer((client) => {
+  const upstream = net.connect(targetPort, '127.0.0.1')
+  const drop = () => {
+    client.destroy()
+    upstream.destroy()
+  }
+  client.on('error', drop)
+  upstream.on('error', drop)
+  client.on('close', drop)
+  upstream.on('close', drop)
+  client.pipe(upstream).pipe(client)
+}).listen(listenPort, '0.0.0.0')

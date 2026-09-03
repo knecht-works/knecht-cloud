@@ -63,11 +63,12 @@ async function stageAgentTools(): Promise<void> {
   // knecht-git and the in-container ddev shim ship as bundled server assets;
   // (re)write them every boot so updates propagate. The mounted files must be
   // executable.
-  for (const name of ['knecht-git', 'knecht-reply', 'knecht-label', 'knecht-bridge-lib', 'ddev-shim']) {
+  for (const name of ['knecht-git', 'knecht-reply', 'knecht-label', 'knecht-bridge-lib', 'ddev-shim', 'knecht-forward']) {
     const content = await readSandboxAsset(name)
     if (!content) continue
-    // Both tools are bash scripts. A mangled asset mounted into runs surfaces
-    // as a baffling in-container failure; refuse it loudly at boot instead.
+    // All of them are scripts with a shebang. A mangled asset mounted into
+    // runs surfaces as a baffling in-container failure; refuse it loudly at
+    // boot instead.
     if (content.subarray(0, 2).toString() !== '#!') {
       throw new Error(`sandbox asset ${name} is corrupted (missing #! header)`)
     }
