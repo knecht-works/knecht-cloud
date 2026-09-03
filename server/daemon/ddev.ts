@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer, type AddressInfo, type Server } from 'node:net'
 import { join } from 'node:path'
 import { stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
@@ -79,10 +80,10 @@ export interface SessionEnvResult {
   changed: boolean
 }
 
-export function configureSessionEnv(checkoutDir: string, project: SessionEnvProject, sessionId: number, urlMode: UrlMode): SessionEnvResult {
+export async function configureSessionEnv(checkoutDir: string, project: SessionEnvProject, sessionId: number, urlMode: UrlMode): Promise<SessionEnvResult> {
   const detected = detectEnv(checkoutReader(checkoutDir))
   const env = resolveEnv(detected, project)
-  const written = writeDdevConfig(checkoutDir, {
+  const written = await writeDdevConfig(checkoutDir, {
     sessionId,
     env,
     envVars: project.envVars,
@@ -139,6 +140,22 @@ export interface DdevConfigInput {
 //     VERBATIM and the proxy maps the two worlds per response. YAML sidesteps
 //     the comma-escaping of `ddev config --web-environment`. The package
 //     manager cache paths (PACKAGE_CACHE_ENV) follow the project's vars.
+//   - `host_*_port`: a host port Knecht probes free right before writing, so
+//     docker binds it. A repo may pin `host_db_port: 3306` for a developer's
+//     GUI client; nothing here needs a fixed host port (everything reaches
+//     the containers over the network), so this overrides that pin the same
+//     way for every project. ddev ignores an EMPTY override for these (empty
+//     means unset in its merge), so the override must carry a real number:
+//     ddev's OWN port bookkeeping (global config's used-host-ports list)
+//     treats any literal value as an actually reserved port and rejects a
+//     second project reusing it, so a shared placeholder like "0" for every
+//     session collides across parallel runs exactly like the repo's pinned
+//     port did.
+//   - `XDEBUG_MODE=off` in the environment: a repo with `xdebug_enabled:
+//     true` makes every request wait for a debugger on host.docker.internal
+//     that nothing runs. ddev's merge ignores `xdebug_enabled: false` (a zero
+//     value), while the env variable outranks the ini ddev writes, for
+//     php-fpm and the CLI alike. A project's own XDEBUG_MODE line wins.
 //   - compose override: the web container joins the `knecht-ingress` network
 //     (how the preview proxy reaches it), gets the agent tools (opencode +
 //     knecht-git) bind-mounted read-only from the host tools dir, the
@@ -158,7 +175,8 @@ export interface DdevConfigInput {
 export const KNECHT_CONFIG_FILE = 'config.zzz-knecht.yaml'
 export const KNECHT_COMPOSE_FILE = 'docker-compose.zzz-knecht.yaml'
 
-export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, urlMode, shared }: DdevConfigInput): Pick<SessionEnvResult, 'injected' | 'devServerPort' | 'changed'> {
+export async function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, urlMode, shared }: DdevConfigInput): Promise<Pick<SessionEnvResult, 'injected' | 'devServerPort' | 'changed'>> {
+  const [dbPort, webserverPort, httpsPort, mailpitPort] = await freeHostPorts(4)
   const ddevDir = join(checkoutDir, '.ddev')
   const name = sessionSandboxName(sessionId)
   const devServer = devServerFor(env)
@@ -180,9 +198,13 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   }
   const doc: {
     name: string
+    host_db_port: string
+    host_webserver_port: string
+    host_https_port: string
+    host_mailpit_port: string
     web_environment?: string[]
     web_extra_daemons?: { name: string, command: string, directory: string }[]
-  } = { name }
+  } = { name, host_db_port: String(dbPort), host_webserver_port: String(webserverPort), host_https_port: String(httpsPort), host_mailpit_port: String(mailpitPort) }
   const translate = urlMode === 'env'
     ? envUrlTranslator(env.hosts.value, sessionId)
     : (v: string) => v
@@ -198,7 +220,7 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // hasPreviewTarget (utils/preview-target.ts) applies to project rows.
   const hasPreview = env.source === 'ddev' || devServer !== null
   const session = hasPreview ? sessionEnv(sessionId, env.hosts.value) : {}
-  Object.assign(session, ddevUrlEnv(env.hosts.value, session.KNECHT_PREVIEW_URL, translate))
+  Object.assign(session, ddevUrlEnv(env.hosts.value, session.KNECHT_PREVIEW_URL, translate), { XDEBUG_MODE: 'off' })
   const known = new Map(Object.entries(session))
   const environment: string[] = []
   for (const e of envVars) {
@@ -227,7 +249,7 @@ export function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, 
   // The marker comment silences ddev's "custom configuration detected"
   // warning, which would otherwise open every run log.
   const marker = '#ddev-silent-no-warn\n'
-  changed = syncFile(join(ddevDir, KNECHT_CONFIG_FILE), marker + stringify(doc)) || changed
+  changed = syncKnechtConfig(join(ddevDir, KNECHT_CONFIG_FILE), marker + stringify(doc)) || changed
   changed = syncFile(join(ddevDir, KNECHT_COMPOSE_FILE), marker + stringify(composeOverride({
     hasDb: env.hasDb.value,
     sharedMounts: shared ? sharedFolderMounts(shared) : [],
@@ -272,6 +294,35 @@ function removeFile(path: string): boolean {
   if (!existsSync(path)) return false
   rmSync(path)
   return true
+}
+
+// Like syncFile, but the host_*_port lines never count towards `changed`:
+// they get a freshly probed value on every write (below), and nothing reads
+// them back (the preview proxy reaches the container directly over the
+// ingress network, never through a published host port), so a run's own
+// idle-reboot restart logic must not fire just because the number moved.
+const HOST_PORT_LINE = /^(host_(?:db|webserver|https|mailpit)_port: ).*$/gm
+function syncKnechtConfig(path: string, text: string): boolean {
+  const mask = (s: string) => s.replace(HOST_PORT_LINE, '$1<port>')
+  const prior = existsSync(path) ? readFileSync(path, 'utf8') : null
+  writeFileSync(path, text)
+  return prior === null || mask(prior) !== mask(text)
+}
+
+// `count` distinct ports currently free on the host, the way ddev's own
+// unset-port default picks one (net.Listen(":0"), read back the assigned
+// port). Every socket stays open until all of them are bound, so probing the
+// next one can never land on a port this same batch just released.
+function freeHostPorts(count: number): Promise<number[]> {
+  return Promise.all(Array.from({ length: count }, () => new Promise<Server>((resolve, reject) => {
+    const server = createServer()
+    server.once('error', reject)
+    server.listen(0, '127.0.0.1', () => resolve(server))
+  }))).then((servers) => {
+    const ports = servers.map(server => (server.address() as AddressInfo).port)
+    servers.forEach(server => server.close())
+    return ports
+  })
 }
 
 // The dev server an environment runs, or null: only generated environments
