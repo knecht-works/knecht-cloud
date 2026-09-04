@@ -81,7 +81,7 @@ async function runAgain() {
     :session-id="sessionId"
     :hosts="previewHosts"
     :online="previewOnline"
-    :busy="isLive ? 'booting' : busy"
+    :busy="busy ?? (isLive && !previewOnline ? 'booting' : null)"
   >
     <KEnvLifecycle
       :env-state="envState"
