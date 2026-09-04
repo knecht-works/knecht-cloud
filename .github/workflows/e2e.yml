@@ -80,14 +80,23 @@ jobs:
   # The boot e2e: provision the runner as a real Knecht substrate
   # (provision-host.sh, the same script the VPS and the dev VM run), start the
   # PR's code as a dev server and let the boot test connect the fixture repo,
-  # run boot-and-preview as a real ddev project and hit the preview origins.
-  boot:
+  # boot it with the suite's own bare boot workflow and hit the preview origins.
+  # One matrix job per fixture repo (test/e2e/boot.test.ts FIXTURES, selected
+  # via KNECHT_E2E_FIXTURE): the boots run in parallel on their own runners,
+  # and a failing CMS names itself in the check list.
+  boot-fixture:
+    name: boot (${{ matrix.fixture }})
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
-    # Two sequential fixture boots (php + craft, the craft one with composer
-    # install and a vite build) fit comfortably; a wedged boot still dies.
-    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        fixture: [php, craftcms, kirby, drupal10, drupal11, laravel, typo3, no-ddev]
+    # Provisioning plus one boot (composer install and a vite build for the
+    # CMS fixtures) fits comfortably; a wedged boot still dies.
+    timeout-minutes: 30
     env:
+      KNECHT_E2E_FIXTURE: knecht-works/test-${{ matrix.fixture }}
       KNECHT_TEST_GITHUB_TOKEN: ${{ secrets.KNECHT_TEST_GITHUB_TOKEN }}
       # A GitHub App (id + PEM private key) installed on the fixture repo; the
       # dev server picks it up via the dev-only read fallback in
@@ -156,3 +165,18 @@ jobs:
             echo "--- sandbox $c:"
             docker logs "$c" 2>&1 | tail -50 || true
           done
+
+  # The single "boot" check the repo rulesets require: green only when every
+  # fixture boot passed. `always()` so a failed matrix job reaches it (a
+  # failed dependency would otherwise skip it, and a skipped check passes);
+  # the fork guard keeps it skipped where the matrix itself was.
+  boot:
+    needs: boot-fixture
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.boot-fixture.result }}" != "success" ]; then
+            echo "::error::A fixture boot failed (${{ needs.boot-fixture.result }})."
+            exit 1
+          fi
