@@ -125,6 +125,18 @@ describe('writeDdevConfig', () => {
     expect(doc.web_environment.filter((l: string) => l.startsWith('XDEBUG_MODE'))).toEqual(['XDEBUG_MODE=debug'])
   })
 
+  it('removes the override files from before the zzz- rename, and counts that as a change', async () => {
+    const dir = checkout()
+    writeFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'web_environment:\n  - STALE=1\n')
+    writeFileSync(join(dir, '.ddev', 'docker-compose.knecht.yaml'), 'services: {}\n')
+    await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
+    expect(existsSync(join(dir, '.ddev', 'config.knecht.yaml'))).toBe(false)
+    expect(existsSync(join(dir, '.ddev', 'docker-compose.knecht.yaml'))).toBe(false)
+    expect((await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).changed).toBe(false)
+    writeFileSync(join(dir, '.ddev', 'config.knecht.yaml'), 'web_environment:\n  - STALE=1\n')
+    expect((await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).changed).toBe(true)
+  })
+
   it('writes the compose override: ingress network and resource caps', async () => {
     const dir = checkout()
     await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
