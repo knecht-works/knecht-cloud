@@ -197,6 +197,11 @@ export interface DdevConfigInput {
 // and what it sets (the name, the environment, the ingress network) holds.
 export const KNECHT_CONFIG_FILE = 'config.zzz-knecht.yaml'
 export const KNECHT_COMPOSE_FILE = 'docker-compose.zzz-knecht.yaml'
+// The names before the `zzz-` prefix. A checkout survives reboots, so one
+// booted before the rename still carries them; ddev would merge them in
+// next to the new files (list fields like web_environment get appended,
+// never replaced), so every write removes them.
+const LEGACY_OVERRIDE_FILES = ['config.knecht.yaml', 'docker-compose.knecht.yaml']
 
 export async function writeDdevConfig(checkoutDir: string, { sessionId, env, envVars, urlMode, shared }: DdevConfigInput): Promise<Pick<SessionEnvResult, 'injected' | 'devServerPort' | 'changed'>> {
   const [dbPort, webserverPort, httpsPort, mailpitPort] = await freeHostPorts(4)
@@ -278,6 +283,7 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
     hasDb: env.hasDb.value,
     sharedMounts: shared ? sharedFolderMounts(shared) : [],
   }))) || changed
+  for (const legacy of LEGACY_OVERRIDE_FILES) changed = removeFile(join(ddevDir, legacy)) || changed
   if (env.hasDb.value) changed = writeLowmemDbConfig(checkoutDir, marker) || changed
   return { injected: envVars.length, devServerPort: devServer?.port ?? null, changed }
 }
