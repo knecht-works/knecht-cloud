@@ -78,6 +78,12 @@ describe('detectEnv', () => {
       expect(warnings).toEqual([])
     })
 
+    it('normalizes a padded pin so only the version reaches the Dockerfile', () => {
+      const { fields, warnings } = detectEnv(fixture('pm-field-padded-version'))
+      expect(fields.packageManager).toEqual({ value: { name: 'bun', version: '1.2.3' }, source: 'package.json' })
+      expect(warnings).toEqual([])
+    })
+
     it('keeps the name but not a pin that is no version', () => {
       const { fields, warnings } = detectEnv(fixture('pm-field-bad-version'))
       expect(fields.packageManager).toEqual({ value: { name: 'bun', version: null }, source: 'package.json' })

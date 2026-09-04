@@ -326,10 +326,12 @@ function detectPackageManager(readFile: ReadFile, warnings: string[]): ResolvedF
         warnings.push(`package.json names package manager '${field}', which Knecht does not know, using npm`)
         return null
       }
-      let version = spec?.split('+')[0] || null
-      if (version && !semver.valid(version)) {
+      // semver.valid returns the NORMALIZED version (it trims, so padding
+      // or a stray newline in the field would otherwise reach the Dockerfile).
+      const rawVersion = spec?.split('+')[0] || null
+      const version = rawVersion ? semver.valid(rawVersion) : null
+      if (rawVersion && !version) {
         warnings.push(`package.json pins ${name} to '${spec}', which is not a version, using ${name} without a pin`)
-        version = null
       }
       return { value: { name, version }, source: 'package.json' }
     }
