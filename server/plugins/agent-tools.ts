@@ -14,7 +14,9 @@ import { stageIde } from '../daemon/ide'
 //      ssh-agent are omitted (the preview proxy targets each run's web
 //      container directly, so no router may bind host ports), mutagen stays
 //      off, instrumentation off. Without this, the first `ddev start` would
-//      boot a router that collides with Caddy on :80/:443.
+//      boot a router that collides with Caddy on :80/:443. Written to
+//      ~/.ddev, which is where every ddev call reads it: daemon/sandbox.ts
+//      strips XDG_CONFIG_HOME so ddev never looks elsewhere.
 //   2. The agent tools dir (dataDir/tools): the bridge CLIs (knecht-git,
 //      knecht-reply, knecht-label, from the bundled server assets) and the
 //      opencode binary (downloaded via the official installer when missing).

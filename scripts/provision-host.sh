@@ -82,8 +82,12 @@ if [ "$(id -u)" = 0 ]; then
   as_warm_user() { runuser -u "$WARM_USER" -- env -u XDG_CONFIG_HOME HOME="$(getent passwd "$WARM_USER" | cut -d: -f6)" DDEV_NONINTERACTIVE=true "$@"; }
 else
   WARM_USER="$(id -un)"
+  # env -u XDG_CONFIG_HOME here too: with it set (GitHub runners export it)
+  # ddev reads $XDG_CONFIG_HOME/ddev and never sees the ~/.ddev config
+  # written below, so the warm-up would boot a router. The app strips it the
+  # same way for its own ddev calls (server/daemon/sandbox.ts).
   # `sg docker` so a just-added group membership works without re-login.
-  as_warm_user() { sg docker -c "DDEV_NONINTERACTIVE=true $*" 2>/dev/null || env DDEV_NONINTERACTIVE=true "$@"; }
+  as_warm_user() { sg docker -c "env -u XDG_CONFIG_HOME DDEV_NONINTERACTIVE=true $*" 2>/dev/null || env -u XDG_CONFIG_HOME DDEV_NONINTERACTIVE=true "$@"; }
 fi
 WARM_HOME="$(getent passwd "$WARM_USER" | cut -d: -f6)"
 

@@ -171,7 +171,12 @@ async function removeLabelledContainers(sessionId: number): Promise<void> {
 
 // ddev commands run HOST-side (the CLI drives the host daemon), from the run's
 // checkout so ddev resolves the right project.
-const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true' }
+// ddev honors XDG_CONFIG_HOME for its global config dir, and GitHub runners
+// (and some desktops) export it: the global config the boot writes to
+// ~/.ddev (plugins/agent-tools.ts, provision-host.sh) would then never be
+// read, and the first `ddev start` boots a router on :80/:443. Unsetting it
+// pins every ddev call to ~/.ddev, the one place both writers use.
+const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true', XDG_CONFIG_HOME: undefined }
 
 function execDdev(sessionId: number, args: string[], options?: Options) {
   return execa('ddev', args, {
