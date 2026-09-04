@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 import { describe, expect, it, vi } from 'vitest'
-import { devServerIsPreview, previewTargetPort, readDdevHosts, writeDdevConfig } from '../../server/daemon/ddev'
+import { devServerIsPreview, freeHostPorts, previewTargetPort, readDdevHosts, reservedHostPortsIn, writeDdevConfig } from '../../server/daemon/ddev'
 import { normalizeSharedFolder } from '../../server/utils/storage'
 import { resolveEnv, type ResolvedEnv } from '../../shared/utils/env-spec'
 
@@ -320,5 +320,42 @@ describe('ddev URL variables', () => {
     const lines = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8')).web_environment as string[]
     expect(lines.filter(l => l.startsWith('DDEV_SCHEME'))).toEqual(['DDEV_SCHEME=https'])
     expect(lines).toContain('APP_URL=http://7.preview.knecht.test')
+  })
+})
+
+describe('freeHostPorts', () => {
+  it('reads every project\'s used_host_ports from ddev\'s registry, and nothing from a broken one', () => {
+    const registry = [
+      'knecht-run-5:',
+      '    approot: /data/knecht/projects/run-5',
+      '    used_host_ports: ["41213", "40939", "42285"]',
+      'knecht-run-6:',
+      '    approot: /data/knecht/projects/run-6',
+      '    used_host_ports: ["36865", "37521", "38293"]',
+      'legacy:',
+      '    approot: /somewhere',
+    ].join('\n')
+    expect([...reservedHostPortsIn(registry)].sort()).toEqual([36865, 37521, 38293, 40939, 41213, 42285].sort())
+    expect(reservedHostPortsIn('')).toEqual(new Set())
+    expect(reservedHostPortsIn('[not: a: map')).toEqual(new Set())
+  })
+
+  it('probes past ports ddev has reserved, stopped projects included (they bind nothing, so the host says free)', async () => {
+    // Whatever the host hands out first counts as reserved: the result must
+    // then be other ports, still distinct.
+    const seen = new Set<number>()
+    const reserved = {
+      has(port: number) {
+        if (seen.size < 3) {
+          seen.add(port)
+          return true
+        }
+        return false
+      },
+    } as Set<number>
+    const ports = await freeHostPorts(4, reserved)
+    expect(ports).toHaveLength(4)
+    expect(new Set(ports).size).toBe(4)
+    for (const port of ports) expect(seen.has(port)).toBe(false)
   })
 })

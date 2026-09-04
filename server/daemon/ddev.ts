@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type AddressInfo, type Server } from 'node:net'
+import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { stringify } from 'yaml'
+import { parse, stringify } from 'yaml'
 import type { EnvVar } from '../../shared/utils/env'
 import { resolveEnv, type EnvOverrides, type ResolvedEnv } from '../../shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT, previewHostname, previewLabel } from '../../shared/utils/preview-host'
@@ -339,20 +340,67 @@ function syncKnechtConfig(path: string, text: string): boolean {
   return prior === null || mask(prior) !== mask(text)
 }
 
-// `count` distinct ports currently free on the host, the way ddev's own
-// unset-port default picks one (net.Listen(":0"), read back the assigned
-// port). Every socket stays open until all of them are bound, so probing the
-// next one can never land on a port this same batch just released.
-function freeHostPorts(count: number): Promise<number[]> {
-  return Promise.all(Array.from({ length: count }, () => new Promise<Server>((resolve, reject) => {
-    const server = createServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => resolve(server))
-  }))).then((servers) => {
-    const ports = servers.map(server => (server.address() as AddressInfo).port)
-    servers.forEach(server => server.close())
+// `count` distinct ports currently free on the host AND unknown to ddev, the
+// way ddev's own unset-port default picks one (net.Listen(":0"), read back
+// the assigned port, reject what its registry holds). Free on the host is
+// not enough: ddev reserves every project's host ports in
+// ~/.ddev/project_list.yaml, stopped projects included, and refuses to start
+// a project on a port that list gives to another one, while a stopped
+// project binds nothing. Every socket stays open until the batch is
+// complete, so a probe can never land on a port this same batch just
+// released, rejected ones included.
+export async function freeHostPorts(count: number, reserved: Set<number> = ddevReservedHostPorts()): Promise<number[]> {
+  const held: Server[] = []
+  const ports: number[] = []
+  try {
+    for (let round = 0; ports.length < count; round++) {
+      if (round === 10) throw new Error(`Could not find ${count} host ports free of ddev's registry in ${round} rounds`)
+      const servers = await Promise.all(Array.from({ length: count - ports.length }, () => new Promise<Server>((resolve, reject) => {
+        const server = createServer()
+        server.once('error', reject)
+        server.listen(0, '127.0.0.1', () => resolve(server))
+      })))
+      held.push(...servers)
+      for (const server of servers) {
+        const port = (server.address() as AddressInfo).port
+        if (!reserved.has(port)) ports.push(port)
+      }
+    }
     return ports
-  })
+  }
+  finally {
+    held.forEach(server => server.close())
+  }
+}
+
+// Every host port ddev's registry (~/.ddev/project_list.yaml) reserves for
+// any project on this host. No registry, no reservations.
+export function ddevReservedHostPorts(path = join(homedir(), '.ddev', 'project_list.yaml')): Set<number> {
+  if (!existsSync(path)) return new Set()
+  return reservedHostPortsIn(readFileSync(path, 'utf8'))
+}
+
+// The registry is a map of project name to `{ approot, used_host_ports }`,
+// the ports as strings. Anything unparseable reserves nothing.
+export function reservedHostPortsIn(registry: string): Set<number> {
+  const reserved = new Set<number>()
+  let projects: unknown
+  try {
+    projects = parse(registry)
+  }
+  catch {
+    return reserved
+  }
+  if (!projects || typeof projects !== 'object') return reserved
+  for (const project of Object.values(projects as Record<string, unknown>)) {
+    const ports = (project as { used_host_ports?: unknown } | null)?.used_host_ports
+    if (!Array.isArray(ports)) continue
+    for (const port of ports) {
+      const n = Number(port)
+      if (Number.isInteger(n) && n > 0) reserved.add(n)
+    }
+  }
+  return reserved
 }
 
 // The dev server an environment runs, or null: only a command together with
