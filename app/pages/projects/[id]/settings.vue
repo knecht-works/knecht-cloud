@@ -626,22 +626,10 @@ async function toggleMentions() {
                 class="mt-2 w-full"
                 :ui="{ base: 'k-mono text-xs' }"
               />
-              <p
-                v-if="envSource === 'ddev'"
-                class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed"
-              >
+              <p class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed">
                 The command that starts your dev server, for example
                 <span class="text-muted">npm run dev</span> for Vite hot reloading, and the port it
                 listens on.
-              </p>
-              <p
-                v-else
-                class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed"
-              >
-                Optional. Serves the preview on this port: localhost is fine, and the
-                preview URL is available to it as <span class="text-muted">KNECHT_PREVIEW_URL</span>
-                (Vite-based dev servers such as Vite and Nuxt allow the preview host by themselves, other servers need it in their allowed hosts).
-                Without it the environment has no preview.
               </p>
             </div>
             <p
