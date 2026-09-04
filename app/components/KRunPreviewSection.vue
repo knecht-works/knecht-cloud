@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EnvState } from '#shared/utils/run'
+import type { EnvState, EnvTransition } from '#shared/utils/run'
 
 // The preview anchors the workspace whenever the workflow boots an env that
 // serves something (a repo with its own ddev config, or a dev server on a
@@ -18,32 +18,38 @@ const props = defineProps<{
   hasBootStep: boolean
   previewOnline: boolean
   isLive: boolean
+  /** The lifecycle step in flight, from the server or a click that is still
+   *  waiting for it (KRunWorkspace). */
+  busy: EnvTransition | null
 }>()
 
 const emit = defineEmits<{
   /** Reboot/restore changed the run's env state; the parent refreshes. */
   changed: []
+  /** A reboot/restore request is in flight (or just finished: null). */
+  pending: [transition: EnvTransition | null]
   /** "Run again" created a fresh run; the parent selects it. */
   started: [runId: number]
 }>()
 
 const toastError = useToastError()
+const reviving = computed(() => props.busy === 'rebooting' || props.busy === 'restoring')
 
 // Walk the env DOWN its lifecycle on demand (stop exports the database and
 // frees the containers, archive snapshots and deletes the heavy sandbox);
 // the reverse steps (reboot/restore) live here.
-const rebooting = ref(false)
 async function reboot() {
-  rebooting.value = true
+  const restoring = props.envState === 'archived'
+  emit('pending', restoring ? 'restoring' : 'rebooting')
   try {
     await $fetch(`/api/runs/${props.runId}/reboot`, { method: 'POST' })
     emit('changed')
   }
   catch (e) {
-    toastError(props.envState === 'archived' ? 'Restore failed' : 'Reboot failed', e)
+    toastError(restoring ? 'Restore failed' : 'Reboot failed', e)
   }
   finally {
-    rebooting.value = false
+    emit('pending', null)
   }
 }
 
@@ -75,12 +81,12 @@ async function runAgain() {
     :session-id="sessionId"
     :hosts="previewHosts"
     :online="previewOnline"
-    :booting="isLive"
+    :busy="isLive ? 'booting' : busy"
   >
     <KEnvLifecycle
       :env-state="envState"
       :workflow-id="workflowId"
-      :reviving="rebooting"
+      :reviving="reviving"
       :restarting="restarting"
       @revive="reboot"
       @run-again="runAgain"
@@ -93,7 +99,7 @@ async function runAgain() {
     <KEnvLifecycle
       :env-state="envState"
       :workflow-id="workflowId"
-      :reviving="rebooting"
+      :reviving="reviving"
       :restarting="restarting"
       @revive="reboot"
       @run-again="runAgain"

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { EnvTransition } from '#shared/utils/run'
+
 // Browser chrome around the live preview iframe: back/forward/reload, an
 // editable address bar, a host switcher (multisite projects serve several
 // hostnames, each with its own per-run preview origin) and open-in-new-tab.
@@ -14,19 +16,51 @@ const props = withDefaults(defineProps<{
   /** The preview is browsable: the env is up AND the boot step finished
    *  (run.previewReady). Renders the iframe directly; no probing needed. */
   online?: boolean
-  /** The boot is still in progress; shows the starting state instead of the
-   *  offline slot. */
-  booting?: boolean
+  /** A lifecycle step is in flight (the boot, a stop, a restore, ...): shows
+   *  the mascot with a matching message instead of the frame or the offline
+   *  slot. */
+  busy?: 'booting' | EnvTransition | null
 }>(), {
   hosts: () => [],
   online: false,
-  booting: false,
+  busy: null,
 })
+
+const BUSY_COPY: Record<NonNullable<typeof props.busy>, { label: string, address: string, text: string }> = {
+  booting: {
+    label: 'starting',
+    address: 'Knecht is preparing the preview…',
+    text: 'Knecht is booting the project. The preview appears here as soon as it\'s ready.',
+  },
+  stopping: {
+    label: 'stopping',
+    address: 'Knecht is stopping the environment…',
+    text: 'Knecht is stopping the environment. The database is exported on the way down.',
+  },
+  rebooting: {
+    label: 'rebooting',
+    address: 'Knecht is rebooting the environment…',
+    text: 'Knecht is rebooting the environment. The preview is back in a few seconds.',
+  },
+  restoring: {
+    label: 'restoring',
+    address: 'Knecht is restoring the environment…',
+    text: 'Knecht is restoring the environment from its archive. This takes a few minutes.',
+  },
+  archiving: {
+    label: 'archiving',
+    address: 'Knecht is archiving the environment…',
+    text: 'Knecht is archiving the environment. Its code state and database are kept.',
+  },
+}
+const busyCopy = computed(() => props.busy ? BUSY_COPY[props.busy] : null)
 
 const reqUrl = useRequestURL()
 const primaryHost = computed(() => props.hosts[0] ?? null)
 
-const live = computed(() => props.online)
+// A stop in flight hides the frame right away: the containers go down
+// mid-request, and a half-loaded page is worse than the stopping notice.
+const live = computed(() => props.online && !props.busy)
 
 // The per-session preview origin for one of the project's ddev hostnames.
 function originFor(host: string | null): string {
@@ -244,7 +278,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           <span
             v-else
             class="k-mono flex-1 truncate text-xs text-dimmed"
-          >{{ booting ? 'Knecht is preparing the preview…' : 'no live preview' }}</span>
+          >{{ busyCopy?.address ?? 'no live preview' }}</span>
           <UDropdownMenu
             v-if="live && hostItems.length > 1"
             :items="hostItems"
@@ -266,12 +300,12 @@ const hostItems = computed(() => props.hosts.map(host => ({
 
       <span class="k-mono flex flex-none items-center gap-1.5 text-xs text-dimmed">
         <KStatusDot
-          :color="live ? 'primary' : booting ? 'orange' : 'neutral'"
-          :pulse="!live && booting"
+          :color="live ? 'primary' : busyCopy ? 'orange' : 'neutral'"
+          :pulse="!live && !!busyCopy"
           :glow="false"
           :size="6"
         />
-        {{ live ? 'live' : booting ? 'starting' : 'offline' }}
+        {{ live ? 'live' : busyCopy?.label ?? 'offline' }}
       </span>
       <UButton
         icon="i-lucide-external-link"
@@ -294,7 +328,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
         class="absolute inset-0 size-full"
       />
       <div
-        v-else-if="booting"
+        v-else-if="busyCopy"
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center"
       >
         <img
@@ -307,7 +341,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
             name="i-lucide-loader-circle"
             class="size-4 animate-spin text-dimmed"
           />
-          Knecht is booting the project. The preview appears here as soon as it's ready.
+          {{ busyCopy.text }}
         </p>
       </div>
       <div

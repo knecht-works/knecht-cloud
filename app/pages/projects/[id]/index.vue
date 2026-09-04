@@ -376,7 +376,6 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
         v-else
         :session-id="0"
         :online="false"
-        :booting="false"
       >
         <img
           src="/mascot/mascotRight.png"

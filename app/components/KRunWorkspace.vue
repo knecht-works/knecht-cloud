@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { EnvTransition } from '#shared/utils/run'
 import { stepsInclude, type Step } from '#shared/utils/workflow'
 
 // One run's full workspace: header, preview, follow-up chat and the run log
@@ -92,11 +93,18 @@ const { retrying: bannerRetrying, retry: bannerRetry } = useRunRetry(id, () => r
 const followupActive = ref(false)
 const terminalOpen = ref(false)
 
+// The env lifecycle step in flight (stop, reboot, restore, archive). The
+// server reports it on every poll, so it survives leaving and re-entering
+// the page; `pending` bridges the moment between a click here and the first
+// poll that sees it, and the poll keeps running until the server is done.
+const pending = ref<EnvTransition | null>(null)
+const busy = computed(() => run.value?.envTransition ?? pending.value)
+
 function refreshWorkspace() {
   return Promise.all([refresh(), refreshSteps()])
 }
 
-usePollWhile(() => isLive.value || followupActive.value, refreshWorkspace)
+usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refreshWorkspace)
 </script>
 
 <template>
@@ -112,6 +120,7 @@ usePollWhile(() => isLive.value || followupActive.value, refreshWorkspace)
       :status="run.status"
       :kind="run.kind"
       :env-state="run.envState"
+      :busy="busy"
       :pr-url="run.prUrl"
       :is-live="isLive"
       :status-meta="statusMeta"
@@ -119,6 +128,7 @@ usePollWhile(() => isLive.value || followupActive.value, refreshWorkspace)
       @changed="() => { refreshWorkspace(); emit('changed') }"
       @deleted="emit('deleted')"
       @open-terminal="terminalOpen = true"
+      @pending="(t) => { pending = t }"
     />
 
     <KRunPreviewSection
@@ -132,8 +142,10 @@ usePollWhile(() => isLive.value || followupActive.value, refreshWorkspace)
       :has-boot-step="hasBootStep"
       :preview-online="!!previewOnline"
       :is-live="isLive"
+      :busy="busy"
       @changed="() => { refreshWorkspace(); emit('changed') }"
       @started="(runId) => emit('started', runId)"
+      @pending="(t) => { pending = t }"
     />
 
     <div
