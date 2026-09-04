@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { previewLabel } from '../../shared/utils/preview-host'
-import type { E2eClient } from './client'
+import type { E2eClient, PreviewResponse } from './client'
 import { expectJson, login, previewFetch } from './client'
 
 // The boot e2e: connect a real fixture repo per supported CMS, boot it as a
@@ -131,11 +131,13 @@ const FIXTURES: BootFixture[] = [
     bootDeadlineMs: 12 * 60_000,
     // The fixture's .env.example minus the noise, with a throwaway APP_KEY
     // (ddev's settings management is off for this repo, so nothing writes
-    // a .env; Laravel reads these from the container environment).
+    // a .env; Laravel reads these from the container environment). The key
+    // must decode to exactly 32 bytes: AES-256-CBC rejects any other length
+    // on the first web request, after a clean boot (migrate never needs it).
     envVars: envList({
       APP_NAME: 'test-laravel',
       APP_ENV: 'local',
-      APP_KEY: 'base64:a2tlY2h0LWUyZS1sYXJhdmVsLWFwcC1rZXktMDEyMzQ1Njc=',
+      APP_KEY: 'base64:a25lY2h0LWUyZS1sYXJhdmVsLWFwcC1rZXktMDEyMzQ=',
       APP_DEBUG: 'true',
       APP_URL: 'https://test-laravel.ddev.site',
       DB_CONNECTION: 'mysql',
@@ -247,6 +249,13 @@ async function connectFixture(client: E2eClient, fullName: string): Promise<{ pr
   return { projectId: (await expectJson<{ id: number }>(created)).id, own: true, defaultBranch }
 }
 
+// The assertion message for a preview probe: the origin plus the start of
+// the body, so a CMS error page (a Laravel exception, a Craft install
+// screen) names itself in the CI log instead of a bare status code.
+function previewFailure(origin: string, res: PreviewResponse): string {
+  return `${origin} answered ${res.status}:\n${res.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500)}`
+}
+
 // Best-effort teardown, but never silent: a failed DELETE on a persistent
 // instance (the dev VM) would otherwise leak the sandbox or project unnoticed.
 async function cleanup(client: E2eClient, path: string): Promise<void> {
@@ -330,7 +339,7 @@ for (const fixture of selected) {
 
       // The primary origin serves the booted project to a logged-in visitor.
       const primary = await previewFetch(run.id, { cookie: client.cookie })
-      expect(primary.status).toBe(200)
+      expect(primary.status, previewFailure('primary origin', primary)).toBe(200)
       expect(primary.body.length).toBeGreaterThan(0)
 
       // Every additional hostname gets its own labelled origin. Not pinned to
@@ -338,7 +347,7 @@ for (const fixture of selected) {
       // to its login page), only server errors fail.
       for (const host of fixture.extraHosts ?? []) {
         const labelled = await previewFetch(run.id, { label: previewLabel(host), cookie: client.cookie })
-        expect(labelled.status, `preview origin for ${host}`).toBeLessThan(400)
+        expect(labelled.status, previewFailure(`preview origin for ${host}`, labelled)).toBeLessThan(400)
       }
 
       // Previews are login-gated: a logged-out navigation is redirected to
