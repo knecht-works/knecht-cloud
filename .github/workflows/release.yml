@@ -104,3 +104,22 @@ jobs:
           gh release create "$GITHUB_REF_NAME" $PRERELEASE --title "$GITHUB_REF_NAME" --notes-file /tmp/notes.md
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Announce stable releases in Discord via a channel webhook (the URL is
+      # the DISCORD_RELEASE_WEBHOOK repo secret). Pre-releases stay quiet, like
+      # the `latest` tag above. The plain-text line above the embed is what
+      # push notifications show; the embed carries the same notes as the
+      # Release with emoji h3 group headings (Discord renders markdown), capped
+      # under Discord's 4096-char description limit.
+      - name: Announce the release on Discord
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+        run: |
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
+          BODY="$(sed -E -e 's/^Breaking:$/### ⚠️ Breaking/' -e 's/^New:$/### ✨ New/' -e 's/^Fixed:$/### 🐛 Fixed/' /tmp/notes.md | head -c 3800)"
+          jq -n --arg content "🚀 **Knecht $GITHUB_REF_NAME** is out! Here is what changed:" --arg url "$URL" --arg body "$BODY" \
+            '{content: $content, embeds: [{title: "Release notes", url: $url, description: $body, color: 12056738,
+              footer: {text: "Update from the System page in your dashboard, or read the full release on GitHub."},
+              timestamp: (now | todate)}]}' \
+            | curl -sSf -H 'Content-Type: application/json' -d @- "$WEBHOOK"
