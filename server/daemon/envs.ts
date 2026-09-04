@@ -4,6 +4,7 @@ import { execa } from 'execa'
 import { and, desc, eq, inArray, lt } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
+import type { EnvTransition } from '../../shared/utils/run'
 import { getSettings } from '../utils/settings'
 import { getProject, getSessionRow } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
@@ -33,6 +34,27 @@ import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnv
 // re-imported (rehydrateEnv). All timeouts are operator settings
 // (server/utils/settings.ts).
 
+// Which lifecycle transition a session's env is in the middle of, for the run
+// page: envState only holds the stable rungs, but a stop or a restore takes
+// seconds to minutes and the UI must show that across reloads. In memory on
+// purpose: a crash mid-transition drops the marker with the process instead
+// of wedging a state in the DB that no reaper reclaims.
+const transitions = new Map<number, EnvTransition>()
+
+export function envTransition(sessionId: number): EnvTransition | null {
+  return transitions.get(sessionId) ?? null
+}
+
+async function inTransition(sessionId: number, kind: EnvTransition, fn: () => Promise<void>): Promise<void> {
+  transitions.set(sessionId, kind)
+  try {
+    await fn()
+  }
+  finally {
+    transitions.delete(sessionId)
+  }
+}
+
 // Bring a session's env up before project-facing work: start its ddev stack
 // if it isn't running, mark it previewable. Idempotent; the running check
 // keeps the per-step calls cheap (a no-op `ddev start` still takes seconds).
@@ -45,18 +67,20 @@ export async function ensureEnvUp(sessionId: number): Promise<void> {
 // survived the stop, so `ddev start` brings it back without re-running the
 // workflow.
 export async function rebootEnv(sessionId: number): Promise<void> {
-  // Refresh the knecht ddev config first: the compose override evolves with
-  // Knecht (tool mounts like the IDE server, resource limits), and a reboot
-  // must pick up its current shape, not the one from the session's original
-  // boot.
-  const session = getSessionRow(sessionId)
-  const project = session && getProject(session.projectId)
-  const dir = sessionCheckoutDir(sessionId)
-  if (session && project && existsSync(dir)) {
-    pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
-  }
-  await startEnvStack(sessionId)
-  markUp(sessionId)
+  await inTransition(sessionId, 'rebooting', async () => {
+    // Refresh the knecht ddev config first: the compose override evolves with
+    // Knecht (tool mounts like the IDE server, resource limits), and a reboot
+    // must pick up its current shape, not the one from the session's original
+    // boot.
+    const session = getSessionRow(sessionId)
+    const project = session && getProject(session.projectId)
+    const dir = sessionCheckoutDir(sessionId)
+    if (session && project && existsSync(dir)) {
+      pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
+    }
+    await startEnvStack(sessionId)
+    markUp(sessionId)
+  })
 }
 
 // configureSessionEnv for the paths without a run log: the detectors'
@@ -87,6 +111,10 @@ function pinDevServerPort(sessionId: number, port: number | null): void {
 // best-effort snapshot failed) falls back to a fresh clone at the branch tip.
 // Takes minutes, the price of archives costing MBs instead of GBs.
 export async function rehydrateEnv(sessionId: number): Promise<void> {
+  await inTransition(sessionId, 'restoring', () => restoreFromArchive(sessionId))
+}
+
+async function restoreFromArchive(sessionId: number): Promise<void> {
   const session = getSessionRow(sessionId)
   const project = session && getProject(session.projectId)
   if (!session || !project) throw new Error('Session or project not found')
@@ -240,20 +268,15 @@ function markUp(sessionId: number): void {
 // session mid-export. Failures propagate (envState stays 'up'): the stop
 // endpoint reports them, the idle reaper catches per session and retries on
 // its next tick.
-const stopping = new Set<number>()
 export async function stopEnv(sessionId: number): Promise<void> {
-  if (stopping.has(sessionId)) return
-  stopping.add(sessionId)
-  try {
+  if (transitions.get(sessionId) === 'stopping') return
+  await inTransition(sessionId, 'stopping', async () => {
     await exportSessionDb(sessionId)
     // A session whose stack never came up has nothing to stop; `ddev stop` on
     // an unregistered project would fail and wedge the env in 'up' forever.
     if (await envStackRunning(sessionId)) await stopEnvStack(sessionId)
     db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, sessionId)).run()
-  }
-  finally {
-    stopping.delete(sessionId)
-  }
+  })
 }
 
 // Export the env's CURRENT database into the session's archive. The DB can
@@ -338,9 +361,11 @@ export async function archiveStaleEnvs(): Promise<void> {
 // Archive one stopped env: snapshot, teardown, mark archived. Shared by the
 // retention reaper above and the run page's "archive now" action.
 export async function archiveEnv(sessionId: number): Promise<void> {
-  await snapshotCheckout(sessionId)
-  await teardownSession(sessionId)
-  db.update(schema.sessions).set({ envState: 'archived' }).where(eq(schema.sessions.id, sessionId)).run()
+  await inTransition(sessionId, 'archiving', async () => {
+    await snapshotCheckout(sessionId)
+    await teardownSession(sessionId)
+    db.update(schema.sessions).set({ envState: 'archived' }).where(eq(schema.sessions.id, sessionId)).run()
+  })
 }
 
 // Record what the teardown is about to delete from the checkout: its HEAD

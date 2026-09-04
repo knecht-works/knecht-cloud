@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EnvState } from '#shared/utils/run'
+import type { EnvState, EnvTransition } from '#shared/utils/run'
 import type { RunStatus, RunStatusMeta } from '~/utils/dashboard'
 
 interface MetaChip { icon: string, text: string, href?: string }
@@ -13,6 +13,8 @@ const props = defineProps<{
   status: RunStatus
   kind: 'workflow' | 'mention'
   envState: EnvState
+  /** The lifecycle step in flight (KRunWorkspace); lifecycle actions wait. */
+  busy: EnvTransition | null
   prUrl: string | null
   isLive: boolean
   statusMeta: RunStatusMeta
@@ -27,12 +29,14 @@ const emit = defineEmits<{
   deleted: []
   /** The overflow menu's Terminal item was picked. */
   openTerminal: []
+  /** A stop/archive request is in flight (or just finished: null). */
+  pending: [transition: EnvTransition | null]
 }>()
 
 const toastError = useToastError()
 const NuxtLink = resolveComponent('NuxtLink')
 
-const canTerminal = computed(() => props.envState === 'up')
+const canTerminal = computed(() => props.envState === 'up' && !props.busy)
 const { retrying, retry } = useRunRetry(props.runId, () => emit('changed'))
 
 const confirmDelete = ref(false)
@@ -66,12 +70,16 @@ async function cancel() {
 }
 
 async function envAction(action: 'stop' | 'archive') {
+  emit('pending', action === 'stop' ? 'stopping' : 'archiving')
   try {
     await $fetch(`/api/runs/${props.runId}/${action}`, { method: 'POST' })
     emit('changed')
   }
   catch (e) {
     toastError(action === 'stop' ? 'Stop failed' : 'Archive failed', e)
+  }
+  finally {
+    emit('pending', null)
   }
 }
 
@@ -105,9 +113,9 @@ const menuItems = computed(() => {
       }]
     : []
   const lifecycle = props.envState === 'up' && !props.isLive
-    ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', onSelect: () => envAction('stop') }]
+    ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', disabled: !!props.busy, onSelect: () => envAction('stop') }]
     : props.envState === 'stopped'
-      ? [{ label: 'Archive environment', icon: 'i-lucide-archive', onSelect: () => envAction('archive') }]
+      ? [{ label: 'Archive environment', icon: 'i-lucide-archive', disabled: !!props.busy, onSelect: () => envAction('archive') }]
       : []
   return [remote, lifecycle, [{
     label: 'Delete run',
