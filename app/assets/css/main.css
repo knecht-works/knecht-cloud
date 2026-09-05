@@ -194,6 +194,12 @@ body {
   color: var(--text-dimmed);
 }
 
+/* The field box around a code editor (WorkflowCodeEditor paints no surface
+   of its own): hairline ring at rest, primary ring while editing. */
+@utility k-code-box {
+  @apply w-full overflow-hidden rounded-md bg-default ring ring-inset ring-accented transition-colors focus-within:ring-2 focus-within:ring-primary;
+}
+
 /* Inline code in helper text (a command, a file name, an env var): a mono
    chip that stays readable inside dimmed prose. */
 @layer base {

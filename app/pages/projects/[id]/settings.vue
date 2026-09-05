@@ -108,38 +108,18 @@ watch(devServerBody, ({ devServer: command, previewPort: port }) => {
 const resolvedEnv = computed(() => resolveEnv(detectedEnv.value, { ...envOverrides.value, ...devServerBody.value }))
 
 // ── Env variables (.env textarea, auto-saved) ──────────────────────────────
-// Edited as raw `KEY=value` lines (parseEnvText / envVarsToText helpers); parsed
-// and persisted (debounced) on change, so there's no save button.
+// Edited as raw `KEY=value` lines (parseEnvText / envVarsToText helpers),
+// parsed and persisted on change like every other card.
 const envText = ref(envVarsToText(project.value?.envVars ?? []))
-const envSaveState = ref<'idle' | 'saving' | 'saved'>('idle')
-
-async function persistEnv() {
-  envSaveState.value = 'saving'
-  try {
-    await $fetch(`/api/projects/${id}`, {
-      method: 'PATCH',
-      body: { envVars: parseEnvText(envText.value) },
-    })
-    envSaveState.value = 'saved'
-  }
-  catch (e) {
-    envSaveState.value = 'idle'
-    toastError('Failed to save', e)
-  }
-}
-
-let envSaveTimer: ReturnType<typeof setTimeout> | undefined
-watch(envText, () => {
-  envSaveState.value = 'saving'
-  clearTimeout(envSaveTimer)
-  envSaveTimer = setTimeout(persistEnv, 700)
+const { state: envVarsState, error: envVarsError, schedule: scheduleEnvVars } = useAutosave(async () => {
+  await $fetch(`/api/projects/${id}`, {
+    method: 'PATCH',
+    body: { envVars: parseEnvText(envText.value) },
+  })
 })
-onUnmounted(() => {
-  // Flush a pending edit if the user navigates away mid-debounce.
-  if (envSaveTimer) {
-    clearTimeout(envSaveTimer)
-    persistEnv()
-  }
+watch(envText, () => {
+  if (envText.value === envVarsToText(project.value?.envVars ?? [])) return
+  scheduleEnvVars()
 })
 
 // ── Agent instructions (project layer, auto-saved) ─────────────────────────
@@ -366,36 +346,28 @@ async function toggleMentions() {
           accent="var(--text-primary)"
         >
           <template #action>
-            <span
-              v-if="envSaveState !== 'idle'"
-              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
-            >
-              <UIcon
-                :name="envSaveState === 'saving' ? 'i-lucide-loader-circle' : 'i-lucide-check'"
-                class="size-3.5"
-                :class="envSaveState === 'saving' ? 'animate-spin' : 'text-primary'"
-              />
-              {{ envSaveState === 'saving' ? 'Saving…' : 'Saved' }}
-            </span>
+            <KSaveStatus
+              v-if="envVarsState !== 'idle'"
+              :state="envVarsState"
+              :error-text="envVarsError"
+            />
           </template>
 
           <div>
             <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
-              One KEY=value per line. Paste a .env. A value may use an earlier line or the
-              session's preview URLs as <code>$KNECHT_PREVIEW_URL</code>
-              and <code>$KNECHT_URL_&lt;LABEL&gt;</code> per additional hostname.
-              Changes are saved automatically.
+              One <code>KEY=value</code> per line, like a .env file. Values can use
+              <code>$KNECHT_PREVIEW_URL</code> and <code>$KNECHT_DEV_SERVER_URL</code>
+              to follow the run's URLs.
             </p>
-            <UTextarea
-              v-model="envText"
-              :rows="10"
-              autoresize
-              :maxrows="22"
-              spellcheck="false"
-              :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
-              class="w-full"
-              :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
-            />
+            <div class="k-code-box">
+              <WorkflowCodeEditor
+                v-model="envText"
+                lang="bash"
+                :rows="10"
+                :max-height="350"
+                :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
+              />
+            </div>
 
             <!-- Deliberately tucked away: the default (env) is right for strictly
                env-based projects and should never need touching. The escape
@@ -633,16 +605,14 @@ async function toggleMentions() {
               database import before the site works. One command per line, run
               once per session, before any workflow-specific boot commands.
             </p>
-            <UTextarea
-              v-model="bootCommands"
-              :rows="3"
-              autoresize
-              :maxrows="10"
-              spellcheck="false"
-              placeholder="ddev composer install"
-              class="w-full"
-              :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
-            />
+            <div class="k-code-box">
+              <WorkflowCodeEditor
+                v-model="bootCommands"
+                lang="bash"
+                :rows="3"
+                placeholder="ddev composer install"
+              />
+            </div>
           </div>
         </KPanel>
 

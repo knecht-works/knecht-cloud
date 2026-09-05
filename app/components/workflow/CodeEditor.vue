@@ -23,6 +23,8 @@ const props = defineProps<{
   disabled?: boolean
   /** Minimum visible lines (the box grows with the content). */
   rows?: number
+  /** Height in px the box stops growing at; the content scrolls inside. */
+  maxHeight?: number
 }>()
 
 const model = defineModel<string>({ default: '' })
@@ -58,7 +60,7 @@ defineExpose({ editor })
 <template>
   <div
     class="k-code-editor relative"
-    :style="{ '--code-min-lines': rows ?? 3 }"
+    :style="{ '--code-min-lines': rows ?? 3, '--code-max-height': maxHeight ? `${maxHeight}px` : 'none' }"
   >
     <div ref="host" />
     <span
@@ -77,11 +79,15 @@ defineExpose({ editor })
   font-family: var(--font-mono);
   font-size: 12px;
   min-height: calc(var(--code-min-lines) * 1.4em + 0.75rem);
+  max-height: var(--code-max-height);
   resize: vertical;
   --pce-bg: transparent;
   --pce-cursor: var(--text-default);
   --pce-selection: color-mix(in oklab, var(--primary) 30%, transparent);
   --padding-inline: 0.625rem;
+  /* No highlighted current line: in a short field it reads as a stripe. */
+  --pce-bg-highlight: transparent;
+  --pce-border-highlight: none;
 }
 .k-code-editor :deep(.pce-wrapper) {
   margin: 0.375rem 0;
