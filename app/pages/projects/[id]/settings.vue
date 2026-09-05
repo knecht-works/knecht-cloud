@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
-import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
+import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type PackageManagerName, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 
 // The project's configuration, split off the workspace page: everything here
@@ -31,58 +31,56 @@ const ddevSpec = computed(() => {
     { label: 'PHP', value: e.phpVersion },
     { label: 'Database', value: e.dbType ? `${e.dbType}${e.dbVersion ? ` ${e.dbVersion}` : ''}` : null },
     { label: 'Node', value: e.nodeVersion },
-    { label: 'Package manager', value: e.packageManager?.replace('@', ' ') ?? null },
+    // Detected the same way as for a generated env (lockfiles, package.json),
+    // so a ddev repo also sees which tool its boot commands will call.
+    { label: 'Package manager', value: formatPackageManager(resolvedEnv.value.packageManager.value) },
   ].filter(r => r.value)
 })
 
+// The overrides the card edits: PHP, Node and the package manager, set when
+// the detection is wrong (null = detected). Saved in one PATCH.
 const phpOverride = ref<string | null>(project.value?.phpVersion ?? null)
 const nodeOverride = ref<string | null>(project.value?.nodeVersion ?? null)
-// The same resolution the boot does, so the card shows exactly what a run
-// will get: setting > detected > default.
-const resolvedEnv = computed(() => resolveEnv(detectedEnv.value, {
+const packageManagerOverride = ref<PackageManagerName | null>(project.value?.packageManager ?? null)
+const envOverrides = computed(() => ({
   phpVersion: phpOverride.value,
   nodeVersion: nodeOverride.value,
-  devServer: project.value?.devServer ?? null,
-  previewPort: project.value?.previewPort ?? null,
+  packageManager: packageManagerOverride.value,
 }))
-// Each version dropdown leads with the "not overridden" choice, worded by
-// what it means: what a repo file said, or the default because none did.
-function versionItems(field: 'phpVersion' | 'nodeVersion', versions: readonly string[]) {
+// Each dropdown leads with the "not overridden" choice, worded by what it
+// means: what a repo file said, or the default because none did.
+function overrideItems<K extends keyof typeof envOverrides.value>(field: K, choices: readonly string[], format: (value: EnvSpec[K]) => string) {
   const detected = detectedEnv.value.fields[field]
   const label = detected
-    ? `Detected: ${detected.value} (${sourceLabel(detected.source)})`
-    : `Default: ${ENV_DEFAULTS[field]}`
+    ? `Detected: ${format(detected.value)} (${sourceLabel(detected.source)})`
+    : `Default: ${format(ENV_DEFAULTS[field])}`
   // A detected version outside the list (a mise.toml pin like 22.4) is still
   // shown on its entry; only the overrides are limited to the list.
-  return [{ label, value: null as string | null }, ...versions.map(v => ({ label: v, value: v }))]
+  return [{ label, value: null as string | null }, ...choices.map(v => ({ label: v, value: v }))]
 }
-const phpItems = computed(() => versionItems('phpVersion', [...DDEV_PHP_VERSIONS].reverse()))
-const nodeItems = computed(() => versionItems('nodeVersion', NODE_LTS_MAJORS))
-// The package manager is read-only: the repo's package.json or lockfile is
-// the truth, and the boot commands are what call it.
-const packageManagerLabel = computed(() => `${formatPackageManager(resolvedEnv.value.packageManager.value)} (${sourceLabel(resolvedEnv.value.packageManager.source)})`)
-// Save one field right away, rolling the local value back when the PATCH
-// fails.
-async function saveField<T>(field: Ref<T>, value: T, body: Record<string, unknown>) {
-  if (field.value === value) return
-  const previous = field.value
-  field.value = value
-  try {
-    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
-  }
-  catch (e) {
-    field.value = previous
-    toastError('Failed to save', e)
-  }
-}
-const setPhpOverride = (value: string | null) => saveField(phpOverride, value, { phpVersion: value })
-const setNodeOverride = (value: string | null) => saveField(nodeOverride, value, { nodeVersion: value })
+const phpItems = computed(() => overrideItems('phpVersion', [...DDEV_PHP_VERSIONS].reverse(), String))
+const nodeItems = computed(() => overrideItems('nodeVersion', NODE_LTS_MAJORS, String))
+const packageManagerItems = computed(() => overrideItems('packageManager', PACKAGE_MANAGERS, formatPackageManager))
 
-// The dev server: a command (run under a login shell in the web container)
-// and the port it listens on. Next to a repo's own web server it is a sidecar
-// the browser reaches at KNECHT_DEV_SERVER_URL; in a generated environment
-// it is what gives the environment a preview at all. Saved together: the
-// server rejects a command without a port.
+const { state: envState, error: envError, schedule: scheduleEnv } = useAutosave(async () => {
+  const body = envOverrides.value
+  await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
+  // The watcher compares against the project: keep it at the saved value,
+  // or a second edit back to the original would count as unchanged.
+  if (project.value) project.value = { ...project.value, ...body }
+})
+watch(envOverrides, (next) => {
+  const saved = project.value
+  if (saved && (Object.keys(next) as (keyof typeof next)[]).every(key => next[key] === (saved[key] ?? null))) return
+  scheduleEnv()
+})
+
+// ── Dev server ─────────────────────────────────────────────────────────────
+// A command (run under a login shell in the web container) and the port it
+// listens on. Next to a repo's own web server it is a sidecar the browser
+// reaches at KNECHT_DEV_SERVER_URL; in a generated environment it is what
+// gives the environment a preview at all. Saved together: the server
+// rejects a command without a port.
 const devServer = ref(project.value?.devServer ?? '')
 const previewPort = ref(project.value?.previewPort == null ? '' : String(project.value.previewPort))
 const previewPortNumber = computed(() => /^\d+$/.test(previewPort.value.trim()) ? Number(previewPort.value.trim()) : null)
@@ -95,18 +93,19 @@ const devServerBody = computed(() => {
 const { state: devState, error: devError, schedule: scheduleDev, invalid: devInvalid } = useAutosave(async () => {
   const body = devServerBody.value
   await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
-  // The watcher compares against the project: keep it at the saved value,
-  // or a second edit back to the original would count as unchanged.
   if (project.value) project.value = { ...project.value, ...body }
 })
-watch([devServer, previewPort], () => {
-  const { devServer: command, previewPort: port } = devServerBody.value
+watch(devServerBody, ({ devServer: command, previewPort: port }) => {
   if (command && port === null) return devInvalid('Add the port the dev server listens on')
   if (port !== null && (port < 1 || port > 65535)) return devInvalid('The port must be between 1 and 65535')
   if (port === PREVIEW_FORWARD_PORT) return devInvalid(`Port ${PREVIEW_FORWARD_PORT} is reserved for the preview`)
   if (command === (project.value?.devServer ?? null) && port === (project.value?.previewPort ?? null)) return
   scheduleDev()
 })
+
+// The same resolution the boot does, so the page shows exactly what a run
+// will get: setting > detected > default.
+const resolvedEnv = computed(() => resolveEnv(detectedEnv.value, { ...envOverrides.value, ...devServerBody.value }))
 
 // ── Env variables (.env textarea, auto-saved) ──────────────────────────────
 // Edited as raw `KEY=value` lines (parseEnvText / envVarsToText helpers); parsed
@@ -543,6 +542,13 @@ async function toggleMentions() {
           title="Environment"
           icon="i-lucide-database"
         >
+          <template #action>
+            <KSaveStatus
+              v-if="envState !== 'idle'"
+              :state="envState"
+              :error-text="envError"
+            />
+          </template>
           <p
             v-if="!project.ddevEnv"
             class="k-mono text-2xs text-dimmed"
@@ -568,69 +574,36 @@ async function toggleMentions() {
               </div>
             </div>
             <!-- No ddev config in the repo: Knecht generates the environment.
-                 Each row says where its value comes from; PHP and Node can be
-                 overridden, empty means detected. -->
-            <template v-else>
-              <div>
-                <div class="k-label mb-1.5">
-                  PHP
-                </div>
-                <USelectMenu
-                  :model-value="phpItems.find(i => i.value === phpOverride)"
-                  :items="phpItems"
-                  :search-input="false"
-                  class="w-full"
-                  @update:model-value="(item: { value: string | null } | undefined) => setPhpOverride(item?.value ?? null)"
-                />
-              </div>
-              <div>
-                <div class="k-label mb-1.5">
-                  Node
-                </div>
-                <USelectMenu
-                  :model-value="nodeItems.find(i => i.value === nodeOverride)"
-                  :items="nodeItems"
-                  :search-input="false"
-                  class="w-full"
-                  @update:model-value="(item: { value: string | null } | undefined) => setNodeOverride(item?.value ?? null)"
-                />
-              </div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="k-label">Package manager</span>
-                <span class="k-mono text-xs text-toned">{{ packageManagerLabel }}</span>
-              </div>
-            </template>
-            <!-- Both kinds: a dev server next to the site, or as the site. -->
-            <div>
-              <div class="mb-1.5 flex items-center justify-between gap-3">
-                <span class="k-label">Dev server</span>
-                <KSaveStatus
-                  v-if="devState !== 'idle'"
-                  :state="devState"
-                  :error-text="devError"
-                />
-              </div>
-              <UInput
-                v-model="devServer"
-                placeholder="npm run dev"
-                size="sm"
+                 Each dropdown says where its value comes from and can override
+                 it; empty means detected. -->
+            <div
+              v-else
+              class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2"
+            >
+              <span class="k-label">PHP</span>
+              <USelectMenu
+                :model-value="phpItems.find(i => i.value === phpOverride)"
+                :items="phpItems"
+                :search-input="false"
                 class="w-full"
-                :ui="{ base: 'k-mono text-xs' }"
+                @update:model-value="(item: { value: string | null } | undefined) => phpOverride = item?.value ?? null"
               />
-              <UInput
-                v-if="devServer.trim()"
-                v-model="previewPort"
-                placeholder="Port, e.g. 3000"
-                inputmode="numeric"
-                size="sm"
-                class="mt-2 w-full"
-                :ui="{ base: 'k-mono text-xs' }"
+              <span class="k-label">Node</span>
+              <USelectMenu
+                :model-value="nodeItems.find(i => i.value === nodeOverride)"
+                :items="nodeItems"
+                :search-input="false"
+                class="w-full"
+                @update:model-value="(item: { value: string | null } | undefined) => nodeOverride = item?.value ?? null"
               />
-              <p class="k-mono mt-1.5 text-2xs leading-relaxed text-dimmed">
-                The command that starts your dev server, for example
-                <span class="text-muted">npm run dev</span> for Vite hot reloading, and the port it
-                listens on.
-              </p>
+              <span class="k-label">Package manager</span>
+              <USelectMenu
+                :model-value="packageManagerItems.find(i => i.value === packageManagerOverride)"
+                :items="packageManagerItems"
+                :search-input="false"
+                class="w-full"
+                @update:model-value="(item: { value: string | null } | undefined) => packageManagerOverride = (item?.value ?? null) as PackageManagerName | null"
+              />
             </div>
             <p
               v-for="warning in detectedEnv.warnings"
@@ -670,6 +643,42 @@ async function toggleMentions() {
               class="w-full"
               :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
             />
+          </div>
+        </KPanel>
+
+        <KPanel
+          title="Dev server"
+          icon="i-lucide-server"
+        >
+          <template #action>
+            <KSaveStatus
+              v-if="devState !== 'idle'"
+              :state="devState"
+              :error-text="devError"
+            />
+          </template>
+          <div>
+            <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
+              The command that starts your dev server, for example
+              <span class="k-mono">npm run dev</span> for Vite hot reloading, and
+              the port it listens on. Without a ddev config in the repo this is
+              what the preview shows.
+            </p>
+            <div class="grid grid-cols-[1fr_7rem] gap-2">
+              <UInput
+                v-model="devServer"
+                placeholder="npm run dev"
+                size="sm"
+                :ui="{ base: 'k-mono text-xs' }"
+              />
+              <UInput
+                v-model="previewPort"
+                placeholder="Port"
+                inputmode="numeric"
+                size="sm"
+                :ui="{ base: 'k-mono text-xs' }"
+              />
+            </div>
           </div>
         </KPanel>
 

@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { ENV_STATES } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
-import type { DetectedEnv } from '../../shared/utils/env-spec'
+import { PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
 import type { Step } from '../../shared/utils/workflow'
 
 // The environment spec resolved from the repo at connect time: from its
@@ -101,6 +101,7 @@ export const projects = sqliteTable('projects', {
   // is also what makes a generated environment previewable at all.
   phpVersion: text('php_version'),
   nodeVersion: text('node_version'),
+  packageManager: text('package_manager', { enum: PACKAGE_MANAGERS }),
   devServer: text('dev_server'),
   previewPort: integer('preview_port'),
 
