@@ -3,6 +3,10 @@
 // optional action slot) above a body. The detail screen's building block.
 // `collapsible` makes the header a toggle for the body; panels start open,
 // collapsing is for getting long content (e.g. the run log) out of the way.
+// The icon is green unless a panel passes its own accent; `pad` is the
+// body's horizontal padding, the vertical one is a bit tighter so the body
+// reads as evenly inset. The header has a fixed height: an action (a save
+// status appearing) must not move the body.
 const props = withDefaults(defineProps<{
   title: string
   icon?: string
@@ -22,7 +26,7 @@ const open = ref(true)
     <component
       :is="collapsible ? 'button' : 'div'"
       :type="collapsible ? 'button' : undefined"
-      class="flex items-center gap-2.5 px-4.5 py-3.5"
+      class="flex h-10 items-center gap-2.5 px-4.5"
       :class="[
         open ? 'border-b border-muted' : '',
         collapsible ? 'w-full text-left' : '',
@@ -34,12 +38,12 @@ const open = ref(true)
         v-if="icon"
         :name="icon"
         class="size-4"
-        :style="{ color: accent ?? 'var(--text-dimmed)' }"
+        :style="{ color: accent ?? 'var(--primary)' }"
       />
       <span class="k-mono text-2xs uppercase tracking-widest text-toned">{{ title }}</span>
       <div
         v-if="$slots.action"
-        class="ml-auto"
+        class="ml-auto flex items-center"
       >
         <slot name="action" />
       </div>
@@ -52,7 +56,7 @@ const open = ref(true)
     </component>
     <div
       v-show="open"
-      :style="{ padding: `${props.pad}px` }"
+      :style="{ padding: `${props.pad * 0.7}px ${props.pad}px` }"
     >
       <slot />
     </div>
