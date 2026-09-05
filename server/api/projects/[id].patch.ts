@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
-import { DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN } from '#shared/utils/env-spec'
+import { DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGERS } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 import { db, schema } from '../../db'
 
@@ -47,6 +47,7 @@ const bodySchema = z.object({
   // Ignored at boot for repos that ship a ddev config.
   phpVersion: z.enum(DDEV_PHP_VERSIONS).nullable().optional(),
   nodeVersion: z.string().regex(NODE_VERSION_PATTERN, 'Node version is a major or major.minor').nullable().optional(),
+  packageManager: z.enum(PACKAGE_MANAGERS).nullable().optional(),
   devServer: z.string().trim().max(500).transform(v => v || null).nullable().optional(),
   previewPort: z.number().int().min(1).max(65535).nullable().optional(),
 })

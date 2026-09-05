@@ -223,7 +223,7 @@ watch(open, (isOpen) => {
           class="w-full"
         />
         <p class="text-xs text-dimmed">
-          A repo with a <span class="k-mono">.ddev/config.yaml</span> is booted from it (framework, PHP and
+          A repo with a <code>.ddev/config.yaml</code> is booted from it (framework, PHP and
           database are read automatically); any other repo gets an environment generated from its
           files. Runs check out the selected branch and open PRs against it.
         </p>
