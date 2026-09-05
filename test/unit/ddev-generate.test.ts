@@ -18,6 +18,7 @@ const project = (overrides: Partial<SessionEnvProject> = {}): SessionEnvProject 
   sharedFolders: [],
   phpVersion: null,
   nodeVersion: null,
+  packageManager: null,
   devServer: null,
   previewPort: null,
   ...overrides,

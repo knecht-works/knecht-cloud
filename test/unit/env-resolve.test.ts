@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { type DetectedEnv, type EnvOverrides, formatEnvSummary, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '../../shared/utils/env-spec'
 
-const none: EnvOverrides = { phpVersion: null, nodeVersion: null, devServer: null, previewPort: null }
+const none: EnvOverrides = { phpVersion: null, nodeVersion: null, packageManager: null, devServer: null, previewPort: null }
 
 const generated: DetectedEnv = {
   source: 'generated',
@@ -50,19 +50,23 @@ describe('resolveEnv', () => {
     expect(env.previewPort).toEqual({ value: 3000, source: 'setting' })
   })
 
-  it('takes the package manager from detection only', () => {
-    const env = resolveEnv({
+  it('takes the package manager from detection unless a setting names another one', () => {
+    const pinned = {
       ...generated,
-      fields: { ...generated.fields, packageManager: { value: { name: 'pnpm', version: null }, source: 'pnpm-lock.yaml' } },
-    }, none)
-    expect(env.packageManager).toEqual({ value: { name: 'pnpm', version: null }, source: 'pnpm-lock.yaml' })
+      fields: { ...generated.fields, packageManager: { value: { name: 'pnpm', version: '9.1.0' }, source: 'package.json' } },
+    }
+    expect(resolveEnv(pinned, none).packageManager).toEqual({ value: { name: 'pnpm', version: '9.1.0' }, source: 'package.json' })
+    // The repo's pin only applies to the tool it pins.
+    expect(resolveEnv(pinned, { ...none, packageManager: 'pnpm' }).packageManager).toEqual({ value: { name: 'pnpm', version: '9.1.0' }, source: 'setting' })
+    expect(resolveEnv(pinned, { ...none, packageManager: 'bun' }).packageManager).toEqual({ value: { name: 'bun', version: null }, source: 'setting' })
   })
 
   it('ignores the version overrides for a ddev project (the committed config is the truth) but keeps its dev server', () => {
-    const env = resolveEnv(tracked, { phpVersion: '8.1', nodeVersion: '18', devServer: 'npm run dev', previewPort: 3000 })
+    const env = resolveEnv(tracked, { phpVersion: '8.1', nodeVersion: '18', packageManager: 'bun', devServer: 'npm run dev', previewPort: 3000 })
     expect(env.source).toBe('ddev')
     expect(env.phpVersion).toEqual({ value: '8.3', source: '.ddev/config.yaml' })
     expect(env.nodeVersion).toEqual({ value: '22', source: 'default' })
+    expect(env.packageManager).toEqual({ value: { name: 'npm', version: null }, source: 'default' })
     expect(env.hosts.value).toEqual(['demo.ddev.site', 'alpha.ddev.site'])
     expect(env.hasDb).toEqual({ value: true, source: '.ddev/config.yaml' })
     expect(env.devServer).toEqual({ value: 'npm run dev', source: 'setting' })

@@ -218,6 +218,13 @@
       "when": 1788349235118,
       "tag": "0030_env-overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1788606821880,
+      "tag": "0031_package-manager",
+      "breakpoints": true
     }
   ]
 }

@@ -42,8 +42,8 @@ export type EnvSource
 // web image (pnpm and yarn via Corepack); bun is installed into the image on
 // demand (daemon/ddev.ts). The version is what `packageManager` in
 // package.json pins, if anything.
-export type PackageManagerName = 'npm' | 'pnpm' | 'yarn' | 'bun'
-export const PACKAGE_MANAGERS: readonly PackageManagerName[] = ['npm', 'pnpm', 'yarn', 'bun']
+export const PACKAGE_MANAGERS = ['npm', 'pnpm', 'yarn', 'bun'] as const
+export type PackageManagerName = (typeof PACKAGE_MANAGERS)[number]
 export interface PackageManager {
   name: PackageManagerName
   version: string | null
@@ -52,7 +52,7 @@ export interface PackageManager {
 export interface EnvSpec {
   phpVersion: string // ddev php_version, e.g. '8.2'
   nodeVersion: string // ddev nodejs_version: major or major.minor
-  packageManager: PackageManager // read from the repo, never overridden
+  packageManager: PackageManager // read from the repo, the name can be overridden
   hasDb: boolean // whether the stack has a db container
   hosts: string[] // hostnames the repo's ddev config serves, primary first
   devServer: string | null // a command that serves the app, e.g. 'npm run dev'
@@ -81,10 +81,12 @@ export interface DetectedEnv {
 }
 
 // The project-level overrides (projects.php_version and friends): null means
-// "not overridden, use what was detected".
+// "not overridden, use what was detected". The package manager override is
+// a name only: the version stays what the repo pins, if it pins that one.
 export interface EnvOverrides {
   phpVersion: string | null
   nodeVersion: string | null
+  packageManager: PackageManagerName | null
   devServer: string | null
   previewPort: number | null
 }
@@ -124,10 +126,11 @@ export function projectDetectedEnv(env: { detected?: DetectedEnv } | null | unde
   }
 }
 
-// Setting > detection > default. For a 'ddev' project the version overrides
-// are ignored: the committed config.yaml is the truth (and the settings page
-// hides the inputs), so a stale override can never fight the repo. The dev
-// server is a setting for both kinds: no repo file describes it.
+// Setting > detection > default. For a 'ddev' project the version and
+// package manager overrides are ignored: the committed config.yaml is the
+// truth (and the settings page hides the inputs), so a stale override can
+// never fight the repo. The dev server is a setting for both kinds: no repo
+// file describes it.
 export function resolveEnv(detected: DetectedEnv, overrides: EnvOverrides): ResolvedEnv {
   const detect = <K extends keyof EnvSpec>(key: K): ResolvedField<EnvSpec[K]> =>
     detected.fields[key] ?? { value: ENV_DEFAULTS[key], source: 'default' }
@@ -136,11 +139,20 @@ export function resolveEnv(detected: DetectedEnv, overrides: EnvOverrides): Reso
     return applies && value != null ? { value, source: 'setting' } : detect(key)
   }
   const generated = detected.source === 'generated'
+  // A package manager override keeps the repo's pinned version only when it
+  // names the same tool: picking pnpm over a detected `npm@10` runs pnpm at
+  // whatever version the image ships.
+  const packageManager = (): ResolvedField<PackageManager> => {
+    const detectedPm = detect('packageManager')
+    const name = overrides.packageManager
+    if (!generated || name == null) return detectedPm
+    return { value: { name, version: detectedPm.value.name === name ? detectedPm.value.version : null }, source: 'setting' }
+  }
   return {
     source: detected.source,
     phpVersion: override('phpVersion', generated),
     nodeVersion: override('nodeVersion', generated),
-    packageManager: detect('packageManager'),
+    packageManager: packageManager(),
     hasDb: detect('hasDb'),
     hosts: detect('hosts'),
     devServer: override('devServer'),
