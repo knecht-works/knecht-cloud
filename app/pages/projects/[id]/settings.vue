@@ -12,6 +12,10 @@ const toastError = useToastError()
 const id = Number(route.params.id)
 
 const { data: project } = await useFetch(`/api/projects/${id}`)
+// Only for the header's disconnect confirm, which warns about active runs.
+const { data: runs } = useFetch('/api/runs', { query: { projectId: id }, default: () => [], lazy: true })
+const activeRunCount = computed(() =>
+  (runs.value ?? []).filter(r => r.status === 'running' || r.status === 'queued').length)
 
 // ── Environment ────────────────────────────────────────────────────────────
 // What the repo resolves to (server/utils/framework.ts, on the default
@@ -32,8 +36,9 @@ const ddevSpec = computed(() => {
     { label: 'Database', value: e.dbType ? `${e.dbType}${e.dbVersion ? ` ${e.dbVersion}` : ''}` : null },
     { label: 'Node', value: e.nodeVersion },
     // Detected the same way as for a generated env (lockfiles, package.json),
-    // so a ddev repo also sees which tool its boot commands will call.
-    { label: 'Package manager', value: formatPackageManager(resolvedEnv.value.packageManager.value) },
+    // so a ddev repo also sees which tool its boot commands will call. Only
+    // when something was found: the npm fallback is not a fact about the repo.
+    { label: 'Package manager', value: resolvedEnv.value.packageManager.source === 'default' ? null : formatPackageManager(resolvedEnv.value.packageManager.value) },
   ].filter(r => r.value)
 })
 
@@ -112,10 +117,10 @@ const resolvedEnv = computed(() => resolveEnv(detectedEnv.value, { ...envOverrid
 // parsed and persisted on change like every other card.
 const envText = ref(envVarsToText(project.value?.envVars ?? []))
 const { state: envVarsState, error: envVarsError, schedule: scheduleEnvVars } = useAutosave(async () => {
-  await $fetch(`/api/projects/${id}`, {
-    method: 'PATCH',
-    body: { envVars: parseEnvText(envText.value) },
-  })
+  const envVars = parseEnvText(envText.value)
+  await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { envVars } })
+  // Same as the env card: the watcher compares against the saved value.
+  if (project.value) project.value = { ...project.value, envVars }
 })
 watch(envText, () => {
   if (envText.value === envVarsToText(project.value?.envVars ?? [])) return
@@ -322,6 +327,7 @@ async function toggleMentions() {
     <KProjectHeader
       class="mb-5.5"
       :project="project"
+      :active-runs="activeRunCount"
       @run-started="runId => navigateTo({ path: `/projects/${id}`, query: { run: String(runId) } })"
     >
       <template #nav>
