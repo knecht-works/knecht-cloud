@@ -382,8 +382,8 @@ async function toggleMentions() {
           <div>
             <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
               One KEY=value per line. Paste a .env. A value may use an earlier line or the
-              session's preview URLs as <span class="text-muted">$KNECHT_PREVIEW_URL</span>
-              and <span class="text-muted">$KNECHT_URL_&lt;LABEL&gt;</span> per additional hostname.
+              session's preview URLs as <code>$KNECHT_PREVIEW_URL</code>
+              and <code>$KNECHT_URL_&lt;LABEL&gt;</code> per additional hostname.
               Changes are saved automatically.
             </p>
             <UTextarea
@@ -629,7 +629,7 @@ async function toggleMentions() {
           </template>
           <div>
             <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
-              What has to run after <span class="k-mono">ddev start</span> and the
+              What has to run after <code>ddev start</code> and the
               database import before the site works. One command per line, run
               once per session, before any workflow-specific boot commands.
             </p>
@@ -660,7 +660,7 @@ async function toggleMentions() {
           <div>
             <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
               The command that starts your dev server, for example
-              <span class="k-mono">npm run dev</span> for Vite hot reloading, and
+              <code>npm run dev</code> for Vite hot reloading, and
               the port it listens on. Without a ddev config in the repo this is
               what the preview shows.
             </p>
