@@ -316,23 +316,24 @@ async function toggleMentions() {
       <span class="k-mono text-xs text-muted">Settings</span>
     </div>
 
-    <!-- The arrow is the obvious way back to the workspace; the breadcrumb
-         above stays as the subtle one (and already names the repo, so the
-         title needs no subtitle). Hand-rolled instead of KTopBar: the arrow
-         must center against the single title line, not the whole block. -->
-    <div class="mb-4.5 flex items-center gap-2">
-      <UButton
-        :to="`/projects/${id}`"
-        color="neutral"
-        variant="ghost"
-        icon="i-lucide-arrow-left"
-        aria-label="Back to project"
-        class="-ml-2.5"
-      />
-      <h1 class="text-xl font-semibold leading-tight tracking-tight text-highlighted">
-        Project settings
-      </h1>
-    </div>
+    <!-- The same header as the workspace, with the project's actions; only
+         the nav button differs (back to the workspace instead of Settings).
+         The breadcrumb above already says where we are. -->
+    <KProjectHeader
+      class="mb-5.5"
+      :project="project"
+      @run-started="runId => navigateTo({ path: `/projects/${id}`, query: { run: String(runId) } })"
+    >
+      <template #nav>
+        <UButton
+          :to="`/projects/${id}`"
+          color="neutral"
+          variant="outline"
+          icon="i-lucide-arrow-left"
+          label="Workspace"
+        />
+      </template>
+    </KProjectHeader>
 
     <!-- Same two-column grid as the workspace and the workflow editor
          (sidebar clamp identical on every detail page): the env editor gets

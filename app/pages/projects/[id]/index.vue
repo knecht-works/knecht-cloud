@@ -2,8 +2,6 @@
 import { stepsInclude, type Step } from '#shared/utils/workflow'
 
 const route = useRoute()
-const toast = useToast()
-const toastError = useToastError()
 const id = Number(route.params.id)
 
 // The workspace: the project's runs with ONE explicitly selected run rendered
@@ -15,11 +13,6 @@ const { data: runs, refresh: refreshRuns } = await useFetch('/api/runs', {
   query: { projectId: id },
   default: () => [],
 })
-
-const fw = computed(() => frameworkMeta(project.value?.framework))
-const fwLabel = computed(() =>
-  project.value?.frameworkVersion ? `${fw.value.label} ${project.value.frameworkVersion}` : fw.value.label)
-const repoName = computed(() => project.value?.fullName.split('/').pop() ?? 'Project')
 
 // This project's runs, newest first (the list is already ordered).
 const projectRuns = computed(() => runs.value ?? [])
@@ -116,44 +109,17 @@ const mascotLine = computed(() => {
   return 'Idle. Trigger a workflow to boot a fresh environment.'
 })
 
-// ── Start a workflow (picked from the list, right at the project) ──────────
+// The workflows the automation panel lists: every one that would pass the
+// run validation, the same set the header's "Start workflow" picker offers.
 const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
-// Manual runs execute the workflow's current state, so the picker offers
-// every workflow that would pass the run validation (finish half-built ones
-// in the editor first).
 const startableWorkflows = computed(() => (workflowList.value ?? []).filter(workflowRunnable))
-const starting = ref(false)
-// The "Start workflow" popover (branch + workflow picker together).
-const startOpen = ref(false)
+// The play button runs a workflow on the default branch; the header's picker
+// is where another branch is chosen.
+const { starting, start: startRun } = useStartRun(id, onRunStarted)
+const startWorkflow = (workflowId: number) => startRun(workflowId, project.value?.defaultBranch ?? 'main')
 
-// Branch the run checks out; defaults to the repo's default branch (main). The
-// list is fetched lazily from GitHub; the picker always includes the default.
-const selectedBranch = ref(project.value?.defaultBranch ?? 'main')
-const { items: branchItems } = useBranchPicker(
-  () => `/api/projects/${id}/branches`,
-  () => project.value?.defaultBranch ?? 'main',
-)
-
-async function startWorkflow(workflowId: number) {
-  startOpen.value = false
-  starting.value = true
-  try {
-    const created = await $fetch('/api/runs', {
-      method: 'POST',
-      body: { projectId: id, workflowId, branch: selectedBranch.value },
-    })
-    await onRunStarted(created.id)
-  }
-  catch (e) {
-    toastError('Failed to start run', e)
-  }
-  finally {
-    starting.value = false
-  }
-}
-
-// A run started from this page (popover, automation play button, or "Run
-// again" inside the workspace) is selected right away; no page navigation.
+// A run started from this page (header popover, automation play button, or
+// "Run again" inside the workspace) is selected right away; no page navigation.
 async function onRunStarted(runId: number) {
   await refreshRuns()
   lastSeenLatestId.value = runId
@@ -168,41 +134,9 @@ async function onRunDeleted() {
   await refreshRuns()
 }
 
-// ── Disconnect (delete project + its runs, envs and checkouts) ─────────────
-// Destructive, so it lives in the header's overflow menu behind a confirm.
-const confirmDisconnect = ref(false)
-const menuItems = [{
-  label: 'Disconnect project',
-  icon: 'i-lucide-trash-2',
-  color: 'error' as const,
-  onSelect: () => { confirmDisconnect.value = true },
-}]
-// Runs still executing or waiting: the delete aborts them, so the modal
-// says so instead of hiding it in the generic list.
+// Runs still executing or waiting, for the header's disconnect confirm.
 const activeRunCount = computed(() =>
   projectRuns.value.filter(r => r.status === 'running' || r.status === 'queued').length)
-const disconnectDescription = computed(() => {
-  const active = activeRunCount.value
-  const abort = active
-    ? ` ${active === 1 ? '1 run is' : `${active} runs are`} still active and will be cancelled.`
-    : ''
-  return `Removes ${project.value?.fullName} from Knecht: all its runs, sessions and preview environments, uploaded DB dumps, shared folders and agent memory.${abort} The GitHub repo itself is not touched.`
-})
-const removing = ref(false)
-async function removeProject() {
-  removing.value = true
-  try {
-    await $fetch(`/api/projects/${id}`, { method: 'DELETE' })
-    toast.add({ title: 'Project disconnected', description: 'Its environments are being removed in the background.', color: 'success' })
-    await navigateTo('/projects')
-  }
-  catch (e) {
-    toastError('Failed to disconnect', e)
-  }
-  finally {
-    removing.value = false
-  }
-}
 
 // ── Automation on this project (read-only) ─────────────────────────────────
 // Which workflow fires on this project and how: configured on the workflow
@@ -241,41 +175,13 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
       <span class="k-mono truncate text-xs text-muted">{{ project.fullName }}</span>
     </div>
 
-    <KPageHeader
+    <KProjectHeader
       class="mb-5.5"
-      icon="i-lucide-box"
-      :icon-color="fw.color"
-      :favicon="project.favicon"
+      :project="project"
+      :active-runs="activeRunCount"
+      @run-started="onRunStarted"
     >
-      <h1 class="k-mono truncate text-2xl font-semibold tracking-tight text-highlighted">
-        {{ repoName }}
-      </h1>
-      <template #meta>
-        <span
-          class="k-mono inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs tracking-wider"
-          :style="{ color: fw.color, borderColor: 'color-mix(in oklab, currentColor 35%, transparent)' }"
-        >{{ fwLabel }}</span>
-        <a
-          :href="`https://github.com/${project.fullName}`"
-          target="_blank"
-          rel="noopener"
-          class="flex items-center gap-1.5 text-dimmed transition-colors hover:text-muted"
-        >
-          <UIcon
-            name="i-simple-icons-github"
-            class="size-3.5"
-          />
-          <span class="k-mono text-xs text-muted">{{ project.fullName }}</span>
-        </a>
-        <UBadge
-          :color="project.private ? 'neutral' : 'primary'"
-          variant="subtle"
-          size="sm"
-        >
-          {{ project.private ? 'Private' : 'Public' }}
-        </UBadge>
-      </template>
-      <template #actions>
+      <template #nav>
         <UButton
           :to="`/projects/${id}/settings`"
           color="neutral"
@@ -283,80 +189,8 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
           icon="i-lucide-settings-2"
           label="Settings"
         />
-        <UPopover
-          v-model:open="startOpen"
-          :content="{ side: 'bottom', align: 'end' }"
-        >
-          <UButton
-            color="primary"
-            icon="i-lucide-play"
-            trailing-icon="i-lucide-chevron-down"
-            label="Start workflow"
-            :loading="starting"
-          />
-          <template #content>
-            <div class="w-72 p-3">
-              <div class="k-label mb-1.5">
-                Branch
-              </div>
-              <USelectMenu
-                v-model="selectedBranch"
-                :items="branchItems"
-                icon="i-lucide-git-branch"
-                :search-input="{ placeholder: 'Filter branches…' }"
-                class="w-full"
-              />
-
-              <div class="k-label mb-1.5 mt-3.5">
-                Workflow
-              </div>
-              <div
-                v-if="startableWorkflows.length"
-                class="flex flex-col gap-0.5"
-              >
-                <button
-                  v-for="w in startableWorkflows"
-                  :key="w.id"
-                  type="button"
-                  class="flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass) disabled:cursor-default"
-                  :disabled="starting"
-                  @click="startWorkflow(w.id)"
-                >
-                  <UIcon
-                    name="i-lucide-workflow"
-                    class="mt-0.5 size-4 flex-none text-primary"
-                  />
-                  <span class="min-w-0">
-                    <span class="k-mono block truncate text-xs text-default">{{ w.name }}</span>
-                    <span
-                      v-if="w.description"
-                      class="block truncate text-2xs text-dimmed"
-                    >{{ w.description }}</span>
-                  </span>
-                </button>
-              </div>
-              <p
-                v-else
-                class="px-2.5 py-2 text-xs text-dimmed"
-              >
-                No workflows yet.
-              </p>
-            </div>
-          </template>
-        </UPopover>
-        <UDropdownMenu
-          :items="menuItems"
-          :content="{ align: 'end' }"
-        >
-          <UButton
-            color="neutral"
-            variant="ghost"
-            icon="i-lucide-ellipsis-vertical"
-            aria-label="More actions"
-          />
-        </UDropdownMenu>
       </template>
-    </KPageHeader>
+    </KProjectHeader>
 
     <!-- Sidebar column: identical on every detail page, viewport-based
          (clamp), so it can't drift between screens. Keep in sync with
@@ -559,14 +393,5 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
         </KPanel>
       </div>
     </div>
-
-    <KConfirmModal
-      v-model:open="confirmDisconnect"
-      title="Disconnect project"
-      :description="disconnectDescription"
-      confirm-label="Disconnect"
-      :loading="removing"
-      @confirm="removeProject"
-    />
   </div>
 </template>
