@@ -63,6 +63,13 @@ describe('handleMention', () => {
     }))).toContain('bot comment')
   })
 
+  it('answers to the fixed @knecht-works handle as well as the instance slug', async () => {
+    const project = makeProject()
+    expect(await handleMention(project, payload('@knecht-works please fix'))).toContain('setup hint')
+    expect(await handleMention(project, payload('@Knecht-Works please fix'))).toContain('setup hint')
+    expect(await handleMention(project, payload('@knecht-worksy please fix'))).toContain('no mention')
+  })
+
   it('replies with a setup hint when no starter workflow is configured', async () => {
     const project = makeProject()
     const outcome = await handleMention(project, payload('@knecht-test please fix'))
