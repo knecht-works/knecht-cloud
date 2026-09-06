@@ -466,7 +466,7 @@ async function toggleMentions() {
           <div class="flex flex-col">
             <p class="text-2xs leading-relaxed text-dimmed">
               Write
-              <span class="k-mono text-toned">@{{ project.mentionHandle ?? 'knecht' }} &lt;instruction&gt;</span>
+              <span class="k-mono text-toned">@knecht-works &lt;instruction&gt;</span>
               in a comment on one of this repo's issues or pull requests and
               Knecht does what the comment says, then answers in the thread.
             </p>

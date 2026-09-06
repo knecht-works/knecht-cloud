@@ -21,25 +21,31 @@ import type { GithubPayload } from './github-webhook'
 // without a configured starter workflow Knecht replies with a setup hint
 // instead.
 
-// The instance's app slug: the name that must be @-mentioned. Read once from
-// the stored GitHub App row (the manifest flow saved it).
+// The handle every instance answers to. GitHub App names are globally unique,
+// so each instance's own app slug differs ("Knecht <host>"); this fixed alias
+// is what the docs and the settings page tell people to write. The name is
+// ours on GitHub (the knecht-works org), so nobody else can be pinged by it,
+// and an org mention notifies no one. The instance's own slug keeps working.
+const MENTION_HANDLE = 'knecht-works'
+
+// The instance's app slug. Read once from the stored GitHub App row (the
+// manifest flow saved it).
 let cachedSlug: string | null | undefined
-export function appSlug(): string | null {
+function appSlug(): string | null {
   if (cachedSlug !== undefined) return cachedSlug
   cachedSlug = db.select({ slug: schema.githubApp.slug }).from(schema.githubApp).where(eq(schema.githubApp.id, 1)).get()?.slug ?? null
   return cachedSlug
 }
 
-function mentionsSlug(body: string, slug: string): boolean {
-  return new RegExp(`@${slug}\\b`, 'i').test(body)
+function mentionsKnecht(body: string): boolean {
+  const handles = [MENTION_HANDLE, appSlug()].filter((h): h is string => !!h)
+  return handles.some(h => new RegExp(`@${h}\\b`, 'i').test(body))
 }
 
 // Handle an issue_comment delivery. Returns a short outcome string for the
 // webhook's log line.
 export async function handleMention(project: Project, payload: GithubPayload): Promise<string> {
   if (payload.action !== 'created') return 'ignored (not a new comment)'
-  const slug = appSlug()
-  if (!slug) return 'ignored (no app slug stored)'
 
   const body = payload.comment?.body ?? ''
   const author = (payload.comment?.user?.login ?? '').toLowerCase()
@@ -47,7 +53,7 @@ export async function handleMention(project: Project, payload: GithubPayload): P
   // Never react to Knecht's own replies (or any bot): the guaranteed reply
   // would otherwise loop.
   if (payload.comment?.user?.type === 'Bot') return 'ignored (bot comment)'
-  if (!mentionsSlug(body, slug)) return 'ignored (no mention)'
+  if (!mentionsKnecht(body)) return 'ignored (no mention)'
   if (!project.mentionsEnabled) return 'ignored (mentions disabled for project)'
   if (!isMember(author)) return `ignored (@${author} is not an instance member)`
 
