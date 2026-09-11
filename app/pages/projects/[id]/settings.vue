@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
-import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type PackageManagerName, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
+import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type PackageManagerName, formatPackageManager, projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 
 const route = useRoute()
@@ -38,7 +38,7 @@ const envOverrides = computed(() => ({
 function overrideItems<K extends keyof typeof envOverrides.value>(field: K, choices: readonly string[], format: (value: EnvSpec[K]) => string) {
   const detected = detectedEnv.value.fields[field]
   const label = detected
-    ? `Detected: ${format(detected.value)} (${sourceLabel(detected.source)})`
+    ? `Detected: ${format(detected.value)}`
     : `Default: ${format(ENV_DEFAULTS[field])}`
   return [{ label, value: null as string | null }, ...choices.map(v => ({ label: v, value: v }))]
 }
