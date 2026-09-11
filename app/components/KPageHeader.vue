@@ -1,12 +1,7 @@
 <script setup lang="ts">
-// The detail-page header (project, workflow): one shared icon frame size, the
-// title, a meta line and right-aligned actions. The meta line reserves its
-// height even while empty, so a status label appearing there (a run starting)
-// never pushes the title around.
 defineProps<{
   icon: string
   iconColor?: string
-  // Shown instead of the icon frame when the page has a favicon (projects).
   favicon?: string | null
 }>()
 </script>

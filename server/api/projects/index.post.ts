@@ -5,8 +5,6 @@ import type { ProjectMeta } from '../../utils/framework'
 import { resolveProjectMeta } from '../../utils/framework'
 import { getInstallationClient } from '../../utils/github-app'
 
-// POST /api/projects → connect a repo (creates a project). Body comes from a
-// repo the user picked out of GET /api/github/repos.
 const bodySchema = z.object({
   githubId: z.number().int(),
   owner: z.string().min(1),
@@ -32,18 +30,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'Repo is already connected' })
   }
 
-  // Resolve the framework + version + environment from the repo at connect
-  // time (a repo without its own ddev config gets one generated at boot, so
-  // every readable repo connects). An unreadable repo (App not installed,
-  // rate limit) stays best-effort: nulls now, backfilled by the GET handlers
-  // later.
   let meta: ProjectMeta | undefined
   try {
     const octokit = await getInstallationClient(result.data.owner, result.data.name)
     meta = await resolveProjectMeta(octokit, result.data.owner, result.data.name, result.data.defaultBranch)
   }
   catch {
-    // Couldn't look: connect anyway, the backfill retries.
+    // Connect anyway, the backfill retries.
   }
 
   return db.insert(schema.projects).values({ ...result.data, ...meta }).returning().get()

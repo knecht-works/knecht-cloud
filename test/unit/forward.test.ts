@@ -6,8 +6,7 @@ import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-// sandbox/knecht-forward, run the way the container runs it: as a plain
-// CommonJS script outside the repo (whose package.json says "type: module").
+// Run as a plain CommonJS script outside the repo, whose package.json says "type: module".
 
 const listenPort = 41500 + Math.floor(Math.random() * 400)
 const targetPort = listenPort + 1

@@ -7,11 +7,6 @@ import { configureSessionEnv, devDaemonCommand, readDdevConfig } from '../../ser
 import type { SessionEnvProject } from '../../server/daemon/ddev'
 import { devServerLabel } from '../../server/utils/dev-origin'
 
-// What ends up in `.ddev/` for each kind of repo, byte for byte: the tracked
-// case is the regression guard for every existing customer (Knecht must keep
-// writing exactly the overrides it wrote before repos without ddev existed),
-// the generated cases pin the config Knecht writes on their behalf.
-
 const project = (overrides: Partial<SessionEnvProject> = {}): SessionEnvProject => ({
   id: 5,
   envVars: [],
@@ -33,9 +28,7 @@ function repo(files: Record<string, string> = {}): string {
   return dir
 }
 
-// Every file under .ddev/, sorted, as one snapshot-able document. Host ports
-// are masked: they're probed free right before each write (daemon/ddev.ts),
-// so a real value would make the snapshot flake on every run.
+// Host ports are masked: they are probed free before each write, so a real value would flake.
 function ddevTree(dir: string): string {
   const root = join(dir, '.ddev')
   const files: string[] = []
@@ -84,7 +77,6 @@ describe('configureSessionEnv', () => {
       envVars: [{ key: 'PRIMARY_SITE_URL', value: 'https://demo.ddev.site' }, { key: 'X', value: '"1"' }],
     }), 7, 'env')
     expect(env.source).toBe('ddev')
-    // The override is ignored: the repo's config is the truth.
     expect(env.phpVersion.source).toBe('default')
     expect(ddevTree(dir)).toMatchSnapshot()
   })
@@ -153,7 +145,6 @@ describe('configureSessionEnv', () => {
     const { env, devServerPort } = await configureSessionEnv(dir, project({ devServer: 'npm run dev', previewPort: 5173 }), 7, 'env')
     expect(env.source).toBe('ddev')
     expect(devServerPort).toBe(5173)
-    // The repo's config is untouched, the daemons go into Knecht's override.
     expect(readFileSync(join(dir, '.ddev', 'config.yaml'), 'utf8')).toBe('name: demo\n')
     const knecht = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
     expect(knecht.web_extra_daemons.map((d: { name: string }) => d.name)).toEqual(['knecht-dev', 'knecht-forward'])
@@ -161,7 +152,6 @@ describe('configureSessionEnv', () => {
     expect(knecht.web_environment).toContain('KNECHT_PREVIEW_URL=http://7.preview.knecht.test')
     expect(knecht.web_environment).toContain(`KNECHT_DEV_SERVER_URL=http://${devHost}`)
     expect(knecht.web_environment).toContain(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${devHost}`)
-    // The site keeps its ddev URL variables: the dev server does not replace it.
     expect(knecht.web_environment).toContain('DDEV_PRIMARY_URL=http://7.preview.knecht.test')
   })
 
@@ -187,9 +177,8 @@ describe('configureSessionEnv', () => {
 describe('devDaemonCommand', () => {
   it('wraps the command in a login shell and survives both quoting layers', () => {
     expect(devDaemonCommand('npm run dev')).toBe(`bash -lc 'npm run dev'`)
-    // Single quotes close and reopen the inner string ('\\''); that backslash,
-    // double quotes and $ are then escaped once more for ddev's outer
-    // `bash -c "..."`, which unescapes them before the inner bash sees them.
+    // Single quotes close and reopen the inner string; backslash, double quotes and $ are
+    // escaped once more for ddev's outer `bash -c "..."`, which unescapes them first.
     expect(devDaemonCommand(`node -e 'console.log("$HOME")'`))
       .toBe(String.raw`bash -lc 'node -e '\\''console.log(\"\$HOME\")'\\'''`)
   })

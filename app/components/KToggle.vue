@@ -1,7 +1,4 @@
 <script setup lang="ts">
-// The small pill switch used for automation/trigger toggles. Clicks are
-// stopped and prevented so the toggle works inside link rows (KWorkflowRow).
-// Pass aria-label at the call site; it falls through to the button.
 defineProps<{
   active: boolean
   disabled?: boolean

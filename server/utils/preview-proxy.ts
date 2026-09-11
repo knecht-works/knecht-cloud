@@ -8,58 +8,10 @@ import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { isMember, memberCount } from './members'
 import { sessionCheckoutDir } from './storage'
 
-// Reverse-proxy a whole request to a SESSION's isolated environment
-// (projects.md §8). Called from the preview-host middleware for requests to
-// `[<label>--]<sessionId>.preview.<host>`. EVERY hostname the project's ddev
-// config serves (primary + additional_hostnames/additional_fqdns, via
-// readDdevHosts) gets its own per-session preview origin: the primary as
-// `<sessionId>.preview.<base>`, each additional one as
-// `<label>--<sessionId>.preview.<base>`.
-//
-// TWO MODES, pinned per session (sessions.urlMode, from the project
-// setting):
-//
-//   'env' (default): the project derives all its URLs from env vars, and the
-//   run's env was already translated to the preview origins at boot
-//   (daemon/ddev.ts). The app natively speaks preview URLs, so this proxy is
-//   a plain pass-through: original Host, original bodies, streaming. Only the
-//   iframe concerns remain (frame headers stripped, bridge script injected
-//   into HTML documents).
-//
-//   'rewrite' (compatibility): the operator pastes the project's local .env
-//   VERBATIM and everything runs as it does with plain ddev: hard-coded
-//   `*.ddev.site` URLs, multisite setups with one domain per site, nothing
-//   overridden. The proxy maps between the two worlds instead of touching
-//   the project: inward, the request carries the project's REAL host (so
-//   e.g. Craft matches the right site); outward, every project host found in
-//   Location headers and rewritable bodies is replaced with ITS preview
-//   origin (cross-site links included), so what the browser loads always
-//   points back here (not at the unreachable *.ddev.site).
-//
-// Either way the target is the run's web container over plain HTTP: its
-// nginx on :80 (serves any Host header; daemon/sandbox.ts), or the forwarder
-// in front of the project's dev server (daemon/ddev.ts previewTargetPort):
-// on the plain origin of a generated environment, where the dev server IS
-// the site, and on the dev origin `dev-<token>--<sessionId>` next to a repo's
-// own hostnames (utils/dev-origin.ts). Neither has a hostname of its own, so
-// the preview host itself is the app host and passes through unchanged.
-//
-// Access is login-gated (projects.md §8): the request must carry a valid Knecht
-// session, sent cross-subdomain via the base-domain cookie. Logged out: a
-// navigation redirects to login (with return-to); subresources get 401. The
-// dev origin is the one exception: the site's pages load it as module
-// scripts, which the browser fetches WITHOUT cookies across origins, so its
-// hostname carries a per-session token instead and a request on a verified
-// dev label passes the gate. An unverified `dev-` label is no host at all.
+// Two URL modes per session (sessions.urlMode), see internals/docs/preview-contract.md.
 
-// Content types whose bodies we rewrite URLs in. Everything else streams as-is.
 const REWRITABLE = /text\/html|text\/css|javascript|json|xml|svg|text\/plain/i
 
-// Injected into every proxied HTML document so the dashboard's embedded
-// preview behaves like a browser: the frame reports each navigation to its
-// parent (address bar) and takes back/forward/reload/go commands from it
-// (KPreviewBrowser.vue). Both directions are pinned to the dashboard origin,
-// which the script recovers from its own preview host.
 const BRIDGE_SCRIPT = `<script>(function () {
   if (window === window.parent) return
   var dash = location.protocol + '//' + location.host.replace(/^(?:[a-z0-9-]+--)?\\d+\\.preview\\./, '')
@@ -74,8 +26,6 @@ const BRIDGE_SCRIPT = `<script>(function () {
   parent.postMessage({ knecht: 'nav', href: location.href, title: document.title }, dash)
 })()</script>`
 
-// Add the bridge right after <head> so it is listening before the app's own
-// scripts run; documents without a head get it appended (still executes).
 function injectBridge(html: string): string {
   const openHead = /<head[^>]*>/i.exec(html)
   if (openHead) {
@@ -86,21 +36,15 @@ function injectBridge(html: string): string {
 }
 
 export async function proxyRunPreview(event: H3Event, sessionId: number, label?: string): Promise<void> {
-  // The instance's own server-side fetches (the link-check step) carry the
-  // per-boot preview auth token instead of a browser session
-  // (utils/preview-fetch.ts); they skip the login gate.
   const internal = isPreviewAuthToken(getRequestHeader(event, PREVIEW_AUTH_HEADER))
   const devOrigin = looksLikeDevServerLabel(label)
   if (devOrigin && !verifyDevServerLabel(sessionId, label)) {
     throw createError({ statusCode: 404, statusMessage: 'Unknown preview host' })
   }
   const session = await getUserSession(event)
-  // Reading the session must never WRITE one: for a request without a session
-  // cookie, getUserSession seeds an empty session and emits a domain-scoped
-  // Set-Cookie. Preview pages routinely make credential-less requests (fonts
-  // and scripts loaded crossorigin=anonymous, CORS preflights), and that
-  // empty cookie would overwrite the operator's live session domain-wide,
-  // logging them out of the dashboard.
+  // getUserSession seeds an empty session cookie for cookie-less requests
+  // (crossorigin=anonymous fonts, preflights); domain-wide, that would log the
+  // operator out of the dashboard.
   removeResponseHeader(event, 'set-cookie')
   if (!internal && !devOrigin) {
     if (!session?.user) {
@@ -118,8 +62,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
       return sendRedirect(event, `${reqUrl.protocol}//${baseHost}/login`, 302)
     }
 
-    // Same per-request re-check as the /api gate (server/middleware/auth.ts):
-    // removing a member must also revoke their still-valid session cookie here.
+    // Same re-check as server/middleware/auth.ts: a removed member's cookie is still valid.
     if (memberCount() > 0 && !isMember(session.user.login)) {
       await clearUserSession(event)
       throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
@@ -150,19 +93,14 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
 
-  // Keep the idle-stopper from reaping an env that is actively being viewed.
   db.update(schema.sessions)
     .set({ previewLastSeen: new Date() })
     .where(eq(schema.sessions.id, sessionId))
     .run()
 
   const baseHost = stripPreviewPrefix(url.host)
-  // 'env' sessions boot with their env already translated to the preview
-  // origins; sessions from before the setting existed (null) carry a
-  // verbatim env.
   const rewriteMode = (env.urlMode ?? 'rewrite') === 'rewrite'
-  // Longest first so a host that contains another as a suffix (knaus.kta.…
-  // vs kta.…) is never half-rewritten by the shorter one.
+  // Longest first so a host that has another as a suffix is never half-rewritten.
   const mappings = hosts.all
     .sort((a, b) => b.length - a.length)
     .map(h => ({
@@ -174,11 +112,8 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
 
   const headers = { ...req.headers }
   if (rewriteMode) {
-    // Send the app's own host so it serves/builds URLs as configured, and map
-    // Origin/Referer back to the app's world. Otherwise same-origin checks
-    // (Craft's CP login) reject the POST because the browser's Origin (the
-    // preview subdomain) wouldn't match the Host. Ask for an uncompressed
-    // body so we can rewrite it.
+    // Origin/Referer are mapped too: Craft's CP login rejects a POST whose Origin
+    // does not match the Host. identity encoding so the body can be rewritten.
     headers['host'] = appHost
     headers['accept-encoding'] = 'identity'
     for (const key of ['origin', 'referer'] as const) {
@@ -191,8 +126,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     }
   }
   else if (String(headers['accept'] ?? '').includes('text/html')) {
-    // Pass-through mode touches nothing except HTML documents (the iframe
-    // bridge below must be injectable, so they need to arrive uncompressed).
+    // HTML must arrive uncompressed for the bridge injection.
     headers['accept-encoding'] = 'identity'
   }
 
@@ -211,18 +145,13 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
         const type = String(up.headers['content-type'] ?? '')
         const isHtml = /text\/html/i.test(type)
         const rewrite = rewriteMode && !up.headers['content-encoding'] && REWRITABLE.test(type)
-        // Pass-through mode only ever buffers HTML documents, for the bridge.
         const buffer = rewrite || (!rewriteMode && isHtml && !up.headers['content-encoding'])
 
         res.statusCode = up.statusCode ?? 502
         for (const [key, value] of Object.entries(up.headers)) {
           if (value === undefined) continue
           const lower = key.toLowerCase()
-          // The Knecht UI embeds previews in an iframe.
           if (lower === 'x-frame-options') continue
-          // Same for a CSP frame-ancestors directive (Craft's CP sends
-          // `frame-ancestors 'self'`): drop just that directive, keep the
-          // rest of the policy.
           if (lower === 'content-security-policy' || lower === 'content-security-policy-report-only') {
             const values = (Array.isArray(value) ? value : [String(value)])
               .map(v => v.replace(/frame-ancestors[^;]*(;\s*|$)/i, '').trim())
@@ -230,7 +159,6 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
             if (values.length) res.setHeader(key, values)
             continue
           }
-          // Recomputed below for buffered bodies.
           if (buffer && (lower === 'content-length' || lower === 'transfer-encoding')) continue
           if (rewriteMode && lower === 'location') {
             res.setHeader(key, rewriteUrls(String(value), mappings, url.protocol))
@@ -268,16 +196,11 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
       },
     )
     upstream.on('error', (e) => {
-      // A rebooted sandbox gets a fresh IP: drop the cached one so the next
-      // request re-resolves instead of failing against a stale address.
       forgetPreview(sessionId)
       reject(e)
     })
     req.pipe(upstream)
   }).catch((e: NodeJS.ErrnoException) => {
-    // The sandbox is up but nothing answers on the port yet: the web server
-    // appears a few moments into `ddev start` (or the boot failed). Surface a
-    // clean "not ready" instead of a raw socket error.
     if (e?.code === 'ECONNREFUSED' || e?.code === 'EHOSTUNREACH' || e?.code === 'ETIMEDOUT') {
       throw createError({ statusCode: 503, statusMessage: 'Environment is starting or failed to boot' })
     }
@@ -285,16 +208,9 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
   })
 }
 
-// Replace every project host with ITS preview origin, whatever the textual
-// form: absolute URLs (both schemes), protocol-relative, the JSON
-// escaped-slash form (`https:\/\/host`) PHP's json_encode emits (Craft ships
-// its CP config that way) at ANY escaping depth (`https:\\\/\\\/host` when
-// JSON is nested in a JSON string, e.g. Craft's element editor settings with
-// the live-preview targets), and the percent-encoded form URLs take inside
-// query strings. Scheme-full forms adopt the preview protocol; protocol-
-// relative ones stay relative (they follow the page's scheme anyway). The
-// replacement mirrors the matched slash (with its backslashes), so the
-// rewritten URL keeps the surrounding encoding intact.
+// Also matches PHP json_encode's escaped slashes (`https:\/\/host`) at any
+// nesting depth and the percent-encoded form inside query strings; the
+// replacement mirrors the matched slash so the surrounding encoding survives.
 function rewriteUrls(
   text: string,
   mappings: { host: string, previewHost: string }[],
@@ -316,19 +232,11 @@ function rewriteUrls(
   return text
 }
 
-// The project's ddev host set, read from the run's checkout once and cached:
-// it is fixed for the run's lifetime. An empty set (a generated environment)
-// is re-read on every request, which is one small file.
 const hostsCache = new Map<number, DdevHosts>()
 
-// CORS for the dev origin: the site's pages on the session's other preview
-// origins load it as module scripts, which the browser only runs with an
-// Access-Control-Allow-Origin naming the page's origin. Vite's default policy
-// allows localhost only and a repo's own names its ddev hosts, so the proxy
-// answers for the session's own preview origins (and only those): the dev
-// server needs no config change for it, the way the allowed-host variable
-// spares it one (daemon/ddev.ts). Anonymous requests only, so no
-// credentials header is ever granted.
+// Module scripts on the dev origin need an Access-Control-Allow-Origin naming
+// the page's origin; Vite only allows localhost, so the proxy answers for the
+// session's own preview origins. Anonymous requests only, never credentials.
 function sessionCorsOrigin(origin: string | undefined, sessionId: number, baseHost: string): string | null {
   if (!origin) return null
   let host: string

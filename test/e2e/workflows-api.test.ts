@@ -2,11 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import { expectJson, login, type E2eClient } from './client'
 
-// Import/export through the real HTTP API of a running instance: the file a
-// user downloads from one Knecht must load identically on another. Workflows
-// created here are timestamp-named and deleted afterwards, so the suite can
-// run against a dev instance with real data.
-
 const name = `e2e-roundtrip-${Date.now()}`
 const created: number[] = []
 let api: E2eClient
@@ -57,7 +52,6 @@ describe('workflow import/export over the API', () => {
     const first = await importWorkflow(SOURCE)
     expect(first.name).toBe(name)
     expect(first.steps).toHaveLength(2)
-    // An import passes the strict schema, so it is born published.
     expect(first.publishedAt).toBeTruthy()
 
     const exported = await api.fetch(`/api/workflows/${first.id}/export?format=yaml`)
@@ -65,8 +59,6 @@ describe('workflow import/export over the API', () => {
     const doc = await exported.text()
     expect(parse(doc).version).toBe(1)
 
-    // Re-importing the export must not overwrite: the copy gets a numbered
-    // name and byte-identical steps.
     const second = await importWorkflow(doc)
     expect(second.name).toBe(`${name} 2`)
     expect(second.steps).toEqual(first.steps)

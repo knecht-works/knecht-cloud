@@ -4,9 +4,7 @@ import { db, schema } from '../../server/db'
 import { fireTrigger } from '../../server/utils/triggers'
 import { makeProject } from '../helpers/db'
 
-// fireTrigger's gate: automation fires only a PUBLISHED workflow whose master
-// switch is on. (The runs it creates are marked failed immediately because the
-// test env has no GitHub App, so nothing actually executes.)
+// Created runs are marked failed immediately: the test env has no GitHub App.
 
 let n = 0
 function makeWorkflow(overrides: Partial<typeof schema.workflows.$inferInsert> = {}) {
@@ -33,7 +31,6 @@ describe('fireTrigger publish/enabled gate', () => {
 
     expect(fireTrigger(trigger)).toEqual([])
     expect(runsOf(wf.id)).toHaveLength(0)
-    // The fire counter stays untouched too: nothing happened.
     const after = db.select().from(schema.triggers).where(eq(schema.triggers.id, trigger.id)).get()!
     expect(after.firedCount).toBe(0)
   })

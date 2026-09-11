@@ -4,26 +4,12 @@ import { openRunTerminal, type RunTerminal } from '../../../daemon/terminal'
 import { isMember, memberCount } from '../../../utils/members'
 import { requireSession } from '../../../utils/entities'
 
-// WS /api/runs/:id/terminal?service=web&cols=120&rows=32 → the run page's web
-// terminal: an interactive shell in one of the run's service containers
-// (daemon/terminal.ts), frames over the dashboard's existing 443 connection
-// (Caddy proxies upgrades transparently). Client frames are JSON:
-// `{t:'i',d}` writes input, `{t:'r',cols,rows}` resizes; server frames are
-// raw TTY bytes. No new privilege: any member can already exec arbitrary
-// commands via follow-ups; this is the same container shell the agent uses.
-//
-// The /api auth middleware is NOT relied on for the upgrade request: the
-// session + membership check happens explicitly here (nuxt-auth-utils
-// supports ws upgrade requests), mirroring preview-proxy.ts.
+// The /api auth middleware does not cover the upgrade request: session and membership are checked here.
+// Client frames are JSON ({t:'i',d} input, {t:'r',cols,rows} resize), server frames are raw TTY bytes.
 
 const terminals = new Map<string, RunTerminal>()
-// Peers whose socket closed while open() was still awaiting the exec: open()
-// checks this once it resolves and discards the late terminal.
 const closedEarly = new Set<string>()
 
-// Typing in a terminal counts as using the env: bump the idle clock, at most
-// once per 30s per run (unlike an external SSH session, this traffic flows
-// through the app, so a long session properly keeps the env alive).
 const lastBump = new Map<number, number>()
 function bumpPreviewSeen(sessionId: number): void {
   const now = Date.now()
@@ -52,8 +38,6 @@ export default defineWebSocketHandler({
     if (!session?.user) {
       throw createError({ statusCode: 401, statusMessage: 'Login required' })
     }
-    // Same per-request re-check as the /api gate: a removed member's
-    // still-valid session must not open shells.
     if (memberCount() > 0 && !isMember(session.user.login)) {
       throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
     }
@@ -74,9 +58,8 @@ export default defineWebSocketHandler({
     if (!anchor) return peer.close(1008, 'Bad terminal target')
     try {
       const terminal = await openRunTerminal(anchor.sessionId, target.service, target)
-      // The socket may have closed while the exec was being set up (close()
-      // ran before this terminal existed). Discard it, or it leaks the
-      // container-side shell and its stream forever.
+      // close() ran before this terminal existed: discard it, or the
+      // container-side shell leaks forever.
       if (closedEarly.delete(peer.id)) {
         terminal.close()
         return
@@ -109,7 +92,7 @@ export default defineWebSocketHandler({
       }
     }
     catch {
-      // Not a frame of ours: drop it.
+      // Not a frame of ours.
     }
   },
 
@@ -120,8 +103,6 @@ export default defineWebSocketHandler({
       terminals.delete(peer.id)
     }
     else {
-      // open() is still awaiting the exec: mark it so it discards the terminal
-      // once it resolves instead of storing an orphan nothing will close.
       closedEarly.add(peer.id)
     }
   },

@@ -4,23 +4,11 @@ import { STEP_META_KEYS, type Condition, type Step } from '../../shared/utils/wo
 import { tryParseJson } from '../utils/json'
 import { dashboardOrigin } from '../utils/origin'
 
-// The run-scoped variable namespace (workflows.md §6): a single object seeded
-// at run start, into which each block's outputs land as it runs, so values
-// flow front to back through the linear sequence and any block can read
-// everything produced before it. Block params are `render()`ed against this
-// just before the block runs.
-//
-// Outputs live under `steps.<id>` (collision-free: two create-branch steps
-// don't overwrite each other). The runner ALSO writes each action's legacy
-// top-level key (`branch`, `pr`, `preview`, `commit`) so templates written
-// before step ids existed keep rendering; the legacy key holds the LAST such
-// step's outputs, exactly as before.
 export interface RunContext {
   run: { id: number, url: string }
   project: { name: string, owner: string, fullName: string, defaultBranch: string }
   inputs: Record<string, string>
   steps: Record<string, Record<string, unknown>>
-  // Legacy top-level output keys land here as the run proceeds.
   [output: string]: unknown
 }
 
@@ -30,7 +18,6 @@ export function createContext(
   inputs: Record<string, string> = {},
 ): RunContext {
   return {
-    // url stays a relative path when no public origin is configured.
     run: { id: runId, url: `${dashboardOrigin()}${runWorkspacePath(project.id, runId)}` },
     project: {
       name: project.name,
@@ -43,11 +30,6 @@ export function createContext(
   }
 }
 
-// Substitute `{{ path.to.value }}` references against the context. Dotted paths
-// walk nested objects; an unknown path resolves to '': templating is
-// best-effort, so an optional value a block hasn't produced yet (e.g.
-// `{{ preview.url }}` before ddev-start) just renders empty rather than failing.
-// Objects/arrays render as JSON (a step's whole output bag is referenceable).
 export function render(template: string, ctx: RunContext): string {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => {
     const value = lookup(path, ctx)
@@ -63,17 +45,10 @@ function lookup(path: string, ctx: RunContext): unknown {
   )
 }
 
-// Step meta never reaches execution. Don't render it.
 const META_KEYS = new Set<string>(STEP_META_KEYS)
 
-// A template that is exactly one reference, eligible for raw-value resolution.
 const SINGLE_REF_RE = /^\{\{\s*([\w.]+)\s*\}\}$/
 
-// Render every templated string param of a step against the context, just
-// before the step runs. Non-string params (booleans, nested shapes) pass
-// through untouched. Params listed in `rawParams` (ActionDef) whose template is
-// exactly one `{{ ref }}` resolve to the referenced RAW value instead of a
-// string. Structured data flows between steps without a stringify round-trip.
 export function renderStepParams<S extends Step>(step: S, ctx: RunContext, rawParams: readonly string[] = []): S {
   const rendered = { ...step } as Record<string, unknown>
   for (const [key, value] of Object.entries(rendered)) {
@@ -84,9 +59,6 @@ export function renderStepParams<S extends Step>(step: S, ctx: RunContext, rawPa
   return rendered as S
 }
 
-// Evaluate an if step's conditions: outer array = OR groups, inner = AND. Both
-// sides render against the context; operators compare the rendered strings
-// (gt/lt coerce to numbers). An empty conditions list matches.
 export function evalConditions(groups: Condition[][], ctx: RunContext): boolean {
   if (!groups.length) return true
   return groups.some(group => group.length > 0 && group.every(c => evalCondition(c, ctx)))
@@ -114,12 +86,8 @@ function evalCondition(c: Condition, ctx: RunContext): boolean {
   }
 }
 
-// A loop iterates at most this many times: the runaway guard.
 const MAX_LOOP_ITERATIONS = 1000
 
-// Resolve a loop's `items` template to the values to iterate: an array (a
-// single {{ ref }} passes it raw; a JSON-array string parses) or a number N
-// (repeat N times, iterating 0..N-1).
 export function resolveLoopItems(items: string, ctx: RunContext): unknown[] {
   const single = items.trim().match(SINGLE_REF_RE)
   let value: unknown = single ? lookup(single[1]!, ctx) : render(items, ctx)

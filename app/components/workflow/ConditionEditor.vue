@@ -1,24 +1,15 @@
 <script setup lang="ts">
 import { CONDITION_OPS, type Condition, type ConditionOp } from '#shared/utils/workflow'
 
-// The if step's condition editor: OR groups of AND rows, edited in place on
-// the draft (like every other step param). Both sides are {{ }} templates;
-// the operator compares the rendered strings.
 const props = defineProps<{
   step: Extract<WorkflowStep, { type: 'if' }>
-  /** Variable groups visible at the if step (both sides are templates). */
   groups: VarGroup[]
   editable: boolean
 }>()
 
-// Both sides get the {{ }} treatment: unlabeled (compact) VarFields, so the
-// autocomplete and the inspector's chip inserts work like in any other field.
 const LEFT_FIELD: StepField = { key: 'left', label: '', input: 'text', vars: true, placeholder: '{{ steps.s2.exitCode }}' }
 const RIGHT_FIELD: StepField = { key: 'right', label: '', input: 'text', vars: true, placeholder: '0' }
 
-// Chip inserts go to the last-focused side (falling back to the first row),
-// mirroring StepSettings' field wiring; rows are dynamic, so refs live in a
-// map keyed by group/row/side.
 interface VarFieldApi { insertVar: (path: string) => void }
 const fieldRefs = new Map<string, VarFieldApi>()
 const focused = ref<string | null>(null)
@@ -48,17 +39,11 @@ const OP_LABELS: Record<ConditionOp, string> = {
 }
 const OP_ITEMS = CONDITION_OPS.map(op => ({ label: OP_LABELS[op], value: op }))
 
-// Conditions are edited in place: the draft object owns the state, the same
-// contract as StepSettings' `record`.
 const conditions = computed(() => props.step.conditions)
 
-// Empty left sides highlight only once the step is touched (stepPristine)
-// or a failed save flips FORCE_STEP_ISSUES: a just-added if starts with one
-// blank row and shouldn't open in orange.
 const forced = inject(FORCE_STEP_ISSUES, () => ref(false), true)
 const pristine = computed(() => stepPristine(props.step))
 
-// empty / not-empty have no right-hand side.
 function hasRight(op: ConditionOp): boolean {
   return op !== 'empty' && op !== 'not-empty'
 }

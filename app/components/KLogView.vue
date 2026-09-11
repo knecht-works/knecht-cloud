@@ -1,8 +1,4 @@
 <script setup lang="ts">
-// Scrollable log output that follows new content: stays pinned to the bottom
-// while the user is at (or near) it, pauses when they scroll up, re-engages
-// when they scroll back down. Text styling and padding vary per usage and
-// fall through as classes; the height is capped via maxHeight.
 const props = withDefaults(defineProps<{
   log: string | null | undefined
   maxHeight?: number

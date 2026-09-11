@@ -1,7 +1,4 @@
 <script setup lang="ts">
-// Settings shell: a section nav on the left, the active section's page on the
-// right (nested routes under /settings). Each section is its own small page
-// with its own data and save indicator.
 const route = useRoute()
 
 const SECTIONS = [
@@ -29,8 +26,6 @@ function isActive(to: string) {
     </KTopBar>
 
     <div class="flex flex-col gap-5 lg:flex-row lg:gap-8">
-      <!-- On small screens the nav is a horizontal strip above the section;
-           from lg on it is a sticky column like the app sidebar. -->
       <nav class="flex gap-1 overflow-x-auto pb-1 lg:sticky lg:top-4 lg:w-52 lg:flex-none lg:flex-col lg:self-start lg:overflow-visible lg:pb-0">
         <NuxtLink
           v-for="s in SECTIONS"

@@ -4,12 +4,8 @@ import type { DropdownMenuItem } from '@nuxt/ui'
 const { user, clear } = useUserSession()
 const route = useRoute()
 
-// Collapsed sidebar state, persisted across navigations/reloads (SSR-safe).
 const collapsed = useCookie<boolean>('knecht-sidebar-collapsed', { default: () => false })
 
-// Triggers aren't a top-level concept: they're configured inside each workflow.
-// Runs keep a global history page, but a run itself opens inside its project's
-// workspace (which highlights Projects).
 const NAV = [
   { label: 'Projects', icon: 'i-lucide-box', to: '/projects', match: ['/', '/projects'] },
   { label: 'Workflows', icon: 'i-lucide-workflow', to: '/workflows', match: ['/workflows'] },
@@ -37,8 +33,6 @@ const userMenu: DropdownMenuItem[][] = [
   ],
 ]
 
-// The system card: the instance's real host plus a live host/sandbox pulse,
-// linking to the System page. One shared probe per app load (useSystemInfo).
 const instanceHost = useRequestURL().host
 const { data: system, status: systemStatus } = useSystemInfo()
 const systemLine = computed(() => {
@@ -49,8 +43,6 @@ const systemLine = computed(() => {
   return { color: 'primary' as const, text: `${n} container${n === 1 ? '' : 's'} up` }
 })
 
-// Update banner: the shared probe already knows whether a newer release
-// exists; the System page holds the changelog and the update button.
 const updateTarget = computed(() =>
   system.value?.version.updateAvailable ? system.value.version.latest : null,
 )
@@ -244,9 +236,6 @@ const updateTarget = computed(() =>
       </div>
     </aside>
 
-    <!-- scrollbar-gutter keeps the content width identical whether a page is
-         tall enough to scroll or not, otherwise the ~15px scrollbar makes
-         screens visibly "jump" in width between routes. -->
     <main class="relative z-10 min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
       <div class="mx-auto max-w-480 px-8 py-7">
         <slot />

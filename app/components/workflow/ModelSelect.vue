@@ -1,7 +1,4 @@
 <script setup lang="ts">
-// The ai step's model picker: opencode's catalog (/api/ai-models) in a
-// searchable menu; empty means "use the default from Settings → Agent". Falls
-// back to a plain input when the catalog can't be loaded.
 defineProps<{
   field: StepField
   disabled?: boolean
@@ -17,7 +14,6 @@ const items = computed(() => [
   ...models.value.map(m => ({ label: m.id, description: `${m.name} · ${m.provider}`, id: m.id })),
 ])
 
-// Step JSON stays clean: no `model` key at all while the default is selected.
 const value = computed({
   get: () => model.value || DEFAULT_ID,
   set: (v: string) => model.value = v === DEFAULT_ID ? undefined : v,

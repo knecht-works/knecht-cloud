@@ -3,12 +3,6 @@ import '@xterm/xterm/css/xterm.css'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 
-// The web terminal: an xterm view wired to the run's terminal WebSocket
-// (server/api/runs/[id]/terminal.ts). Client-only by nature (the parent
-// mounts it only inside an open modal). Server frames are raw TTY bytes;
-// input and resizes go out as the JSON frames the handler expects. The
-// terminal keeps its dark colors regardless of the dashboard theme: it is a
-// shell, not a themed surface.
 const props = defineProps<{
   runId: number
   service: string
@@ -20,9 +14,8 @@ let socket: WebSocket | undefined
 let observer: ResizeObserver | undefined
 
 onMounted(() => {
-  // The theme background must match the wrapper's (the app's --surface-inset,
-  // #09090b), or the padding reads as a frame around the canvas. xterm needs
-  // the literal color, it cannot resolve CSS variables.
+  // Must match the wrapper's --surface-inset (#09090b) or the padding reads as
+  // a frame; xterm cannot resolve CSS variables.
   term = new Terminal({ cursorBlink: true, fontSize: 13, scrollback: 4000, theme: { background: '#09090b' } })
   const fit = new FitAddon()
   term.loadAddon(fit)

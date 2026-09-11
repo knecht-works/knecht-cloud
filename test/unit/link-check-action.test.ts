@@ -51,7 +51,6 @@ describe('link-check action: listed URLs', () => {
 
 describe('link-check action: sitemaps', () => {
   it('follows a sitemap index one level and decodes loc entries', async () => {
-    // The fixture XML derives the dynamic test origin from the Host header.
     await withServer({
       'GET /sitemap.xml': (req, res) => xml(res, `
         <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">

@@ -6,8 +6,6 @@ import { MEMORY_SUBDIR, persistAgentMemory, projectMemoryDir, seedAgentMemory } 
 
 const PROJECT = 7
 
-// Fresh host-side data dir per test: dataDir() resolves KNECHT_DATA_DIR at
-// call time, so stubbing here isolates the store between tests.
 beforeEach(() => {
   vi.stubEnv('KNECHT_DATA_DIR', mkdtempSync(join(tmpdir(), 'knecht-memtest-')))
 })
@@ -105,7 +103,6 @@ describe('persistAgentMemory', () => {
     writeFileSync(join(memory, '.hidden.md'), 'dotfile\n')
     mkdirSync(join(memory, 'sub'))
     writeFileSync(join(memory, 'sub', 'nested.md'), 'nested\n')
-    // A symlink to a file far over the cap: must be ignored, not followed.
     const huge = join(mkdtempSync(join(tmpdir(), 'knecht-memhuge-')), 'huge.md')
     writeFileSync(huge, 'x'.repeat(100 * 1024))
     symlinkSync(huge, join(memory, 'link.md'))

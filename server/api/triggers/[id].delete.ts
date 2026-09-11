@@ -1,7 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
 
-// DELETE /api/triggers/:id → remove a trigger. Existing runs it started are kept.
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
   requireTrigger(id)

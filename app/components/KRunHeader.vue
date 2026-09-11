@@ -4,16 +4,11 @@ import type { RunStatus, RunStatusMeta } from '~/utils/dashboard'
 
 interface MetaChip { icon: string, text: string, href?: string }
 
-// The run's identity, meta chips and top-level actions (IDE, PR,
-// cancel/retry, the overflow menu). The failure explanation lives beside the
-// preview section instead (same visual spot it always had); this header only
-// covers the row at the very top.
 const props = defineProps<{
   runId: number
   status: RunStatus
   kind: 'workflow' | 'mention'
   envState: EnvState
-  /** The lifecycle step in flight (KRunWorkspace); lifecycle actions wait. */
   busy: EnvTransition | null
   prUrl: string | null
   isLive: boolean
@@ -22,14 +17,9 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  /** Cancel/retry/stop/archive changed the run's status or env state; the
-   *  parent refreshes so the rest of the workspace matches. */
   changed: []
-  /** The run was deleted; the parent picks the next run. */
   deleted: []
-  /** The overflow menu's Terminal item was picked. */
   openTerminal: []
-  /** A stop/archive request is in flight (or just finished: null). */
   pending: [transition: EnvTransition | null]
 }>()
 
@@ -53,7 +43,6 @@ async function remove() {
   }
 }
 
-// Stop the live run server-side; the runner unwinds at its next checkpoint.
 const cancelling = ref(false)
 async function cancel() {
   cancelling.value = true
@@ -83,9 +72,8 @@ async function envAction(action: 'stop' | 'archive') {
   }
 }
 
-// The web IDE: openvscode-server inside the run's web container, on its own
-// preview origin. The tab opens synchronously (popup blockers kill windows
-// opened after an await) and navigates once the server confirms it is up.
+// The tab opens synchronously (popup blockers kill windows opened after an
+// await) and navigates once the server confirms the IDE is up.
 async function openInVscode() {
   const tab = window.open('about:blank', '_blank')
   try {
@@ -99,10 +87,6 @@ async function openInVscode() {
   }
 }
 
-// The overflow menu: the terminal while the env still exists (disabled until
-// it is up again; the web IDE sits in the header as its own button); the
-// on-demand lifecycle steps down (stop, archive) for whichever one applies;
-// delete stays separate as the destructive tail.
 const menuItems = computed(() => {
   const remote = props.envState !== 'down'
     ? [{
@@ -128,8 +112,6 @@ const menuItems = computed(() => {
 
 <template>
   <div>
-    <!-- Compact run header: identity + meta left, run-level actions right.
-         The page-level chrome (breadcrumbs, project title) is the parent's. -->
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0">
         <div class="flex items-center gap-2.5">
@@ -168,10 +150,6 @@ const menuItems = computed(() => {
         </div>
       </div>
       <div class="flex flex-none items-center gap-2">
-        <!-- Jump into the run's code. Starting runs is the project header's
-             job ("Start workflow" and the Automation panel), so the run
-             header offers no run-again; a torn-down env keeps its run-again
-             inside the preview frame. -->
         <UButton
           v-if="!isLive && envState !== 'down'"
           color="neutral"

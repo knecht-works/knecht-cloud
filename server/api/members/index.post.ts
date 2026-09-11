@@ -1,9 +1,7 @@
 import { z } from 'zod'
 import { addMember, isMember, listMembers } from '../../utils/members'
 
-// POST /api/members → invite a GitHub login. Every member has full access, so
-// any signed-in member may invite; the invitee can sign in as soon as they're
-// listed. GitHub usernames are ≤ 39 chars of alphanumerics and single hyphens.
+// GitHub usernames are at most 39 chars of alphanumerics and single hyphens.
 const bodySchema = z.object({
   login: z.string().trim().min(1).max(39).regex(/^[a-z\d](?:[a-z\d]|-(?=[a-z\d])){0,38}$/i),
 })

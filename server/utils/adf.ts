@@ -1,9 +1,3 @@
-// Minimal ADF (Atlassian Document Format) → Markdown conversion. Jira Cloud
-// returns issue descriptions and comments as an ADF JSON tree; the agent reads
-// `{{ inputs.body }}` as text, so the common nodes are rendered as Markdown and
-// anything unknown falls back to its text content. Deliberately not a complete
-// ADF renderer (tables, panels, media get a plain-text approximation at most).
-
 export interface AdfNode {
   type?: string
   text?: string
@@ -45,13 +39,10 @@ function block(node: AdfNode, indent: string): string {
     case 'mediaGroup':
       return `${indent}[attachment]`
     default:
-      // Unknown block (table, panel, expand, …): keep whatever text it holds.
       return node.content ? blocks(node.content, indent) : inline([node])
   }
 }
 
-// A listItem's first paragraph becomes the bullet text; further blocks are
-// indented under it.
 function listItem(li: AdfNode, indent: string): string {
   const [first, ...rest] = li.content ?? []
   const head = first ? block(first, '') : ''

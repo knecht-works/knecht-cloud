@@ -2,12 +2,10 @@
 import { AI_PROVIDERS, type AiProviderId, type LangdockRegion } from '#shared/utils/ai'
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 
-// Agent: the opencode provider, its (write-only) API key and the default model.
 const toastError = useToastError()
 const { data: settings } = useSettings()
 
-// Reka reserves '' as the clear value, so the subtask picker's "None" entry
-// needs a sentinel (same trick as the builder's ModelSelect).
+// Reka reserves '' as the clear value, so "None" needs a sentinel.
 const NO_SUBTASK_MODEL = '__none__'
 
 const aiProvider = ref<AiProviderId>('anthropic')
@@ -24,10 +22,8 @@ watch(settings, (s) => {
   agentInstructions.value = s.agentInstructions
 }, { immediate: true })
 
-// A provider switch clears both model fields (the server does the same to the
-// stored row): the old provider's names would not resolve, and a stale model
-// used to block saving the new provider's key. The guard keeps the initial
-// settings load (which sets provider and models together) from clearing them.
+// A provider switch clears both model fields (the old names would not resolve);
+// the guard keeps the initial settings load from clearing them.
 watch(aiProvider, () => {
   if (!settings.value || aiProvider.value === settings.value.aiProvider) return
   aiModel.value = ''
@@ -43,16 +39,11 @@ const subtaskItems = computed(() => [
 ])
 
 const PROVIDER_ITEMS = AI_PROVIDERS.map(p => ({ label: p.label, id: p.id }))
-// Langdock serves per-region deployments; the region scopes every request and
-// the model catalog, so it sits next to the provider and only shows for it.
 const REGION_ITEMS = [
   { label: 'EU', id: 'eu' },
   { label: 'US', id: 'us' },
 ]
 
-// Provider, region and default model autosave (useAutosave: debounce, save
-// state, flush on unmount). A provider, region or key change refetches the
-// (provider-scoped) model catalog.
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
   await patchSettings(settings, {
     aiProvider: aiProvider.value,
@@ -69,16 +60,12 @@ watch([aiProvider, aiRegion, aiModel, aiSubtaskModel], () => {
     && aiModel.value === (settings.value?.aiModel ?? '')
     && aiSubtaskModel.value === (settings.value?.aiSubtaskModel ?? NO_SUBTASK_MODEL)
   ) return
-  // An empty model only saves as part of a provider switch (where it means
-  // "cleared"); emptying the field on its own asks for a pick instead.
   if (!aiModel.value.trim() && aiProvider.value === settings.value?.aiProvider) {
     return invalid('Pick a default model')
   }
   schedule()
 })
 
-// Instance instructions: own autosave so a typo-fix in the textarea never
-// races the provider/model save above.
 const { state: instructionsState, error: instructionsError, schedule: scheduleInstructions } = useAutosave(async () => {
   await patchSettings(settings, { agentInstructions: agentInstructions.value })
 })
@@ -105,8 +92,6 @@ async function saveAiKey() {
   }
 }
 
-// Remove the stored key (aiKey: null): ai steps then refuse to run until a
-// new key is saved, so the button only shows while one is configured.
 const removingAiKey = ref(false)
 async function removeAiKey() {
   removingAiKey.value = true

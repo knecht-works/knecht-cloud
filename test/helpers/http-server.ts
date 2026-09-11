@@ -1,7 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 
-// A throwaway local HTTP server for action tests, so the real fetch code runs
-// against real responses. `routes` maps "METHOD /path" to a handler.
 export type Route = (req: IncomingMessage, res: ServerResponse, body: string) => void
 
 export async function withServer(routes: Record<string, Route>, fn: (origin: string) => Promise<void>): Promise<void> {

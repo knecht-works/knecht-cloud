@@ -14,24 +14,8 @@ import { appendLog, runLogBytes } from './runner'
 import { copyIntoSandbox, execInSandbox, streamInSandbox } from './sandbox'
 import { ensureEnvUp, reviveEnv } from './envs'
 
-// Execute a follow-up: a free-form prompt continuing a session's
-// conversation. The session's EXISTING sandbox is reused, never recreated:
-// 'up' runs immediately, 'stopped' restarts the same containers, only
-// 'archived' needs a real restore (which also brings the conversation back,
-// daemon/envs.ts). The agent continues the session's opencode conversation
-// (--continue), commits/pushes itself with plain git. Everything is recorded
-// as a run_steps row with origin 'followup' on the follow-up's anchor run,
-// so the run timeline shows the whole conversation.
-
-// The abort controllers of follow-ups THIS process is executing, keyed by
-// session (one active follow-up per session), so a cancel (POST
-// /api/runs/:id/followups/cancel) can stop the executor mid-flight: the
-// streamed sandbox command is killed through the signal.
 const controllers = new Map<number, AbortController>()
 
-// Abort the follow-up this process is executing for a session. Returns false
-// when none is in-flight here (still queued, or a stale 'running' row after a
-// crash); the caller has already flipped the row, so nothing else is needed.
 export function cancelFollowup(sessionId: number): boolean {
   const controller = controllers.get(sessionId)
   if (!controller) return false
@@ -39,8 +23,6 @@ export function cancelFollowup(sessionId: number): boolean {
   return true
 }
 
-// Whether a session has a follow-up waiting or executing (the API refuses a
-// second one; follow-ups per session are strictly sequential).
 export function hasActiveFollowup(sessionId: number): boolean {
   const row = db
     .select({ id: schema.followups.id })
@@ -53,10 +35,7 @@ export function hasActiveFollowup(sessionId: number): boolean {
   return Boolean(row)
 }
 
-// Start a follow-up if it is still queued. Claim-first, so the fast lane
-// (POST on an 'up' env) and the dispatcher can both call this without ever
-// double-running one. The returned promise never rejects (the dispatcher and
-// the fast lane both fire-and-forget it).
+// Claim-first: the fast lane and the dispatcher can both call this without double-running one.
 export async function startFollowup(followupId: number): Promise<void> {
   try {
     const claimed = db.update(schema.followups)
@@ -74,10 +53,7 @@ export async function startFollowup(followupId: number): Promise<void> {
       return
     }
 
-    // A mention drives its own run row (kind 'mention', utils/mentions.ts):
-    // the runner never touches it, so the executor mirrors the follow-up's
-    // lifecycle onto it. Dashboard follow-ups anchor an already-finished run
-    // and leave its status alone.
+    // The runner never touches a mention's run row, so its lifecycle is mirrored here.
     const mirrorsRun = followup.origin === 'mention' && run.kind === 'mention'
     if (mirrorsRun) {
       db.update(schema.runs)
@@ -113,18 +89,12 @@ export async function startFollowup(followupId: number): Promise<void> {
 }
 
 async function execFollowup(followup: Followup, session: Session, run: Run, project: Project, controller: AbortController): Promise<string> {
-  // Offset BEFORE the banner: the banner and the env-revive output below
-  // belong to this follow-up's log segment on the dashboard.
+  // Offset before the banner, so the banner lands in this follow-up's log segment.
   const logStart = runLogBytes(run.id)
   appendLog(run.id, `\n▶ ${followup.origin === 'mention' ? 'Mention' : 'Follow-up'}${followup.requestedBy ? ` (by ${followup.requestedBy})` : ''}\n`)
 
-  // Revive the session's environment (daemon/envs.ts owns the ladder); an
-  // 'up' env just gets its idle clock reset.
   await reviveEnv(session.id)
 
-  // The follow-up's own timeline row, appended after the anchor run's pinned
-  // workflow steps (and any earlier follow-ups). The runner's resume logic
-  // ignores it (origin).
   const nextIndex = db
     .select({ value: max(schema.runSteps.stepIndex) })
     .from(schema.runSteps)
@@ -178,12 +148,6 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
   }
 }
 
-// The guaranteed thread reply (ADR 0007): a mention always gets an answer on
-// its object. When the agent already posted on the thread itself during this
-// follow-up (knecht-reply), the guarantee is met and auto-posting the final
-// assistant message (or a late failure notice) would just duplicate what the
-// thread already heard. Best-effort: the follow-up already succeeded/failed
-// either way.
 async function postMentionReply(followup: Followup, session: Session, project: Project, text: string): Promise<void> {
   if (followup.origin !== 'mention' || !session.objectNumber) return
   if (agentRepliedSince(session.id, followup.startedAt ?? followup.createdAt)) return
@@ -195,11 +159,7 @@ async function postMentionReply(followup: Followup, session: Session, project: P
   }
 }
 
-// The agent's clean final reply, for the dashboard's follow-up chat: the
-// streamed tail (kept in the run log) is ANSI codes and tool output, but
-// opencode's session db in the sandbox has the real message parts. Pulls the
-// newest assistant text written since this follow-up started; null (the
-// caller falls back to the tail) when there is none or the query fails.
+// The streamed tail is ANSI and tool output; opencode's session db has the clean message parts.
 function agentReplySql(sinceMs: number): string {
   return 'SELECT json_extract(p.data, \'$.text\') AS text'
     + ' FROM part p JOIN message m ON p.message_id = m.id'
@@ -209,13 +169,9 @@ function agentReplySql(sinceMs: number): string {
     + ' ORDER BY p.time_created DESC LIMIT 1'
 }
 
-// Exported for the mention path (Phase 2): the guaranteed thread reply reads
-// the same clean answer the dashboard shows.
 export async function readAgentReply(sessionId: number, since: Date): Promise<string | null> {
   try {
-    // bash -l so opencode is on PATH (same as the ai step). The SQL contains
-    // single quotes (JSON paths), so they are shell-escaped for the wrapping
-    // single quotes.
+    // bash -l so opencode is on PATH.
     const sql = agentReplySql(since.getTime()).replace(/'/g, '\'\\\'\'')
     const { stdout } = await execInSandbox(sessionId, ['bash', '-lc', `opencode db --format json '${sql}'`])
     const rows = tryParseJson(String(stdout ?? '').trim())
@@ -227,25 +183,16 @@ export async function readAgentReply(sessionId: number, since: Date): Promise<st
   }
 }
 
-// The prompt as the agent sees it: a header marking it as a NEW instruction
-// (the conversation may have ended in an output-contract exchange, where the
-// agent was told finished work needs no redoing; without the header it reads
-// a follow-up as that and does nothing), the user's text, and the publishing
-// default: whether to publish is up to the prompt, with one exception, a
-// session that already has an open PR stays current so the PR never silently
-// diverges from the preview.
+// Without the header the agent reads a follow-up as an output-contract correction and does nothing.
 function followupMessage(followup: Followup): string {
   const publish = 'Publishing: if this session already has an open pull request, commit your changes (in logical chunks with proper messages) and push when you are done; never open a second PR. Otherwise leave your changes in the working tree for review in the preview, unless the request above asks you to commit, push or open a PR.'
   return `A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}\n\n${publish}`
 }
 
-// Keep the session's branch honest after the agent worked with plain git: the
-// checkout is the source of truth, the DB copy only feeds the dashboard's
-// branch chip. Best-effort; the checkout may be mid-teardown.
 async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRuntime): Promise<void> {
   try {
     const branch = await currentBranch(rt.checkoutDir)
-    // 'HEAD' is a detached checkout, not a real branch name: never record it.
+    // 'HEAD' is a detached checkout, not a branch name.
     if (branch !== rt.project.defaultBranch && branch !== 'HEAD') {
       db.update(schema.sessions).set({ branch }).where(eq(schema.sessions.id, sessionId)).run()
       db.update(schema.runs).set({ branch }).where(eq(schema.runs.id, runId)).run()
@@ -256,9 +203,7 @@ async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRun
   }
 }
 
-// Close out a mention's run row alongside its follow-up. Guarded on the
-// non-terminal statuses so a user cancel (which flips the row first,
-// cancelFollowupWork below) is never overwritten.
+// Guarded so a user cancel, which flips the row first, is never overwritten.
 function finishMentionRun(runId: number, status: 'success' | 'failed' | 'cancelled'): void {
   db.update(schema.runs)
     .set({ status, finishedAt: new Date() })
@@ -266,14 +211,7 @@ function finishMentionRun(runId: number, status: 'success' | 'failed' | 'cancell
     .run()
 }
 
-// The cancel twin of finishMentionRun, for the API routes (cancel and delete):
-// flip the matching queued/running follow-ups to failed/'Cancelled', take
-// their mention anchor runs with them (those rows exist only as the mention's
-// face in the run list; nothing else would ever move them out of
-// queued/running), then abort the executor if this session's follow-up is in
-// flight in this process. `runId` narrows the cancel to one mention run;
-// without it the session's whole follow-up queue goes. Returns the number of
-// follow-up rows flipped.
+// Mention anchor runs go with their follow-ups: nothing else moves those rows out of queued/running.
 export function cancelFollowupWork(sessionId: number, runId?: number): number {
   const flipped = db.update(schema.followups)
     .set({ status: 'failed', error: 'Cancelled', finishedAt: new Date() })

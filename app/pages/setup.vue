@@ -1,26 +1,13 @@
 <script setup lang="ts">
-// First-run setup. Public page (see app/middleware/auth.global.ts): before a
-// GitHub App exists nobody can log in, so this must be reachable logged-out. It
-// creates the app via GitHub's manifest flow (one click, no env vars), and
-// GitHub hands the credentials back to /setup/callback.
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
-// Client-only: the endpoint sets an httpOnly CSRF-state cookie, which only
-// reaches the browser on a real HTTP response. During SSR useFetch calls the
-// route through an internal event whose Set-Cookie is dropped: the browser
-// would then have the state in the form URL but no cookie, failing the callback.
+// Client-only: the endpoint's httpOnly CSRF-state cookie only reaches the
+// browser on a real HTTP response; during SSR the Set-Cookie is dropped.
 const { data: status } = await useFetch('/api/_setup/status', { server: false })
 
-// The create-app payload, or null once configured: narrows the union so the
-// template can reach state/manifest.
 const setup = computed(() => (status.value && !status.value.configured ? status.value : null))
 
-// Created under the operator's personal account. The app is public (see
-// server/api/_setup/status.get.ts), so it can still be installed on any org's
-// repos afterwards: no need to own it there. Creating it personally also makes
-// the manifest's `owner.login` the operator, who /setup/callback claims as the
-// instance owner.
 const actionUrl = computed(() =>
   setup.value ? `https://github.com/settings/apps/new?state=${setup.value.state}` : '',
 )
@@ -80,9 +67,6 @@ const errorMessage = computed(() => {
         should manage.
       </p>
 
-      <!-- Rendered from the first paint (not gated behind the client-only fetch)
-           so the button never pops in: it just sits in a loading state until the
-           manifest + CSRF state have loaded, then enables. -->
       <form
         :action="actionUrl"
         method="post"

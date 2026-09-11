@@ -2,19 +2,10 @@
 import { WORKFLOW_DND } from '~/composables/useStepDnd'
 import { RAIL_CTX } from '~/composables/useWorkflowRail'
 
-// One step list rendered as a vertical flow: the root sequence, an if branch
-// or a loop body. Composites recurse: an if card fans out into two branch
-// columns (side by side when the container is wide enough, stacked otherwise)
-// that merge back into the next step; a loop card gets a framed body. All
-// connectors are plain CSS borders: no measurement, reflow for free.
 const props = defineProps<{
-  /** The list array, mutated in place (the draft owns the state). */
   steps: WorkflowStep[]
-  /** Nesting depth of the steps IN this list (top-level = 1). */
   depth: number
-  /** Variable groups visible at this list's entry point. */
   varsBase: VarGroup[]
-  /** True when these steps run inside a loop ({{ loop.* }} available). */
   loop?: boolean
 }>()
 
@@ -23,14 +14,11 @@ const dnd = inject(WORKFLOW_DND)!
 
 const top = computed(() => props.depth === 1)
 
-// What sub-step `i` can reference: everything the list's scope sees, the loop
-// vars when applicable, and the outputs of its prior siblings.
 function groupsFor(i: number): VarGroup[] {
   return [...props.varsBase, ...(props.loop ? [LOOP_VARS] : []), ...stepOutputGroups(props.steps, i)]
 }
 
-// Template helpers narrowing the step union (v-if narrowing does not reach
-// into sibling template blocks).
+// v-if narrowing does not reach into sibling template blocks.
 function ifBranches(step: WorkflowStep) {
   const s = step as Extract<WorkflowStep, { type: 'if' }>
   return [
@@ -48,8 +36,6 @@ function dropLineAt(index: number): boolean {
   return !!dropTarget.value && dropTarget.value.list === props.steps && dropTarget.value.index === index
 }
 
-// A branch whose steps ALL resolved to skipped was not taken: the whole limb
-// dims so the taken path stands out during/after a run.
 function branchSkipped(branch: WorkflowStep[]): boolean {
   return branch.length > 0
     && branch.every(c => rail.statuses.value.get(c.id ?? '')?.status === 'skipped')
@@ -61,7 +47,6 @@ function branchSkipped(branch: WorkflowStep[]): boolean {
     class="flex flex-col"
     @dragover="dnd.overList(steps, depth, $event)"
   >
-    <!-- empty list (nested): dashed placeholder, doubles as the drop target -->
     <p
       v-if="!steps.length && !top"
       class="rounded-md border border-dashed px-3 py-2.5 text-center text-xs text-dimmed"
@@ -74,14 +59,12 @@ function branchSkipped(branch: WorkflowStep[]): boolean {
       v-for="(s, i) in steps"
       :key="i"
     >
-      <!-- insertion line (library drops and step moves) -->
       <div
         v-if="dropLineAt(i)"
         class="h-1 rounded-full bg-primary"
         :class="top ? 'mb-3 ml-11' : 'my-1'"
         style="box-shadow: 0 0 10px var(--primary)"
       />
-      <!-- connector stub between nested siblings -->
       <div
         v-else-if="!top && i > 0"
         class="mx-auto h-4 w-px bg-(--border-default)"
@@ -95,13 +78,10 @@ function branchSkipped(branch: WorkflowStep[]): boolean {
         :groups="groupsFor(i)"
         :last="i === steps.length - 1"
       >
-        <!-- if: the branch columns, inside the card's own border -->
         <template
           v-if="s.type === 'if'"
           #body
         >
-          <!-- the body is a recessed well (inset surface + inner shadow):
-               nested cards float on it, which is what carries the depth -->
           <div
             class="border-t border-muted bg-(--surface-inset) px-3 pb-3 pt-2.5 @container"
             style="box-shadow: inset 0 2px 6px -3px oklch(0 0 0 / 0.5)"
@@ -115,8 +95,7 @@ function branchSkipped(branch: WorkflowStep[]): boolean {
                 @dragover="dnd.overAt(b.steps, depth + 1, b.steps.length, $event)"
               >
                 <span class="k-label mx-auto mb-2">{{ b.label }}</span>
-                <!-- no `loop` here: an enclosing loop's vars already sit in
-                     groupsFor(i), the branch list must not add them twice -->
+                <!-- no `loop`: an enclosing loop's vars already sit in groupsFor(i) -->
                 <WorkflowStepList
                   :steps="b.steps"
                   :depth="depth + 1"
@@ -127,7 +106,6 @@ function branchSkipped(branch: WorkflowStep[]): boolean {
           </div>
         </template>
 
-        <!-- loop: the body steps, inside the card's own border -->
         <template
           v-else-if="s.type === 'loop'"
           #body
@@ -156,7 +134,6 @@ function branchSkipped(branch: WorkflowStep[]): boolean {
       </WorkflowStepCard>
     </template>
 
-    <!-- append insertion line (below the last row) -->
     <div
       v-if="steps.length && dropLineAt(steps.length)"
       class="h-1 rounded-full bg-primary"

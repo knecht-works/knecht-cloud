@@ -1,5 +1,4 @@
 <script setup lang="ts" generic="T extends string | null">
-// The rounded filter pills above list views (framework filter, workflow tabs).
 defineProps<{
   items: { value: T, label: string }[]
 }>()

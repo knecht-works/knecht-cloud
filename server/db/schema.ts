@@ -5,30 +5,19 @@ import type { EnvVar } from '../../shared/utils/env'
 import { PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
 import type { Step } from '../../shared/utils/workflow'
 
-// The environment spec resolved from the repo at connect time: from its
-// `.ddev/config.yaml` when it ships one (source 'ddev'), otherwise detected
-// from composer.json/.nvmrc and friends (source 'generated', see
-// server/utils/env-detect.ts), plus the `packageManager` field of its
-// `package.json`. Shown on the project's settings page. Null until resolved;
-// resolved alongside `framework`. Rows resolved before detection existed
-// carry no source: they were all ddev projects.
 export interface DdevEnv {
-  webserver: string | null // e.g. 'nginx-fpm'
-  phpVersion: string | null // e.g. '8.3'
-  dbType: string | null // e.g. 'mariadb'
-  dbVersion: string | null // e.g. '10.11'
-  nodeVersion: string | null // e.g. '20'
-  packageManager: string | null // e.g. 'pnpm@9.1.0'
-  // The detection itself (kind, each value with the file it came from, what
-  // could not be used): read through projectDetectedEnv, which supplies the
-  // legacy shape for rows without it.
+  webserver: string | null
+  phpVersion: string | null
+  dbType: string | null
+  dbVersion: string | null
+  nodeVersion: string | null
+  packageManager: string | null
   detected?: DetectedEnv
 }
 
 export const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
 
-  // GitHub repo identity (from the connected repo)
   githubId: integer('github_id').notNull().unique(),
   owner: text('owner').notNull(),
   name: text('name').notNull(),
@@ -37,82 +26,37 @@ export const projects = sqliteTable('projects', {
   private: integer('private', { mode: 'boolean' }).notNull().default(false),
   cloneUrl: text('clone_url').notNull(),
 
-  // The DDEV project type read from the repo's `.ddev/config.yaml` `type:` field
-  // (e.g. 'typo3', 'wordpress', 'craftcms'). Identifies the framework. Null until
-  // resolved; backfilled lazily from GitHub when a project is loaded.
   framework: text('framework'),
-  // The framework's major.minor version (e.g. '13.4'), read from the matching
-  // package in the repo's composer.lock. Null when not composer-managed or
-  // unreadable. Resolved alongside `framework`.
   frameworkVersion: text('framework_version'),
-  // The DDEV environment spec (web/php/db/node/package manager). Null until
-  // resolved from the repo; resolved alongside `framework`.
   ddevEnv: text('ddev_env', { mode: 'json' }).$type<DdevEnv>(),
-  // The project's favicon as a data URI, shown instead of the generic project
-  // icon. Resolved alongside `framework` from any favicon.svg/png/ico in the
-  // repo tree; when the repo carries none, the first browsable preview's
-  // <head> is the fallback source (utils/favicon.ts). Null until resolved,
-  // '' when the repo scan found nothing (keeps the backfill from re-hitting
-  // GitHub on every load).
+  // '' = the repo scan found nothing (stops the backfill from re-hitting GitHub); null = unresolved.
   favicon: text('favicon'),
 
-  // Per-project config (maintained on the project detail page, increment 2)
   envVars: text('env_vars', { mode: 'json' })
     .$type<EnvVar[]>()
     .notNull()
     .default(sql`'[]'`),
-  // How preview URLs reach the browser. 'env' (default): the project derives
-  // ALL its URLs from env vars, so Knecht translates the env values to the
-  // per-run preview origins at boot and proxies responses untouched.
-  // 'rewrite': legacy compatibility for projects with hard-coded/DB-stored
-  // absolute URLs; the env is passed verbatim and the proxy rewrites every
-  // response body/header between the ddev world and the preview origins.
   urlMode: text('url_mode', { enum: ['env', 'rewrite'] })
     .notNull()
     .default('env'),
   dbDumpPath: text('db_dump_path'),
-  // Whether the current dump has already been imported into the ddev volume.
-  // The import is one-time (projects.md §6); reset to false when a new dump is
-  // uploaded so it re-imports on the next boot.
   dbImported: integer('db_imported', { mode: 'boolean' }).notNull().default(false),
-  // Project-relative folders whose contents persist across runs (e.g. a
-  // git-ignored CMS uploads dir). Each is backed by one host dir per project
-  // (dataDir()/shared/<id>/<path>) bind-mounted writable into every run's web
-  // container, so all runs and previews of the project see the same files.
   sharedFolders: text('shared_folders', { mode: 'json' })
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
-  // Project-level agent instructions: human-written rules for this project
-  // only, layered on top of the instance instructions.
   agentInstructions: text('agent_instructions').notNull().default(''),
 
-  // How THIS project boots: commands (one per line) that run after
-  // `ddev start` + DB import on a session's first boot, before any
-  // workflow-specific commands on the ddev-start step. Lives on the project
-  // so one generic workflow can serve projects that boot differently.
   bootCommands: text('boot_commands').notNull().default(''),
 
-  // Environment overrides for repos WITHOUT their own `.ddev/config.yaml`
-  // (shared/utils/env-spec.ts): each null means "use what Knecht detected
-  // from the repo's files". Ignored for repos that ship a ddev config, whose
-  // committed file is the truth. `devServer` is a command that serves the
-  // app (e.g. 'npm run dev'); `previewPort` the port it listens on, which
-  // is also what makes a generated environment previewable at all.
   phpVersion: text('php_version'),
   nodeVersion: text('node_version'),
   packageManager: text('package_manager', { enum: PACKAGE_MANAGERS }),
   devServer: text('dev_server'),
   previewPort: integer('preview_port'),
 
-  // Mentions (@<app slug> in an issue/PR comment, ADR 0007): on by default,
-  // the opt-out lives under the project's Advanced settings.
   mentionsEnabled: integer('mentions_enabled', { mode: 'boolean' }).notNull().default(true),
-  // The workflow a mention starts when its object has no session yet: it
-  // provides the checkout and environment, then the mention prompt runs as
-  // the first follow-up. Unset: Knecht replies with a setup hint instead.
-  // NOTE: FK actions are declarative only; the workflow delete route nulls
-  // this explicitly.
+  // PRAGMA foreign_keys is off, so onDelete is declarative; the delete route nulls this.
   starterWorkflowId: integer('starter_workflow_id')
     .references(() => workflows.id, { onDelete: 'set null' }),
 
@@ -127,81 +71,40 @@ export const projects = sqliteTable('projects', {
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
 
-// The container for one object's working state (ADR 0006): one checkout, one
-// environment, one shared agent conversation, accumulating runs and follow-ups
-// while the object is open. Object sessions mirror their GitHub issue/PR
-// (closed with it, revived on reopen; ONE row per object, forever). Events
-// without an object (push, schedule, manual) run in an implicit one-shot
-// session that closes when its single run finishes.
-//
-// The env's physical names stay on the historical `run-` prefix
-// (projects/run-<id> checkouts, knecht-run-<id> ddev projects, archives/
-// run-<id>): the migration seeded one session per pre-existing run with the
-// SAME id, so live envs and archives of upgraded installs keep working. The
-// id in those names is the SESSION id.
+// Env paths keep the `run-<id>` prefix with the SESSION id: the migration seeded one session per run.
 export const sessions = sqliteTable('sessions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   projectId: integer('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
 
-  // The external item this session belongs to. Null kind = a one-shot
-  // session without an object.
   objectKind: text('object_kind', { enum: ['issue', 'pull_request'] }),
   objectNumber: integer('object_number'),
   objectUrl: text('object_url'),
   objectTitle: text('object_title'),
 
-  // Mirrors the object: 'open' while the issue/PR is open, 'closed' when it
-  // closes (and back on reopen). One-shot sessions close when their run
-  // finishes. Display state only; events on a closed object still land here.
   status: text('status', { enum: ['open', 'closed'] })
     .notNull()
     .default('open'),
 
-  // The branch the session's checkout is on: pinned at creation (the
-  // triggering event's branch or the project default), synced back after the
-  // agent worked with plain git.
   branch: text('branch'),
-  // The checkout's HEAD, captured when the env is archived (includes commits
-  // made in the session). Restoring an archived env checks out exactly this.
   commitSha: text('commit_sha'),
 
-  // The session's isolated ddev environment: 'down' (not booted / expired),
-  // 'up' (running, previewable), 'stopped' (idle-stopped, volumes kept,
-  // rebootable), 'archived' (sandbox + checkout deleted, but the DB export,
-  // checkout patch and .knecht state are kept so it can be restored exactly;
-  // see daemon/envs.ts). The env is a cache: reclaiming it never ends the
-  // session.
   envState: text('env_state', { enum: ENV_STATES })
     .notNull()
     .default('down'),
-  // ALL hostnames the session's ddev environment serves (primary first), read
-  // from .ddev/config.yaml at boot: the same set the preview proxy maps to
-  // per-session origins. The UI builds its preview host switcher from this.
   previewHosts: text('preview_hosts', { mode: 'json' })
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
-  // Whether the ddev-start step finished (boot, DB import AND its setup
-  // commands): only then is the site actually browsable. Also the guard that
-  // keeps a second run in the session from re-importing the DB dump over the
-  // session's live database.
+  // Also the guard against a second run re-importing the dump over the live DB.
   previewReady: integer('preview_ready', { mode: 'boolean' })
     .notNull()
     .default(false),
-  // The project's urlMode PINNED at checkout time: the env baked into this
-  // session's environment either was or wasn't translated, and the proxy must
-  // match that forever, whatever the project setting changes to later.
+  // Pinned at checkout: the proxy must match what was baked into the env.
   urlMode: text('url_mode', { enum: ['env', 'rewrite'] }),
-  // The project's previewPort PINNED at first boot, for the same reason as
-  // urlMode: the container was built to serve this port, and the preview
-  // proxy reads the port live, so a later settings change must not point it
-  // at a port the running container does not serve. Null: the web server's
-  // :80 (every repo with its own ddev config).
+  // Pinned at first boot for the same reason.
   previewPort: integer('preview_port'),
-  // Last time the preview was accessed; the idle-stopper stops envs that have
-  // been quiet longer than the idle timeout.
   previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -209,11 +112,7 @@ export const sessions = sqliteTable('sessions', {
     .default(sql`(unixepoch())`),
   closedAt: integer('closed_at', { mode: 'timestamp' }),
 }, table => [
-  // One session per object: every trigger firing and mention on the object
-  // flows into it. (One-shot sessions have null object columns; SQLite treats
-  // NULLs as distinct in unique indexes, so they never collide.)
   uniqueIndex('sessions_object_idx').on(table.projectId, table.objectKind, table.objectNumber),
-  // The dispatcher and the env reapers filter by project and env state.
   index('sessions_project_id_idx').on(table.projectId),
   index('sessions_env_state_idx').on(table.envState),
 ])
@@ -221,65 +120,32 @@ export const sessions = sqliteTable('sessions', {
 export type Session = typeof sessions.$inferSelect
 export type NewSession = typeof sessions.$inferInsert
 
-// A single execution of a workflow inside a session. The in-process serial
-// runner (server/daemon/runner.ts) owns the row: it flips status and appends to
-// `log` as blocks run. The UI polls the row for live status/log.
-// On a daemon restart, any run left 'running' is reset to 'failed'; a retry
-// (POST /api/runs/:id/retry) resumes it from the interrupted step.
 export const runs = sqliteTable('runs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   projectId: integer('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
-  // The session this run executes in. Runs never outlive their session.
-  // NOTE: the cascade is declarative only (PRAGMA foreign_keys is off); the
-  // session/run delete routes clean up explicitly.
+  // PRAGMA foreign_keys is off, so the cascade is declarative; the delete routes clean up.
   sessionId: integer('session_id')
     .notNull()
     .references(() => sessions.id, { onDelete: 'cascade' }),
-  // The workflow's name at run time, kept as denormalized display history: it
-  // survives renames and deletion of the workflow itself.
   workflow: text('workflow').notNull(),
-  // The workflow this run belongs to; NULL once that workflow is deleted (the
-  // run survives as history under its `workflow` name). NOTE: FK actions are
-  // declarative only (PRAGMA foreign_keys is off); the delete route nulls
-  // this explicitly.
+  // FK actions are declarative only; the delete route nulls this explicitly.
   workflowId: integer('workflow_id')
     .references(() => workflows.id, { onDelete: 'set null' }),
   status: text('status', { enum: ['queued', 'running', 'success', 'failed', 'cancelled'] })
     .notNull()
     .default('queued'),
-  // What drives the run: 'workflow' rows execute their pinned steps through
-  // the runner; 'mention' rows are a mention's own run, driven by its
-  // follow-up (daemon/followups.ts) so the mention's work gets its own
-  // timeline instead of landing in whatever workflow ran last. The
-  // dispatcher never hands 'mention' rows to the runner.
+  // 'mention' rows are executed by their follow-up, never handed to the runner by the dispatcher.
   kind: text('kind', { enum: ['workflow', 'mention'] })
     .notNull()
     .default('workflow'),
-  // What started the run: the UI's "Start workflow" button ('manual', also a
-  // manually fired trigger, same gesture) or a trigger's source. Free-form so
-  // new sources don't need a schema change; the UI falls back to a generic
-  // rendering for values it doesn't know. Null on runs from before this was
-  // recorded.
   trigger: text('trigger'),
-  // The configured trigger that fired this run (null for UI-started runs and
-  // runs from before this was recorded). Links a run back to its automation.
   triggerId: integer('trigger_id')
     .references(() => triggers.id, { onDelete: 'set null' }),
-  // The branch the run works on: the session's checkout branch at start,
-  // replaced by the branch a `create-branch` step creates.
   branch: text('branch'),
-  // The pull request a `create-pr` step opened, if the run opened one.
   prUrl: text('pr_url'),
-  // Event data a GitHub webhook delivery seeded the run with (issue title/body,
-  // PR branches, commit info). Reaches steps as `{{ inputs.* }}` via the run
-  // context (server/workflows/context.ts). Null on non-webhook runs.
   inputs: text('inputs', { mode: 'json' }).$type<Record<string, string>>(),
-  // The step sequence pinned at execution start: the runner executes THIS
-  // snapshot, never the live workflow row. Editing a workflow mid-run can't
-  // change a running (or queued) run, and history shows what actually ran.
-  // Null on runs from before pinning existed.
   steps: text('steps', { mode: 'json' }).$type<Step[]>(),
   log: text('log').notNull().default(''),
   startedAt: integer('started_at', { mode: 'timestamp' }),
@@ -288,24 +154,15 @@ export const runs = sqliteTable('runs', {
     .notNull()
     .default(sql`(unixepoch())`),
 }, table => [
-  // The runs list and the per-project poll both filter by project.
   index('runs_project_id_idx').on(table.projectId),
-  // The dispatcher claims queued runs by status.
   index('runs_status_idx').on(table.status),
-  // The workflow pages join runs to their workflow by id.
   index('runs_workflow_id_idx').on(table.workflowId),
-  // The dispatcher's per-session serialization and the session timeline.
   index('runs_session_id_idx').on(table.sessionId),
 ])
 
 export type Run = typeof runs.$inferSelect
 export type NewRun = typeof runs.$inferInsert
 
-// One row per executed step of a run (workflow-engine-plan.md D4): the runner
-// inserts it when the step starts and finalizes status/outputs/error when it
-// ends. The step's result is durable BEFORE the next step runs. Retries update
-// the same row (`attempt` counts the tries). `parentStepId`/`iteration` locate
-// a row inside composite steps (if/loop), null at the top level.
 export const runSteps = sqliteTable('run_steps', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   runId: integer('run_id')
@@ -314,27 +171,18 @@ export const runSteps = sqliteTable('run_steps', {
   stepIndex: integer('step_index').notNull(),
   stepId: text('step_id').notNull(),
   type: text('type').notNull(),
-  // Where the row came from: 'workflow' rows execute the run's pinned step
-  // snapshot; 'followup' rows are appended after the run finished (a follow-up
-  // prompt sent from the dashboard). The runner's resume logic only looks at
-  // workflow rows; the timeline renders follow-ups as their own section.
+  // The runner's resume logic only looks at 'workflow' rows.
   origin: text('origin', { enum: ['workflow', 'followup'] })
     .notNull()
     .default('workflow'),
   status: text('status', { enum: ['running', 'success', 'failed'] })
     .notNull()
     .default('running'),
-  // The step's params as rendered for execution (meta stripped).
   params: text('params', { mode: 'json' }).$type<Record<string, unknown>>(),
-  // What the action returned: the values steps.<id>.<output> resolves to.
   outputs: text('outputs', { mode: 'json' }).$type<Record<string, unknown>>(),
   error: text('error'),
   attempt: integer('attempt').notNull().default(1),
-  // Byte offset into runs.log where this row's slice begins, captured just
-  // before the row is inserted (so the step's '\n▶ <label>' banner is the
-  // first thing at the offset). The dashboard cuts the full run log into
-  // per-step segments here. Null on rows from before the column existed;
-  // those runs render as one unsegmented log.
+  // Captured before the row is inserted so the step banner is the first thing at the offset.
   logStart: integer('log_start'),
   parentStepId: text('parent_step_id'),
   iteration: integer('iteration'),
@@ -344,29 +192,16 @@ export const runSteps = sqliteTable('run_steps', {
   index('run_steps_run_id_idx').on(table.runId),
 ])
 
-// A follow-up prompt sent to a session: the agent continues the session's
-// conversation inside the existing sandbox (rebooted first if it was
-// idle-stopped or archived). Queued rows wait for a dispatcher slot when their
-// env must be revived; a follow-up on an 'up' env executes immediately (its
-// RAM is already spent). Execution is recorded as a run_steps row with
-// origin 'followup' on the anchor run (`runId`, the session's newest run at
-// creation time), so a run timeline shows the conversation.
 export const followups = sqliteTable('followups', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   sessionId: integer('session_id')
     .notNull()
     .references(() => sessions.id, { onDelete: 'cascade' }),
-  // The run whose timeline displays this follow-up (run_steps rows need a
-  // run). Not the executor's key: env + conversation come from the session.
   runId: integer('run_id')
     .notNull()
     .references(() => runs.id, { onDelete: 'cascade' }),
   prompt: text('prompt').notNull(),
-  // Login of the member who sent it.
   requestedBy: text('requested_by'),
-  // Where the prompt came from: the dashboard composer, or a @mention on the
-  // session's object (ADR 0007). Mention follow-ups post their answer back
-  // into the thread when they finish (daemon/followups.ts).
   origin: text('origin', { enum: ['dashboard', 'mention'] })
     .notNull()
     .default('dashboard'),
@@ -380,8 +215,6 @@ export const followups = sqliteTable('followups', {
     .notNull()
     .default(sql`(unixepoch())`),
 }, table => [
-  // The run detail page lists a run's follow-ups; the dispatcher claims queued
-  // ones by status and serializes per session.
   index('followups_run_id_idx').on(table.runId),
   index('followups_session_id_idx').on(table.sessionId),
   index('followups_status_idx').on(table.status),
@@ -390,13 +223,6 @@ export const followups = sqliteTable('followups', {
 export type Followup = typeof followups.$inferSelect
 export type NewFollowup = typeof followups.$inferInsert
 
-// Workflows. Every workflow is a row here, including the bundled starter
-// templates (server/workflows/index.ts), which are seeded once on first boot
-// and thereafter owned by the user: freely renamed, edited or deleted. The id
-// is the workflow's identity everywhere (routes, runs, triggers); the name is
-// a display field. `steps` is the PUBLISHED version, in normalized form: the
-// same shape the runner consumes. The editor autosaves into `draftSteps` and
-// an explicit publish promotes the draft into `steps`.
 export const workflows = sqliteTable('workflows', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull().unique(),
@@ -405,25 +231,9 @@ export const workflows = sqliteTable('workflows', {
     .$type<Step[]>()
     .notNull()
     .default(sql`'[]'`),
-  // The editor's autosaved working copy. NULL means no unpublished changes
-  // (the draft equals the published steps). Only loosely validated: steps may
-  // be half-filled; publishing (and every manual run, which executes the
-  // draft) runs the strict validation.
   draftSteps: text('draft_steps', { mode: 'json' }).$type<Step[]>(),
-  // When the current `steps` were published. The published snapshot exists
-  // FOR AUTOMATION: enabling the automation switch publishes the current
-  // state, and triggers execute it. NULL = never published: triggers don't
-  // fire. Manual runs are unaffected (they execute the draft). Anchor for a
-  // future version-history table.
   publishedAt: integer('published_at', { mode: 'timestamp' }),
-  // Master switch for the workflow's automation: when false, its triggers don't
-  // fire (manual "run now" / test are unaffected). Built-ins with no row are
-  // enabled by default.
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
-  // Whether the agent's reply tool (comment + labels on the session's object,
-  // ADR 0007) is handed to this workflow's ai steps. On by default; the
-  // opt-out lives under the workflow's Advanced settings. Follow-ups are
-  // unaffected: they always carry the tool on object sessions.
   repliesEnabled: integer('replies_enabled', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
@@ -436,79 +246,33 @@ export const workflows = sqliteTable('workflows', {
 export type WorkflowRow = typeof workflows.$inferSelect
 export type NewWorkflowRow = typeof workflows.$inferInsert
 
-// Instance-wide settings: a single row (id = 1). Holds the operator-tunable
-// lifecycle limits that keep isolated run environments from piling up (each env
-// consumes a docker network from a finite pool and disk for its volumes), the
-// run concurrency limit, and the `ai` step's opencode configuration.
 export const settings = sqliteTable('settings', {
-  id: integer('id').primaryKey(), // singleton, always 1
+  id: integer('id').primaryKey(),
 
-  // Stop a run's env (its DB is exported for the archive, the sandbox keeps its
-  // filesystem so a reboot is quick) after it has been idle (no preview
-  // access) this many minutes. This is the RAM guard: each 'up' env is a full
-  // nested Docker host. Defaults to a day: during active work nothing ever
-  // stops, and overnight the memory comes back.
   idleStopMinutes: integer('idle_stop_minutes').notNull().default(1440),
-
-  // Archive a 'stopped' env once untouched this many days: its sandbox +
-  // checkout (the GBs) are deleted, keeping only the DB export + checkout patch
-  // (MBs) so it can still be restored exactly. 0 keeps stopped envs forever.
   previewRetentionDays: integer('preview_retention_days').notNull().default(7),
-
-  // Delete a run's archive (DB export + patch) once untouched this many days.
-  // After that only re-running the workflow gets a fresh environment. 0 keeps
-  // archives until the run is deleted.
   archiveRetentionDays: integer('archive_retention_days').notNull().default(30),
-
-  // How many runs may execute at once (each boots a full sandbox, this is the
-  // CPU/RAM guard). Queued runs wait; the dispatcher (server/plugins/
-  // dispatcher.ts) starts them as slots free up.
   maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
 
-  // The `ai` step (opencode in the run's sandbox): the provider the key belongs
-  // to (AI_PROVIDERS id: picks which env var the key is handed to opencode as,
-  // and filters the model pickers), the region a gateway provider serves from
-  // (only meaningful for langdock, harmless otherwise), the API key (encrypted
-  // at rest via crypto.ts, never returned by the API) and the default model.
-  // Model names are stored BARE, without a provider prefix;
-  // the provider is prepended at invocation, so switching providers keeps
-  // workflows intact. A step can override the default model; the optional
-  // subtask model becomes opencode's small_model for internal small tasks.
   aiProvider: text('ai_provider').notNull().default('anthropic'),
   aiRegion: text('ai_region', { enum: ['eu', 'us'] }).notNull().default('eu'),
   aiKeyEnc: text('ai_key_enc'),
-  // Both models are cleared (null) on a provider switch: the old provider's
-  // names would not resolve at the new one, and a stored mismatch used to
-  // block saving the new provider's API key (catalog validation deadlock).
+  // Stored bare (no provider prefix). Both cleared on a provider switch: a stored
+  // mismatch used to block saving the new provider's key.
   aiModel: text('ai_model').default('claude-sonnet-4-5'),
   aiSubtaskModel: text('ai_subtask_model'),
 
-  // Instance-level agent instructions: human-written rules layered into every
-  // agent invocation, on top of the bundled behavior rules and below the
-  // project's own instructions.
   agentInstructions: text('agent_instructions').notNull().default(''),
 
-  // Whether the bundled starter workflows have been seeded into the table. Seeded
-  // once on first boot; afterwards workflows are fully user-owned (deletions and
-  // renames stick), so we never re-seed.
   workflowsSeeded: integer('workflows_seeded', { mode: 'boolean' }).notNull().default(false),
 
-  // How the operator reaches this server over SSH (`user@host`). Only used to
-  // BUILD the run page's copy-pasteable SSH command and the Open-in-VS-Code
-  // link; Knecht itself never connects anywhere with it and manages no keys.
   sshTarget: text('ssh_target'),
 
-  // Install new releases automatically (server/plugins/auto-update.ts) on this
-  // cron schedule (5-field, utils/cron.ts), only while no run is active. Empty
-  // = off (the default); updating swaps the running code for every member.
   autoUpdateCron: text('auto_update_cron').notNull().default(''),
 })
 
 export type Settings = typeof settings.$inferSelect
 
-// JS data migrations applied to this instance (server/db/data-migrations.ts):
-// transformations the SQL migration files can't express. Mirrors drizzle's
-// __drizzle_migrations bookkeeping: each runs exactly once, tracked by name.
 export const dataMigrations = sqliteTable('data_migrations', {
   name: text('name').primaryKey(),
   appliedAt: integer('applied_at', { mode: 'timestamp' })
@@ -516,24 +280,12 @@ export const dataMigrations = sqliteTable('data_migrations', {
     .default(sql`(unixepoch())`),
 })
 
-// Issue actions a GitHub 'issues' trigger can listen for.
 export type IssueAction = 'opened' | 'labeled'
 
-// A configured trigger that starts a workflow automatically. Sources:
-// 'schedule', a standard 5-field cron expression, fired by the in-process
-// scheduler (server/plugins/scheduler.ts); 'github', fired by matching
-// deliveries on the GitHub App webhook (/api/github/webhook, configured
-// automatically at setup); 'manual', a saved "run this workflow on these
-// projects" shortcut, fired from the Triggers screen; and registry sources
-// (server/utils/trigger-sources/, e.g. 'jira'), which keep their settings in
-// `config` and are fired by the generic poller (server/plugins/
-// trigger-poller.ts). Every fire starts the workflow against each project in
-// `projectIds`: one run per project.
 export const triggers = sqliteTable('triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   source: text('source', { enum: ['schedule', 'github', 'manual', 'jira'] }).notNull(),
-  // NOTE: the cascade is declarative only (PRAGMA foreign_keys is off); the
-  // workflow delete route removes its triggers explicitly.
+  // PRAGMA foreign_keys is off, so the cascade is declarative; the delete route removes triggers.
   workflowId: integer('workflow_id')
     .notNull()
     .references(() => workflows.id, { onDelete: 'cascade' }),
@@ -542,33 +294,20 @@ export const triggers = sqliteTable('triggers', {
     .notNull()
     .default(sql`'[]'`),
 
-  // Schedule source: the cron expression and the next time the scheduler should
-  // fire it (recomputed from `cron` after each fire, null while paused).
   cron: text('cron'),
   nextFireAt: integer('next_fire_at', { mode: 'timestamp' }),
 
-  // GitHub source: which event fires the trigger ('push', 'pull_request' or
-  // 'issues').
   webhookEvent: text('webhook_event'),
-  // Branch filter for 'push' (the pushed branch) and 'pull_request' (the base
-  // branch the PR targets). Empty = every branch matches.
   webhookBranches: text('webhook_branches', { mode: 'json' })
     .$type<string[]>()
     .notNull()
     .default(sql`'[]'`),
-  // 'issues' event only: which issue actions fire the trigger. 'labeled'
-  // additionally requires the added label to equal `issueLabel`.
   issueActions: text('issue_actions', { mode: 'json' })
     .$type<IssueAction[]>()
     .notNull()
     .default(sql`'["opened"]'`),
   issueLabel: text('issue_label'),
 
-  // Registry sources only (server/utils/trigger-sources/): `config` is the
-  // source-specific settings, validated by the source's zod schema (e.g. jira:
-  // { projectKey, label }); `state` is the source's runtime memory across
-  // poller ticks (e.g. jira: { seenKeys }). Both JSON, so a new source needs
-  // no schema migration. Empty objects for the built-in sources above.
   config: text('config', { mode: 'json' })
     .$type<Record<string, unknown>>()
     .notNull()
@@ -593,21 +332,14 @@ export const triggers = sqliteTable('triggers', {
 export type Trigger = typeof triggers.$inferSelect
 export type NewTrigger = typeof triggers.$inferInsert
 
-// The GitHub App that powers login (its OAuth client id/secret) and repo access
-// (its app id/private key). A single row (id = 1). Created from the UI on first
-// run via the GitHub App manifest flow (server/routes/setup/*), so a fresh
-// instance needs no GitHub env vars: GitHub mints the app and returns all its
-// credentials at once. Secrets are encrypted at rest (server/utils/crypto.ts).
 export const githubApp = sqliteTable('github_app', {
-  id: integer('id').primaryKey(), // singleton, always 1
+  id: integer('id').primaryKey(),
 
   appId: text('app_id').notNull(),
   slug: text('slug'),
   htmlUrl: text('html_url'),
   clientId: text('client_id').notNull(),
 
-  // Encrypted (AES-256-GCM). Never read these directly: go through the
-  // credentials store (server/utils/github-credentials.ts), which decrypts.
   clientSecretEnc: text('client_secret_enc').notNull(),
   privateKeyEnc: text('private_key_enc').notNull(),
   webhookSecretEnc: text('webhook_secret_enc'),
@@ -620,20 +352,12 @@ export const githubApp = sqliteTable('github_app', {
 export type GithubAppRow = typeof githubApp.$inferSelect
 export type NewGithubAppRow = typeof githubApp.$inferInsert
 
-// The Jira Cloud connection that powers 'jira' triggers (polling) and the
-// PR-link comment posted back on tickets. A single row (id = 1), configured in
-// Settings: site URL + the email/API token of the Jira account Knecht acts as
-// (ideally a dedicated service account). The token is encrypted at rest
-// (server/utils/crypto.ts); read it through server/utils/jira-credentials.ts.
 export const jiraConnection = sqliteTable('jira_connection', {
-  id: integer('id').primaryKey(), // singleton, always 1
+  id: integer('id').primaryKey(),
 
-  // e.g. https://acme.atlassian.net (no trailing slash)
   siteUrl: text('site_url').notNull(),
   email: text('email').notNull(),
   apiTokenEnc: text('api_token_enc').notNull(),
-  // Display name of the connected account, captured from /myself when the
-  // connection is saved ("Connected as Knecht Bot").
   accountName: text('account_name'),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -643,25 +367,15 @@ export const jiraConnection = sqliteTable('jira_connection', {
 
 export type JiraConnectionRow = typeof jiraConnection.$inferSelect
 
-// The login allowlist: who may obtain a session. First-run setup claims the
-// GitHub App's owner as the initial member (server/routes/setup/callback), and
-// the login gate (server/routes/auth/github.get.ts) rejects any GitHub identity
-// not listed here. Members can invite more logins (server/api/members/*); every
-// member currently has the same full access as the owner. The `isOwner` row is
-// protected from removal so the instance always keeps its original claim.
 // GitHub logins are case-insensitive, so `login` is always stored lowercased.
 export const members = sqliteTable('members', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   login: text('login').notNull().unique(),
 
-  // Display profile, refreshed from GitHub on each login. Null until the member
-  // has logged in at least once (an invited login is known before its profile).
   name: text('name'),
   avatarUrl: text('avatar_url'),
 
-  // The claimed owner (seeded at setup). Exactly one; can't be removed.
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
-  // Login of the member who invited this one (null for the claimed owner).
   invitedBy: text('invited_by'),
 
   createdAt: integer('created_at', { mode: 'timestamp' })

@@ -1,12 +1,7 @@
 <script setup lang="ts">
-// The host's engine room, reached through the sidebar's system card: docker
-// daemon, ddev CLI and the knecht containers running on the host.
 const toast = useToast()
 const toastError = useToastError()
 
-// Automatic updates: the cron schedule for the self-update
-// (server/plugins/auto-update.ts). Autosaved; the server validates the
-// expression, a rejected one shows up via the save status.
 const { data: settings } = useSettings()
 const autoUpdateCron = ref('')
 watch(settings, (s) => {
@@ -19,9 +14,6 @@ watch(autoUpdateCron, () => {
   scheduleCron()
 })
 
-// Cleanup: on-demand reconcile GC. Reclaims leftovers whose DB row is gone
-// (orphaned sandboxes, checkouts, archives, dump folders) plus superseded DB
-// dumps. It also runs hourly on its own; this button is the "do it now" path.
 interface GcResult { total: number }
 const runningGc = ref(false)
 async function runGc() {

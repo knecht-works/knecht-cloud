@@ -5,26 +5,16 @@ import { dashboardOrigin } from '../../utils/origin'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { addMember, isMember, memberCount, touchProfile } from '../../utils/members'
 
-// GitHub OAuth login. One endpoint, two hits: the first (no `code`) redirects to
-// GitHub; the callback lands back here with `code` and is exchanged for an
-// identity. Login is identity-only: repo access (clone, PR, file reads) comes
-// from the GitHub App (server/utils/github-app.ts), so no user token is kept
-// beyond this request. Single-session gate, no user model.
-//
-// The client id/secret come from the DB-stored GitHub App (created via the setup
-// flow), not env, so this is a hand-rolled OAuth dance rather than
-// nuxt-auth-utils' defineOAuthGitHubEventHandler, which only reads static config.
+// Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
 export default defineEventHandler(async (event) => {
   const creds = githubAppCredentials()
   if (!creds?.clientId || !creds.clientSecret) {
-    // Not set up yet: send them through first-run setup.
     return sendRedirect(event, '/setup')
   }
 
   const redirectUri = `${dashboardOrigin() || getRequestURL(event).origin}/auth/github`
   const query = getQuery(event)
 
-  // First hit: no code → bounce to GitHub with a CSRF state we stash in a cookie.
   if (!query.code) {
     const state = randomBytes(16).toString('hex')
     setCookie(event, 'knecht-oauth-state', state, {
@@ -42,7 +32,6 @@ export default defineEventHandler(async (event) => {
     }))
   }
 
-  // Callback: verify state, then exchange the code for a token and an identity.
   const expected = getCookie(event, 'knecht-oauth-state')
   deleteCookie(event, 'knecht-oauth-state', { path: '/' })
   if (!expected || query.state !== expected) {
@@ -71,9 +60,7 @@ export default defineEventHandler(async (event) => {
       { headers: { 'Authorization': `Bearer ${tokens.access_token}`, 'User-Agent': 'knecht' } },
     )
 
-    // The login gate. Normally setup already claimed the owner, so this just
-    // checks membership; the empty-table case (an instance set up before member
-    // gating existed) lets the first successful login claim ownership.
+    // An empty members table lets the first login claim ownership.
     const profile = { login: user.login, name: user.name, avatarUrl: user.avatar_url }
     if (memberCount() === 0) {
       addMember({ ...profile, isOwner: true })
@@ -95,8 +82,7 @@ export default defineEventHandler(async (event) => {
   }
 })
 
-// Consume the post-login redirect target left by the preview proxy. Only our
-// own base domain is allowed (no open redirect); anything else → dashboard.
+// Only our own base domain is honored (no open redirect).
 function popRedirect(event: H3Event): string {
   const raw = getCookie(event, 'knecht-redirect')
   const domain = process.env.KNECHT_BASE_DOMAIN || undefined

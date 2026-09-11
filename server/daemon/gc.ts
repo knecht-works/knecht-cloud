@@ -5,29 +5,17 @@ import { db, schema } from '../db'
 import { dataDir, projectsDir } from '../utils/storage'
 import { removeEnvStack } from './sandbox'
 
-// The reconcile GC (companion to the retention reaper in envs.ts). The reaper
-// walks LIVE runs down their lifecycle ladder; this instead reclaims LEFTOVERS
-// whose owning DB row is already gone: sandboxes, checkouts and archives a
-// crash or a half-done delete left behind, plus stale DB dumps and
-// host-side docker leftovers (dangling images, build cache). It is
-// safe to run any time because it only ever touches state the database no
-// longer references, so an in-flight run (whose row is present the whole time)
-// is never affected. Runs on a timer (server/plugins/gc.ts) and on demand from
-// the settings page (POST /api/gc).
-
 export interface GcResult {
-  sandboxes: string[] // orphaned run sandbox containers removed
-  checkouts: string[] // orphaned run checkout dirs removed
-  archives: string[] // orphaned run archive dirs removed
-  dumpDirs: string[] // dump folders of deleted projects removed
-  dumpFiles: string[] // superseded DB dumps of live projects removed
-  sharedDirs: string[] // shared-folder roots of deleted projects removed
-  memoryDirs: string[] // agent memory stores of deleted projects removed
-  dockerPruned: string[] // host-side docker leftovers pruned (with reclaimed size)
+  sandboxes: string[]
+  checkouts: string[]
+  archives: string[]
+  dumpDirs: string[]
+  dumpFiles: string[]
+  sharedDirs: string[]
+  memoryDirs: string[]
+  dockerPruned: string[]
 }
 
-// Sweep every category, tolerating a failure in one so the rest still run. Each
-// helper reports what it removed; the caller sums for the UI/logs.
 export async function collectGarbage(): Promise<GcResult> {
   const liveSessions = new Set(db.select({ id: schema.sessions.id }).from(schema.sessions).all().map(r => r.id))
   const projects = db.select({ id: schema.projects.id, dbDumpPath: schema.projects.dbDumpPath }).from(schema.projects).all()
@@ -46,11 +34,7 @@ export async function collectGarbage(): Promise<GcResult> {
   return result
 }
 
-// A session's env containers carry ddev's site-name label with the
-// per-session project name knecht-run-<id> (the prefix is historical; legacy
-// Sysbox sandboxes carried knecht.run instead). List by both labels (so we
-// never touch an unrelated container), dedupe to session ids, and tear down
-// any whose session row is gone.
+// Pre-DooD Sysbox sandboxes carried the knecht.run label instead of ddev's site-name.
 async function reapOrphanSandboxes(liveSessions: Set<number>): Promise<string[]> {
   const orphans = new Map<number, string>()
   try {
@@ -66,7 +50,7 @@ async function reapOrphanSandboxes(liveSessions: Set<number>): Promise<string[]>
     }
   }
   catch {
-    return [] // docker unreachable: try again next tick
+    return []
   }
   const removed: string[] = []
   for (const [sessionId, name] of orphans) {
@@ -76,39 +60,27 @@ async function reapOrphanSandboxes(liveSessions: Set<number>): Promise<string[]>
   return removed
 }
 
-// Session checkouts are projectsDir()/run-<id> (historical prefix).
 function reapOrphanCheckouts(liveSessions: Set<number>): string[] {
   return removeMatching(projectsDir(), /^run-(\d+)$/, id => !liveSessions.has(id))
 }
 
-// Session archives are dataDir()/archives/run-<id> (historical prefix).
 function reapOrphanArchives(liveSessions: Set<number>): string[] {
   return removeMatching(join(dataDir(), 'archives'), /^run-(\d+)$/, id => !liveSessions.has(id))
 }
 
-// Uploaded dumps live under dataDir()/dumps/<projectId>; a deleted project's
-// whole folder is a leftover (its delete removes it in the background, this
-// catches what that missed).
 function reapOrphanDumpDirs(liveProjects: Set<number>): string[] {
   return removeMatching(join(dataDir(), 'dumps'), /^(\d+)$/, id => !liveProjects.has(id))
 }
 
-// Shared folders live under dataDir()/shared/<projectId>; only a DELETED
-// project's root goes (a folder merely removed from projects.sharedFolders
-// keeps its data, so re-adding the path brings the files back).
+// A folder merely removed from projects.sharedFolders keeps its data on purpose.
 function reapOrphanSharedDirs(liveProjects: Set<number>): string[] {
   return removeMatching(join(dataDir(), 'shared'), /^(\d+)$/, id => !liveProjects.has(id))
 }
 
-// Agent memory stores live under dataDir()/memory/<projectId>; only a DELETED
-// project's store goes (utils/agent-memory.ts owns the layout).
 function reapOrphanMemoryDirs(liveProjects: Set<number>): string[] {
   return removeMatching(join(dataDir(), 'memory'), /^(\d+)$/, id => !liveProjects.has(id))
 }
 
-// Within a LIVE project's dump folder, remove every dump that isn't the one it
-// currently references: uploading a differently-named dump repoints dbDumpPath
-// but leaves the previous file behind.
 function reapStaleDumpFiles(projects: { id: number, dbDumpPath: string | null }[]): string[] {
   const removed: string[] = []
   for (const project of projects) {
@@ -124,8 +96,6 @@ function reapStaleDumpFiles(projects: { id: number, dbDumpPath: string | null }[
   return removed
 }
 
-// Remove every direct child of `dir` whose name matches `pattern` and whose
-// captured numeric id `isOrphan` deems dead. Returns the removed names.
 function removeMatching(dir: string, pattern: RegExp, isOrphan: (id: number) => boolean): string[] {
   if (!existsSync(dir)) return []
   const removed: string[] = []
@@ -138,11 +108,7 @@ function removeMatching(dir: string, pattern: RegExp, isOrphan: (id: number) => 
   return removed
 }
 
-// Host-side Docker leftovers: every sandbox rebuild (provision-host.sh) leaves
-// the previous knecht-sandbox build behind as a dangling image (~1GB each),
-// and those builds also pile up builder cache. Prune both, dangling-only, so
-// tagged images (knecht-sandbox, the pinned release image) are never touched.
-// Reports one entry per command that actually reclaimed space, with the size.
+// Dangling-only, so tagged images (knecht-sandbox, the pinned release image) survive.
 async function pruneHostDocker(): Promise<string[]> {
   const pruned: string[] = []
   const targets: [string, string[]][] = [
@@ -152,13 +118,11 @@ async function pruneHostDocker(): Promise<string[]> {
   for (const [label, args] of targets) {
     try {
       const { stdout } = await execa('docker', args)
-      // Both commands end with a total line ("Total reclaimed space: 1.2GB" /
-      // "Total:  1.2GB"); 0B means the command found nothing to remove.
       const size = stdout.match(/Total[^:]*:\s*([\d.]+\s*[A-Za-z]+)/)?.[1]
       if (size && !/^0\s*B/.test(size)) pruned.push(`${label}: ${size}`)
     }
     catch {
-      // docker unreachable: try again next tick
+      // docker unreachable.
     }
   }
   return pruned

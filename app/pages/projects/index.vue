@@ -1,10 +1,7 @@
 <script setup lang="ts">
 const { data: projects, refresh } = await useFetch('/api/projects')
-// Runs power the per-project live status, counts and the metric row: they
-// stream in lazily so they don't gate the project grid.
 const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
 
-// Newest run per project (the list is already newest-first) + a run count.
 const runsByProject = computed(() => {
   const latest = new Map<number, (typeof runs.value)[number]>()
   const counts = new Map<number, number>()
@@ -27,7 +24,6 @@ const metrics = computed(() => {
 
 const activeFw = ref<string | null>(null)
 
-// Distinct framework labels present, for the filter pills.
 const frameworks = computed(() => {
   const labels = new Set<string>()
   for (const p of projects.value ?? []) {
@@ -42,7 +38,6 @@ const filtered = computed(() =>
   ),
 )
 
-// ── Set up a project (guided wizard) ─────────────────────────────────────
 const open = ref(false)
 </script>
 

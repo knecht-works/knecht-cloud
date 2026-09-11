@@ -3,13 +3,6 @@ import { db, schema } from '../../db'
 import type { NewWorkflowRow } from '../../db/schema'
 import { publishStepsSchema, workflowPatchSchema } from '../../workflows/schema'
 
-// PATCH /api/workflows/:id → partial update from the editor's autosaves and
-// the enabled toggles. name/description apply directly to the row.
-//
-// draftSteps auto-promote: a save that passes the strict run validation IS
-// the new live version (there is no separate publish action). Only an
-// incomplete save is stored as a draft, leaving the last complete version in
-// `steps` for automation to keep running.
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
 
@@ -41,9 +34,7 @@ export default defineEventHandler(async (event) => {
   }
   if (data.repliesEnabled !== undefined) patch.repliesEnabled = data.repliesEnabled
   if (data.enabled !== undefined) {
-    // Triggers execute the live version; without one the switch has nothing
-    // to turn on. (The editor gates this client-side, the list page relies
-    // on this message.)
+    // The list page relies on this message; the editor gates it client-side.
     if (data.enabled && !(patch.publishedAt ?? row.publishedAt)) {
       throw createError({ statusCode: 400, statusMessage: 'Finish the workflow before enabling automation' })
     }

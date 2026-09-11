@@ -1,7 +1,5 @@
 import { listRepoBranches } from '../../../utils/github-app'
 
-// GET /api/projects/:id/branches → the repo's branch names for the run branch
-// picker, default branch first then alphabetical.
 export default defineEventHandler(async (event) => {
   const project = requireProject(requireIntParam(event))
   const names = await listRepoBranches(project.owner, project.name)

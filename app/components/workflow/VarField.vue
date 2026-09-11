@@ -2,27 +2,18 @@
 import type { PrismEditor } from 'prism-code-editor'
 import { insertText } from 'prism-code-editor/utils'
 
-// One settings field of a step (text/textarea/switch/code, driven by the
-// registry's StepField). Template-capable fields (`field.vars`) get the n8n
-// treatment: typing `{{ ` opens an autocomplete of every variable available at
-// this step, and the inspector's variable chips insert through `insertVar()`
-// at the caret.
 const props = defineProps<{
   field: StepField
   groups: VarGroup[]
   disabled?: boolean
-  /** Highlights the field as blocking the save (empty required field). */
   invalid?: boolean
 }>()
 
 const model = defineModel<string | boolean>()
 const emit = defineEmits<{ focus: [] }>()
 
-// Unlabeled fields render compact (no label line, smaller text): how inline
-// rows like the condition editor embed the field.
 const compact = computed(() => !props.field.label)
 
-// The invalid ring replaces the resting hairline on the input itself.
 const invalidRing = computed(() => props.invalid ? ' ring-(--accent-orange)' : '')
 
 const wrap = ref<HTMLElement>()
@@ -31,13 +22,9 @@ function el(): HTMLInputElement | HTMLTextAreaElement | null {
   return wrap.value?.querySelector('input, textarea') ?? null
 }
 
-// ── {{ autocomplete ─────────────────────────────────────────────────────────
-// Vars flattened with their group's kind colour, so the dropdown paints a
-// path's final segment the same way the chip list does.
 const flatVars = computed(() => props.groups.flatMap(g => g.vars.map(v => ({ ...v, color: g.color }))))
 const open = ref(false)
 const active = ref(0)
-// The `{{ partial` before the caret (match start + typed path so far).
 const token = ref<{ start: number, partial: string } | null>(null)
 
 const matches = computed(() => {
@@ -46,9 +33,6 @@ const matches = computed(() => {
   return flatVars.value.filter(v => v.path.toLowerCase().includes(q))
 })
 
-// The dropdown teleports to <body> (the step card clips overflow for its
-// rounded corners, which would cut it off), so it's positioned fixed under
-// the input and re-anchored on scroll/resize while open.
 const list = ref<HTMLElement>()
 const pos = ref({ top: 0, left: 0, width: 0 })
 
@@ -94,7 +78,6 @@ function pick(path: string) {
   const input = el()
   if (!input || typeof model.value !== 'string' || !token.value) return
   const cursor = input.selectionStart ?? model.value.length
-  // Also consume a `}}` already sitting after the caret.
   const trailing = /^\s*\}\}/.exec(model.value.slice(cursor))?.[0].length ?? 0
   insertAt(`{{ ${path} }}`, token.value.start, cursor + trailing)
   close()
@@ -124,18 +107,12 @@ function onKeydown(e: KeyboardEvent) {
   else {
     return
   }
-  // While the dropdown handles a key, the code editor's own keymap (Enter =
-  // auto-indent, Tab = indent, …) must not also act on it: this handler runs
-  // first (capture phase on the code branch), so stopping here wins.
+  // Capture phase: stopping here keeps the code editor's keymap from also acting on Enter/Tab.
   e.preventDefault()
   e.stopPropagation()
 }
 
-// ── code fields (WorkflowCodeEditor) ─────────────────────────────────────────
-// prism-code-editor renders a real textarea inside `wrap`, so el() and the
-// whole {{ }} autocomplete above work on it unchanged. Only INSERTS go through
-// the editor's insertText, which keeps its undo/redo history intact (writing
-// model.value directly would bypass it).
+// Inserts go through the editor's insertText so its undo/redo history stays intact.
 const codeEditor = ref<{ editor: PrismEditor | null } | null>(null)
 
 function insertAt(text: string, start: number, end: number) {
@@ -154,7 +131,6 @@ function insertAt(text: string, start: number, end: number) {
   })
 }
 
-// The inspector's variable chips insert into the last-focused field.
 function insertVar(path: string) {
   if (typeof model.value === 'boolean') return
   const value = model.value ?? ''
@@ -251,7 +227,6 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
       {{ field.hint }}
     </p>
 
-    <!-- {{ autocomplete dropdown (teleported: the step card clips overflow) -->
     <Teleport to="body">
       <div
         v-if="open && matches.length"

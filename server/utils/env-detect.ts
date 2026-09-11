@@ -4,23 +4,12 @@ import semver from 'semver'
 import { parse } from 'yaml'
 import { DDEV_DEFAULT_NODE, DDEV_DEFAULT_PHP, DDEV_PHP_VERSIONS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type DetectedEnv, type EnvSource, type PackageManagerName, type ResolvedFields } from '../../shared/utils/env-spec'
 
-// Derive a project's environment spec (shared/utils/env-spec.ts) from the
-// files it commonly ships (ENV_DETECT_FILES). Pure: the caller supplies
-// `readFile` (the session checkout at boot, the GitHub contents API at
-// connect time), so detection runs identically in both places and in tests.
-// A detector never throws: anything unparseable becomes "nothing found" plus
-// one warning line for the run log. Deliberately small (v1): the framework
-// itself (composer.lock) stays with utils/github.ts and the project card.
-// For node, the first file with a value wins, in ENV_DETECT_FILES order.
-
-// A repo file's text, or null when the file does not exist. Anything else
-// (unreadable, an API failure) throws: a permission problem must not pass as
-// "the repo has no composer.json".
+// Null only for a missing file. Anything else throws: a permission problem must
+// not pass as "the repo has no composer.json".
 export type ReadFile = (path: string) => string | null
 
 export type EnvFile = Exclude<EnvSource, 'default' | 'setting'>
 
-// Every file detection may read: the connect-time path fetches exactly these.
 export const ENV_DETECT_FILES: EnvFile[] = [
   '.ddev/config.yaml',
   'composer.json',
@@ -36,18 +25,12 @@ export const ENV_DETECT_FILES: EnvFile[] = [
   'package-lock.json',
 ]
 
-// First line of a `.ddev/config.yaml` Knecht wrote itself (daemon/ddev.ts).
-// A repo config starting with it is Knecht's own from an earlier boot of the
-// same checkout, not the project's.
 export const GENERATED_MARKER = '#knecht-generated'
 
-// Whether a `.ddev/config.yaml` text (null: no file) is the repo's own, as
-// opposed to missing or one Knecht generated on an earlier boot.
 export function repoShipsDdevConfig(text: string | null): text is string {
   return text !== null && !text.startsWith(GENERATED_MARKER)
 }
 
-// A `readFile` over a local checkout.
 export function checkoutReader(dir: string): ReadFile {
   return (path) => {
     try {
@@ -65,19 +48,14 @@ export function detectEnv(readFile: ReadFile): DetectedEnv {
   const warnings: string[] = []
   const fields: Partial<ResolvedFields> = {}
 
-  // The repo's package manager, whoever provides the ddev config: the boot
-  // points its store at the host cache (daemon/ddev.ts) for every project.
   const pm = detectPackageManager(readFile, warnings)
   if (pm) fields.packageManager = pm
 
   const ddev = readFile('.ddev/config.yaml')
   if (repoShipsDdevConfig(ddev)) {
-    // The repo's own config: Knecht never writes over a file it did not
-    // generate, so even one it cannot read keeps the project a ddev one.
     const cfg = parseDdevConfig(ddev)
     if (!cfg) {
       warnings.push('.ddev/config.yaml could not be parsed; ddev may refuse to start')
-      // ddev's own default: a db container unless omitted.
       fields.hasDb = { value: true, source: '.ddev/config.yaml' }
       return { source: 'ddev', fields, warnings }
     }
@@ -95,24 +73,18 @@ export function detectEnv(readFile: ReadFile): DetectedEnv {
   return { source: 'generated', fields, warnings }
 }
 
-// ── .ddev/config.yaml ──────────────────────────────────────────────────────
-
 export interface DdevConfigFile {
-  generated: boolean // written by Knecht (GENERATED_MARKER), not the repo's own
-  type: string | null // the ddev project type, i.e. the framework ('craftcms')
-  webserver: string // webserver_type; ddev's default when omitted
-  hosts: string[] // primary `<name>.<tld>` first, then additional_hostnames/additional_fqdns
-  hasDb: boolean // no `db` in omit_containers
+  generated: boolean
+  type: string | null
+  webserver: string
+  hosts: string[] // primary first, then additional_hostnames and additional_fqdns
+  hasDb: boolean
   dbType: string | null
   dbVersion: string | null
   phpVersion: string | null
   nodeVersion: string | null
 }
 
-// THE parser for `.ddev/config.yaml`, tracked or generated, wherever the text
-// came from (checkout, GitHub). Null when the YAML does not parse or is not
-// a mapping. Fields ddev defaults when omitted stay null, except the
-// webserver (nginx-fpm), the one default Knecht relies on.
 export function parseDdevConfig(text: string): DdevConfigFile | null {
   let cfg: {
     name?: string
@@ -156,8 +128,6 @@ export function parseDdevConfig(text: string): DdevConfigFile | null {
 
 const str = (v: unknown): string | null => (v == null ? null : String(v))
 
-// ── PHP ────────────────────────────────────────────────────────────────────
-
 function detectPhp(readFile: ReadFile, warnings: string[]): ResolvedFields['phpVersion'] | null {
   const text = readFile('composer.json')
   if (text === null) return null
@@ -178,14 +148,8 @@ function detectPhp(readFile: ReadFile, warnings: string[]): ResolvedFields['phpV
   return { value: version, source: 'composer.json' }
 }
 
-// The highest ddev PHP version satisfying a Composer constraint, or null when
-// none does (or the constraint is unreadable). Composer's syntax is not npm
-// semver, so it is translated first:
-//   ~8.1        Composer: >=8.1 <9.0 (npm: >=8.1.0 <8.2.0), so two-part tilde
-//               becomes caret
-//   >=8.1,<8.3  comma is AND in Composer, invalid for npm: becomes a space
-//   ^7.4|^8.0   single pipe is OR in Composer: becomes ||
-// `^8.1`, `8.2.*`, `>=8.1 <8.3` and three-part `~8.1.0` mean the same in both.
+// Composer syntax differs from npm semver: two-part `~8.1` means >=8.1 <9.0
+// (caret in npm), comma is AND, a single pipe is OR.
 export function normalizePhpConstraint(constraint: string): string | null {
   const range = constraint
     .trim()
@@ -197,9 +161,6 @@ export function normalizePhpConstraint(constraint: string): string | null {
   return best ? best.replace(/\.0$/, '') : null
 }
 
-// ── Node ───────────────────────────────────────────────────────────────────
-
-// nvm's LTS code names (`.nvmrc`: lts/iron).
 const NODE_LTS_NAMES: Record<string, string> = {
   hydrogen: '18',
   iron: '20',
@@ -237,8 +198,6 @@ function detectNode(readFile: ReadFile, warnings: string[]): ResolvedFields['nod
   return null
 }
 
-// `[tools] node = "22"` (or `nodejs`) out of a mise config. A tiny line
-// scanner instead of a TOML parser: this is the only key Knecht reads.
 function miseNode(text: string): string | null {
   let inTools = false
   for (const line of text.split('\n')) {
@@ -254,7 +213,6 @@ function miseNode(text: string): string | null {
   return null
 }
 
-// asdf/mise `.tool-versions`: `nodejs 22.4.0` (mise also accepts `node`).
 function toolVersionsNode(text: string): string | null {
   for (const line of text.split('\n')) {
     const m = /^\s*(?:nodejs|node)\s+(\S+)/.exec(line)
@@ -268,11 +226,8 @@ function enginesNode(text: string): string | null {
   return typeof node === 'string' && node.trim() ? node.trim() : null
 }
 
-// A literal Node version as ddev's `nodejs_version` wants it: `20`, `v20.11`,
-// `22.4.0` become `20`, `20.11`, `22.4` (major.minor at most: that is what
-// people pin, and it keeps ddev's `n` install predictable). nvm code names
-// map to their major; `lts/*`, `latest`, `node` and the like are moving
-// targets Knecht does not chase (null, so the default applies).
+// Major.minor at most, which keeps ddev's `n` install predictable. `lts/*`,
+// `latest` and the like are moving targets: null, so the default applies.
 export function normalizeNodeVersion(raw: string): string | null {
   const value = raw.trim()
   const lts = /^lts\/([a-z]+)$/i.exec(value)
@@ -282,9 +237,6 @@ export function normalizeNodeVersion(raw: string): string | null {
   return m[2] === undefined ? m[1]! : `${m[1]}.${m[2]}`
 }
 
-// `engines.node` is a range (`>=20`, `^22.0.0`, `20.x`): the ddev default
-// when it satisfies the range (the stable fallback stays the fallback), else
-// the highest LTS major (NODE_LTS_MAJORS) that does.
 export function normalizeNodeConstraint(constraint: string): string | null {
   if (!semver.validRange(constraint)) return null
   if (semver.satisfies(`${DDEV_DEFAULT_NODE}.0.0`, constraint)) return DDEV_DEFAULT_NODE
@@ -292,10 +244,6 @@ export function normalizeNodeConstraint(constraint: string): string | null {
   return best ? best.split('.')[0]! : null
 }
 
-// ── Package manager ────────────────────────────────────────────────────────
-
-// The lockfiles that name a package manager by their presence, in the order
-// the first one wins.
 const LOCKFILES: { source: EnvSource, name: PackageManagerName }[] = [
   { source: 'pnpm-lock.yaml', name: 'pnpm' },
   { source: 'yarn.lock', name: 'yarn' },
@@ -304,11 +252,6 @@ const LOCKFILES: { source: EnvSource, name: PackageManagerName }[] = [
   { source: 'package-lock.json', name: 'npm' },
 ]
 
-// The Corepack `packageManager` field (`pnpm@9.1.0`, Corepack itself appends
-// `+sha512.<hash>`, which is dropped) wins because it pins the version;
-// otherwise the lockfile says which manager wrote it. A version that is not
-// a plain semver never reaches the bun Dockerfile: the name stays, the
-// version does not.
 function detectPackageManager(readFile: ReadFile, warnings: string[]): ResolvedFields['packageManager'] | null {
   const pkg = readFile('package.json')
   if (pkg !== null) {
@@ -326,8 +269,7 @@ function detectPackageManager(readFile: ReadFile, warnings: string[]): ResolvedF
         warnings.push(`package.json names package manager '${field}', which Knecht does not know, using npm`)
         return null
       }
-      // semver.valid returns the NORMALIZED version (it trims, so padding
-      // or a stray newline in the field would otherwise reach the Dockerfile).
+      // semver.valid normalizes: a stray newline must not reach the Dockerfile.
       const rawVersion = spec?.split('+')[0] || null
       const version = rawVersion ? semver.valid(rawVersion) : null
       if (rawVersion && !version) {

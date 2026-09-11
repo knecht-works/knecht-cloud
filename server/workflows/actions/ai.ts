@@ -15,45 +15,22 @@ import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 
-// The `ai` step (the "knecht block"): an opencode run INSIDE the run's web
-// container, working on the project checkout: a real agent that can read/edit
-// files and execute commands, not a bare chat call. The opencode binary is
-// bind-mounted into the container from the host tools dir (daemon/ddev.ts,
-// staged by plugins/agent-tools.ts); the provider API key and default model
-// live in settings (Settings → Agent), a step can override the model.
-
-// Which env var hands the configured key to opencode, per AI_PROVIDERS id
-// (shared/utils/ai.ts). Env names follow models.dev, the registry opencode
-// resolves providers from; google accepts several names, set all.
+// Env names follow models.dev; google accepts several, set all.
 const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
   'opencode': ['OPENCODE_API_KEY'],
   'opencode-go': ['OPENCODE_API_KEY'],
   'anthropic': ['ANTHROPIC_API_KEY'],
   'openai': ['OPENAI_API_KEY'],
   'google': ['GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
-  // Resolved by the {env:...} interpolation in the generated provider block
-  // (utils/opencode-config.ts), not by models.dev.
   'langdock': ['LANGDOCK_API_KEY'],
 }
 
-// The final provider/model string handed to opencode (the model part may
-// itself contain slashes), every segment shell-safe: the guard that lets the
-// model string be embedded in the bash command line below. Stored values are
-// validated as bare names (MODEL_NAME_RE) before the provider is prepended.
+// Every segment shell-safe: the model string is embedded in the bash command line below.
 const MODEL_RE = /^[\w.-]+(\/[\w.:-]+)+$/
 
-// opencode runs with XDG_CONFIG_HOME pointed at the checkout's .knecht dir
-// (daemon/sandbox.ts), so its config lives at <checkout>/.knecht/opencode:
-// host-visible (this module writes it directly, no copy into the container)
-// and git-excluded (daemon/git.ts). AGENTS.md + opencode.json are seeded from
-// the bundled templates; the per-step `system` prompt is dropped into
-// workflow.md each run, which opencode.json merges into the instructions.
-// Always (over)written, empty when unset, so one ai step's step prompt
-// never leaks into a later ai step sharing the same environment.
+// workflow.md is always (over)written so one ai step's prompt never leaks into a later one.
 const AGENT_CONFIG_SUBDIR = join('.knecht', 'opencode')
 
-// Structured output: how many times we re-ask the agent (continuing the same
-// session, so it fixes the file rather than redoing the work) before failing.
 const MAX_OUTPUT_ATTEMPTS = 3
 
 export const aiAction = defineAction({
@@ -62,9 +39,6 @@ export const aiAction = defineAction({
     prompt: z.string().min(1),
     model: z.string().optional(),
     system: z.string().optional(),
-    // A field spec, `name: type` per line. Validated here so a bad spec is an
-    // authoring error, not a run-time surprise; parseAiOutputSpec throws the
-    // line-precise message the runtime path relies on.
     output: z.string().optional().refine(
       v => v === undefined || isValidOutputSpec(v),
       { message: 'output must be lines of `name: type` (types: string, number, boolean, or their [] arrays)' },
@@ -77,13 +51,10 @@ export const aiAction = defineAction({
 
     const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
     try {
-      // Reset the merged-in step prompt for THIS step (empty when unset).
       await writeAgentConfig(rt, step.system ?? '', bareModel)
 
       if (!step.output) {
         const text = await runOpencode(rt, dir, model, env, step.prompt, hasConversation(rt))
-        // Expose a parsed form when the agent answered with pure JSON (a common
-        // pattern for feeding a js/http step); code fences stripped first.
         const json = tryParseJson(stripFences(text))
         return json === undefined ? { text } : { text, json }
       }
@@ -96,19 +67,10 @@ export const aiAction = defineAction({
   },
 })
 
-// Whether the session already has an agent conversation: opencode's state
-// lives under <checkout>/.knecht/data (XDG_DATA_HOME, daemon/sandbox.ts),
-// created on its first invocation and restored by the archive rehydrate. One
-// conversation per session (ADR 0006): every run and follow-up continues it,
-// so later work sees what earlier work found.
 function hasConversation(rt: ActionRuntime): boolean {
   return existsSync(join(rt.checkoutDir, '.knecht', 'data'))
 }
 
-// Resolve everything an opencode invocation needs from settings: the model
-// (with an optional per-step override) and the env handed to the process (the
-// provider key plus the agent bridge vars that switch on the knecht-git
-// tools). Shared by the ai step and the follow-up executor.
 async function resolveAgentEnv(
   sessionId: number,
   stepModel?: string,
@@ -117,9 +79,6 @@ async function resolveAgentEnv(
   if (!settings.aiKeyEnc) {
     throw new Error('AI provider API key not configured, add it under Settings → Agent')
   }
-  // Stored model names are bare; the configured provider is
-  // prepended here. The legacy strip covers pre-migration values that still
-  // reach the runtime (retried runs pinned old snapshots).
   const configured = stepModel?.trim() || settings.aiModel
   if (!configured) {
     throw new Error('No default model configured (a provider switch clears it), pick one under Settings → Agent')
@@ -133,8 +92,6 @@ async function resolveAgentEnv(
   if (!envNames) {
     throw new Error(`Unsupported provider '${provider}'. Supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
   }
-  // agentModelRef maps a langdock Claude model to the langdock-anthropic
-  // provider block the generated config declares for the Anthropic route.
   const model = agentModelRef(provider, bare)
   if (!MODEL_RE.test(model)) {
     throw new Error(`Invalid model '${model}': not shell-safe`)
@@ -147,11 +104,6 @@ async function resolveAgentEnv(
   }
 }
 
-// Run one prompt against the session's EXISTING conversation (the follow-up
-// executor's entry): same settings resolution as the ai step, but always
-// `--continue`, so the agent keeps the session's full context.
-// The step's workflow.md step prompt is deliberately left as-is: the last
-// ai step's system context stays valid for tweaks to that step's work.
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Promise<string> {
   const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId)
   rt.log(`\n▶ follow-up (${model}): ${oneLine(prompt, 100)}\n`)
@@ -167,9 +119,6 @@ export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Prom
   }
 }
 
-// The structured-output path: run, read the file the agent was told to write,
-// validate against the spec, and on a miss re-ask (same session) with the exact
-// error until it passes or MAX_OUTPUT_ATTEMPTS is spent.
 async function runWithOutput(
   rt: ActionRuntime,
   dir: string,
@@ -203,9 +152,7 @@ async function runWithOutput(
   throw new ActionError(`ai output did not match the schema after ${MAX_OUTPUT_ATTEMPTS} attempts: ${lastError}`)
 }
 
-// One opencode invocation. The prompt travels as a file (no shell quoting of
-// user text; $(cat …) inside double quotes is safe); `continueSession` resumes
-// the run's prior opencode session (-c) so a retry corrects instead of redoing.
+// The prompt travels as a file: no shell quoting of user text.
 async function runOpencode(
   rt: ActionRuntime,
   dir: string,
@@ -216,12 +163,10 @@ async function runOpencode(
 ): Promise<string> {
   const hostFile = join(dir, 'prompt.txt')
   await writeFile(hostFile, message)
-  // Unique per invocation so a retry or follow-up never races an earlier
-  // prompt file.
+  // Unique per invocation: a retry or follow-up must not race an earlier prompt file.
   const inSandbox = `/tmp/knecht-ai-${rt.runId}-${Date.now()}.txt`
   await rt.sandbox.copyIn(hostFile, inSandbox)
-  // --auto: auto-approve tool permissions. A workflow agent is non-interactive,
-  // so without it file writes and bash calls get rejected and the run stalls.
+  // Without --auto, tool permissions are rejected and the run stalls.
   const cont = continueSession ? '--continue ' : ''
   const { code, tail } = await rt.sandbox.stream(
     ['bash', '-lc', `opencode run --auto ${cont}--model ${model} "$(cat ${inSandbox})"`],
@@ -233,9 +178,6 @@ async function runOpencode(
   return text
 }
 
-// Read the file the agent was asked to write. Reading a dedicated file (not
-// scraping the agent's chatty stdout) is what keeps structured output reliable.
-// Missing/non-JSON are recoverable misses that drive a retry, not hard errors.
 async function readOutputFile(
   rt: ActionRuntime,
   sandboxPath: string,
@@ -247,23 +189,13 @@ async function readOutputFile(
   return { ok: true, value }
 }
 
-// Seed the run's opencode config dir (host-side, it lives on the checkout):
-// the bundled AGENTS.md instructions, an opencode.json that merges workflow.md
-// and the project memory index into the agent's instructions, workflow.md
-// itself (a step's step prompt), and the project's memory notes
-// (utils/agent-memory.ts). `system: null` keeps an existing workflow.md (the follow-up path:
-// the last ai step's system context stays valid for tweaks to that step's
-// work) and only creates an empty one when none exists (fresh rehydrated
-// checkout). The opencode.json itself comes from utils/opencode-config.ts,
-// which also declares Langdock as a custom provider when configured.
 async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareModel: string): Promise<void> {
   const settings = getSettings()
   const dir = join(rt.checkoutDir, AGENT_CONFIG_SUBDIR)
   await mkdir(dir, { recursive: true })
   const agents = await readSandboxAsset('opencode/AGENTS.md')
   if (agents) await writeFile(join(dir, 'AGENTS.md'), agents)
-  // The human rules layers: always written, empty when
-  // unset, so the static path in the generated config always resolves.
+  // Always written, empty when unset, so the static path in the generated config resolves.
   await writeFile(join(dir, 'rules.md'), buildAgentRules(settings.agentInstructions, rt.project.agentInstructions))
   await writeFile(join(dir, 'opencode.json'), JSON.stringify(buildOpencodeConfig({
     provider: settings.aiProvider as AiProviderId,
@@ -275,11 +207,6 @@ async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareMo
   else if (!existsSync(join(dir, 'workflow.md'))) await writeFile(join(dir, 'workflow.md'), '')
   await seedAgentMemory(rt.project.id, rt.checkoutDir)
 }
-
-// ── output spec ──────────────────────────────────────────────────────────────
-// The `name: type` grammar lives in shared/utils/workflow.ts (parseAiOutputSpec)
-// so the builder's variable picker reads the exact same fields; here we turn it
-// into a zod schema and validate the agent's answer against it.
 
 function isValidOutputSpec(text: string): boolean {
   try {

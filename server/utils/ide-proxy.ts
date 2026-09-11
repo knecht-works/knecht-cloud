@@ -9,25 +9,8 @@ import { IDE_DEFAULT_SETTINGS, IDE_PORT } from '../daemon/ide'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
 
-// The web IDE's origin: `ide--<sessionId>.preview.<host>` (the label `ide` is
-// reserved; a project ddev hostname that would map to it loses, which no real
-// hostname does in practice). Unlike app previews nothing is rewritten or
-// injected: openvscode-server speaks same-origin URLs natively. Two legs:
-//
-//   HTTP: proxyRunIde, wired into the preview middleware like app previews.
-//   WebSocket: the workbench lives on ws connections with arbitrary paths, so
-//   route-based ws handlers can't serve it. wrapWebsocketResolve intercepts
-//   h3's ws route resolution (the cached `websocket.resolve` every crossws
-//   adapter consults, dev and prod) and returns pipe-through hooks for IDE
-//   origins; everything else falls through to the normal route resolution.
-//   The same pipe serves the project's dev server (its HMR socket): on the
-//   session's plain preview origin for a generated environment, on the
-//   token-labelled dev origin (utils/dev-origin.ts) next to a repo's own
-//   hostnames. The dev origin's label IS its credential, so that leg skips
-//   the cookie gate the way the HTTP leg does (preview-proxy.ts).
-//
-// Both legs gate on the same session + membership check as app previews and
-// bump the idle clock, so an open IDE keeps its environment alive.
+// Route-based ws handlers cannot serve the workbench's arbitrary paths, so
+// wrapWebsocketResolve intercepts h3's ws route resolution instead.
 
 const IDE_LABEL = 'ide'
 
@@ -35,16 +18,11 @@ function bumpPreviewSeen(sessionId: number): void {
   db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, sessionId)).run()
 }
 
-// ── HTTP leg ──────────────────────────────────────────────────────────────────
-
 export async function proxyRunIde(event: H3Event, sessionId: number): Promise<void> {
   const session = await getUserSession(event)
-  // Never let the session read WRITE a session (see preview-proxy.ts).
+  // The session read must never write a session cookie (see preview-proxy.ts).
   removeResponseHeader(event, 'set-cookie')
   if (!session?.user) {
-    // Same logged-out handling as app previews: browser navigations bounce to
-    // the login page and return here via the knecht-redirect cookie; anything
-    // else (workbench XHRs, websockets' HTTP fallbacks) gets the bare 401.
     const reqUrl = getRequestURL(event)
     if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
       throw createError({ statusCode: 401, statusMessage: 'Login required' })
@@ -76,8 +54,6 @@ export async function proxyRunIde(event: H3Event, sessionId: number): Promise<vo
   const url = getRequestURL(event)
   const req = event.node.req
   const res = event.node.res
-  // The workbench DOCUMENT gets buffered so the IDE defaults can be injected
-  // into its embedded configuration; everything else streams as-is.
   const wantsHtml = String(getRequestHeader(event, 'accept') ?? '').includes('text/html')
   const headers = { ...req.headers }
   if (wantsHtml) headers['accept-encoding'] = 'identity'
@@ -123,15 +99,9 @@ export async function proxyRunIde(event: H3Event, sessionId: number): Promise<vo
   })
 }
 
-// The workbench HTML carries its whole boot configuration in one meta tag
-// (`vscode-workbench-web-configuration`, attribute-escaped JSON). The web
-// workbench registers default overrides ONLY from the TOP-LEVEL
-// `configurationDefaults` key of these construction options
-// (vs/workbench/services/configuration/browser/configuration.ts); a
-// `productConfiguration.configurationDefaults` reaches the product service but
-// nothing in the web client reads it. So: decode, merge the IDE defaults into
-// the top-level key (defaults only: the user's own browser-side settings still
-// win), re-encode.
+// The web workbench reads default overrides only from the top-level
+// `configurationDefaults` of its boot meta tag; the one under
+// `productConfiguration` reaches the product service but nothing consumes it.
 const decodeAttr = (v: string): string => v.replaceAll('&quot;', '"').replaceAll('&amp;', '&')
 const encodeAttr = (v: string): string => v.replaceAll('&', '&amp;').replaceAll('"', '&quot;')
 
@@ -148,17 +118,13 @@ function injectIdeDefaults(html: string): string {
         return pre + encodeAttr(JSON.stringify(cfg)) + post
       }
       catch {
-        // Not the JSON we expected: serve it untouched rather than break the IDE.
         return match
       }
     },
   )
 }
 
-// ── WebSocket leg ─────────────────────────────────────────────────────────────
-
-// The upgrade request shapes differ per adapter (node vs dev): read a
-// header defensively from whatever carries it.
+// The upgrade request shape differs per adapter (node vs dev).
 function upgradeHeader(source: { headers?: unknown, request?: { headers?: unknown } }, name: string): string {
   const headers = source.headers ?? source.request?.headers
   if (!headers) return ''
@@ -170,22 +136,14 @@ function upgradeHost(source: { headers?: unknown, request?: { headers?: unknown 
   return upgradeHeader(source, 'host')
 }
 
-// The subprotocols the browser asked for, to be asked of the backend in
-// turn: Vite only completes an HMR upgrade that carries `vite-hmr`.
+// Vite only completes an HMR upgrade that carries the `vite-hmr` subprotocol.
 function upgradeProtocols(source: { headers?: unknown, request?: { headers?: unknown } }): string[] {
   return upgradeHeader(source, 'sec-websocket-protocol').split(',').map(p => p.trim()).filter(Boolean)
 }
 
-// What an upgrade on a preview origin pipes to: the IDE server on its
-// reserved label, the dev server behind a verified dev label, or the dev
-// server on the plain origin of a generated environment (daemon/ddev.ts
-// devServerIsPreview). App previews of repos with their own web server get
-// no websocket leg. Null for anything else (an unverified dev label
-// included), which then resolves as a normal ws route.
 interface WsTarget {
   sessionId: number
   port: number
-  // The hostname proved the request (a verified dev label): no cookie gate.
   byCapability: boolean
 }
 
@@ -207,19 +165,14 @@ function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }
 }
 
 interface Pipe {
-  // Null until resolvePreview + the backend connection are set up; client
-  // frames that arrive in that window queue below.
   backend: WebSocket | null
-  // Client frames arriving before the backend socket opens are queued.
   queue: (string | Uint8Array<ArrayBuffer>)[]
   sessionId: number
   lastBump: number
 }
 const pipes = new Map<string, Pipe>()
 
-// crossws hooks piping every frame between the browser and the container
-// (the IDE server or the dev server). Frame types must be preserved: the
-// workbench protocol is binary.
+// Frame types must be preserved: the workbench protocol is binary.
 const pipeWsHooks = {
   async upgrade(request: { headers?: unknown, url?: string }) {
     const target = wsTarget(request)
@@ -244,10 +197,8 @@ const pipeWsHooks = {
     const target = wsTarget(peer.request ?? {})
     if (target === null) return peer.close(1011, 'Environment is not running')
     const { sessionId, port } = target
-    // Register the pipe BEFORE the awaited resolvePreview: crossws does not
-    // await this hook, so the workbench's earliest frames (a reconnect after a
-    // Knecht restart, cold ipCache) can arrive mid-await. With the pipe present
-    // they queue instead of hitting message() with no pipe and being dropped.
+    // Register the pipe before the await: crossws does not await this hook, so
+    // early frames (a reconnect after a restart) must queue instead of dropping.
     const pipe: Pipe = { backend: null, queue: [], sessionId, lastBump: 0 }
     pipes.set(peer.id, pipe)
     const ip = await resolvePreview(sessionId)
@@ -298,10 +249,6 @@ const pipeWsHooks = {
   },
 }
 
-// Intercept h3's cached websocket route resolution: upgrades on a preview
-// origin with a pipe target (the IDE, a dev server) get the pipe-through
-// hooks, everything else (the run terminal, future ws routes) resolves
-// normally. Called once from a nitro plugin.
 export function wrapWebsocketResolve(h3App: { websocket: { resolve: (info: never) => unknown } }): void {
   const ws = h3App.websocket
   const original = ws.resolve.bind(ws)

@@ -2,12 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
-// Boot-time restore against the real schema: only the container boundary is
-// faked. The contract under test: after a reboot every 'up' env is brought
-// back with an unconditional `ddev start` (the only operation that knows a
-// project's full service set); a failing start downgrades to 'stopped'; and
-// stopped/archived envs stay exactly where the retention ladder put them.
-
 const startEnvStack = vi.fn(async (_sessionId: number) => {})
 const forgetPreview = vi.fn()
 vi.mock('../../server/daemon/sandbox', () => ({
@@ -46,8 +40,7 @@ describe('reconcileEnvStates', () => {
   it('downgrades an env whose start fails to stopped and forgets its preview IP', async () => {
     const broken = makeSessionInState('up')
     const fine = makeSessionInState('up')
-    // Most recently seen runs first: pin the broken session to the front so
-    // the one-shot failing start deterministically hits it.
+    // The broken session is pinned to the front so the one-shot failing start hits it.
     db.update(schema.sessions)
       .set({ previewLastSeen: new Date(Date.now() + 60_000) })
       .where(eq(schema.sessions.id, broken.sessionId))

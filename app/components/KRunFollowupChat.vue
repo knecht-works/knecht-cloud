@@ -3,11 +3,6 @@ import { PUBLISH_FOLLOWUP_PROMPT } from '#shared/utils/followup'
 import type { EnvState } from '#shared/utils/run'
 import type { RunStatus } from '~/utils/dashboard'
 
-// Follow-ups: send a tweak prompt to a finished run; the agent continues the
-// run's opencode session in the run's existing sandbox. One at a time per
-// run; while one is queued (env reviving) or running, the composer locks and
-// the parent keeps polling the run/log so they stay live too (the `active`
-// model tells it when that's needed).
 const props = defineProps<{
   runId: number
   status: RunStatus
@@ -16,8 +11,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  /** A follow-up was sent or stopped: the parent should refresh the run and
-   *  its steps promptly instead of waiting for the next poll tick. */
   changed: []
 }>()
 
@@ -32,10 +25,6 @@ watch(followupActive, (v) => {
   active.value = v
 }, { immediate: true })
 
-// While a follow-up is queued or running, its own status (and the agent's
-// reply once it lands) only changes server-side; poll for that here rather
-// than relying on the parent's run/step poll, which knows nothing about
-// follow-ups.
 usePollWhile(() => followupActive.value, refreshFollowups)
 
 const canFollowup = computed(() =>
@@ -46,14 +35,11 @@ const followupHint = computed(() => {
   return null
 })
 
-// Follow-ups run the agent, so without a provider key (Settings → Agent) the
-// composer is disabled instead of letting the follow-up fail at execution.
 const { data: settings } = useSettings()
 const aiConfigured = computed(() => !!settings.value?.aiKeyConfigured)
 
 const followupPrompt = ref('')
 const sendingFollowup = ref(false)
-// One flag for everything the composer disables on.
 const followupLocked = computed(() => !aiConfigured.value || followupActive.value || sendingFollowup.value)
 async function sendFollowup(prompt: string) {
   const text = prompt.trim()
@@ -73,8 +59,6 @@ async function sendFollowup(prompt: string) {
   }
 }
 
-// Stop the active follow-up: the row flips server-side (the composer unlocks
-// right away), the executor kills the in-flight agent command.
 const stoppingFollowup = ref(false)
 async function stopFollowup() {
   if (stoppingFollowup.value) return
@@ -92,11 +76,6 @@ async function stopFollowup() {
   }
 }
 
-// The follow-ups as a chat transcript for UChatMessages: each follow-up is a
-// user message (the prompt) plus, once finished, an assistant message (the
-// agent's clean reply pulled from the opencode session, or the failure). The
-// canned publish prompt renders under its button label instead of its full
-// text.
 type ChatMessage = { id: string, role: 'user' | 'assistant', parts: { type: 'text', text: string }[] }
 const chatMessages = computed<ChatMessage[]>(() => (followups.value ?? []).flatMap((f) => {
   const messages: ChatMessage[] = [{
@@ -104,8 +83,6 @@ const chatMessages = computed<ChatMessage[]>(() => (followups.value ?? []).flatM
     role: 'user',
     parts: [{ type: 'text', text: f.prompt === PUBLISH_FOLLOWUP_PROMPT ? 'Open a PR' : f.prompt }],
   }]
-  // Follow-ups from before the clean-reply extraction stored the raw stream;
-  // stripping ANSI codes keeps them readable.
   const reply = f.status === 'failed'
     ? `✗ ${f.error ?? 'Follow-up failed'}`
     // eslint-disable-next-line no-control-regex
@@ -115,19 +92,12 @@ const chatMessages = computed<ChatMessage[]>(() => (followups.value ?? []).flatM
   }
   return messages
 }))
-// 'submitted' keeps UChatMessages' typing indicator up while a follow-up is
-// queued (env reviving) or running.
 const chatStatus = computed(() => followupActive.value ? 'submitted' as const : 'ready' as const)
 
-// Renders a bubble's text (the #content slot types its message loosely, so
-// newlines would collapse without this pre-wrap hook).
 function messageText(message: { parts: { type: string, text?: string }[] }): string {
   return message.parts.filter(p => p.type === 'text').map(p => p.text ?? '').join('')
 }
 
-// The "Open a PR" skill: a canned follow-up for runs that never decided where
-// to commit (no PR yet). The agent reviews its own work, commits in logical
-// chunks and opens an informed PR (shared/utils/followup.ts).
 const publishable = computed(() => canFollowup.value && !props.prUrl)
 </script>
 
@@ -189,9 +159,7 @@ const publishable = computed(() => canFollowup.value && !props.prUrl)
         @click="sendFollowup(PUBLISH_FOLLOWUP_PROMPT)"
       />
     </div>
-    <!-- No autofocus (Nuxt UI defaults it ON): the panel mounts the moment
-         the run finishes, and stealing focus scrolls the page away from
-         the freshly-loaded preview above. -->
+    <!-- No autofocus (Nuxt UI defaults it on): stealing focus scrolls the page away from the preview above. -->
     <UChatPrompt
       v-model="followupPrompt"
       :autofocus="false"
@@ -199,8 +167,6 @@ const publishable = computed(() => canFollowup.value && !props.prUrl)
       :disabled="followupLocked"
       @submit="sendFollowup(followupPrompt)"
     >
-      <!-- While a follow-up is active the submit button becomes a stop
-           button (UChatPromptSubmit switches on status and emits stop). -->
       <UChatPromptSubmit
         color="primary"
         :status="chatStatus"

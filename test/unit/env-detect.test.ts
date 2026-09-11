@@ -2,7 +2,6 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { checkoutReader, detectEnv, normalizeNodeConstraint, normalizeNodeVersion, normalizePhpConstraint, parseDdevConfig, repoShipsDdevConfig } from '../../server/utils/env-detect'
 
-// Each fixture folder is one repo shape; the reader is the real checkout one.
 const fixture = (name: string) => checkoutReader(join(__dirname, '..', 'fixtures', 'env-detect', name))
 
 describe('detectEnv', () => {
@@ -155,7 +154,6 @@ describe('detectEnv', () => {
     it('keeps an unparseable tracked config a ddev project, with a warning and nothing else', () => {
       const { source, fields, warnings } = detectEnv(fixture('ddev-broken'))
       expect(source).toBe('ddev')
-      // ddev's own default stands in for the unreadable file.
       expect(fields).toEqual({ hasDb: { value: true, source: '.ddev/config.yaml' } })
       expect(warnings).toEqual([expect.stringContaining('.ddev/config.yaml could not be parsed')])
     })
@@ -168,7 +166,6 @@ describe('checkoutReader', () => {
     expect(read('nope/composer.json')).toBeNull()
     // `empty/README.md` is a file, so a path below it is ENOTDIR: missing too.
     expect(read('empty/README.md/x')).toBeNull()
-    // A directory is not a readable file: that is an error, not "missing".
     expect(() => read('empty')).toThrow()
   })
 })

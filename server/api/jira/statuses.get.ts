@@ -2,8 +2,6 @@ import { z } from 'zod'
 import { listJiraStatuses } from '../../utils/jira'
 import { isJiraConfigured } from '../../utils/jira-credentials'
 
-// GET /api/jira/statuses?project=KEY → the distinct status names of one Jira
-// project (the trigger form's status dropdown).
 export default defineEventHandler(async (event) => {
   if (!isJiraConfigured()) {
     throw createError({ statusCode: 400, statusMessage: 'Jira is not connected' })

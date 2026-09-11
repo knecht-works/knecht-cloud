@@ -2,10 +2,6 @@ import { randomBytes } from 'node:crypto'
 import { dashboardOrigin } from '../../utils/origin'
 import { isGithubAppConfigured } from '../../utils/github-credentials'
 
-// GET /api/_setup/status: public (see server/middleware/auth.ts). Tells the
-// first-run setup page whether the instance already has a GitHub App, and hands
-// it the manifest + CSRF state to POST to GitHub. Once configured, the flow is
-// locked: `configured: true` and no manifest is returned.
 export default defineEventHandler((event) => {
   if (isGithubAppConfigured()) {
     return { configured: true as const }
@@ -29,17 +25,7 @@ export default defineEventHandler((event) => {
     maxAge: 600,
   })
 
-  // The GitHub App manifest. GitHub creates the app from this and returns all its
-  // credentials to /setup/callback. Login uses its OAuth client (callback_urls);
-  // repo access uses its app id/key; GitHub triggers receive their events via
-  // the app webhook (hook_attributes → /api/github/webhook, secret returned by
-  // the conversion and stored encrypted). The logo can't be set here: GitHub's
-  // manifest has no field for it; upload it once in the app's settings after
-  // creation.
-  // App names are globally unique on GitHub (and capped at 34 chars), so a
-  // fixed name could only ever be claimed by a single instance worldwide.
-  // Derive it from this instance's host instead; the creator can still edit
-  // the pre-filled name on GitHub's confirmation page before the app is made.
+  // GitHub app names are globally unique and capped at 34 chars. The manifest has no logo field.
   const host = new URL(origin).hostname.replace(/[^a-z0-9-]+/gi, '-')
   const manifest = {
     name: `Knecht ${host}`.slice(0, 34).replace(/[\s-]+$/, ''),
@@ -56,18 +42,14 @@ export default defineEventHandler((event) => {
       contents: 'write',
       pull_requests: 'write',
       metadata: 'read',
-      // write: the agent replies and labels on issues/PRs (PR conversation
-      // comments go through the issues API too), and @mentions react with an
-      // acknowledgement. Instances whose app was created with issues: read
-      // must approve the permission bump in the app's settings on GitHub.
+      // PR conversation comments go through the issues API too.
       issues: 'write',
     },
     default_events: ['push', 'pull_request', 'issues', 'issue_comment'],
   }
 
-  // The page builds the POST target from `state` + the chosen owner (personal
-  // account vs. an org). A private app can only be installed on the account that
-  // owns it, so managing an org's repos requires creating it under that org.
+  // The page picks the owner: an app can only be installed on the account
+  // that owns it, so org repos need the app created under that org.
   return {
     configured: false as const,
     state,

@@ -1,12 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { expectJson, login, type E2eClient } from './client'
 
-// The draft/auto-promote lifecycle through the real HTTP API: create a shell,
-// autosave loosely, watch complete saves go live on their own, discard,
-// rename, and the automation-enable gate. Workflows created here are
-// timestamp-named and deleted afterwards, so the suite can run against a dev
-// instance with real data.
-
 interface WorkflowRow {
   id: number
   name: string
@@ -64,15 +58,12 @@ describe('workflow draft/publish lifecycle over the API', () => {
     expect(second.name).not.toBe(first.name)
     expect(first.steps).toEqual([])
     expect(first.publishedAt).toBeNull()
-    // Automation starts off: turning it on is what publishes the first version.
     expect(first.enabled).toBe(false)
   })
 
   it('stores an incomplete save as a draft, which cannot run, export or enable automation', async () => {
     const wf = await createWorkflow({ name: `e2e-draft-${Date.now()}` })
 
-    // A half-filled step saves fine, comes back exactly as sent, and does NOT
-    // become the live version.
     const patched = await patchWorkflow(wf.id, { draftSteps: [{ type: 'bash' }] })
     expect(patched.ok).toBe(true)
     const row = await getWorkflow(wf.id)
@@ -80,9 +71,7 @@ describe('workflow draft/publish lifecycle over the API', () => {
     expect(row.steps).toEqual([])
     expect(row.publishedAt).toBeNull()
 
-    // Manual runs execute the current state, validated at start (checked
-    // before the project, so a placeholder projectId suffices). The 400 names
-    // the missing field.
+    // Validation runs before the project lookup, so a placeholder projectId suffices.
     const run = await api.fetch('/api/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -91,11 +80,9 @@ describe('workflow draft/publish lifecycle over the API', () => {
     expect(run.status).toBe(400)
     expect(await run.text()).toContain('command')
 
-    // Export serves the current state, which is incomplete too.
     const exported = await api.fetch(`/api/workflows/${wf.id}/export?format=yaml`)
     expect(exported.status).toBe(400)
 
-    // And there is no complete version automation could run.
     const enable = await patchWorkflow(wf.id, { enabled: true })
     expect(enable.status).toBe(400)
   })

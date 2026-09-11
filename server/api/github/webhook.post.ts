@@ -7,13 +7,7 @@ import { handleMention } from '../../utils/mentions'
 import { syncObjectStatus } from '../../utils/sessions'
 import { tryParseJson } from '../../utils/json'
 
-// POST /api/github/webhook → the central GitHub App webhook. GitHub delivers
-// every subscribed event of every repo the app is installed on to this one
-// endpoint, so triggers need no per-repo webhook setup. Exempt from the session
-// gate (server/middleware/auth.ts); GitHub authenticates via the HMAC signature
-// over the raw body, checked against the app's webhook secret. The delivery's
-// repo picks the project; every active github trigger listening for the event
-// (and whose filters match) fires against that project only.
+// No session gate: GitHub authenticates with the HMAC signature over the raw body.
 export default defineEventHandler(async (event) => {
   const secret = githubAppCredentials()?.webhookSecret
   if (!secret) {
@@ -29,9 +23,6 @@ export default defineEventHandler(async (event) => {
   const delivered = getHeader(event, 'x-github-event') ?? ''
   const payload = (tryParseJson(raw) ?? {}) as GithubPayload
 
-  // Map the delivery to a connected project; deliveries from repos the app is
-  // installed on but that aren't connected (and app-level events like 'ping'
-  // or 'installation') are acknowledged and dropped.
   const githubId = payload.repository?.id
   const project = githubId
     ? db.select().from(schema.projects).where(eq(schema.projects.githubId, githubId)).get()
@@ -41,16 +32,12 @@ export default defineEventHandler(async (event) => {
     return { ok: true, skipped: 'no matching project' }
   }
 
-  // @mentions in issue/PR comments execute as follow-ups on the object's
-  // session (ADR 0007); nothing else consumes issue_comment deliveries.
   if (delivered === 'issue_comment') {
     const outcome = await handleMention(project, payload)
     console.log(`github webhook: issue_comment from ${project.fullName} → ${outcome}`)
     return { ok: true, outcome }
   }
 
-  // Sessions mirror their object (ADR 0006): a closed issue/PR closes its
-  // session, a reopen revives it. Independent of trigger matching.
   const action = payload.action ?? ''
   if ((delivered === 'issues' || delivered === 'pull_request') && (action === 'closed' || action === 'reopened')) {
     const object = githubObject(delivered === 'issues' ? 'issue' : 'pull_request', payload)

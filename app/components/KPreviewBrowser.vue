@@ -1,24 +1,10 @@
 <script setup lang="ts">
 import type { EnvTransition } from '#shared/utils/run'
 
-// Browser chrome around the live preview iframe: back/forward/reload, an
-// editable address bar, a host switcher (multisite projects serve several
-// hostnames, each with its own per-run preview origin) and open-in-new-tab.
-// The frame is cross-origin, so navigation state comes from the bridge script
-// the preview proxy injects into every HTML response (preview-proxy.ts): the
-// frame posts `nav` messages up, the chrome posts `cmd` messages down. The
-// default slot renders inside the (16/9) viewport while the preview is offline.
 const props = withDefaults(defineProps<{
-  /** The session whose preview origin the frame loads (run.sessionId). */
   sessionId: number
-  /** All ddev hostnames the session serves, primary first (run.previewHosts). */
   hosts?: string[]
-  /** The preview is browsable: the env is up AND the boot step finished
-   *  (run.previewReady). Renders the iframe directly; no probing needed. */
   online?: boolean
-  /** A lifecycle step is in flight (the boot, a stop, a restore, ...): shows
-   *  the mascot with a matching message instead of the frame or the offline
-   *  slot. */
   busy?: 'booting' | EnvTransition | null
 }>(), {
   hosts: () => [],
@@ -58,11 +44,8 @@ const busyCopy = computed(() => props.busy ? BUSY_COPY[props.busy] : null)
 const reqUrl = useRequestURL()
 const primaryHost = computed(() => props.hosts[0] ?? null)
 
-// A stop in flight hides the frame right away: the containers go down
-// mid-request, and a half-loaded page is worse than the stopping notice.
 const live = computed(() => props.online && !props.busy)
 
-// The per-session preview origin for one of the project's ddev hostnames.
 function originFor(host: string | null): string {
   const label = host && host !== primaryHost.value ? previewLabel(host) : undefined
   return `${reqUrl.protocol}//${previewHostname(props.sessionId, reqUrl.host, label)}`
@@ -70,10 +53,6 @@ function originFor(host: string | null): string {
 
 const homeUrl = `${originFor(null)}/`
 
-// ── Navigation state, fed by the bridge ────────────────────────────────────
-// Own back/forward stack mirroring the frame's session history: a reported
-// href matching the previous/next entry is a back/forward move, anything else
-// a new navigation (which truncates the forward tail, like a real browser).
 const frame = ref<HTMLIFrameElement>()
 const frameSrc = ref(homeUrl)
 const frameKey = ref(0)
@@ -89,7 +68,6 @@ function onMessage(e: MessageEvent) {
   const data = e.data as { knecht?: string, href?: string } | null
   if (data?.knecht !== 'nav' || typeof data.href !== 'string') return
   if (e.source !== frame.value?.contentWindow) return
-  // Only trust this run's preview origins.
   if (parsePreviewHost(new URL(e.origin).host)?.sessionId !== props.sessionId) return
 
   bridged.value = true
@@ -110,22 +88,15 @@ onMounted(() => window.addEventListener('message', onMessage))
 onUnmounted(() => window.removeEventListener('message', onMessage))
 
 function post(action: string) {
-  // Commands carry nothing sensitive and the bridge verifies the PARENT's
-  // origin before acting, so '*' is safe. Pinning the target would only
-  // spam console errors whenever the frame sits on an error page (origin
-  // 'null'), where no bridge is listening anyway.
+  // '*' is safe: commands carry nothing sensitive and the bridge verifies the parent's
+  // origin. Pinning the target only spams console errors on error pages (origin 'null').
   frame.value?.contentWindow?.postMessage({ knecht: 'cmd', action }, '*')
 }
 
 function go(url: string) {
-  // Hard-navigate the frame itself rather than asking the bridge: it works
-  // from ANY state (error pages, external pages, a CSP that blocked the
-  // bridge) where a posted command would vanish into the void.
+  // Hard-navigate, not the bridge: must work from error pages and CSP-blocked bridges.
   if (frameSrc.value === url) frameKey.value++
   else frameSrc.value = url
-  // Show the target right away; a bridged document confirms (or corrects)
-  // it with its `nav` message once loaded, which also re-arms `bridged`,
-  // so a reload after landing on a bridge-less page stays a hard reload.
   bridged.value = false
   currentUrl.value = url
 }
@@ -139,13 +110,6 @@ function reload() {
   }
 }
 
-// ── Address bar ────────────────────────────────────────────────────────────
-// The bar talks the PROJECT's world: the frame lives on per-run preview
-// origins, but what the operator knows (and the dropdown lists, and the
-// pasted .env points at) are the project's own hostnames, so preview
-// origins are translated back to those for display, and typed project URLs
-// are translated forward in resolveAddress. Editing detaches the bar until
-// Enter navigates or blur snaps it back.
 const address = ref(displayUrl(homeUrl))
 const editing = ref(false)
 
@@ -175,10 +139,6 @@ function submitAddress() {
   go(resolveAddress(input))
 }
 
-// Turn whatever was typed into a preview URL: paths resolve against the
-// current origin, the project's own ddev hostnames map to THEIR preview
-// origin (the .env / the app talk about those hosts, but only the preview
-// origins are reachable from the browser), and bare words become paths.
 function resolveAddress(input: string): string {
   const currentOrigin = (() => {
     try {
@@ -208,7 +168,6 @@ function resetAddress() {
   address.value = displayUrl(currentUrl.value)
 }
 
-// ── Host switcher (multisite: one preview origin per ddev hostname) ────────
 const hostItems = computed(() => props.hosts.map(host => ({
   label: host,
   onSelect: () => go(`${originFor(host)}/`),

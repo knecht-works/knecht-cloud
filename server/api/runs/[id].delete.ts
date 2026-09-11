@@ -6,11 +6,6 @@ import { cancelFollowupWork } from '../../daemon/followups'
 import { cancelRun } from '../../daemon/runner'
 import { sessionArchiveDir } from '../../utils/storage'
 
-// DELETE /api/runs/:id → remove a run. When it is its session's only run the
-// whole session goes with it (env, checkout, archive: the manual cleanup that
-// keeps per-session leftovers from piling up on disk); a run inside a
-// multi-run session only removes its own rows and leaves the shared env
-// alone.
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
   const run = getRun(id)
@@ -18,12 +13,8 @@ export default defineEventHandler(async (event) => {
     return { ok: true }
   }
 
-  // A still-executing run must stop before its rows go away: without the
-  // abort, the runner races the delete and can recreate the sandbox for a
-  // row that no longer exists (an orphan container nothing ever reaps). A
-  // mention run is driven by the follow-up executor instead of the runner;
-  // left running it would work against the deleted rows and could still post
-  // its reply on the thread.
+  // Abort before deleting rows, or the runner races the delete and recreates
+  // the sandbox for a row that no longer exists.
   if (run.kind === 'mention') cancelFollowupWork(run.sessionId, id)
   else cancelRun(id)
 

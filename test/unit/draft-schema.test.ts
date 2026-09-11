@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { draftStepsSchema, publishStepsSchema, workflowPatchSchema } from '../../server/workflows/schema'
 
-// The draft/publish split: drafts autosave with only structure enforced,
-// publishing (and a draft test run) runs the strict schema.
-
 describe('draftStepsSchema (loose editor drafts)', () => {
   it('accepts half-filled steps and returns them untouched', () => {
     const draft = [{ type: 'bash' }, { type: 'ai', label: 'fill in later' }]

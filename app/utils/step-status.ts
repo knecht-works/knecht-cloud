@@ -1,30 +1,16 @@
-// Per-step run status for the builder rail: the status vocabulary, its card
-// treatments, the run-rows-to-tree status mapping, and the issue summary
-// line. Shared by the rail cards and the page banner.
-// Runtime-import-free on purpose (type imports only): buildStatusMap is unit
-// tested in plain node vitest, which resolves no Nuxt auto-imports.
+// Type imports only: buildStatusMap is unit tested in plain node vitest, which
+// resolves no Nuxt auto-imports.
 import type { Step } from '#shared/utils/workflow'
 
 export type StepStatus = 'idle' | 'selected' | 'done' | 'running' | 'error' | 'pending' | 'skipped'
 
-// What a rail card renders for one step during a run; `runs` counts the loop
-// iterations observed so far (only set for direct children of a loop).
 export interface NodeStatus { status: StepStatus, runs?: number }
 
-// The slice of a run_steps row the mapping needs (TestRunStepRow satisfies it).
 export interface RunStepRowLike {
   stepId: string
   status: 'running' | 'success' | 'failed'
 }
 
-/**
- * Maps the run's polled step rows onto the draft tree, keyed by step id (the
- * id namespace is flat and tree-unique; stepIndex is ambiguous across nesting
- * levels). Steps without rows get their status inferred: the runner emits
- * nothing for not-taken if branches and never-reached steps, so "skipped" is
- * inference, not data. Empty map when there is no active run (the cards then
- * fall back to idle/selected).
- */
 export function buildStatusMap(
   steps: Step[],
   run: { status: string } | null,
@@ -40,17 +26,11 @@ export function buildStatusMap(
     else byStep.set(row.stepId, [row])
   }
 
-  // A step with rows (several for loop iterations): still going beats failed
-  // beats done, so a loop child reads "running" while iteration 3 runs even
-  // if iteration 1 failed (continueOnError).
   const fromRows = (stepRows: RunStepRowLike[]): StepStatus =>
     stepRows.some(r => r.status === 'running')
       ? 'running'
       : stepRows.some(r => r.status === 'failed') ? 'error' : 'done'
 
-  // A row-less nested step is skipped once its fate is sealed (the parent
-  // finished without reaching it, or the sibling branch ran); until then the
-  // run may still get there: pending.
   const noRowStatus = (parentStatus: StepStatus, sealed: boolean): StepStatus =>
     sealed || parentStatus === 'done' || parentStatus === 'error' || parentStatus === 'skipped'
       ? 'skipped'
@@ -83,7 +63,6 @@ export function buildStatusMap(
   return map
 }
 
-// status → card treatment (border / background / left accent / dim)
 export const TREAT: Record<StepStatus, { border: string, bg: string, accent: string | null, dim?: boolean }> = {
   idle: { border: 'var(--border-default)', bg: 'var(--surface-muted)', accent: null },
   selected: { border: 'var(--border-accented)', bg: 'var(--surface-muted)', accent: null },
@@ -101,8 +80,6 @@ export const STATUS_LABEL: Partial<Record<StepStatus, { text: string, color: str
   skipped: { text: 'skipped', color: 'var(--text-dimmed)' },
 }
 
-// The card's one-line problem summary ("Command is required · +2 more"),
-// naming the sub-step when the problem sits inside a composite.
 export function issueSummary(r: { step: WorkflowStep, issues: StepIssue[] }): string {
   const first = r.issues[0]!
   const text = first.step === r.step ? first.message : `${workflowStepMeta(first.step).label}: ${first.message}`

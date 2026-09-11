@@ -16,7 +16,6 @@ describe('isNewerVersion', () => {
   it('supersedes a running pre-release with its stable release', () => {
     expect(isNewerVersion('v0.3.0', 'v0.3.0-rc.1')).toBe(true)
     expect(isNewerVersion('v0.4.0', 'v0.3.0-rc.1')).toBe(true)
-    // An RC of a FUTURE version is ahead of the offered stable: no downgrade.
     expect(isNewerVersion('v0.3.0', 'v0.4.0-rc.1')).toBe(false)
   })
 

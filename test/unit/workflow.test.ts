@@ -73,7 +73,6 @@ describe('renameStepReferences', () => {
         then: [{ type: 'bash', id: 'inner', command: 'echo {{ steps.old.stdout }}' }],
         else: [],
       },
-      // A different id sharing the prefix must NOT be rewritten.
       { type: 'bash', id: 'tail', command: 'echo {{ steps.older.stdout }}' },
     ]
     renameStepReferences(steps, 'old', 'fresh')

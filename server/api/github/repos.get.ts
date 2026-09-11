@@ -1,8 +1,5 @@
 import { listAppRepositories } from '../../utils/github-app'
 
-// GET /api/github/repos → the repos the GitHub App is installed on, for the
-// "connect a repo" picker. Most-recently-updated first. An empty list means the
-// app has no installations yet (or none granting repo access).
 export default defineEventHandler(async () => {
   const repos = await listAppRepositories()
 

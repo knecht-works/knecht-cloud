@@ -1,19 +1,10 @@
 <script setup lang="ts">
-// Only mounts when logged in (gated by the parent), so this fetch (and the
-// requireUserSession on /api/system) never runs for anonymous visitors.
-// Shared with the sidebar's system card: one probe per app load.
 const { data, status, error, refresh } = useSystemInfo()
 
-// The changelog: published releases with their commit-list notes. Lazy and
-// separate from useSystemInfo so the sidebar's shared probe stays light.
-// Only versions the instance would gain by updating are shown; the full
-// history lives on GitHub (linked below).
 const { data: changelog, status: changelogStatus } = useFetch('/api/system/releases', { lazy: true })
 const newReleases = computed(() => changelog.value?.releases.filter(r => r.isNew) ?? [])
 const FULL_CHANGELOG_URL = 'https://github.com/knecht-works/knecht-cloud/releases'
 
-// Collapsed by default: with several pending versions the notes would pile up
-// into a wall; a row per version stays scannable.
 const expanded = ref<Record<string, boolean>>({})
 function toggleRelease(tag: string) {
   expanded.value[tag] = !expanded.value[tag]
@@ -24,12 +15,6 @@ function changeCount(notes: string): string {
   return n === 1 ? '1 change' : `${n} changes`
 }
 
-// Release bodies are plain "- subject" lines grouped under "Breaking:/New:/
-// Fixed:" lines (see release.yml and scripts/changelog-preview.sh); the group
-// lines render as headings, everything else as list items, not markdown.
-// Releases published before that convention carry --generate-notes markdown,
-// so boilerplate (headings, "Full Changelog" compare links, ** emphasis) is
-// stripped rather than shown raw.
 function notesLines(notes: string): { text: string, heading: boolean }[] {
   return notes
     .split('\n')
@@ -38,9 +23,6 @@ function notesLines(notes: string): { text: string, heading: boolean }[] {
     .map(line => ({ text: line, heading: /^(Breaking|New|Fixed):$/.test(line) }))
 }
 
-// Self-update: kick off the updater, then poll until the recreated container
-// answers with the target version (fetches fail while it restarts; that's
-// expected) and reload into the new build.
 const updating = ref(false)
 const updateError = ref('')
 const updateStale = ref(false)

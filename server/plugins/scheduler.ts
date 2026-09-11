@@ -3,12 +3,6 @@ import { db, schema } from '../db'
 import { nextRun } from '../utils/cron'
 import { fireTrigger } from '../utils/triggers'
 
-// Fires due schedule triggers. On each tick it finds active schedule triggers
-// whose next fire has passed, fires them (one run per attached project) and
-// recomputes the next fire from the cron expression. Catch-up is intentional:
-// a trigger that came due while the daemon was down fires once on the next tick,
-// not once per missed slot. `nextFireAt` is seeded on create/edit; this advances
-// it. The 30s tick bounds how late a fire can be.
 export default defineNitroPlugin(() => {
   setInterval(() => {
     const due = db

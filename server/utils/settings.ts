@@ -5,11 +5,6 @@ import { defaultSshTarget } from './ssh'
 import { settingsPreset } from './settings-preset'
 import type { Settings } from '../db/schema'
 
-// Instance settings live in a single row (id = 1). Read through this helper so
-// callers never deal with the row's absence: it self-seeds with the schema
-// defaults on first access. Values preset by the installation
-// (settings-preset.ts) override the row on EVERY read, so all consumers see
-// them without knowing presets exist.
 export function getSettings(): Settings {
   return { ...settingsRow(), ...settingsPreset().overrides }
 }
@@ -21,36 +16,28 @@ function settingsRow(): Settings {
   return db.select().from(schema.settings).where(eq(schema.settings.id, 1)).get()!
 }
 
-// Apply a partial update to the singleton row and return the new state.
 export type SettingsPatch = Partial<Omit<Settings, 'id'>>
 export function updateSettings(patch: SettingsPatch): Settings {
-  getSettings() // ensure the row exists
+  getSettings()
   if (Object.keys(patch).length) {
     db.update(schema.settings).set(patch).where(eq(schema.settings.id, 1)).run()
   }
   return getSettings()
 }
 
-// The client-facing shape: secrets stripped, replaced by configured-flags and
-// a recognition preview. EVERY settings response goes through this: a new
-// secret column gets its redaction here, once.
+// Every settings response goes through this: a new secret column gets its redaction here.
 export function publicSettings(settings: Settings) {
   const { aiKeyEnc, ...rest } = settings
   return {
     ...rest,
     aiKeyConfigured: !!aiKeyEnc,
     aiKeyPreview: aiKeyEnc ? encKeyPreview(aiKeyEnc) : undefined,
-    // What an empty sshTarget falls back to, so the UI can say so.
     sshTargetDefault: defaultSshTarget(),
-    // Fields pinned by the installation's env preset: PATCH rejects them and
-    // the settings pages disable their controls.
     presetKeys: settingsPreset().keys,
   }
 }
 
-// First 8 + last 4 characters stay visible so the operator can tell WHICH key
-// is stored; the middle is masked (star count capped: the field shouldn't
-// grow with the key, and the hidden length carries no information anyway).
+// Star count capped so the preview does not leak the key length.
 export function keyPreview(key: string): string {
   if (key.length <= 12) return '*'.repeat(key.length)
   return `${key.slice(0, 8)}${'*'.repeat(Math.min(key.length - 12, 16))}${key.slice(-4)}`
@@ -61,7 +48,6 @@ function encKeyPreview(enc: string): string | undefined {
     return keyPreview(decrypt(enc))
   }
   catch {
-    // Undecryptable (rotated NUXT_SESSION_PASSWORD): no preview, key needs re-entry.
     return undefined
   }
 }

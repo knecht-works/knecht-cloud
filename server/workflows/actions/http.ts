@@ -2,18 +2,14 @@ import { z } from 'zod'
 import { tryParseJson } from '../../utils/json'
 import { defineAction, ActionError } from './types'
 
-// A generic HTTP request from the host (notify a Slack webhook, hit an API).
-// Members are fully trusted on this single-tenant instance (they already run
-// arbitrary bash in sandboxes), so no egress filtering is applied here.
+// No egress filtering: members already run arbitrary bash in sandboxes.
 const MAX_BODY_CHARS = 48_000
 
 export const httpAction = defineAction({
   type: 'http',
   params: {
     method: z.string().regex(/^(GET|POST|PUT|PATCH|DELETE|HEAD)$/i, 'GET, POST, PUT, PATCH, DELETE or HEAD').default('GET'),
-    // Templated ({{ }}), so URL-validity is a runtime concern, not a save-time one.
     url: z.string().min(1),
-    // One "Name: value" per line.
     headers: z.string().optional(),
     body: z.string().optional(),
   },
@@ -36,8 +32,6 @@ export const httpAction = defineAction({
     const text = await res.text()
     rt.log(`← ${res.status} (${text.length} chars)\n`)
 
-    // Big responses are truncated instead of failing the 64 KB output cap;
-    // an API you call is not obliged to answer small.
     const body = text.length > MAX_BODY_CHARS
       ? text.slice(0, MAX_BODY_CHARS)
       : tryParseJson(text) ?? text

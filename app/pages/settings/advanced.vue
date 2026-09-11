@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { SSH_TARGET_RE } from '#shared/utils/settings-limits'
 
-// Advanced: rarely-touched settings. Currently just remote access, the
-// operator's SSH address for the run page's terminal modal.
-// Autosaves trimmed; an emptied field clears the setting (sshTarget: null).
-// The address is validated against the server's charset before it is sent,
-// because it gets spliced verbatim into the copy-pasteable ssh command.
+// The address is validated against the server's charset because it is spliced
+// verbatim into the copy-pasteable ssh command.
 const { data: settings } = useSettings()
 
 const sshTarget = ref('')
@@ -29,9 +26,6 @@ function validate(): boolean {
   return true
 }
 
-// Autosave (useAutosave: debounce, save state, flush on unmount).
-// patchSettings merges the echo in place, so the settings watcher above
-// doesn't re-fire and reset the field mid-edit.
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(() =>
   patchSettings(settings, { sshTarget: sshTarget.value.trim() || null }))
 watch(sshTarget, () => {

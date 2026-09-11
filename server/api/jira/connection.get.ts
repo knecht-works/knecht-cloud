@@ -9,8 +9,6 @@ export interface JiraConnectionStatus {
   apiTokenPreview: string | null
 }
 
-// GET /api/jira/connection → what the Settings panel shows. The API token is
-// write-only: only a masked recognition preview leaves the server.
 export default defineEventHandler((): JiraConnectionStatus => {
   const creds = jiraCredentials()
   return {

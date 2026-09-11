@@ -2,47 +2,20 @@ import { hostname } from 'node:os'
 import { execa, type Options } from 'execa'
 import { sessionSandboxName, sessionCheckoutDir } from '../utils/storage'
 
-// The env substrate seam: every run is a ddev project on the HOST docker
-// daemon (project name knecht-run-<id>, containers ddev-knecht-run-<id>-web
-// and -db), started by the host-side ddev CLI. There is no Docker-in-Docker
-// anymore: images are pulled once per host and shared by all runs, and a
-// running preview costs one web + one db container instead of a nested Docker
-// host. Isolation: project-facing commands exec inside the run's web container
-// as this process's (non-root) uid; the docker socket and the host ddev CLI
-// stay on the Knecht side of the boundary, the agent only ever sees the inside
-// of the web container. This module is the ONLY place that knows the substrate.
-//
-// Topology: the web container is attached to the `knecht-ingress` network; the
-// preview proxy connects to <web>:80 with the project's real hostname in the
-// Host header (the ddev web nginx is a catch-all vhost, no ddev-router needed;
-// the router is omitted via ddev's global config, see plugins/agent-tools.ts).
-// The shared `ddev_default` network is detached after start so parallel runs
-// cannot reach each other.
-
-// Where ddev mounts the project (the run's checkout) inside the web container.
 export const WEB_PROJECT_DIR = '/var/www/html'
 
-// Agent state lives under <checkout>/.knecht (host-visible, git-excluded):
-// XDG_CONFIG_HOME → .knecht/opencode holds the opencode config the ai step
-// writes host-side; XDG_DATA_HOME → .knecht/data keeps the opencode session DB
-// on the checkout, so it survives `ddev stop` (containers are removed, the
-// checkout is not) and follow-ups can continue the session after a reboot.
 const KNECHT_STATE_DIR = `${WEB_PROJECT_DIR}/.knecht`
 
 const INGRESS_NETWORK = 'knecht-ingress'
 
-// The name of the run's web container, derived from the ddev project name.
 export function webContainerName(sessionId: number): string {
   return `ddev-${sessionSandboxName(sessionId)}-web`
 }
 
-// Any of the run's service containers (web, db, extra ddev services).
 export function serviceContainerName(sessionId: number, service: string): string {
   return `ddev-${sessionSandboxName(sessionId)}-${service}`
 }
 
-// The run's currently running ddev services, web first (it is the one every
-// consumer defaults to). Empty when the stack is stopped or gone.
 export async function listRunServices(sessionId: number): Promise<string[]> {
   try {
     const { stdout } = await execa('docker', [
@@ -57,11 +30,7 @@ export async function listRunServices(sessionId: number): Promise<string[]> {
   }
 }
 
-// The identity project-facing execs run as inside the WEB container: this
-// process's uid, with HOME/USER resolved from the container's passwd (ddev
-// bakes a matching user into the web image). Same derivation as EXEC_WRAPPER,
-// but host-side, for callers that must splice the values into a command line
-// (the ssh command builder) or an exec config (the web terminal).
+// Must match EXEC_WRAPPER.
 export async function resolveContainerUser(sessionId: number): Promise<{ uid: number, gid: number, user: string, home: string }> {
   const uid = process.getuid?.() ?? 1000
   const gid = process.getgid?.() ?? 1000
@@ -75,11 +44,7 @@ export async function resolveContainerUser(sessionId: number): Promise<{ uid: nu
   }
 }
 
-// Start (or resume) the run's ddev stack. `ddev start` is idempotent: a
-// stopped project (containers removed, volumes kept) comes back in seconds
-// with its DB intact; a running one is reconciled. The ingress network must
-// exist before the start: the run's compose override references it as
-// external (daemon/ddev.ts).
+// The compose override references the ingress network as external, so it must exist before `ddev start`.
 export async function startEnvStack(sessionId: number): Promise<void> {
   await ensureIngressNetwork()
   ipCache.delete(sessionId)
@@ -87,9 +52,6 @@ export async function startEnvStack(sessionId: number): Promise<void> {
   await wireNetworks(sessionId)
 }
 
-// Whether the run's web container has a bind mount at the given in-container
-// destination. Spots envs booted before a mount was configured (e.g. a shared
-// folder added while the env was already up); false when the container is gone.
 export async function webMountPresent(sessionId: number, dest: string): Promise<boolean> {
   try {
     const { stdout } = await execa('docker', [
@@ -112,11 +74,7 @@ export async function envStackRunning(sessionId: number): Promise<boolean> {
   }
 }
 
-// Stop the run's stack: containers are removed, the project's volumes (the
-// imported DB) and the checkout survive, so a reboot is quick. Name-based, so
-// it works even when the checkout is already gone; when ddev doesn't know the
-// project (its registry lives in ~/.ddev, which can lag reality), removing
-// the labelled containers by hand is equivalent (volumes stay).
+// ddev's registry can lag reality; removing the labelled containers equals `ddev stop`.
 export async function stopEnvStack(sessionId: number): Promise<void> {
   ipCache.delete(sessionId)
   try {
@@ -127,18 +85,13 @@ export async function stopEnvStack(sessionId: number): Promise<void> {
   }
 }
 
-// Fully remove the run's environment: containers, volumes, the ddev project
-// registration. The label sweeps catch what `ddev delete` misses when the
-// project isn't (or no longer is) in ddev's registry, plus the legacy per-run
-// Sysbox container (pre-DooD installs named them knecht-run-<id>) so upgraded
-// hosts converge.
 export async function removeEnvStack(sessionId: number): Promise<void> {
   ipCache.delete(sessionId)
   try {
     await execa('ddev', ['delete', '--omit-snapshot', '-y', sessionSandboxName(sessionId)], { env: DDEV_ENV })
   }
   catch {
-    // Not a registered project (never started, or already deleted).
+    // Not a registered project.
   }
   await removeLabelledContainers(sessionId)
   try {
@@ -147,17 +100,16 @@ export async function removeEnvStack(sessionId: number): Promise<void> {
     if (volumes.length) await execa('docker', ['volume', 'rm', '-f', ...volumes])
   }
   catch {
-    // Nothing labelled left.
+    // Nothing left.
   }
   try {
     await execa('docker', ['rm', '-f', sessionSandboxName(sessionId)])
   }
   catch {
-    // No legacy sandbox container.
+    // Pre-DooD Sysbox containers were named knecht-run-<id>.
   }
 }
 
-// Force-remove the run's ddev-labelled containers (volumes untouched).
 async function removeLabelledContainers(sessionId: number): Promise<void> {
   try {
     const { stdout } = await execa('docker', ['ps', '-aq', '--filter', `label=com.ddev.site-name=${sessionSandboxName(sessionId)}`])
@@ -165,17 +117,12 @@ async function removeLabelledContainers(sessionId: number): Promise<void> {
     if (ids.length) await execa('docker', ['rm', '-f', ...ids])
   }
   catch {
-    // Nothing to remove.
+    // Nothing left.
   }
 }
 
-// ddev commands run HOST-side (the CLI drives the host daemon), from the run's
-// checkout so ddev resolves the right project.
-// ddev honors XDG_CONFIG_HOME for its global config dir, and GitHub runners
-// (and some desktops) export it: the global config the boot writes to
-// ~/.ddev (plugins/agent-tools.ts, provision-host.sh) would then never be
-// read, and the first `ddev start` boots a router on :80/:443. Unsetting it
-// pins every ddev call to ~/.ddev, the one place both writers use.
+// GitHub runners export XDG_CONFIG_HOME and ddev honors it for its global
+// config dir; unsetting it pins every ddev call to ~/.ddev.
 const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true', XDG_CONFIG_HOME: undefined }
 
 function execDdev(sessionId: number, args: string[], options?: Options) {
@@ -186,26 +133,15 @@ function execDdev(sessionId: number, args: string[], options?: Options) {
   })
 }
 
-// `docker exec -u <uid>` does no passwd lookup, so HOME/USER must be derived
-// inside the container: the wrapper resolves them from the container's passwd
-// (ddev bakes a user matching this process's uid into the web image) and then
-// execs the real command with its argv intact.
+// `docker exec -u <uid>` does no passwd lookup, so HOME/USER are derived here.
 const EXEC_WRAPPER = 'HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"; [ -n "$HOME" ] || HOME=/tmp; '
   + 'USER="$(id -un 2>/dev/null || echo web)"; export HOME USER; exec "$@"'
 
-// Run a command in the run's environment. Commands starting with `ddev` are
-// project-level (start, import-db, export-db) and run host-side via the ddev
-// CLI, with host paths; everything else execs inside the web container as this
-// process's uid (which owns the mounted checkout), in the project dir. execa
-// options pass through (the runner streams with `buffer: false`); `env`
-// becomes `docker exec -e` vars: how a secret reaches the agent process
-// without appearing in the command line (the ai step's provider key).
+// `env` becomes `docker exec -e` so a secret never appears in the command line.
 export function execInSandbox(sessionId: number, command: string[], options?: Options, env?: Record<string, string>) {
   if (command[0] === 'ddev') {
     const child = execDdev(sessionId, command.slice(1), { ...options, env: { ...(options?.env as Record<string, string> | undefined), ...env } })
-    // EVERY `ddev start` re-attaches the shared ddev_default network (compose
-    // reconciles the project towards its generated config), so the detach
-    // must follow every one, not just the boot in startEnvStack.
+    // Every `ddev start` re-attaches ddev_default, so the detach must follow each one.
     if (command[1] === 'start') void child.then(() => wireNetworks(sessionId), () => {})
     return child
   }
@@ -220,27 +156,14 @@ export function execInSandbox(sessionId: number, command: string[], options?: Op
   ], options)
 }
 
-// Copy a host-side file into the run's web container (e.g. the ai step's
-// prompt file travels this way).
 export async function copyIntoSandbox(sessionId: number, file: string, dest: string): Promise<void> {
   await execa('docker', ['cp', file, `${webContainerName(sessionId)}:${dest}`])
 }
 
-// How much command output the caller keeps in memory for the action to
-// inspect (bash `stdout` output, the js step's result marker). The run log
-// gets the full stream regardless.
 const STREAM_TAIL_CHARS = 128 * 1024
 
-// Run a command in the session's sandbox, streaming its stdout/stderr into
-// the caller's logger (the run log, routed through the run's logger so it
-// also lands in the current step's row) while capturing a tail for the
-// caller. Resolves with the exit code: never rejects on a non-zero exit, the
-// caller decides. Used by both the runner and the follow-up executor to
-// build their ActionRuntime on the same streaming.
 export function streamInSandbox(sessionId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
   const sub = execInSandbox(sessionId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
-  // Chunk list instead of string concat: re-slicing a full 128 KB string per
-  // stdout event would make chatty commands quadratic.
   const chunks: string[] = []
   let size = 0
   const capture = (d: Buffer) => {
@@ -257,11 +180,7 @@ export function streamInSandbox(sessionId: number, command: string[], log: (text
   return sub.then(r => ({ code: r.exitCode ?? 1, tail: chunks.join('').slice(-STREAM_TAIL_CHARS) }))
 }
 
-// Resolve the address the preview proxy targets: the web container's IP on the
-// ingress network (its nginx serves any Host header on :80). Resolved by IP,
-// not container name, so it works both when Knecht runs as a container (prod)
-// and as a plain host process (dev on the VM). Cached per run; the proxy drops
-// the entry on connection errors so a restarted stack re-resolves.
+// By IP, not container name: works whether Knecht runs as a container or a host process.
 const ipCache = new Map<number, string>()
 
 export async function resolvePreview(sessionId: number): Promise<string | null> {
@@ -287,11 +206,7 @@ export function forgetPreview(sessionId: number): void {
   ipCache.delete(sessionId)
 }
 
-// Post-start network wiring. The compose override already attaches web to the
-// ingress network; detaching web and db from the shared `ddev_default` network
-// (which ddev adds to every project) is what keeps parallel runs from reaching
-// each other. Best-effort: a missing network or an already-detached container
-// must not fail the start.
+// Detaching from `ddev_default` is what keeps parallel runs from reaching each other.
 async function wireNetworks(sessionId: number): Promise<void> {
   const name = sessionSandboxName(sessionId)
   for (const container of [webContainerName(sessionId), `ddev-${name}-db`]) {
@@ -299,10 +214,6 @@ async function wireNetworks(sessionId: number): Promise<void> {
   }
 }
 
-// Make sure the ingress network exists and, when Knecht itself runs as a
-// container, that it is attached, so the proxy can reach web container IPs.
-// Idempotent, best-effort (on the dev VM Knecht is a plain host process and
-// reaches bridge IPs directly).
 async function ensureIngressNetwork(): Promise<void> {
   try {
     await execa('docker', ['network', 'create', INGRESS_NETWORK])
@@ -314,6 +225,6 @@ async function ensureIngressNetwork(): Promise<void> {
     await execa('docker', ['network', 'connect', INGRESS_NETWORK, hostname()])
   }
   catch {
-    // Already connected, or not running as a container: fine either way.
+    // Already connected, or not a container.
   }
 }

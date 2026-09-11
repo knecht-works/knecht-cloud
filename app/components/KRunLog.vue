@@ -1,14 +1,6 @@
 <script setup lang="ts">
 import type { RunStatus, RunStatusMeta } from '~/utils/dashboard'
 
-// The run's FULL log as one continuous stream, cut into per-step segments at
-// the byte offsets the runner recorded (run_steps.logStart), with a step
-// index rail beside it: clicking a step scrolls the log to that step's
-// position. Nothing is hidden: retry banners, agent-git lines and the
-// closing ✓/✗ sit in the segment they chronologically belong to.
-
-// One timeline row as the run workspace builds it (run_steps row + registry
-// styling). Structural subset: the workspace passes its richer rows through.
 export interface RunLogRow {
   id: number
   stepId: string
@@ -27,30 +19,16 @@ export interface RunLogRow {
 }
 
 const props = defineProps<{
-  /** The full run log (runs.log), polled while live. */
   log: string
-  /** Timeline rows in execution order (workflow steps + follow-ups). */
   rows: RunLogRow[]
-  /** A run or follow-up is executing: keep following the tail. */
   live: boolean
-  /** Run facts for the synthetic Preparation entry (checkout + env boot
-   *  happen before any step row exists). */
   runStatus: RunStatus
   runStartedAt: string | number | Date | null
   runFinishedAt: string | number | Date | null
 }>()
 
-// ── Byte segmentation ──────────────────────────────────────────────────────
-// Encoded once per actual log change: `log` is a string prop, so a poll tick
-// that appended nothing patches nothing and this never re-runs. The offsets
-// are bytes (see runLogBytes in daemon/runner.ts), hence the encoder.
 const logBytes = computed(() => new TextEncoder().encode(props.log))
 
-// Cut points as a value-stable string: the poll replaces the rows array
-// every tick with identical content, and Vue only invalidates a computed's
-// dependents when its VALUE changes, so segmentation below re-runs only
-// when a row appeared, not on every poll. Every row records its offset at
-// insert (runner/followups); `?? 0` only guards the type's nullability.
 const cutsKey = computed(() => props.rows
   .map(r => ({ id: r.id, start: r.logStart ?? 0 }))
   .sort((a, b) => a.start - b.start || a.id - b.id)
@@ -58,27 +36,17 @@ const cutsKey = computed(() => props.rows
   .join('|'))
 const hasCuts = computed(() => cutsKey.value !== '')
 
-// Every section reads like the Preparation one: the step's '▶ <label>'
-// banner stays as the slice's first line, so the body always SAYS what the
-// step did. Only blank edges go: they are the banners' framing newlines,
-// which read as random gaps once the log is cut into sections.
 function trimEdges(text: string): string {
   return text.replace(/^\n+|\n+$/g, '')
 }
 
-// A rendered section of the log: the prelude (row null) or one row's slice.
 interface LogSection {
   key: number | 'prelude'
   row: RunLogRow | null
   text: string
 }
 
-// Cut the byte stream at the offsets and decode each slice. Offsets are
-// clamped: the steps poll can deliver a row inserted after the (slightly
-// older) log was read, so its offset may point past the end; the empty
-// segment heals on the next tick. Boundaries always fall between complete
-// appends, so decoding never splits a code point. Without rows yet (a run
-// still preparing) the whole log is the prelude.
+// Clamped: the steps poll can deliver a row whose offset points past the log read in the same tick.
 const sections = computed<LogSection[]>(() => {
   const bytes = logBytes.value
   if (!hasCuts.value) return [{ key: 'prelude', row: null, text: props.log }]
@@ -102,7 +70,6 @@ const sections = computed<LogSection[]>(() => {
   return out
 })
 
-// ── The synthetic Preparation entry (checkout + boot, no run_steps row) ────
 const preludeStatusMeta = computed(() => {
   if (props.rows.length) return RUN_STATUS_META.success
   if (props.live) return RUN_STATUS_META.running
@@ -111,12 +78,9 @@ const preludeStatusMeta = computed(() => {
 const preludeDuration = computed(() =>
   runDuration(props.runStartedAt, props.rows[0]?.startedAt ?? props.runFinishedAt))
 
-// ── Scroll handling (stick-to-bottom latch, shared with KLogView) ──────────
 const container = ref<HTMLElement | null>(null)
 const { stick, onScroll } = useStickToBottom(container, () => props.log)
 
-// ── Collapsed sections (default expanded, toggled via the sticky header) ───
-// Replaced wholesale on every toggle so the Set stays reactive.
 const collapsed = ref(new Set<number | 'prelude'>())
 function toggleCollapsed(key: number | 'prelude') {
   const next = new Set(collapsed.value)
@@ -125,12 +89,6 @@ function toggleCollapsed(key: number | 'prelude') {
   collapsed.value = next
 }
 
-// ── Active section (scroll spy for the index rail) ─────────────────────────
-// The section whose anchor sits above the reading position (just under the
-// sticky header). While following the tail (or when there is nothing to
-// scroll yet) the LAST section wins: that is the step currently producing
-// output, active the moment it starts, even before it printed enough lines
-// to reach the reading position.
 const activeKey = ref<number | 'prelude'>('prelude')
 function updateActive() {
   const node = container.value
@@ -151,43 +109,32 @@ function handleScroll() {
   onScroll()
   updateActive()
 }
-// A short log fires no scroll events, so a freshly started step would keep
-// the previous one active until the user scrolls; recompute when the
-// section list changes (nextTick: the new anchor must be in the DOM).
+// A log too short to scroll fires no scroll events, so recompute on section changes.
 watch(sections, async () => {
   await nextTick()
   updateActive()
 }, { immediate: true })
 
-// Segment anchors keyed by row id ('prelude' for the synthetic entry).
-// Function refs, so v-for cleanup nulls stale entries.
 const anchors = new Map<number | 'prelude', HTMLElement>()
 function setAnchor(key: number | 'prelude', el: unknown) {
   if (el instanceof HTMLElement) anchors.set(key, el)
   else anchors.delete(key)
 }
 
-// Rail click: unpin FIRST (a live run must not yank the view back down),
-// then jump. scrollTo on the container, not scrollIntoView: the latter
-// would also scroll the page. offsetTop is container-relative because the
-// container is positioned `relative`.
+// Unpin first (a live run would yank the view back down). scrollTo on the
+// container, not scrollIntoView, which would also scroll the page.
 function jumpTo(key: number | 'prelude') {
   const target = anchors.get(key)
   if (!container.value || !target) return
   if (collapsed.value.has(key)) toggleCollapsed(key)
   stick.value = false
   container.value.scrollTo({ top: target.offsetTop })
-  // Directly, not via updateActive: a log too short to scroll fires no
-  // scroll event, and the clicked entry must still light up.
   activeKey.value = key
 }
 </script>
 
 <template>
   <div class="flex flex-col lg:flex-row">
-    <!-- The step index: right of the log on lg+, a compact block ABOVE it on
-         small screens (order utilities; below the log it couldn't be seen
-         while reading). -->
     <nav class="k-scrollbar-none order-1 max-h-40 flex-none overflow-y-auto border-b border-muted lg:order-2 lg:max-h-150 lg:w-60 lg:border-b-0 lg:border-l">
       <ul class="py-1.5">
         <li>
@@ -250,8 +197,7 @@ function jumpTo(key: number | 'prelude') {
       </ul>
     </nav>
 
-    <!-- The continuous log: ONE scroll container holding every segment.
-         `relative` so the anchors' offsetTop resolves against it. -->
+    <!-- `relative` so the anchors' offsetTop resolves against this container. -->
     <div
       ref="container"
       class="k-scrollbar-none relative order-2 max-h-150 min-w-0 flex-1 overflow-y-auto lg:order-1"
@@ -263,12 +209,6 @@ function jumpTo(key: number | 'prelude') {
         :ref="el => setAnchor(seg.key, el)"
         :class="i ? 'border-t border-muted' : ''"
       >
-        <!-- The step row, in the app's standard list-row look (icon tile,
-             label + snippet); duration and status live in the index rail.
-             Sticky within the container so a long segment stays labeled
-             while it scrolls. Clicking it folds the section's output. The
-             active section carries the same primary edge bar as its rail
-             entry. -->
         <header
           class="sticky top-0 z-10 flex cursor-pointer select-none items-center gap-3 px-4.5 py-3"
           style="background: var(--surface-muted)"
@@ -314,9 +254,6 @@ function jumpTo(key: number | 'prelude') {
             :class="collapsed.has(seg.key) ? '-rotate-90' : ''"
           />
         </header>
-        <!-- The step's output, readable and in order. Empty slices happen (a
-             composite's banner-only slice, a row that just started): a dim
-             placeholder while running, just the row itself after. -->
         <pre
           v-if="seg.text && !collapsed.has(seg.key)"
           class="k-mono whitespace-pre-wrap break-words px-4.5 pb-3.5 text-xs leading-loose text-muted"

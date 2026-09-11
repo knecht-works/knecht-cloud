@@ -5,19 +5,9 @@ import { join } from 'node:path'
 import { execa, type Options } from 'execa'
 import type { Project } from '../../server/db/schema'
 
-// The fake run substrate for engine tests: commands execute directly on the
-// test host with the run's fake checkout as cwd, instead of inside a run's
-// web container. Everything above this seam (runner, actions, log/row plumbing)
-// is the real code. Engine test files wire these in via vi.mock (see
-// test/engine/runner.test.ts).
-
-// runId -> the run's fake checkout dir. Keyed like the real per-run worktrees
-// so a resumed run (same runId) gets the same dir back, marker files included.
+// Keyed by runId so a resumed run gets the same dir back, marker files included.
 const checkouts = new Map<number, string>()
 
-// Replaces daemon/git prepareSessionCheckout: a fresh temp dir with a real git
-// repo (the git actions run real git against it) and an empty .ddev/ (the
-// runner writes its config override there).
 export async function fakeCheckout(_project: Project, runId: number): Promise<string> {
   const existing = checkouts.get(runId)
   if (existing) return existing
@@ -34,31 +24,22 @@ export function checkoutDirOf(runId: number): string {
   return dir
 }
 
-// The js action copies its script to /tmp/knecht-js-<runId>.mjs inside the
-// sandbox and runs it there. Map that container path into the checkout dir so
-// the fake stays self-contained on the host.
 function mapSandboxPath(runId: number, text: string): string {
   return text.replaceAll(`/tmp/knecht-js-${runId}.mjs`, join(checkoutDirOf(runId), `knecht-js-${runId}.mjs`))
 }
 
-// Replaces daemon/sandbox execInSandbox: same signature, runs on the host in
-// the run's checkout. Env vars merge over the host env (the real docker exec
-// -e semantics for the variables the action sets).
 export function execInSandbox(runId: number, command: string[], options?: Options, env?: Record<string, string>) {
   const mapped = command.map(part => mapSandboxPath(runId, part))
   const [cmd, ...args] = mapped
   return execa(cmd!, args, { ...options, cwd: checkoutDirOf(runId), env: { ...env } })
 }
 
-// Replaces daemon/sandbox copyIntoSandbox.
 export async function copyIntoSandbox(runId: number, hostPath: string, sandboxPath: string): Promise<void> {
   await copyFile(hostPath, mapSandboxPath(runId, sandboxPath))
 }
 
 const STREAM_TAIL_CHARS = 128 * 1024
 
-// Replaces daemon/sandbox streamInSandbox: same behavior, built on this
-// file's fake execInSandbox instead of a real docker exec.
 export function streamInSandbox(runId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
   const sub = execInSandbox(runId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
   const chunks: string[] = []

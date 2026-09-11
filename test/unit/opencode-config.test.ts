@@ -8,10 +8,6 @@ import {
   WORKFLOW_SYSTEM_PATH,
 } from '../../server/utils/opencode-config'
 
-// The generated opencode.json, asserted structurally: the instructions the
-// agent always receives, and the custom provider block a gateway provider
-// (langdock) needs because it is not in models.dev.
-
 describe('buildOpencodeConfig', () => {
   it('emits the static instructions array and no provider block for registry providers', () => {
     const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })

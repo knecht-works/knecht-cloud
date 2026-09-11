@@ -4,11 +4,6 @@ import { cancelFollowupWork } from '../../../daemon/followups'
 import { cancelRun } from '../../../daemon/runner'
 import { withSessionEnv } from '../../../utils/run-view'
 
-// POST /api/runs/:id/cancel → stop a live run. The row flips to 'cancelled'
-// immediately (the UI settles without waiting on the runner), then the
-// in-process runner is aborted: it kills the in-flight sandbox command and
-// unwinds at the next step boundary. The env is left as-is, so the run stays
-// previewable and retryable. Cancelling a queued run just dequeues it.
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
   const run = requireRun(id)
@@ -22,8 +17,6 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 409, statusMessage: 'Run already finished' })
   }
 
-  // A mention run is driven by its follow-up, not the runner: stopping it
-  // means stopping that follow-up (dequeue if queued, abort if executing).
   if (run.kind === 'mention') {
     cancelFollowupWork(run.sessionId, id)
   }

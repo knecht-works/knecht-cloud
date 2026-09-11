@@ -1,14 +1,8 @@
 <script setup lang="ts">
-// Create OR edit a trigger. The edit form mirrors create: source, projects and
-// the source-specific settings (cron / GitHub event) are all editable. The
-// workflow is never shown (the modal only opens from within a workflow, so it's
-// implicit). GitHub triggers need no setup here: events arrive via the GitHub
-// App webhook, configured automatically when the app was created at setup.
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
   presetWorkflowId?: number
   presetProjectIds?: number[]
-  /** Edit this trigger instead of creating one. */
   trigger?: {
     id: number
     source: 'schedule' | 'github' | 'manual' | 'jira'
@@ -45,8 +39,6 @@ const CRON_PRESETS = [
   { label: 'Weekly · Mon 09:00', cron: '0 9 * * 1' },
 ]
 
-// Lazy: the modal is mounted (closed) on every workflow page, so the project
-// list only matters once it opens, so it must not block the page.
 const { data: projects } = useFetch('/api/projects', {
   default: () => [],
   lazy: true,
@@ -58,16 +50,12 @@ const workflowId = ref<number>()
 const projectIds = ref<number[]>([])
 const cron = ref('0 9 * * *')
 const githubEvent = ref<'push' | 'pull_request' | 'issues'>('push')
-// Comma-separated branch filter (push: the pushed branch, PR: the base branch);
-// empty = every branch.
 const branchFilter = ref('')
 const issueOpened = ref(true)
 const issueLabeled = ref(false)
 const issueLabel = ref('')
 const creating = ref(false)
 
-// Jira: the connection (Settings) decides whether the source is usable; the
-// project and status dropdowns load on demand from the connected site.
 const { data: jiraConnection } = useFetch<{ configured: boolean }>('/api/jira/connection', { lazy: true })
 const jiraProjects = ref<{ label: string, value: string }[]>([])
 const jiraProjectKey = ref('')
@@ -76,7 +64,6 @@ const jiraLabel = ref('knecht')
 const jiraStatus = ref('')
 const jiraStatuses = ref<string[]>([])
 
-// Load the project list the first time the Jira source is picked.
 watch([source, () => jiraConnection.value?.configured], async ([src, configured]) => {
   if (src !== 'jira' || !configured || jiraProjects.value.length) return
   try {
@@ -84,11 +71,10 @@ watch([source, () => jiraConnection.value?.configured], async ([src, configured]
     jiraProjects.value = list.map(p => ({ label: `${p.key} · ${p.name}`, value: p.key }))
   }
   catch {
-    // The dropdown stays empty and the create button disabled.
+    // Jira unreachable: the dropdown stays empty.
   }
 })
 
-// The status dropdown is per Jira project.
 watch([jiraProjectKey, jiraCondition], async ([key, condition]) => {
   if (!key || condition !== 'status') return
   try {
@@ -121,7 +107,6 @@ function issueActions(): ('opened' | 'labeled')[] {
   ]
 }
 
-// Client-side gate only. The server validates the cron authoritatively.
 const cronLooksValid = computed(() => cron.value.trim().split(/\s+/).length === 5)
 const issuesLookValid = computed(() =>
   githubEvent.value !== 'issues'
@@ -195,8 +180,6 @@ async function create() {
   }
 }
 
-// Prefill from the trigger being edited or the opening context; reset to a
-// fresh form on close.
 watch(open, (isOpen) => {
   if (isOpen) {
     if (props.trigger) {
@@ -251,7 +234,6 @@ watch(open, (isOpen) => {
   >
     <template #body>
       <div class="space-y-5">
-        <!-- Source -->
         <div>
           <span class="k-label">Source</span>
           <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -279,7 +261,6 @@ watch(open, (isOpen) => {
           </div>
         </div>
 
-        <!-- Projects -->
         <div>
           <span class="k-label">Projects</span>
           <USelectMenu
@@ -296,7 +277,6 @@ watch(open, (isOpen) => {
           </p>
         </div>
 
-        <!-- Schedule: cron -->
         <div v-if="source === 'schedule'">
           <span class="k-label">Schedule</span>
           <UInput
@@ -327,7 +307,6 @@ watch(open, (isOpen) => {
           </p>
         </div>
 
-        <!-- GitHub: event + filters -->
         <div
           v-else-if="source === 'github'"
           class="space-y-4"
@@ -346,7 +325,6 @@ watch(open, (isOpen) => {
             />
           </div>
 
-          <!-- Push / PR: branch filter -->
           <div v-if="githubEvent !== 'issues'">
             <span class="k-label">{{ githubEvent === 'pull_request' ? 'Base branches' : 'Branches' }}</span>
             <UInput
@@ -362,7 +340,6 @@ watch(open, (isOpen) => {
             </p>
           </div>
 
-          <!-- Issues: which actions, optionally gated on a label -->
           <div v-else>
             <span class="k-label">Fires when</span>
             <div class="mt-2 space-y-2">
@@ -397,7 +374,6 @@ watch(open, (isOpen) => {
           </p>
         </div>
 
-        <!-- Jira: project + one condition (label or status) -->
         <div
           v-else-if="source === 'jira'"
           class="space-y-4"

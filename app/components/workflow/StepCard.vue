@@ -2,21 +2,12 @@
 import { WORKFLOW_DND } from '~/composables/useStepDnd'
 import { RAIL_CTX } from '~/composables/useWorkflowRail'
 
-// One step card in the rail, at any nesting depth. Top-level (depth 1) keeps
-// the numbered status-spine gutter and the full-size header; nested cards
-// render compact (no gutter, status via border/accent/label). Settings expand
-// inline in both. The card is one row of its list: the grip arms the row for
-// HTML5 dragging, dragover tracks the insertion point in the containing list.
 const props = defineProps<{
   step: WorkflowStep
-  /** The sibling array the step lives in (DnD source, remove target). */
   list: WorkflowStep[]
   index: number
-  /** Nesting depth of the CONTAINING list (top-level = 1). */
   depth: number
-  /** Variable groups visible at this step. */
   groups: VarGroup[]
-  /** Top-level only: last row (the spine stops instead of continuing). */
   last?: boolean
 }>()
 
@@ -28,24 +19,16 @@ const meta = computed(() => workflowStepMeta(props.step))
 const editable = computed(() => rail.editable.value)
 const open = computed(() => rail.openSteps.value.has(props.step))
 
-// Run status by id; outside a run the map is empty and the card falls back
-// to idle/selected.
 const node = computed<NodeStatus>(() =>
   rail.statuses.value.get(props.step.id ?? '') ?? { status: open.value ? 'selected' : 'idle' })
 const status = computed(() => node.value.status)
 
-// Only problems on touched steps light the card up (all of them after a
-// failed save); a just-added step keeps its neutral "Not configured yet".
 const issues = computed(() =>
   stepIssues(props.step).filter(issue => rail.submitted.value || !stepPristine(issue.step)))
 
 const dragged = computed(() => dnd.drag.value?.kind === 'step' && dnd.drag.value.step === props.step)
-// The grip arms the row for dragging (draggable must sit on the row, but
-// dragging should only start from the grip).
 const armed = ref(false)
 
-// The list is edited in place: the draft object owns the state, the same
-// contract as StepSettings' `record`.
 const list = computed(() => props.list)
 
 const borderColor = computed(() => {
@@ -69,7 +52,6 @@ function remove() {
     @dragover="dnd.overRow(list, depth, index, $event)"
     @dragend="dnd.endDrag"
   >
-    <!-- status-spine gutter (top level only) -->
     <div
       v-if="top"
       class="flex w-7.5 flex-none flex-col items-center"
@@ -120,7 +102,6 @@ function remove() {
       />
     </div>
 
-    <!-- Card: summary row; clicking expands the settings inline. -->
     <div
       :id="`step-card-${step.id}`"
       class="relative min-w-0 flex-1 overflow-hidden"
@@ -140,7 +121,6 @@ function remove() {
         class="group/row flex items-center"
         :class="top ? 'gap-2.5 py-2.5 pl-2.5 pr-3' : 'gap-2 py-2 pl-2 pr-2.5'"
       >
-        <!-- drag grip: arms the row for HTML5 dragging -->
         <span
           v-if="editable"
           class="flex-none cursor-grab text-dimmed transition-colors hover:text-muted active:cursor-grabbing"
@@ -180,7 +160,6 @@ function remove() {
             </span>
           </span>
         </button>
-        <!-- loop iterations observed during the run -->
         <span
           v-if="node.runs != null && node.runs > 1"
           class="k-mono flex-none rounded-full border border-muted px-1.5 text-3xs leading-4 text-dimmed"
@@ -208,7 +187,6 @@ function remove() {
         />
       </div>
 
-      <!-- inline settings, animated open/closed -->
       <div
         class="grid transition-[grid-template-rows] duration-300 ease-out"
         :style="{ gridTemplateRows: open ? '1fr' : '0fr' }"
@@ -224,8 +202,6 @@ function remove() {
         </div>
       </div>
 
-      <!-- composite body (if branches, loop steps): rendered INSIDE the card,
-           so the one border binds the step to its children -->
       <slot name="body" />
     </div>
   </div>

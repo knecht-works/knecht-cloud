@@ -1,6 +1,4 @@
 <script setup lang="ts">
-// A headline metric: a big tabular mono number with an optional suffix and an
-// uppercase mono caption underneath. Sits in the overview's stat row.
 withDefaults(defineProps<{
   value: string | number
   label: string

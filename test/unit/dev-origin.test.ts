@@ -25,7 +25,6 @@ describe('dev origin label', () => {
   it('tells a dev label apart from a project hostname\'s label before verifying it', () => {
     expect(looksLikeDevServerLabel(devServerLabel(7))).toBe(true)
     expect(looksLikeDevServerLabel('dev-' + '0'.repeat(32))).toBe(true)
-    // A repo's own staging hostnames label as dev-… too: they are hostnames.
     expect(looksLikeDevServerLabel(previewLabel('dev.example.com'))).toBe(false)
     expect(looksLikeDevServerLabel(previewLabel('dev-api.ddev.site'))).toBe(false)
     expect(looksLikeDevServerLabel('dev-0000')).toBe(false)

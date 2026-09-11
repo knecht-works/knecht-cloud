@@ -2,11 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
-// The idle reaper against the real schema: only the container boundary is
-// faked. The contract under test: a stale env is stopped, but a run with a
-// step still executing is spared and gets a fresh idle window instead of a
-// SIGKILL under the working agent.
-
 const stopEnvStack = vi.fn(async () => {})
 vi.mock('../../server/daemon/sandbox', () => ({
   envStackRunning: async () => true,
@@ -69,11 +64,9 @@ describe('reapIdleEnvs', () => {
     }).returning({ id: schema.runSteps.id }).get()
     await reapIdleEnvs()
     expect(getSessionRow(run.sessionId).envState).toBe('up')
-    // Step finishes; the bumped clock keeps the env up through the next tick.
     db.update(schema.runSteps).set({ status: 'success' }).where(eq(schema.runSteps.id, step.id)).run()
     await reapIdleEnvs()
     expect(getSessionRow(run.sessionId).envState).toBe('up')
-    // Only once the full idle window has passed after the bump does it stop.
     db.update(schema.sessions).set({ previewLastSeen: STALE }).where(eq(schema.sessions.id, run.sessionId)).run()
     await reapIdleEnvs()
     expect(getSessionRow(run.sessionId).envState).toBe('stopped')

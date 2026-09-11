@@ -1,13 +1,10 @@
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto'
 
-// Symmetric encryption for secrets stored at rest (the GitHub App's client
-// secret and private key live in the DB, not in env). The key is derived from
-// NUXT_SESSION_PASSWORD (already mandatory to seal the session cookie), so
-// enabling encryption adds no new env var. Rotating that password makes stored
-// secrets unreadable; the fix is to re-run the GitHub App setup, not decrypt.
+// The key derives from NUXT_SESSION_PASSWORD. Rotating that password makes
+// stored secrets unreadable; the fix is to re-run the GitHub App setup.
 
 const ALGO = 'aes-256-gcm'
-const IV_LEN = 12 // GCM standard nonce length
+const IV_LEN = 12
 const TAG_LEN = 16
 
 function key(): Buffer {
@@ -18,12 +15,10 @@ function key(): Buffer {
       + 'and derives the key that encrypts stored secrets. Generate: openssl rand -base64 32.',
     )
   }
-  // Fixed salt/info: the password is the only secret input and it is per-instance
-  // already. HKDF just stretches it to a proper 32-byte AES key.
+  // Fixed salt: the password is per-instance already, HKDF only stretches it.
   return Buffer.from(hkdfSync('sha256', password, 'knecht-secret-store', 'aes-256-gcm', 32))
 }
 
-// Returns `iv:tag:ciphertext`, all base64: one self-describing string per secret.
 export function encrypt(plaintext: string): string {
   const iv = randomBytes(IV_LEN)
   const cipher = createCipheriv(ALGO, key(), iv)
