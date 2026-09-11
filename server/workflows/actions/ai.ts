@@ -1,8 +1,11 @@
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { db, schema } from '../../db'
+import { openAgent, type AgentSession } from '../../daemon/agent'
+import { getSessionRow } from '../../utils/entities'
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '../../../shared/utils/workflow'
 import { type AiProviderId, MODEL_NAME_RE, stripLegacyModelPrefix } from '../../../shared/utils/ai'
 import { getSettings } from '../../utils/settings'
@@ -25,9 +28,6 @@ const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
   'langdock': ['LANGDOCK_API_KEY'],
 }
 
-// Every segment shell-safe: the model string is embedded in the bash command line below.
-const MODEL_RE = /^[\w.-]+(\/[\w.:-]+)+$/
-
 // workflow.md is always (over)written so one ai step's prompt never leaks into a later one.
 const AGENT_CONFIG_SUBDIR = join('.knecht', 'opencode')
 
@@ -48,27 +48,34 @@ export const aiAction = defineAction({
     const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId, step.model)
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
+    await writeAgentConfig(rt, step.system ?? '', bareModel)
 
-    const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
+    // A workflow step never inherits a conversation: every step is its own agent session.
+    const agent = await startAgent(rt, env, null)
     try {
-      await writeAgentConfig(rt, step.system ?? '', bareModel)
-
       if (!step.output) {
-        const text = await runOpencode(rt, dir, model, env, step.prompt, hasConversation(rt))
+        const { text } = await agent.prompt(step.prompt)
+        if (!text) throw new Error('the agent produced no output')
         const json = tryParseJson(stripFences(text))
         return json === undefined ? { text } : { text, json }
       }
-      return await runWithOutput(rt, dir, model, env, step.prompt, step.output)
+      return await runWithOutput(rt, agent, step.prompt, step.output)
     }
     finally {
+      await agent.close()
       await persistAgentMemory(rt.project.id, rt.checkoutDir, rt.log)
-      await rm(dir, { recursive: true, force: true })
     }
   },
 })
 
-function hasConversation(rt: ActionRuntime): boolean {
-  return existsSync(join(rt.checkoutDir, '.knecht', 'data'))
+function startAgent(rt: ActionRuntime, env: Record<string, string>, sessionId: string | null): Promise<AgentSession> {
+  return openAgent({
+    process: rt.sandbox.spawn(['opencode', 'acp'], { env }),
+    cwd: rt.sandbox.projectDir,
+    log: rt.log,
+    signal: rt.signal,
+    sessionId,
+  })
 }
 
 async function resolveAgentEnv(
@@ -93,9 +100,6 @@ async function resolveAgentEnv(
     throw new Error(`Unsupported provider '${provider}'. Supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
   }
   const model = agentModelRef(provider, bare)
-  if (!MODEL_RE.test(model)) {
-    throw new Error(`Invalid model '${model}': not shell-safe`)
-  }
   const key = decrypt(settings.aiKeyEnc)
   return {
     model,
@@ -104,26 +108,28 @@ async function resolveAgentEnv(
   }
 }
 
+// The chat is one agent session per Knecht session: resumed when the agent still has it.
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Promise<string> {
   const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId)
   rt.log(`\n▶ follow-up (${model}): ${oneLine(prompt, 100)}\n`)
   await rt.sandbox.ensureUp()
   await writeAgentConfig(rt, null, bareModel)
-  const dir = await mkdtemp(join(tmpdir(), 'knecht-ai-'))
+  const agent = await startAgent(rt, env, getSessionRow(rt.sessionId)?.agentSessionId ?? null)
   try {
-    return await runOpencode(rt, dir, model, env, prompt, true)
+    if (!agent.loaded) {
+      db.update(schema.sessions).set({ agentSessionId: agent.sessionId }).where(eq(schema.sessions.id, rt.sessionId)).run()
+    }
+    return (await agent.prompt(prompt)).text
   }
   finally {
+    await agent.close()
     await persistAgentMemory(rt.project.id, rt.checkoutDir, rt.log)
-    await rm(dir, { recursive: true, force: true })
   }
 }
 
 async function runWithOutput(
   rt: ActionRuntime,
-  dir: string,
-  model: string,
-  env: Record<string, string>,
+  agent: AgentSession,
   prompt: string,
   spec: string,
 ): Promise<{ text: string, json: unknown }> {
@@ -134,9 +140,8 @@ async function runWithOutput(
 
   let message = `${prompt}\n\n${outputInstruction(shape, outPath)}`
   let lastError = ''
-  const continueFirst = hasConversation(rt)
   for (let attempt = 1; attempt <= MAX_OUTPUT_ATTEMPTS; attempt++) {
-    const text = await runOpencode(rt, dir, model, env, message, attempt > 1 || continueFirst)
+    const { text } = await agent.prompt(message)
     const read = await readOutputFile(rt, outPath)
     if (read.ok) {
       const parsed = schema.safeParse(read.value)
@@ -150,32 +155,6 @@ async function runWithOutput(
     message = correctionInstruction(shape, outPath, lastError)
   }
   throw new ActionError(`ai output did not match the schema after ${MAX_OUTPUT_ATTEMPTS} attempts: ${lastError}`)
-}
-
-// The prompt travels as a file: no shell quoting of user text.
-async function runOpencode(
-  rt: ActionRuntime,
-  dir: string,
-  model: string,
-  env: Record<string, string>,
-  message: string,
-  continueSession: boolean,
-): Promise<string> {
-  const hostFile = join(dir, 'prompt.txt')
-  await writeFile(hostFile, message)
-  // Unique per invocation: a retry or follow-up must not race an earlier prompt file.
-  const inSandbox = `/tmp/knecht-ai-${rt.runId}-${Date.now()}.txt`
-  await rt.sandbox.copyIn(hostFile, inSandbox)
-  // Without --auto, tool permissions are rejected and the run stalls.
-  const cont = continueSession ? '--continue ' : ''
-  const { code, tail } = await rt.sandbox.stream(
-    ['bash', '-lc', `opencode run --auto ${cont}--model ${model} "$(cat ${inSandbox})"`],
-    { env },
-  )
-  if (code !== 0) throw new ActionError(`opencode exited with code ${code}`, { exitCode: code })
-  const text = tail.trim()
-  if (!text) throw new Error('opencode produced no output')
-  return text
 }
 
 async function readOutputFile(

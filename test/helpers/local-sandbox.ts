@@ -3,6 +3,7 @@ import { copyFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa, type Options } from 'execa'
+import { toSandboxProcess, type SandboxProcess } from '../../server/daemon/sandbox-process'
 import type { Project } from '../../server/db/schema'
 
 // Keyed by runId so a resumed run gets the same dir back, marker files included.
@@ -56,4 +57,16 @@ export function streamInSandbox(runId: number, command: string[], log: (text: st
   sub.stdout?.on('data', capture)
   sub.stderr?.on('data', capture)
   return sub.then(r => ({ code: r.exitCode ?? 1, tail: chunks.join('').slice(-STREAM_TAIL_CHARS) }))
+}
+
+const STUB_AGENT = join(import.meta.dirname, 'acp-stub-agent.mjs')
+
+// The one binary the checkout does not have: `opencode acp` becomes the stub agent.
+export function spawnInSandbox(runId: number, command: string[], env?: Record<string, string>): SandboxProcess {
+  const [cmd, ...args] = command[0] === 'opencode' && command[1] === 'acp' ? ['node', STUB_AGENT] : command
+  return toSandboxProcess(execa(cmd!, args, {
+    cwd: checkoutDirOf(runId),
+    env: { ...env },
+    stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', buffer: false, reject: false,
+  }))
 }

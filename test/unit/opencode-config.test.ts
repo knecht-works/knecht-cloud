@@ -16,6 +16,8 @@ describe('buildOpencodeConfig', () => {
       // Exactly three entries: opencode adds a prompt-cache breakpoint per
       // file and Anthropic caps cache_control blocks at 4 per request.
       instructions: [RULES_PATH, WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
+      model: 'anthropic/claude-sonnet-4-5',
+      permission: 'allow',
     })
   })
 

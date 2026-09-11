@@ -7,11 +7,10 @@ import { createContext } from '../workflows/context'
 import { getProject, getRun, getSessionRow } from '../utils/entities'
 import { createIssueComment } from '../utils/github-app'
 import { sessionCheckoutDir } from '../utils/storage'
-import { tryParseJson } from '../utils/json'
 import { agentRepliedSince, withSessionLinks } from '../utils/sessions'
 import { currentBranch } from './git'
 import { appendLog, runLogBytes } from './runner'
-import { copyIntoSandbox, execInSandbox, streamInSandbox } from './sandbox'
+import { copyIntoSandbox, spawnInSandbox, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
 import { ensureEnvUp, reviveEnv } from './envs'
 
 const controllers = new Map<number, AbortController>()
@@ -128,15 +127,16 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
     log,
     signal: controller.signal,
     sandbox: {
+      projectDir: WEB_PROJECT_DIR,
       ensureUp: () => ensureEnvUp(session.id),
       stream: (command, opts) => streamInSandbox(session.id, command, log, opts?.env, controller.signal),
+      spawn: (command, opts) => spawnInSandbox(session.id, command, opts?.env),
       copyIn: (hostPath, sandboxPath) => copyIntoSandbox(session.id, hostPath, sandboxPath),
     },
   }
 
   try {
-    const tail = await runFollowupPrompt(rt, followupMessage(followup))
-    const reply = await readAgentReply(session.id, followup.startedAt ?? followup.createdAt) ?? tail
+    const reply = await runFollowupPrompt(rt, followupMessage(followup))
     await syncSessionBranch(session.id, run.id, rt)
     finalizeRow({ status: 'success', outputs: { text: reply.slice(0, 8 * 1024) } })
     log(`\n✓ Follow-up done\n`)
@@ -156,30 +156,6 @@ async function postMentionReply(followup: Followup, session: Session, project: P
   }
   catch (e) {
     appendLog(followup.runId, `\nCould not post the reply on the thread: ${(e as Error).message}\n`)
-  }
-}
-
-// The streamed tail is ANSI and tool output; opencode's session db has the clean message parts.
-function agentReplySql(sinceMs: number): string {
-  return 'SELECT json_extract(p.data, \'$.text\') AS text'
-    + ' FROM part p JOIN message m ON p.message_id = m.id'
-    + ' WHERE json_extract(m.data, \'$.role\') = \'assistant\''
-    + ' AND json_extract(p.data, \'$.type\') = \'text\''
-    + ` AND m.time_created > ${sinceMs}`
-    + ' ORDER BY p.time_created DESC LIMIT 1'
-}
-
-export async function readAgentReply(sessionId: number, since: Date): Promise<string | null> {
-  try {
-    // bash -l so opencode is on PATH.
-    const sql = agentReplySql(since.getTime()).replace(/'/g, '\'\\\'\'')
-    const { stdout } = await execInSandbox(sessionId, ['bash', '-lc', `opencode db --format json '${sql}'`])
-    const rows = tryParseJson(String(stdout ?? '').trim())
-    const text = Array.isArray(rows) ? (rows[0] as { text?: unknown } | undefined)?.text : undefined
-    return typeof text === 'string' && text.trim() ? text : null
-  }
-  catch {
-    return null
   }
 }
 

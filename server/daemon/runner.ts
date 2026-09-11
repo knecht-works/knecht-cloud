@@ -12,7 +12,7 @@ import { getInstallationToken } from '../utils/github-app'
 import { addJiraComment } from '../utils/jira'
 import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
-import { copyIntoSandbox, startEnvStack, streamInSandbox } from './sandbox'
+import { copyIntoSandbox, spawnInSandbox, startEnvStack, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
 import { ensureEnvUp } from './envs'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
@@ -136,8 +136,10 @@ async function execRun(runId: number, project: Project): Promise<void> {
       log,
       signal: controller.signal,
       sandbox: {
+        projectDir: WEB_PROJECT_DIR,
         ensureUp: () => ensureEnvUp(sessionId),
         stream: (command, opts) => streamInSandbox(sessionId, command, log, opts?.env, controller.signal),
+        spawn: (command, opts) => spawnInSandbox(sessionId, command, opts?.env),
         copyIn: (hostPath, sandboxPath) => copyIntoSandbox(sessionId, hostPath, sandboxPath),
       },
     }

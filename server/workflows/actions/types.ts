@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { Project } from '../../db/schema'
 import type { Step } from '../../../shared/utils/workflow'
 import type { RunContext } from '../context'
+import type { SandboxProcess } from '../../daemon/sandbox-process'
 
 export interface ActionRuntime {
   runId: number
@@ -12,9 +13,12 @@ export interface ActionRuntime {
   log: (text: string) => void
   signal: AbortSignal
   sandbox: {
+    /** The checkout's path inside the sandbox, not on the host. */
+    projectDir: string
     ensureUp: () => Promise<void>
     /** `env` never appears in the command line (secrets). */
     stream: (command: string[], opts?: { env?: Record<string, string> }) => Promise<{ code: number, tail: string }>
+    spawn: (command: string[], opts?: { env?: Record<string, string> }) => SandboxProcess
     copyIn: (hostPath: string, sandboxPath: string) => Promise<void>
   }
 }

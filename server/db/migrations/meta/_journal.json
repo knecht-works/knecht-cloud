@@ -225,6 +225,13 @@
       "when": 1788606821880,
       "tag": "0031_package-manager",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1789118484811,
+      "tag": "0032_agent-session",
+      "breakpoints": true
     }
   ]
 }
