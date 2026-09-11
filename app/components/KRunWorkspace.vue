@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { EnvTransition } from '#shared/utils/run'
-import { stepsInclude, type Step } from '#shared/utils/workflow'
 
 const props = defineProps<{ runId: number }>()
 
@@ -18,10 +17,6 @@ const { data: stepRows, refresh: refreshSteps } = useFetch(`/api/runs/${id}/step
 
 const isLive = computed(() => isLiveStatus(run.value?.status))
 
-const hasBootStep = computed(() => {
-  if (run.value?.kind === 'mention') return run.value.envState !== 'down'
-  return stepsInclude((run.value?.steps ?? []) as Step[], 'ddev-start')
-})
 const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
 
 const previewOnline = computed(() =>
@@ -100,7 +95,7 @@ usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refresh
       :preview-hosts="run.previewHosts ?? []"
       :has-preview-target="run.hasPreviewTarget"
       :env-state="run.envState"
-      :has-boot-step="hasBootStep"
+      :has-env="run.hasEnv"
       :preview-online="!!previewOnline"
       :is-live="isLive"
       :busy="busy"

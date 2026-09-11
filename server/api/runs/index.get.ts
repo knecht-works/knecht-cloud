@@ -1,7 +1,6 @@
 import { desc, eq } from 'drizzle-orm'
-import { stepsInclude } from '../../../shared/utils/workflow'
 import { db, schema } from '../../db'
-import { runSessionColumns, withPreviewTarget } from '../../utils/run-view'
+import { runSessionColumns, withSessionEnv } from '../../utils/run-view'
 
 const LIST_LIMIT = 200
 
@@ -35,5 +34,8 @@ export default defineEventHandler((event) => {
   }
 
   return query.orderBy(desc(schema.runs.id)).limit(LIST_LIMIT).all()
-    .map(({ steps, ...r }) => ({ ...withPreviewTarget(r), hasBootStep: stepsInclude(steps ?? [], 'ddev-start') }))
+    .map((r) => {
+      const { steps, ...view } = withSessionEnv(r)
+      return view
+    })
 })

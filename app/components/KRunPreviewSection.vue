@@ -9,7 +9,7 @@ const props = defineProps<{
   previewHosts: string[]
   hasPreviewTarget: boolean
   envState: EnvState
-  hasBootStep: boolean
+  hasEnv: boolean
   previewOnline: boolean
   isLive: boolean
   busy: EnvTransition | null
@@ -60,7 +60,7 @@ async function runAgain() {
 
 <template>
   <KPreviewBrowser
-    v-if="hasBootStep && hasPreviewTarget"
+    v-if="hasEnv && hasPreviewTarget"
     :session-id="sessionId"
     :hosts="previewHosts"
     :online="previewOnline"
@@ -76,7 +76,7 @@ async function runAgain() {
     />
   </KPreviewBrowser>
   <div
-    v-else-if="hasBootStep && envState !== 'up' && !isLive"
+    v-else-if="hasEnv && envState !== 'up' && !isLive"
     class="k-card flex flex-col items-center gap-3 p-5 text-center"
   >
     <KEnvLifecycle

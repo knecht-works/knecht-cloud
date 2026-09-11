@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
 import { envTransition } from '../../daemon/envs'
-import { runSessionColumns, withPreviewTarget } from '../../utils/run-view'
+import { runSessionColumns, withSessionEnv } from '../../utils/run-view'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
@@ -37,5 +37,5 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 404, statusMessage: 'Run not found' })
   }
 
-  return { ...withPreviewTarget(run), envTransition: envTransition(run.sessionId) }
+  return { ...withSessionEnv(run), envTransition: envTransition(run.sessionId) }
 })
