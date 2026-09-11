@@ -34,20 +34,14 @@ export async function collectGarbage(): Promise<GcResult> {
   return result
 }
 
-// List by both labels so an unrelated container is never touched: run stacks carry
-// ddev's site-name, hosts upgraded from Sysbox may still hold knecht.run ones.
 async function reapOrphanSandboxes(liveSessions: Set<number>): Promise<string[]> {
   const orphans = new Map<number, string>()
   try {
-    for (const filter of ['label=com.ddev.site-name', 'label=knecht.run']) {
-      const { stdout } = await execa('docker', ['ps', '-a', '--filter', filter, '--format', '{{.Names}}\t{{.Label "com.ddev.site-name"}}'])
-      for (const line of stdout.split('\n')) {
-        const [name = '', site = ''] = line.trim().split('\t')
-        if (!name) continue
-        const sessionId = Number((site || name).match(/^knecht-run-(\d+)$/)?.[1])
-        if (!sessionId || liveSessions.has(sessionId)) continue
-        orphans.set(sessionId, `knecht-run-${sessionId}`)
-      }
+    const { stdout } = await execa('docker', ['ps', '-a', '--filter', 'label=com.ddev.site-name', '--format', '{{.Label "com.ddev.site-name"}}'])
+    for (const line of stdout.split('\n')) {
+      const sessionId = Number(line.trim().match(/^knecht-run-(\d+)$/)?.[1])
+      if (!sessionId || liveSessions.has(sessionId)) continue
+      orphans.set(sessionId, `knecht-run-${sessionId}`)
     }
   }
   catch {
