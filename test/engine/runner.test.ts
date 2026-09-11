@@ -113,7 +113,7 @@ describe('runner', () => {
     expect(cancelRun(run.id)).toBe(true)
     await done
     expect(getRun(run.id).status).toBe('cancelled')
-    expect(getSteps(run.id)[0]!.error).toBe('Cancelled')
+    expect(getSteps(run.id)[0]!.status).toBe('cancelled')
   })
 
   it('records each step row\'s byte offset into the run log', async () => {

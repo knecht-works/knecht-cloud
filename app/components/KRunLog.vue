@@ -8,7 +8,7 @@ export interface RunLogRow {
   icon: string
   color: string
   error: string | null
-  status: 'running' | 'success' | 'failed'
+  status: 'running' | 'success' | 'failed' | 'cancelled'
   statusMeta: RunStatusMeta
   depth: number
   iteration: number | null

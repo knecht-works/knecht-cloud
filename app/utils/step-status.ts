@@ -2,13 +2,13 @@
 // resolves no Nuxt auto-imports.
 import type { Step } from '#shared/utils/workflow'
 
-export type StepStatus = 'idle' | 'selected' | 'done' | 'running' | 'error' | 'pending' | 'skipped'
+export type StepStatus = 'idle' | 'selected' | 'done' | 'running' | 'error' | 'pending' | 'skipped' | 'cancelled'
 
 export interface NodeStatus { status: StepStatus, runs?: number }
 
 export interface RunStepRowLike {
   stepId: string
-  status: 'running' | 'success' | 'failed'
+  status: 'running' | 'success' | 'failed' | 'cancelled'
 }
 
 export function buildStatusMap(
@@ -26,13 +26,16 @@ export function buildStatusMap(
     else byStep.set(row.stepId, [row])
   }
 
+  // A row still 'running' after a cancel is the step that has not noticed the abort yet.
   const fromRows = (stepRows: RunStepRowLike[]): StepStatus =>
     stepRows.some(r => r.status === 'running')
-      ? 'running'
-      : stepRows.some(r => r.status === 'failed') ? 'error' : 'done'
+      ? (run.status === 'cancelled' ? 'cancelled' : 'running')
+      : stepRows.some(r => r.status === 'cancelled')
+        ? 'cancelled'
+        : stepRows.some(r => r.status === 'failed') ? 'error' : 'done'
 
   const noRowStatus = (parentStatus: StepStatus, sealed: boolean): StepStatus =>
-    sealed || parentStatus === 'done' || parentStatus === 'error' || parentStatus === 'skipped'
+    sealed || parentStatus === 'done' || parentStatus === 'error' || parentStatus === 'skipped' || parentStatus === 'cancelled'
       ? 'skipped'
       : 'pending'
 
@@ -58,7 +61,7 @@ export function buildStatusMap(
 
   for (const step of steps) {
     const stepRows = step.id ? byStep.get(step.id) : undefined
-    visit(step, stepRows ? fromRows(stepRows) : (run.status === 'failed' ? 'skipped' : 'pending'))
+    visit(step, stepRows ? fromRows(stepRows) : (run.status === 'failed' || run.status === 'cancelled' ? 'skipped' : 'pending'))
   }
   return map
 }
@@ -71,6 +74,7 @@ export const TREAT: Record<StepStatus, { border: string, bg: string, accent: str
   error: { border: 'var(--status-error)', bg: 'color-mix(in oklab, var(--status-error) 8%, var(--surface-muted))', accent: 'var(--status-error)' },
   pending: { border: 'var(--border-muted)', bg: 'color-mix(in oklab, var(--surface-muted) 60%, transparent)', accent: null, dim: true },
   skipped: { border: 'var(--border-muted)', bg: 'transparent', accent: null, dim: true },
+  cancelled: { border: 'var(--border-muted)', bg: 'transparent', accent: null, dim: true },
 }
 
 export const STATUS_LABEL: Partial<Record<StepStatus, { text: string, color: string }>> = {
@@ -78,6 +82,7 @@ export const STATUS_LABEL: Partial<Record<StepStatus, { text: string, color: str
   done: { text: 'done', color: 'var(--text-primary)' },
   error: { text: 'failed', color: 'var(--status-error)' },
   skipped: { text: 'skipped', color: 'var(--text-dimmed)' },
+  cancelled: { text: 'cancelled', color: 'var(--text-dimmed)' },
 }
 
 export function issueSummary(r: { step: WorkflowStep, issues: StepIssue[] }): string {

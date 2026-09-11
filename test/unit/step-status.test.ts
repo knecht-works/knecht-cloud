@@ -58,6 +58,15 @@ describe('buildStatusMap', () => {
     expect(statusOf(map, 'e')).toBe('skipped')
   })
 
+  it('shows a cancelled run grey: the interrupted step and the row still running are cancelled, the rest skipped', () => {
+    const map = buildStatusMap(ifTree(), { status: 'cancelled' }, [row('a', 'success'), row('cond', 'running'), row('b', 'cancelled')])
+    expect(statusOf(map, 'a')).toBe('done')
+    expect(statusOf(map, 'cond')).toBe('cancelled')
+    expect(statusOf(map, 'b')).toBe('cancelled')
+    expect(statusOf(map, 'c')).toBe('skipped')
+    expect(statusOf(map, 'e')).toBe('skipped')
+  })
+
   it('skips the not-taken branch as soon as the other branch has rows', () => {
     const map = buildStatusMap(ifTree(), { status: 'running' }, [
       row('a', 'success'),

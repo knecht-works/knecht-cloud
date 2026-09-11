@@ -112,7 +112,7 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
   }).returning({ id: schema.runSteps.id }).get()
 
   const log = (text: string) => appendLog(run.id, text)
-  const finalizeRow = (patch: { status: 'success' | 'failed', outputs?: Record<string, unknown>, error?: string }) => {
+  const finalizeRow = (patch: { status: 'success' | 'failed' | 'cancelled', outputs?: Record<string, unknown>, error?: string }) => {
     db.update(schema.runSteps)
       .set({ ...patch, finishedAt: new Date() })
       .where(eq(schema.runSteps.id, row.id))
@@ -143,7 +143,7 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
     return reply
   }
   catch (e) {
-    finalizeRow({ status: 'failed', error: controller.signal.aborted ? 'Cancelled' : (e as Error).message })
+    finalizeRow(controller.signal.aborted ? { status: 'cancelled' } : { status: 'failed', error: (e as Error).message })
     throw e
   }
 }
