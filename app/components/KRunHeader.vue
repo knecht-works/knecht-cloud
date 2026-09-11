@@ -58,14 +58,21 @@ async function cancel() {
   }
 }
 
-async function envAction(action: 'stop' | 'archive') {
-  emit('pending', action === 'stop' ? 'stopping' : 'archiving')
+const ENV_ACTIONS = {
+  stop: { transition: 'stopping', error: 'Stop failed' },
+  archive: { transition: 'archiving', error: 'Archive failed' },
+  reboot: { transition: 'rebooting', error: 'Reboot failed' },
+  restore: { transition: 'restoring', error: 'Restore failed' },
+} as const satisfies Record<string, { transition: EnvTransition, error: string }>
+
+async function envAction(action: keyof typeof ENV_ACTIONS) {
+  emit('pending', ENV_ACTIONS[action].transition)
   try {
-    await $fetch(`/api/runs/${props.runId}/${action}`, { method: 'POST' })
+    await $fetch(`/api/runs/${props.runId}/${action === 'restore' ? 'reboot' : action}`, { method: 'POST' })
     emit('changed')
   }
   catch (e) {
-    toastError(action === 'stop' ? 'Stop failed' : 'Archive failed', e)
+    toastError(ENV_ACTIONS[action].error, e)
   }
   finally {
     emit('pending', null)
@@ -96,17 +103,24 @@ const menuItems = computed(() => {
         onSelect: () => emit('openTerminal'),
       }]
     : []
-  const lifecycle = props.envState === 'up' && !props.isLive
-    ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', disabled: !!props.busy, onSelect: () => envAction('stop') }]
+  const lifecycle = (props.envState === 'up' && !props.isLive
+    ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', action: 'stop' as const }]
     : props.envState === 'stopped'
-      ? [{ label: 'Archive environment', icon: 'i-lucide-archive', disabled: !!props.busy, onSelect: () => envAction('archive') }]
-      : []
-  return [remote, lifecycle, [{
+      ? [
+          { label: 'Reboot environment', icon: 'i-lucide-power', action: 'reboot' as const },
+          { label: 'Archive environment', icon: 'i-lucide-archive', action: 'archive' as const },
+        ]
+      : props.envState === 'archived'
+        ? [{ label: 'Restore environment', icon: 'i-lucide-archive-restore', action: 'restore' as const }]
+        : []
+  ).map(({ action, ...item }) => ({ ...item, disabled: !!props.busy, onSelect: () => envAction(action) }))
+  const remove = [{
     label: 'Delete run',
     icon: 'i-lucide-trash-2',
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
-  }]]
+  }]
+  return [remote, lifecycle, remove].filter(group => group.length)
 })
 </script>
 
