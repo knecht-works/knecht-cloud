@@ -58,7 +58,6 @@ function stepIdSlugs(): void {
   }
 }
 
-// Before the cancelled step status existed, an aborted step was stored as failed with this error text.
 function cancelledStepRows(): void {
   db.update(schema.runSteps)
     .set({ status: 'cancelled', error: null })

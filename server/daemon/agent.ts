@@ -39,9 +39,7 @@ const KIND_LABEL: Record<ToolKind, string> = {
   other: 'tool',
 }
 
-// One agent process, one ACP session, any number of prompts. Every session/update
-// of the current turn is written to the run log as one line per tool call plus the
-// agent's own text; the turn's last message is what a caller gets back as the reply.
+// One agent process, one ACP session; the turn's last message is the reply callers get back.
 export async function openAgent(opts: OpenAgentOptions): Promise<AgentSession> {
   const { process: proc, log } = opts
   let stderr = ''
@@ -79,34 +77,38 @@ export async function openAgent(opts: OpenAgentOptions): Promise<AgentSession> {
       Readable.toWeb(proc.stdout as NodeJS.ReadableStream & Readable) as ReadableStream<Uint8Array>,
     ))
   const agent = connection.agent
-
-  await untilExit(agent.request(methods.agent.initialize, {
-    protocolVersion: PROTOCOL_VERSION,
-    clientInfo: { name: 'knecht', version: '1' },
-    clientCapabilities: {},
-  }))
-
-  let sessionId: string
-  let loaded = false
-  if (opts.sessionId) {
-    try {
-      await untilExit(agent.request(methods.agent.session.load, { sessionId: opts.sessionId, cwd: opts.cwd, mcpServers: [] }))
-      sessionId = opts.sessionId
-      loaded = true
-    }
-    catch (e) {
-      log(`\nCould not resume the agent session, starting a new one: ${(e as Error).message}\n`)
-    }
-  }
-  if (!loaded) {
-    const created = await untilExit(agent.request(methods.agent.session.new, { cwd: opts.cwd, mcpServers: [] }))
-    sessionId = created.sessionId
-  }
-
   const close = async () => {
     connection.close()
     proc.kill()
     await proc.exited
+  }
+
+  let sessionId: string
+  let loaded = false
+  try {
+    await untilExit(agent.request(methods.agent.initialize, {
+      protocolVersion: PROTOCOL_VERSION,
+      clientInfo: { name: 'knecht', version: '1' },
+      clientCapabilities: {},
+    }))
+    if (opts.sessionId) {
+      try {
+        await untilExit(agent.request(methods.agent.session.load, { sessionId: opts.sessionId, cwd: opts.cwd, mcpServers: [] }))
+        sessionId = opts.sessionId
+        loaded = true
+      }
+      catch (e) {
+        log(`\nCould not resume the agent session, starting a new one: ${(e as Error).message}\n`)
+      }
+    }
+    if (!loaded) {
+      const created = await untilExit(agent.request(methods.agent.session.new, { cwd: opts.cwd, mcpServers: [] }))
+      sessionId = created.sessionId
+    }
+  }
+  catch (e) {
+    await close()
+    throw e
   }
 
   return {
