@@ -119,7 +119,9 @@ export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Prom
     if (!agent.loaded) {
       db.update(schema.sessions).set({ agentSessionId: agent.sessionId }).where(eq(schema.sessions.id, rt.sessionId)).run()
     }
-    return (await agent.prompt(prompt)).text
+    const { text } = await agent.prompt(prompt)
+    if (!text) throw new Error('the agent produced no output')
+    return text
   }
   finally {
     await agent.close()
