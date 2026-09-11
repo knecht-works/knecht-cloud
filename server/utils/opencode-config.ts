@@ -16,6 +16,8 @@ export interface OpencodeConfigInput {
 export interface OpencodeConfig {
   $schema: string
   instructions: string[]
+  model: string
+  permission: 'allow'
   small_model?: string
   provider?: Record<string, {
     npm: string
@@ -42,12 +44,15 @@ export function buildAgentRules(instance: string, project: string): string {
 }
 
 export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig {
+  const models = [input.model, ...(input.subtaskModel ? [input.subtaskModel] : [])]
+    .map(stripLegacyModelPrefix)
+  // The sandbox is the permission boundary; without this every tool call would stall on approval.
   const config: OpencodeConfig = {
     $schema: 'https://opencode.ai/config.json',
     instructions: [RULES_PATH, WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
+    model: agentModelRef(input.provider, models[0]!),
+    permission: 'allow',
   }
-  const models = [input.model, ...(input.subtaskModel ? [input.subtaskModel] : [])]
-    .map(stripLegacyModelPrefix)
   if (input.subtaskModel) config.small_model = agentModelRef(input.provider, models[1]!)
   // @ai-sdk/openai, not openai-compatible: Langdock's chat/completions route rejects
   // function tools combined with reasoning_effort (GPT-5.x); the Responses API accepts both.

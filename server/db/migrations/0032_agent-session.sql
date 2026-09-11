@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `agent_session_id` text;

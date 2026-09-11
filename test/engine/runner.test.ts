@@ -13,8 +13,8 @@ vi.mock('../../server/daemon/git', async (importOriginal) => {
 })
 const startEnvStack = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('../../server/daemon/sandbox', async () => {
-  const { execInSandbox, copyIntoSandbox, streamInSandbox } = await import('../helpers/local-sandbox')
-  return { execInSandbox, copyIntoSandbox, streamInSandbox, startEnvStack }
+  const { execInSandbox, copyIntoSandbox, streamInSandbox, spawnInSandbox } = await import('../helpers/local-sandbox')
+  return { execInSandbox, copyIntoSandbox, streamInSandbox, spawnInSandbox, startEnvStack, WEB_PROJECT_DIR: '/var/www/html' }
 })
 vi.mock('../../server/daemon/envs', () => ({ ensureEnvUp: async () => {} }))
 vi.mock('../../server/utils/github-app', () => ({

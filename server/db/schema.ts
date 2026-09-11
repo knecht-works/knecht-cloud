@@ -106,6 +106,8 @@ export const sessions = sqliteTable('sessions', {
   // Pinned at first boot for the same reason.
   previewPort: integer('preview_port'),
   previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),
+  // The chat thread's session at the agent. Workflow ai steps never use it: each gets a fresh one.
+  agentSessionId: text('agent_session_id'),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()

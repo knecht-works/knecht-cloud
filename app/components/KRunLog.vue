@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RunStatus, RunStatusMeta } from '~/utils/dashboard'
+import { stripAnsi } from '#shared/utils/ansi'
 
 export interface RunLogRow {
   id: number
@@ -36,8 +37,9 @@ const cutsKey = computed(() => props.rows
   .join('|'))
 const hasCuts = computed(() => cutsKey.value !== '')
 
+// ddev and shell output carry colour codes; cut in bytes first, then clean.
 function trimEdges(text: string): string {
-  return text.replace(/^\n+|\n+$/g, '')
+  return stripAnsi(text).replace(/^\n+|\n+$/g, '')
 }
 
 interface LogSection {

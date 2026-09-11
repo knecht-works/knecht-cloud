@@ -1,5 +1,6 @@
 import { hostname } from 'node:os'
 import { execa, type Options } from 'execa'
+import { toSandboxProcess, type SandboxProcess } from './sandbox-process'
 import { sessionSandboxName, sessionCheckoutDir } from '../utils/storage'
 
 export const WEB_PROJECT_DIR = '/var/www/html'
@@ -123,7 +124,7 @@ async function removeLabelledContainers(sessionId: number): Promise<void> {
 
 // GitHub runners export XDG_CONFIG_HOME and ddev honors it for its global
 // config dir; unsetting it pins every ddev call to ~/.ddev.
-const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true', XDG_CONFIG_HOME: undefined }
+const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true', NO_COLOR: '1', XDG_CONFIG_HOME: undefined }
 
 function execDdev(sessionId: number, args: string[], options?: Options) {
   return execa('ddev', args, {
@@ -145,15 +146,27 @@ export function execInSandbox(sessionId: number, command: string[], options?: Op
     if (command[1] === 'start') void child.then(() => wireNetworks(sessionId), () => {})
     return child
   }
-  return execa('docker', [
-    'exec', '-u', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
+  return execa('docker', dockerExecArgs(sessionId, command, env), options)
+}
+
+function dockerExecArgs(sessionId: number, command: string[], env?: Record<string, string>, flags: string[] = []): string[] {
+  return [
+    'exec', ...flags, '-u', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
     '-w', WEB_PROJECT_DIR,
     '-e', `XDG_CONFIG_HOME=${KNECHT_STATE_DIR}`,
     '-e', `XDG_DATA_HOME=${KNECHT_STATE_DIR}/data`,
+    '-e', 'NO_COLOR=1',
     ...Object.entries(env ?? {}).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
     webContainerName(sessionId),
     '/bin/sh', '-c', EXEC_WRAPPER, 'knecht-exec', ...command,
-  ], options)
+  ]
+}
+
+// `-i` keeps stdin open: the process is a peer that speaks a protocol over stdio.
+export function spawnInSandbox(sessionId: number, command: string[], env?: Record<string, string>): SandboxProcess {
+  return toSandboxProcess(execa('docker', dockerExecArgs(sessionId, command, env, ['-i']), {
+    stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', buffer: false, reject: false,
+  }))
 }
 
 export async function copyIntoSandbox(sessionId: number, file: string, dest: string): Promise<void> {
