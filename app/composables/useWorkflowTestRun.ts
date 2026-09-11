@@ -16,7 +16,7 @@ export interface TestRunStepRow {
   type: string
   origin: 'workflow' | 'followup'
   params: Record<string, unknown> | null
-  status: 'running' | 'success' | 'failed'
+  status: 'running' | 'success' | 'failed' | 'cancelled'
   error: string | null
   attempt: number
   parentStepId: string | null

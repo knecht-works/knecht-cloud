@@ -22,7 +22,7 @@ const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] 
 const previewOnline = computed(() =>
   run.value?.envState === 'up' && run.value.previewReady)
 
-const timeline = computed(() => runLogTimeline(stepRows.value ?? []))
+const timeline = computed(() => runLogTimeline(stepRows.value ?? [], run.value?.status))
 
 // The last row with an error is the most specific one: a composite is
 // finalized after the child that failed it.

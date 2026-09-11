@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from './index'
 import { stripLegacyModelPrefix } from '../../shared/utils/ai'
 import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '../../shared/utils/workflow'
@@ -7,6 +7,7 @@ import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from 
 const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0001_step_id_slugs', run: stepIdSlugs },
   { name: '0002_bare_ai_step_models', run: bareAiStepModels },
+  { name: '0003_cancelled_step_rows', run: cancelledStepRows },
 ]
 
 export function runDataMigrations(): void {
@@ -55,4 +56,12 @@ function stepIdSlugs(): void {
       db.update(schema.workflows).set({ steps }).where(eq(schema.workflows.name, row.name)).run()
     }
   }
+}
+
+// Before the cancelled step status existed, an aborted step was stored as failed with this error text.
+function cancelledStepRows(): void {
+  db.update(schema.runSteps)
+    .set({ status: 'cancelled', error: null })
+    .where(and(eq(schema.runSteps.status, 'failed'), eq(schema.runSteps.error, 'Cancelled')))
+    .run()
 }

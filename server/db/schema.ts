@@ -175,7 +175,7 @@ export const runSteps = sqliteTable('run_steps', {
   origin: text('origin', { enum: ['workflow', 'followup'] })
     .notNull()
     .default('workflow'),
-  status: text('status', { enum: ['running', 'success', 'failed'] })
+  status: text('status', { enum: ['running', 'success', 'failed', 'cancelled'] })
     .notNull()
     .default('running'),
   params: text('params', { mode: 'json' }).$type<Record<string, unknown>>(),

@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
 import { runDataMigrations } from '../../server/db/data-migrations'
 import type { Step } from '../../shared/utils/workflow'
+import { makeProject, makeRun } from '../helpers/db'
 
 // The engine setup runs the SQL migrations but not runDataMigrations, so they execute here.
 
@@ -44,6 +45,20 @@ describe('runDataMigrations', () => {
 
     const applied = db.select().from(schema.dataMigrations).all().map(r => r.name)
     expect(applied).toContain('0002_bare_ai_step_models')
+  })
+
+  it('turns steps stored as failed with the Cancelled error into cancelled steps', () => {
+    const run = makeRun(makeProject(), [])
+    const base = { runId: run.id, stepIndex: 0, stepId: 's', type: 'bash' }
+    const aborted = db.insert(schema.runSteps).values({ ...base, status: 'failed', error: 'Cancelled' }).returning().get()
+    const failed = db.insert(schema.runSteps).values({ ...base, status: 'failed', error: 'exit 1' }).returning().get()
+
+    // The first test already applied every migration; rerun this one against the rows above.
+    db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, '0003_cancelled_step_rows')).run()
+    runDataMigrations()
+
+    expect(db.select().from(schema.runSteps).where(eq(schema.runSteps.id, aborted.id)).get()).toMatchObject({ status: 'cancelled', error: null })
+    expect(db.select().from(schema.runSteps).where(eq(schema.runSteps.id, failed.id)).get()).toMatchObject({ status: 'failed', error: 'exit 1' })
   })
 
   it('is a no-op on the second run', () => {

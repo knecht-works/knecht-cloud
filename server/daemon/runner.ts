@@ -283,7 +283,7 @@ async function execStep(
     catch (e) {
       const error = (e as Error).message
       if (rt.signal.aborted) {
-        finalize({ status: 'failed', error: 'Cancelled', attempt })
+        finalize({ status: 'cancelled', attempt })
         throw e
       }
       if (attempt < maxAttempts) {

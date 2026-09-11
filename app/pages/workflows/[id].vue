@@ -347,7 +347,7 @@ const mode = computed<Mode>(() => {
 
 const statusMap = computed(() => buildStatusMap(steps.value, activeRun.value, activeRunSteps.value))
 
-const testTimeline = computed(() => runLogTimeline(activeRunSteps.value))
+const testTimeline = computed(() => runLogTimeline(activeRunSteps.value, activeRun.value?.status))
 
 const statusOf = (step: WorkflowStep | undefined): StepStatus | undefined =>
   step ? statusMap.value.get(step.id ?? '')?.status : undefined
