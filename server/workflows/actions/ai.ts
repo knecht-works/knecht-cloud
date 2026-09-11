@@ -111,7 +111,7 @@ async function resolveAgentEnv(
 // The chat is one agent session per Knecht session: resumed when the agent still has it.
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Promise<string> {
   const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId)
-  rt.log(`\n▶ follow-up (${model}): ${oneLine(prompt, 100)}\n`)
+  rt.log(`agent: ${model}\n`)
   await rt.sandbox.ensureUp()
   await writeAgentConfig(rt, null, bareModel)
   const agent = await startAgent(rt, env, getSessionRow(rt.sessionId)?.agentSessionId ?? null)
@@ -240,7 +240,7 @@ function formatZodError(error: z.ZodError): string {
   return error.issues.map(i => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')
 }
 
-function oneLine(text: string, max: number): string {
+export function oneLine(text: string, max: number): string {
   const flat = text.replace(/\s+/g, ' ').trim()
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
 }
