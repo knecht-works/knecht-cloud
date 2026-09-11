@@ -1,7 +1,7 @@
 import { and, eq, inArray, max } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Followup, Project, Run, Session } from '../db/schema'
-import { runFollowupPrompt } from '../workflows/actions/ai'
+import { oneLine, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
 import { getProject, getRun, getSessionRow } from '../utils/entities'
@@ -90,7 +90,7 @@ export async function startFollowup(followupId: number): Promise<void> {
 async function execFollowup(followup: Followup, session: Session, run: Run, project: Project, controller: AbortController): Promise<string> {
   // Offset before the banner, so the banner lands in this follow-up's log segment.
   const logStart = runLogBytes(run.id)
-  appendLog(run.id, `\n▶ ${followup.origin === 'mention' ? 'Mention' : 'Follow-up'}${followup.requestedBy ? ` (by ${followup.requestedBy})` : ''}\n`)
+  appendLog(run.id, `\n▶ ${followup.origin === 'mention' ? 'Mention' : 'Follow-up'}${followup.requestedBy ? ` (by ${followup.requestedBy})` : ''}: ${oneLine(followup.prompt, 160)}\n`)
 
   await reviveEnv(session.id)
 
