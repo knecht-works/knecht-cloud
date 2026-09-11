@@ -103,12 +103,6 @@ export async function removeEnvStack(sessionId: number): Promise<void> {
   catch {
     // Nothing left.
   }
-  try {
-    await execa('docker', ['rm', '-f', sessionSandboxName(sessionId)])
-  }
-  catch {
-    // Only hosts upgraded from Sysbox still have a container under this name.
-  }
 }
 
 async function removeLabelledContainers(sessionId: number): Promise<void> {
