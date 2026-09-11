@@ -2,12 +2,6 @@ import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Trigger } from '../db/schema'
 import type { SessionObject } from './sessions'
 
-// Logic for the GitHub App webhook receiver (server/api/github/webhook.post.ts):
-// verify the delivery against the app's webhook secret, then match it against a
-// trigger's event + filters and derive the run overrides.
-
-// Timing-safe check of GitHub's `x-hub-signature-256` header against the HMAC
-// of the raw body.
 export function verifyGithubSignature(raw: string, secret: string, provided: string): boolean {
   const expected = `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}`
   const a = Buffer.from(expected)
@@ -15,8 +9,6 @@ export function verifyGithubSignature(raw: string, secret: string, provided: str
   return a.length === b.length && timingSafeEqual(a, b)
 }
 
-// The slice of GitHub's webhook payloads the matcher reads. All optional:
-// deliveries are external input.
 export interface GithubPayload {
   action?: string
   ref?: string
@@ -39,49 +31,32 @@ export interface GithubPayload {
     title?: string
     body?: string | null
     html_url?: string
-    // Present when the "issue" is actually a pull request (issue_comment
-    // deliveries cover both surfaces).
     pull_request?: object
   }
   comment?: { id?: number, body?: string, user?: { login?: string, type?: string } }
   label?: { name?: string }
 }
 
-// What a matched delivery starts the run with: the branch to check out (null =
-// the project's default branch) and the event data steps read as {{ inputs.* }}.
-//
-// Inputs follow a UNIFIED contract so one workflow serves any trigger kind:
-// exactly `event` (what happened, e.g. 'issues'), `identifier`, `title`,
-// `body` and `url` (the subject: the issue, the PR, the head commit; later
-// e.g. a Jira ticket). Nothing event-specific, so a workflow can never
-// reference a variable some trigger can't provide. `identifier` stays a
-// string so future sources can carry keys like PROJ-123.
+// Inputs are the same five keys for every trigger kind, so a workflow can
+// never reference a variable some trigger cannot provide.
 export interface GithubMatch {
   branch: string | null
   inputs: Record<string, string>
-  // The object the delivery is about (ADR 0006): the run joins this object's
-  // session. Null (push) = a one-shot session.
   object: SessionObject | null
 }
 
-// PR activity that counts as "the PR changed": opening, reopening and every
-// push to its head branch.
 const PR_ACTIONS = new Set(['opened', 'reopened', 'synchronize'])
 
-// Empty filter = every branch matches.
 function branchMatches(filter: string[], branch: string): boolean {
   return filter.length === 0 || filter.includes(branch)
 }
 
-// Match a delivery against one trigger's event + filters. Returns the run
-// overrides, or null when the trigger doesn't listen for this delivery.
 export function matchGithubEvent(t: Trigger, event: string, payload: GithubPayload): GithubMatch | null {
   if (event !== (t.webhookEvent ?? 'push')) return null
 
   const common = { event }
 
   if (event === 'push') {
-    // Branch deletions and tag pushes don't run workflows.
     const ref = payload.ref ?? ''
     if (payload.deleted || !ref.startsWith('refs/heads/')) return null
     const branch = ref.slice('refs/heads/'.length)
@@ -103,7 +78,7 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
     if (!PR_ACTIONS.has(payload.action ?? '')) return null
     const base = payload.pull_request?.base?.ref ?? ''
     if (!branchMatches(t.webhookBranches, base)) return null
-    // The run checks out the PR's code; the filter is about where it's headed.
+    // The branch filter is about the base; the run checks out the head.
     const head = payload.pull_request?.head?.ref ?? ''
     return {
       branch: head || null,
@@ -138,8 +113,6 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
   return null
 }
 
-// The object a delivery is about, for session resolution. Null when the
-// payload carries no usable number (external input; defensive).
 export function githubObject(kind: SessionObject['kind'], payload: GithubPayload): SessionObject | null {
   const subject = kind === 'issue' ? payload.issue : payload.pull_request
   if (typeof subject?.number !== 'number') return null

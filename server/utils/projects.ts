@@ -8,21 +8,7 @@ import { cancelRun } from '../daemon/runner'
 import { projectMemoryDir } from './agent-memory'
 import { dataDir, projectSharedDir, sessionArchiveDir } from './storage'
 
-// Disconnect a project: everything Knecht holds for it goes, the GitHub repo
-// itself is never touched. Two phases:
-//
-//   1. Synchronous: stop the work executing for it, then drop every row
-//      (sessions, runs, steps, follow-ups, the trigger references, the
-//      project) in one transaction. The FKs are declarative only (PRAGMA
-//      foreign_keys is off), so each table is cleared explicitly. After this
-//      the project is gone from every view and the dispatcher can claim
-//      nothing more for it (it joins runs on projects).
-//   2. In the background (the returned promise; the API route does not await
-//      it): the per-session envs, checkouts and archives plus the project's
-//      dump/shared/memory dirs. Slow (one `ddev delete` per session), and
-//      safe to leave unattended: nothing references it anymore, so whatever
-//      a crash or an unreachable docker leaves behind, the reconcile GC
-//      (daemon/gc.ts) reclaims on its next tick.
+// FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
 export function deleteProject(id: number): Promise<void> {
   const sessionIds = db.select({ id: schema.sessions.id })
     .from(schema.sessions)
@@ -34,9 +20,6 @@ export function deleteProject(id: number): Promise<void> {
     .where(and(eq(schema.runs.projectId, id), eq(schema.runs.kind, 'workflow'), eq(schema.runs.status, 'running')))
     .all()
 
-  // A queued workflow run needs no cancel: once its project row is gone the
-  // dispatcher never claims it. A running one is aborted through its
-  // controller; mention runs are driven by the follow-up executor instead.
   for (const run of runningRuns) cancelRun(run.id)
   for (const sessionId of sessionIds) cancelFollowupWork(sessionId)
 
@@ -53,8 +36,6 @@ export function deleteProject(id: number): Promise<void> {
       tx.delete(schema.runs).where(eq(schema.runs.projectId, id)).run()
       tx.delete(schema.sessions).where(eq(schema.sessions.projectId, id)).run()
     }
-    // The trigger itself stays (the user may point it at another project);
-    // only the dead reference goes.
     for (const t of triggers) {
       tx.update(schema.triggers)
         .set({ projectIds: t.projectIds.filter(p => p !== id) })

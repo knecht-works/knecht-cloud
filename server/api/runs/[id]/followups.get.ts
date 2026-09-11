@@ -1,10 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 
-// GET /api/runs/:id/followups → the run's follow-ups in send order, each with
-// the agent's reply (the outputs.text of its run_steps row). Drives the chat
-// on the run detail page: prompt as the user message, reply as the assistant
-// message, and the composer state (locked while one is queued or running).
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
 

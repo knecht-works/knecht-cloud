@@ -31,7 +31,6 @@ const rateColor = computed(() => {
     class="k-card k-lift flex items-center gap-5 overflow-hidden px-5 py-4"
     :style="{ opacity: enabled ? 1 : 0.6 }"
   >
-    <!-- identity -->
     <div class="flex w-56 min-w-0 flex-none items-center gap-3">
       <KStepIcon
         icon="i-lucide-workflow"
@@ -57,7 +56,6 @@ const rateColor = computed(() => {
       </div>
     </div>
 
-    <!-- trigger -->
     <div class="hidden w-30 flex-none items-center gap-2 lg:flex">
       <UIcon
         name="i-lucide-play"
@@ -71,7 +69,6 @@ const rateColor = computed(() => {
       </div>
     </div>
 
-    <!-- step sequence -->
     <div class="hidden min-w-0 flex-1 items-center overflow-hidden md:flex">
       <template
         v-for="(s, i) in stepMetas"
@@ -93,7 +90,6 @@ const rateColor = computed(() => {
       </template>
     </div>
 
-    <!-- metrics -->
     <div class="ml-auto flex flex-none items-center gap-5 lg:ml-6">
       <div class="w-14.5 flex-none text-right">
         <div

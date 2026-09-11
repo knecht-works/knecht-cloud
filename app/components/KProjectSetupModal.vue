@@ -1,11 +1,6 @@
 <script setup lang="ts">
 import { runWorkspacePath } from '#shared/utils/routes'
 
-// Guided project setup: connect a repo, then immediately add the env variables
-// and database dump it needs to boot, so a freshly connected project is ready
-// to preview. The project is created at the first step (its id is needed for the
-// env/dump calls); the later steps are optional and editable later on the
-// detail page.
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ created: [] }>()
 
@@ -30,7 +25,6 @@ const step = ref<StepKey>('repo')
 const project = ref<ProjectRow | null>(null)
 const stepIndex = computed(() => STEPS.findIndex(s => s.key === step.value))
 
-// ── Step 1 · repo ──────────────────────────────────────────────────────────
 const { data: repos, status: reposStatus, execute: loadRepos } = useFetch('/api/github/repos', {
   immediate: false,
   transform: rows => rows.map(r => ({ ...r, label: r.fullName, description: r.description ?? undefined })),
@@ -38,12 +32,8 @@ const { data: repos, status: reposStatus, execute: loadRepos } = useFetch('/api/
 
 const selected = ref()
 const connecting = ref(false)
-// Connect failures (repo already connected, unreadable, ...) render inline
-// in the repo step, where the user is looking, instead of a toast.
 const connectError = ref<string | null>(null)
 
-// The branch the project will work on (checkout + PR base). Defaults to the
-// repo's default branch; the full list loads once a repo is picked.
 const branch = ref<string>()
 watch(selected, (repo) => {
   branch.value = repo?.defaultBranch
@@ -82,7 +72,6 @@ async function connect() {
   }
 }
 
-// ── Step 2 · env variables ───────────────────────────────────────────────────
 const envText = ref('')
 const savingEnv = ref(false)
 
@@ -104,14 +93,9 @@ async function saveEnvAndContinue() {
   }
 }
 
-// ── Step 3 · database dump (shared with the project page via useProjectDump) ──
 const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump } = useProjectDump(project)
 
-// ── Step 4 · finish ──────────────────────────────────────────────────────────
-// The boot action targets the seeded boot-and-preview workflow (still found by
-// its seeded name, but started by id). The user may have deleted, renamed or
-// broken it; then only "Open project" is offered.
 const { data: workflowRows } = useFetch('/api/workflows', { default: () => [], lazy: true })
 const bootWorkflow = computed(() => workflowRows.value.find(w => w.name === 'boot-and-preview' && workflowRunnable(w)))
 const hasBootWorkflow = computed(() => !!bootWorkflow.value)
@@ -142,8 +126,6 @@ async function bootAndPreview() {
   }
 }
 
-// Load the repo list when the wizard opens; reset everything when it closes so
-// reopening starts a fresh setup.
 watch(open, (isOpen) => {
   if (isOpen) {
     if (!repos.value) loadRepos()
@@ -166,7 +148,6 @@ watch(open, (isOpen) => {
     :ui="{ content: 'sm:max-w-lg' }"
   >
     <template #body>
-      <!-- Stepper -->
       <div class="mb-6 flex items-center">
         <template
           v-for="(s, i) in STEPS"
@@ -200,7 +181,6 @@ watch(open, (isOpen) => {
         </template>
       </div>
 
-      <!-- Step 1: repo -->
       <div
         v-if="step === 'repo'"
         class="space-y-4"
@@ -256,7 +236,6 @@ watch(open, (isOpen) => {
         </div>
       </div>
 
-      <!-- Step 2: env variables -->
       <div
         v-else-if="step === 'env'"
         class="space-y-4"
@@ -294,7 +273,6 @@ watch(open, (isOpen) => {
         </div>
       </div>
 
-      <!-- Step 3: database dump -->
       <div
         v-else-if="step === 'database'"
         class="space-y-4"
@@ -353,7 +331,6 @@ watch(open, (isOpen) => {
         </div>
       </div>
 
-      <!-- Step 4: finish -->
       <div
         v-else
         class="flex flex-col items-center gap-4 py-2 text-center"

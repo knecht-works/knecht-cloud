@@ -36,7 +36,6 @@ describe('renderStepParams', () => {
     const step: Step = { type: 'js', id: 'x', code: 'main', input: '{{ steps.probe.json }}' }
     const rendered = renderStepParams(step, ctx(), ['input'])
     expect(rendered.input).toEqual({ score: 3, tags: ['a', 'b'] })
-    // Anything beyond the single reference falls back to string rendering.
     const mixed = renderStepParams({ ...step, input: 'x{{ steps.probe.json }}' }, ctx(), ['input'])
     expect(mixed.input).toBe('x{"score":3,"tags":["a","b"]}')
   })

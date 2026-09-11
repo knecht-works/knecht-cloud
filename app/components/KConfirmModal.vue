@@ -1,7 +1,4 @@
 <script setup lang="ts">
-// Confirmation gate for destructive actions (disconnect project, delete
-// workflow, delete run). The caller owns the action: it opens the modal,
-// passes its loading state and runs the action on @confirm.
 const open = defineModel<boolean>('open', { required: true })
 
 defineProps<{

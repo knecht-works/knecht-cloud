@@ -1,6 +1,4 @@
 <script setup lang="ts">
-// The brand's universal "live / status" marker: a tiny glowing dot with an
-// optional animated ping ring. Colours map to lifecycle states.
 const props = withDefaults(defineProps<{
   color?: 'primary' | 'success' | 'orange' | 'violet' | 'warning' | 'error' | 'neutral'
   pulse?: boolean

@@ -13,32 +13,17 @@ import { ACTIONS } from './actions'
 
 export type { Step }
 
-// The workflow definition format (workflows.md §10, mvp.md §3.2): a linear
-// sequence of blocks. Both schemas below are assembled from the action registry
-// (./actions). Adding a plain step type never touches this file. The composite
-// control-flow steps (if/loop) are defined here because they are engine-level
-// constructs whose schemas recurse into the step schema itself.
-//
-// A step is written in YAML either as a bare string (a block with no params,
-// e.g. `- ddev-start`) or as a single-key object carrying that block's params
-// (e.g. `- bash: { command: ... }`). Each action's `yaml` schema normalizes its
-// form into the tagged union the runner switches on.
-
 const conditionSchema = z.object({
   left: z.string(),
   op: z.enum(CONDITION_OPS),
   right: z.string().optional(),
 })
 
-// The YAML authoring sugar accepts a flat condition list (one AND group) or
-// the full OR-of-ANDs form; both normalize to Condition[][].
 const yamlConditionsSchema = z.union([
   z.array(conditionSchema).min(1).transform(g => [g]),
   z.array(z.array(conditionSchema).min(1)).min(1),
 ])
 
-// One raw YAML step → a normalized Step. Kept as Zod transforms so a bad
-// definition fails validation with a useful path/message.
 const stepSchema: z.ZodType<Step> = z.union([
   ...(ACTIONS.map(a => a.yaml) as [z.ZodType<Step>, z.ZodType<Step>, ...z.ZodType<Step>[]]),
   z.object({
@@ -68,18 +53,10 @@ export interface Workflow {
   steps: Step[]
 }
 
-// Validation for workflows coming from the visual builder (the API). Unlike
-// `stepSchema` (which parses the YAML authoring form), the builder sends steps
-// already in their NORMALIZED, `type`-tagged shape, so this validates that
-// shape directly. Required params are enforced (a half-filled step can't save).
 const stepMeta = {
-  // Ids are template path segments (STEP_ID_RE); ensureStepIds backfills
-  // missing ones and de-duplicates, so only the FORMAT is enforced here.
   id: z.string().regex(STEP_ID_RE, 'Step ids use lowercase letters, digits and underscores, starting with a letter').optional(),
   label: z.string().optional(),
   description: z.string().optional(),
-  // The step's error policy (shared/utils/workflow.ts StepMeta), enforced by
-  // the runner for every step type.
   continueOnError: z.boolean().optional(),
   timeoutSeconds: z.number().int().min(1).max(21600).optional(),
   retry: z.object({
@@ -106,11 +83,7 @@ const stepOptions = [
 ] as unknown as [StepOption, ...StepOption[]]
 const normalizedStepSchema = z.discriminatedUnion('type', stepOptions) as unknown as z.ZodType<Step>
 
-// Drafts autosave on every edit, so only STRUCTURE is enforced: a known step
-// type, children recursing, the shared depth cap. Params may be half-filled
-// or missing entirely; publishing (and a draft test run) runs the strict
-// schema instead. Unknown keys pass through untouched so the stored draft
-// stays byte-identical to what the editor sent (the client diffs against it).
+// Unknown keys pass through: the client diffs against the stored bytes.
 const DRAFT_STEP_TYPES = [...ACTIONS.map(a => a.type), 'if', 'loop'] as unknown as [string, ...string[]]
 const draftStepSchema: z.ZodType<Step> = z.lazy(() => z.looseObject({
   type: z.enum(DRAFT_STEP_TYPES),
@@ -120,44 +93,26 @@ const draftStepSchema: z.ZodType<Step> = z.lazy(() => z.looseObject({
 })) as unknown as z.ZodType<Step>
 export const draftStepsSchema = z.array(draftStepSchema).superRefine(maxDepth)
 
-// The strict validation point: what publish and a draft test run enforce.
-// Required params are checked, ids are backfilled and de-duplicated, and an
-// empty workflow can't go live.
 export const publishStepsSchema = z.array(normalizedStepSchema)
   .min(1, 'Add at least one step before publishing')
   .superRefine(maxDepth)
   .transform(ensureStepIds)
 
-// POST /api/workflows: an empty body is fine, the route picks a free default
-// name. The name rule lives in shared/utils/workflow.ts so the editor
-// validates with the same regex.
 export const workflowCreateSchema = z.object({
   name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores').optional(),
   description: z.string().default(''),
 })
 
-// PATCH /api/workflows/:id, partial: name/description/enabled apply directly
-// to the row (they don't affect execution), draftSteps is the editor's
-// loosely validated working copy.
 export const workflowPatchSchema = z.object({
   name: z.string().regex(WORKFLOW_NAME_RE, 'Letters, numbers, spaces, hyphens and underscores').optional(),
   description: z.string().optional(),
   enabled: z.boolean().optional(),
-  // The agent's reply tool on issue/PR sessions (ADR 0007), on by default;
-  // the opt-out lives under the editor's Advanced settings.
   repliesEnabled: z.boolean().optional(),
   draftSteps: draftStepsSchema.optional(),
 })
 
-// ── import / export (workflow-engine-plan.md D9) ─────────────────────────────
-// The normalized JSON shape is canonical; YAML is the same document serialized.
-// The envelope carries an integer format version: older exports migrate here
-// as the format evolves (none yet: v1 is the first), newer ones are rejected
-// with a clear message instead of being half-read.
 export const WORKFLOW_FORMAT_VERSION = 1
 
-// Import accepts steps in BOTH forms: the explicit normalized shape that
-// exports write, and the terse authoring sugar for hand-written files.
 const importedStepSchema = z.union([normalizedStepSchema, stepSchema])
 
 export const workflowDocumentSchema = z.object({
@@ -169,17 +124,11 @@ export const workflowDocumentSchema = z.object({
   steps: z.array(importedStepSchema).min(1).superRefine(maxDepth).transform(ensureStepIds),
 })
 
-// Parse + validate a workflow from its YAML (or JSON, since YAML is a superset)
-// source. Throws on invalid input; used for the bundled starter templates.
-// The import API uses `workflowDocumentSchema` directly for path-precise errors.
 export function parseWorkflow(source: string): Workflow {
   const doc = workflowDocumentSchema.parse(parse(source))
   return { name: doc.name, description: doc.description, steps: doc.steps }
 }
 
-// Serialize a workflow to its export document: the explicit normalized step
-// form (ids included, so an export→import round-trip is identity), wrapped in
-// the version envelope.
 export function serializeWorkflow(workflow: Workflow, format: 'yaml' | 'json'): string {
   const doc = {
     version: WORKFLOW_FORMAT_VERSION,

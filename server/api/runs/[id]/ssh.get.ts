@@ -5,11 +5,6 @@ import { getSettings } from '../../../utils/settings'
 import { requireSession } from '../../../utils/entities'
 import { defaultSshTarget, sshTerminalCommand } from '../../../utils/ssh'
 
-// GET /api/runs/:id/ssh → what the terminal modal needs, fetched on click
-// (not polled: it does one-shot docker calls). `services` feeds the web
-// terminal's picker (works without any setting); the per-service ssh commands
-// additionally need an ssh target (the setting, or its derived default) and
-// come back null without one.
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
   const run = requireRun(id)
@@ -32,7 +27,6 @@ export default defineEventHandler(async (event) => {
     ]))
   }
 
-  // The operator is about to work in this env: keep the idle-stopper away.
   db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, session.id)).run()
 
   return { services, sshCommands }

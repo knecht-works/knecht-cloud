@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest'
 import { resolveProjectMeta } from '../../server/utils/framework'
 import { repoReader } from '../../server/utils/github'
 
-// A fake contents API over an in-memory repo: 404 for anything not listed,
-// plus an empty tree (no favicon) so resolveProjectMeta runs end to end.
 function octokitWith(files: Record<string, string>, fail?: number): Octokit {
   return {
     rest: {

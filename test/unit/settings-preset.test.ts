@@ -2,8 +2,6 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildSettingsPreset, presetEnvName } from '../../server/utils/settings-preset'
 import { decrypt } from '../../server/utils/crypto'
 
-// The preset env names are derived from the settings columns; encrypt/decrypt
-// (the KNECHT_AI_KEY special case) needs the session password.
 beforeAll(() => {
   process.env.NUXT_SESSION_PASSWORD = 'test-password-that-is-long-enough-0123'
 })

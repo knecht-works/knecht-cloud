@@ -4,10 +4,7 @@ import { db, schema } from '../../server/db'
 import { runDataMigrations } from '../../server/db/data-migrations'
 import type { Step } from '../../shared/utils/workflow'
 
-// The JS data migrations against the real schema (the engine setup runs the
-// SQL migrations but not runDataMigrations, so this is where they execute).
-// Focus: 0002_bare_ai_step_models strips legacy provider prefixes from ai-step
-// model overrides, including nested steps, and records its bookkeeping row.
+// The engine setup runs the SQL migrations but not runDataMigrations, so they execute here.
 
 function makeWorkflow(name: string, steps: Step[]) {
   db.insert(schema.workflows).values({ name, steps }).run()

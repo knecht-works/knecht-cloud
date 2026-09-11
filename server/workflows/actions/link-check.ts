@@ -3,28 +3,17 @@ import { tryParseJson } from '../../utils/json'
 import { previewAwareFetch } from '../../utils/preview-fetch'
 import { defineAction, ActionError } from './types'
 
-// A website test: request every page of a sitemap (or of an explicit URL
-// list) and report the ones answering with an HTTP error (or not at all).
-// Runs host-side like the http action; a sitemap index is followed one level
-// deep (the format nests no further).
 const FETCH_TIMEOUT_MS = 15_000
 const CONCURRENCY = 5
-// Keeps the outputs bag well under the runner's 64 KB cap even when a site is
-// thoroughly broken; the run log still lists every failure.
 const MAX_BROKEN_LISTED = 200
 
 export const linkCheckAction = defineAction({
   type: 'link-check',
   params: {
-    // Templated ({{ }}), so URL-validity is a runtime concern, not a save-time
-    // one. One of sitemap/urls must be given; the runtime checks (either may
-    // legitimately be blank when the other is a template).
     sitemap: z.string().optional(),
     urls: z.string().optional(),
     failOnBroken: z.boolean().optional(),
   },
-  // A single {{ ref }} in urls passes the referenced array raw (a previous
-  // link-check's brokenUrls flows through without a stringify round-trip).
   rawParams: ['urls'],
   async run(step, rt) {
     let urls = listedUrls(step.urls as unknown)
@@ -79,10 +68,6 @@ export const linkCheckAction = defineAction({
   },
 })
 
-// The urls param resolved to a deduplicated list. Accepts newline-separated
-// text, a JSON array string, or a raw array (strings or { url } objects).
-// null when the param is unset/blank, so the sitemap path takes over; an
-// explicitly empty list stays [] (a re-check of zero broken pages passes).
 function listedUrls(value: unknown): string[] | null {
   if (value == null) return null
   let list: unknown = value
@@ -102,8 +87,6 @@ function listedUrls(value: unknown): string[] | null {
   return [...new Set(urls)]
 }
 
-// Every page URL the sitemap lists, deduplicated; for a sitemap index, the
-// union of its sub-sitemaps' pages.
 async function collectPageUrls(sitemapUrl: string, signal: AbortSignal, log: (text: string) => void): Promise<string[]> {
   const xml = await fetchSitemap(sitemapUrl, signal)
   if (!/<sitemapindex[\s>]/i.test(xml)) return [...new Set(extractLocs(xml))]
@@ -117,17 +100,12 @@ async function collectPageUrls(sitemapUrl: string, signal: AbortSignal, log: (te
   return [...urls]
 }
 
-// Both fetches go through previewAwareFetch: a sitemap on the run's OWN
-// login-gated preview is reachable (the instance authenticates itself),
-// foreign hosts see a plain anonymous request.
 async function fetchSitemap(url: string, signal: AbortSignal): Promise<string> {
   const res = await previewAwareFetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
   if (!res.ok) throw new ActionError(`HTTP ${res.status} fetching sitemap ${url}`)
   return await res.text()
 }
 
-// The final status after redirects, or the failure message when the request
-// itself failed (DNS, TLS, timeout). The body is never downloaded.
 async function checkPage(url: string, signal: AbortSignal): Promise<number | string> {
   try {
     const res = await previewAwareFetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
@@ -140,7 +118,6 @@ async function checkPage(url: string, signal: AbortSignal): Promise<number | str
   }
 }
 
-// <loc> contents; sitemaps are flat enough that a scan beats an XML dependency.
 function extractLocs(xml: string): string[] {
   return [...xml.matchAll(/<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]]+?)\s*(?:\]\]>)?\s*<\/loc>/gi)]
     .map(m => decodeXmlEntities(m[1]!))

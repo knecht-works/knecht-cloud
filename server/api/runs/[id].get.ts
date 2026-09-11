@@ -3,7 +3,6 @@ import { db, schema } from '../../db'
 import { envTransition } from '../../daemon/envs'
 import { runSessionColumns, withPreviewTarget } from '../../utils/run-view'
 
-// GET /api/runs/:id → a single run incl. its log, for the detail page's poll.
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
 
@@ -17,9 +16,6 @@ export default defineEventHandler((event) => {
       workflowId: schema.runs.workflowId,
       status: schema.runs.status,
       kind: schema.runs.kind,
-      // Env + object fields come from the run's session (ADR 0006), flattened
-      // in under their historical names so the dashboard keeps working
-      // unchanged; the shared fragment keeps list and detail identical.
       ...runSessionColumns,
       trigger: schema.runs.trigger,
       triggerId: schema.runs.triggerId,
@@ -41,7 +37,5 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 404, statusMessage: 'Run not found' })
   }
 
-  // The lifecycle step in flight (stopping, restoring, ...) lives in memory,
-  // not in a column: the workspace keeps showing it across reloads.
   return { ...withPreviewTarget(run), envTransition: envTransition(run.sessionId) }
 })

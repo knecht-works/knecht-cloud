@@ -1,6 +1,4 @@
 <script setup lang="ts">
-// Global dashboard search for the top bars: a ⌘K-triggered command palette over
-// projects, workflows and triggers. Same bar on every screen.
 const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
 const { data: workflows } = useFetch('/api/workflows', { default: () => [], lazy: true })
 const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })

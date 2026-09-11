@@ -1,12 +1,4 @@
 <script setup lang="ts">
-// A titled surface panel: a hairline header (icon + uppercase mono label +
-// optional action slot) above a body. The detail screen's building block.
-// `collapsible` makes the header a toggle for the body; panels start open,
-// collapsing is for getting long content (e.g. the run log) out of the way.
-// The icon is green unless a panel passes its own accent; `pad` is the
-// body's horizontal padding, the vertical one is a bit tighter so the body
-// reads as evenly inset. The header has a fixed height: an action (a save
-// status appearing) must not move the body.
 const props = withDefaults(defineProps<{
   title: string
   icon?: string

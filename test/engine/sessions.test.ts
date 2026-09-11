@@ -5,10 +5,6 @@ import { fireTrigger } from '../../server/utils/triggers'
 import { findObjectSession, resolveSession, sessionHasActiveWork, syncObjectStatus, withSessionLinks } from '../../server/utils/sessions'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
-// The session model (ADR 0006) against the real schema: one session per
-// object, one-shot sessions for objectless events, status mirroring, and the
-// busy check the API guards use.
-
 let n = 0
 function makePublishedWorkflow() {
   return db.insert(schema.workflows).values({
@@ -34,7 +30,6 @@ describe('resolveSession', () => {
 
     const again = resolveSession(project, object, 'feature-x')
     expect(again.id).toBe(first.id)
-    // The branch was pinned at creation; later events never re-point it.
     expect(again.branch).toBe('main')
   })
 

@@ -1,10 +1,3 @@
-// Canned follow-up prompts ("skills"): buttons on the run detail page that
-// send a predefined follow-up instead of a typed one. The agent still has the
-// run's session context, so what it publishes is informed by what it actually
-// did (docs/plans/run-follow-ups.md).
-
-// "Open a PR": publish a run that never decided where to commit (e.g. a plain
-// boot + ai workflow). Shown when the run has no PR yet.
 export const PUBLISH_FOLLOWUP_PROMPT = [
   'Publish your work from this run:',
   '1. Review the uncommitted changes with `git status` and `git diff`.',

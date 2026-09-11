@@ -15,7 +15,6 @@ export const bashStep = defineStep({
     { path: 'exitCode', hint: 'The exit code (0 on success)' },
   ],
   make: () => ({ type: 'bash', command: '' }),
-  // Well-known commands get a friendlier icon + label in lists.
   meta: (step) => {
     const cmd = step.command
     const c = cmd.toLowerCase()

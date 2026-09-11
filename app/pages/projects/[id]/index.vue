@@ -4,39 +4,24 @@ import { stepsInclude, type Step } from '#shared/utils/workflow'
 const route = useRoute()
 const id = Number(route.params.id)
 
-// The workspace: the project's runs with ONE explicitly selected run rendered
-// inline (KRunWorkspace: preview, follow-up chat, steps, log). Both fetches
-// block rendering; the selection must resolve during setup so a deep link
-// (?run=<id>) lands on the right run without a flash of the newest one.
 const { data: project } = await useFetch(`/api/projects/${id}`)
 const { data: runs, refresh: refreshRuns } = await useFetch('/api/runs', {
   query: { projectId: id },
   default: () => [],
 })
 
-// This project's runs, newest first (the list is already ordered).
 const projectRuns = computed(() => runs.value ?? [])
 const latest = computed(() => projectRuns.value[0] ?? null)
 
-// The sidebar list grouped by session (utils/dashboard.ts): runs on the same
-// issue/PR collect under one object header, one-shot runs (manual, push,
-// schedule) stay plain rows.
 const sessionGroups = computed(() => groupRunsBySession(projectRuns.value))
 
-// ── Run selection (?run=<id>, default: the newest run) ─────────────────────
-// The selection is a ref, not a computed from the query, so it NEVER moves
-// on its own: a new run appearing (trigger, webhook) changes the list but not
-// what the workspace shows. Only user actions write the query, and the query
-// watcher below is the only path that moves the selection afterwards.
+// The selection is a ref, not a computed from the query, so a new run appearing
+// changes the list but never what the workspace shows.
 function runFromQuery(): number | null {
   const q = Number(route.query.run)
   return projectRuns.value.some(r => r.id === q) ? q : null
 }
 
-// A ?run older than the runs list's cap (200) is still a valid deep link
-// (run URLs sit in PR bodies and Jira comments): resolve it directly instead
-// of silently falling back to the newest run. The sidebar list won't contain
-// it, but the workspace renders by id.
 const offListRun = ref<(typeof projectRuns.value)[number] | null>(null)
 const queryRun = Number(route.query.run)
 if (Number.isInteger(queryRun) && !projectRuns.value.some(r => r.id === queryRun)) {
@@ -52,9 +37,6 @@ const selectedRun = computed(() =>
   projectRuns.value.find(r => r.id === selectedRunId.value)
   ?? (offListRun.value?.id === selectedRunId.value ? offListRun.value : null))
 
-// A ?run pointing at another project's run (or a deleted one) fell back to
-// the newest above; drop the stale param from the URL (client-side, same
-// pattern as the ?step deep link in workflows/[name].vue).
 onMounted(() => {
   if (route.query.run && !runFromQuery() && Number(route.query.run) !== offListRun.value?.id)
     navigateTo({ query: { ...route.query, run: undefined } }, { replace: true })
@@ -63,30 +45,19 @@ onMounted(() => {
 watch(() => route.query.run, () => {
   const q = runFromQuery()
   if (q) selectedRunId.value = q
-  // Selecting the newest run acknowledges it, clearing the new-run hint.
   if (q !== null && q === latest.value?.id) lastSeenLatestId.value = q
 })
 
-// Selection writes always replace: switching runs is a view change, not a
-// navigation the back button should walk through.
 function selectRun(runId: number) {
   navigateTo({ query: { ...route.query, run: String(runId) } }, { replace: true })
 }
 
-// ── New-run hint ───────────────────────────────────────────────────────────
-// The newest run id the user has acknowledged: runs started from this page
-// acknowledge themselves, so the hint pill only appears when a run arrived
-// from elsewhere (trigger, webhook, another tab) while an older run is open.
 const lastSeenLatestId = ref(latest.value?.id ?? null)
 const newRun = computed(() =>
   latest.value && latest.value.id !== selectedRunId.value && latest.value.id !== lastSeenLatestId.value
     ? latest.value
     : null)
 
-// If the selected run vanished from the list (deleted, here or in another
-// tab), fall back to the newest run instead of showing the empty state next
-// to a non-empty list. An off-list deep-link selection is exempt: it is
-// never in the list.
 watch(runs, () => {
   if (selectedRunId.value === offListRun.value?.id) return
   if (selectedRunId.value !== null && !projectRuns.value.some(r => r.id === selectedRunId.value)) {
@@ -109,53 +80,34 @@ const mascotLine = computed(() => {
   return 'Idle. Trigger a workflow to boot a fresh environment.'
 })
 
-// The workflows the automation panel lists: every one that would pass the
-// run validation, the same set the header's "Start workflow" picker offers.
 const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
 const startableWorkflows = computed(() => (workflowList.value ?? []).filter(workflowRunnable))
-// The play button runs a workflow on the default branch; the header's picker
-// is where another branch is chosen.
 const { starting, start: startRun } = useStartRun(id, onRunStarted)
 const startWorkflow = (workflowId: number) => startRun(workflowId, project.value?.defaultBranch ?? 'main')
 
-// A run started from this page (header popover, automation play button, or
-// "Run again" inside the workspace) is selected right away; no page navigation.
 async function onRunStarted(runId: number) {
   await refreshRuns()
   lastSeenLatestId.value = runId
   await navigateTo({ query: { ...route.query, run: String(runId) } }, { replace: true })
 }
 
-// The workspace deleted its run; the runs watcher above moves the selection
-// to the newest remaining run once the refreshed list lands. A deleted
-// off-list run loses its exemption first, so the watcher picks it up.
 async function onRunDeleted() {
   if (offListRun.value?.id === selectedRunId.value) offListRun.value = null
   await refreshRuns()
 }
 
-// Runs still executing or waiting, for the header's disconnect confirm.
 const activeRunCount = computed(() =>
   projectRuns.value.filter(r => r.status === 'running' || r.status === 'queued').length)
 
-// ── Automation on this project (read-only) ─────────────────────────────────
-// Which workflow fires on this project and how: configured on the workflow
-// itself, so each row links there. The play button starts a workflow here now.
 const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 const projectTriggers = computed(() =>
   (triggers.value ?? []).filter(t => t.projectIds.includes(id)))
 
-// One row per workflow: its automation on THIS project (first trigger +
-// count of further ones), or none: "welcher Workflow startet wann".
 const workflowRows = computed(() => startableWorkflows.value.map((w) => {
   const wired = projectTriggers.value.filter(t => t.workflowId === w.id)
   return { id: w.id, name: w.name, trigger: wired[0] ?? null, more: wired.length - 1 }
 }))
 
-// Poll the runs list while ANY of this project's runs is live: the selected
-// run is not necessarily the latest, and the sidebar rows + new-run hint
-// should stay current either way. The selected run's own detail polling
-// lives inside KRunWorkspace.
 usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshRuns)
 </script>
 
@@ -192,12 +144,8 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
       </template>
     </KProjectHeader>
 
-    <!-- Sidebar column: identical on every detail page, viewport-based
-         (clamp), so it can't drift between screens. Keep in sync with
-         workflows/[name].vue. -->
+    <!-- Sidebar sizing matches workflows/[id].vue, keep them in sync. -->
     <div class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
-      <!-- LEFT: the selected run's workspace, keyed so switching runs
-           remounts everything (preview history, fetches, expanded steps). -->
       <KRunWorkspace
         v-if="selectedRun"
         :key="selectedRun.id"
@@ -221,7 +169,6 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
         </p>
       </KPreviewBrowser>
 
-      <!-- RIGHT -->
       <div class="flex flex-col gap-4.5">
         <div
           class="k-card overflow-hidden"
@@ -292,13 +239,6 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
               No runs yet. Start a workflow to boot this project.
             </p>
           </div>
-          <!-- Rows SELECT (query replace), they don't navigate: the run
-               renders on the left. The selected row is marked with the
-               primary edge bar. Runs on the same issue/PR sit under one
-               session header (the object's number + title, linking to the
-               thread); one-shot runs stay plain rows. Capped in height (the
-               API returns up to 200 runs) so a busy project scrolls here
-               instead of pushing the Automation panel off screen. -->
           <div class="max-h-100 overflow-y-auto">
             <div
               v-for="(g, gi) in sessionGroups"
@@ -344,8 +284,6 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
           icon="i-lucide-zap"
           accent="var(--accent-violet)"
         >
-          <!-- One row per WORKFLOW: run it now, and see WHEN it fires on this
-               project. The row links to the workflow, where its triggers live. -->
           <div class="flex flex-col gap-3">
             <div
               v-for="row in workflowRows"

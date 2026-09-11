@@ -1,7 +1,3 @@
-// A tiny cookie-carrying HTTP client for the e2e suite: logs in through the
-// dev-only /_test/login route (the same session machinery as the real OAuth
-// callback) and speaks to the instance's real API from then on.
-
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { previewHostname } from '../../shared/utils/preview-host'
@@ -41,13 +37,8 @@ export interface PreviewResponse {
   location?: string
 }
 
-// Fetch a run's preview origin (previewHostname: [<label>--]<runId>.preview.
-// <base>). Preview hosts are wildcard subdomains a CI runner's resolver can't
-// see, so instead of resolving them the request connects to the instance's
-// base host and carries the preview origin in the Host header, exactly what
-// the preview middleware routes on. node:http(s), because fetch controls the
-// Host header. Redirects are NOT followed (the login redirect is an
-// assertable contract).
+// Preview hosts are wildcard subdomains a CI runner cannot resolve, so the preview origin
+// travels in the Host header. node:http because fetch controls the Host header.
 export function previewFetch(
   runId: number,
   opts: { label?: string, path?: string, cookie?: string, accept?: string } = {},
@@ -68,9 +59,7 @@ export function previewFetch(
       },
       (res) => {
         const chunks: Buffer[] = []
-        // A connection dropped mid-body errors on the RESPONSE stream, not the
-        // request; without this the promise would never settle and the test
-        // would sit out its full timeout instead of failing crisply.
+        // A connection dropped mid-body errors on the RESPONSE stream, not the request.
         res.on('error', reject)
         res.on('data', c => chunks.push(c))
         res.on('end', () => resolve({
@@ -85,8 +74,6 @@ export function previewFetch(
   })
 }
 
-// Small JSON helpers so tests read as scenario steps, failing with the
-// response body when the API says no.
 export async function expectJson<T>(res: Response): Promise<T> {
   if (!res.ok) throw new Error(`${res.url} -> ${res.status}: ${await res.text()}`)
   return await res.json() as T

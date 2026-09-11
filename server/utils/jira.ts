@@ -2,21 +2,13 @@ import { ofetch } from 'ofetch'
 import { adfToMarkdown, type AdfNode } from './adf'
 import { jiraCredentials } from './jira-credentials'
 
-// Thin Jira Cloud REST v3 client over the stored connection (jira-credentials).
-// Auth is Basic (email + API token), which carries the account's own
-// permissions: whatever projects the account can see, Knecht can poll and
-// comment on. All calls go through jiraFetch; there is no SDK dependency.
-
 interface JiraAuth {
   siteUrl: string
   email: string
   apiToken: string
 }
 
-// `auth` override: connection.post.ts validates credentials BEFORE storing
-// them. `base` picks the API family (boards live under the agile API). ofetch
-// instead of the app's $fetch: the URL is an external site, not one of Nitro's
-// typed routes.
+// ofetch instead of $fetch: the URL is an external site, not a Nitro route.
 async function jiraFetch<T>(path: string, opts: { method?: 'GET' | 'POST', body?: Record<string, unknown>, auth?: JiraAuth, base?: '/rest/api/3' | '/rest/agile/1.0' } = {}): Promise<T> {
   const creds = opts.auth ?? jiraCredentials()
   if (!creds) throw new Error('Jira is not connected')
@@ -30,8 +22,6 @@ async function jiraFetch<T>(path: string, opts: { method?: 'GET' | 'POST', body?
   })
 }
 
-// Who the token authenticates as. Used to validate a connection before saving
-// it and to display "Connected as …".
 export async function jiraMyself(auth?: JiraAuth): Promise<{ displayName: string }> {
   const me = await jiraFetch<{ displayName?: string }>('/myself', { auth })
   return { displayName: me.displayName ?? 'Unknown account' }
@@ -42,8 +32,6 @@ export interface JiraProject {
   name: string
 }
 
-// The projects the connected account can browse (the trigger form's dropdown).
-// One page of 100 covers any realistic site; larger sites can type the key.
 export async function listJiraProjects(): Promise<JiraProject[]> {
   const res = await jiraFetch<{ values?: { key?: string, name?: string }[] }>('/project/search?maxResults=100&orderBy=name')
   return (res.values ?? [])
@@ -51,12 +39,6 @@ export async function listJiraProjects(): Promise<JiraProject[]> {
     .map(p => ({ key: p.key!, name: p.name ?? p.key! }))
 }
 
-// The status names for the trigger form's dropdown. The project's status
-// catalog (/project/{key}/statuses) spans EVERY issue type's workflow, subtask
-// and epic statuses included, which offers choices a card on the user's board
-// can never reach. So when the project has boards, the catalog is narrowed to
-// the statuses their columns map: exactly what the user sees as columns.
-// Projects without a board keep the full catalog.
 export async function listJiraStatuses(projectKey: string): Promise<string[]> {
   const res = await jiraFetch<{ statuses?: { id?: string, name?: string }[] }[]>(`/project/${encodeURIComponent(projectKey)}/statuses`)
   const byId = new Map<string, string>()
@@ -69,7 +51,6 @@ export async function listJiraStatuses(projectKey: string): Promise<string[]> {
   const boardIds = await boardStatusIds(projectKey)
   if (!boardIds) return [...new Set(byId.values())]
 
-  // Board order (left to right), so the dropdown reads like the board.
   const names = new Set<string>()
   for (const id of boardIds) {
     const name = byId.get(id)
@@ -78,9 +59,6 @@ export async function listJiraStatuses(projectKey: string): Promise<string[]> {
   return [...names]
 }
 
-// The status ids mapped to a column on any of the project's boards, in column
-// order, or null when the project has none (or the agile API is unavailable),
-// which means "don't narrow".
 async function boardStatusIds(projectKey: string): Promise<string[] | null> {
   try {
     const boards = await jiraFetch<{ values?: { id?: number }[] }>(
@@ -107,9 +85,6 @@ async function boardStatusIds(projectKey: string): Promise<string[] | null> {
   }
 }
 
-// The keys of the issues currently matching `jql` (the poller's working set).
-// Capped at one page: a trigger's matching set is "tickets currently carrying
-// the label / sitting in the status", which is small by nature.
 export async function searchJiraIssueKeys(jql: string): Promise<string[]> {
   const res = await jiraFetch<{ issues?: { key?: string }[] }>('/search/jql', {
     method: 'POST',
@@ -125,7 +100,6 @@ export interface JiraIssue {
   url: string
 }
 
-// One issue's run inputs: title, description rendered to Markdown, browse URL.
 export async function getJiraIssue(key: string): Promise<JiraIssue> {
   const creds = jiraCredentials()
   const res = await jiraFetch<{ fields?: { summary?: string, description?: AdfNode | null } }>(
@@ -139,9 +113,6 @@ export async function getJiraIssue(key: string): Promise<JiraIssue> {
   }
 }
 
-// Post a comment on an issue (the PR-link handed back after a run). Comments
-// are written as ADF; `text` becomes one paragraph, `linkUrl` a link on its
-// own line.
 export async function addJiraComment(key: string, text: string, linkUrl?: string): Promise<void> {
   const content: AdfNode[] = [{ type: 'paragraph', content: [{ type: 'text', text }] }]
   if (linkUrl) {

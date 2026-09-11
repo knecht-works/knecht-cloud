@@ -1,8 +1,6 @@
 import type { WorkflowStep } from '~/utils/dashboard'
 import type { StepMeta } from '~/utils/workflow-steps'
 
-// The minimal run_steps fields the timeline mapping reads; callers pass their
-// full API rows and keep the extra fields through the spread.
 interface TimelineSource {
   stepId: string
   parentStepId: string | null
@@ -12,13 +10,6 @@ interface TimelineSource {
   params: Record<string, unknown> | null
 }
 
-// The step timeline behind KRunLog: one row per executed step (run_steps),
-// presented via the step registry exactly like the workflow editor's rail
-// (per-type label and icon, derived from the row's RENDERED params, so e.g. a
-// bash step is titled by what its command does). What a step executed stays
-// in its log slice: every slice begins with the '▶' banner line. Unknown step
-// types (e.g. removed ones) render generically; nested rows indent by their
-// ancestor count (parentStepId chains).
 export function runLogTimeline<S extends TimelineSource>(rows: S[]) {
   const byStepId = new Map(rows.map(r => [r.stepId, r]))
   const depthOf = (row: S) => {
@@ -34,8 +25,7 @@ export function runLogTimeline<S extends TimelineSource>(rows: S[]) {
         meta = workflowStepMeta({ type: s.type, ...(s.params ?? {}) } as unknown as WorkflowStep)
       }
       catch {
-        // Params from an older schema can miss a field a meta() reads; the
-        // def's own identity still renders below.
+        // Params from an older schema can miss a field meta() reads.
       }
     }
     return {

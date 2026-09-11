@@ -7,14 +7,9 @@ import { isGithubAppConfigured } from './github-credentials'
 import { resolveSession, type SessionObject } from './sessions'
 import { getTriggerSource } from './trigger-sources'
 
-// Display + firing logic for triggers, shared by the API and the scheduler.
-
 export type TriggerSource = 'schedule' | 'github' | 'manual' | 'jira'
 export type TriggerKind = 'Cron' | 'Webhook' | 'Manual' | 'Jira'
 
-// The shape the Triggers screen renders against (TriggerCard.vue). Project ids
-// are resolved to short repo names; `endpoint` is the cron expression (schedule)
-// or null (github/manual).
 export interface TriggerSummary {
   id: number
   source: TriggerSource
@@ -42,7 +37,6 @@ const KIND: Record<TriggerSource, TriggerKind> = {
   jira: 'Jira',
 }
 
-// Compact forward relative time ("in 3h", "in 2d") for the next scheduled run.
 function relFuture(date: Date): string {
   const mins = Math.round((date.getTime() - Date.now()) / 60_000)
   if (mins <= 0) return 'now'
@@ -63,9 +57,6 @@ function eventLabel(t: Trigger): string {
   return 'Run on demand'
 }
 
-// "On push · main, staging" / "On pull_request · base main" / "On issues ·
-// opened, label \"knecht\"". The filter part is omitted when it matches
-// everything.
 function githubEventLabel(t: Trigger): string {
   const event = t.webhookEvent ?? 'push'
   if (event === 'issues') {
@@ -81,8 +72,6 @@ function endpoint(t: Trigger): string | null {
   return t.source === 'schedule' ? t.cron : null
 }
 
-// Map DB rows to the UI contract, resolving project ids to short repo names
-// and workflow ids to display names in one query each.
 export function toSummaries(rows: Trigger[]): TriggerSummary[] {
   const ids = [...new Set(rows.flatMap(r => r.projectIds))]
   const names = new Map<number, string>()
@@ -129,10 +118,6 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
   }))
 }
 
-// What a webhook delivery overrides on the runs it starts: the subset of the
-// trigger's projects to fire (the delivery's repo), the branch to check out
-// (push/PR branch instead of the default), the event data for {{ inputs.* }}
-// and the object whose session the run joins (ADR 0006).
 export interface FireOverrides {
   projectIds?: number[]
   branch?: string | null
@@ -140,16 +125,7 @@ export interface FireOverrides {
   object?: SessionObject | null
 }
 
-// Queue the trigger's workflow against each of its projects (one run each; the
-// dispatcher starts them as concurrency slots free up), then bump the fire
-// counters. Returns the created run ids. Runs authenticate via the GitHub App
-// (no session needed); with the app unconfigured each run is recorded as failed
-// with a clear reason rather than failing silently.
 export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
-  // Automation fires only a published workflow whose master switch is on: a
-  // missing row (already deleted) or a never-published one has nothing to
-  // fire, and enabled=false means automation is paused. The trigger stays
-  // configured and resumes when re-enabled. Manual runs bypass this path.
   const workflow = getWorkflowRow(t.workflowId)
   if (!workflow || !workflow.enabled || !workflow.publishedAt) return []
 
@@ -160,9 +136,6 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
 
   const runIds: number[] = []
   for (const project of projects) {
-    // The run joins its object's session (finding or creating it); events
-    // without an object get a fresh one-shot session. The session's branch
-    // wins once it exists: the checkout is already on it.
     const session = resolveSession(project, opts.object ?? null, opts.branch ?? null)
     const run = db
       .insert(schema.runs)

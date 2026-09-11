@@ -2,16 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { isOwnPreviewUrl, isPreviewAuthToken, PREVIEW_AUTH_HEADER, previewAwareFetch } from '../../server/utils/preview-fetch'
 import { withServer } from '../helpers/http-server'
 
-// test-env.ts pins KNECHT_BASE_URL=http://knecht.test, so our preview hosts
-// are <id>.preview.knecht.test.
-
 describe('isOwnPreviewUrl', () => {
   it('matches only preview hosts on OUR base host', () => {
     expect(isOwnPreviewUrl('http://122.preview.knecht.test/sitemap.xml')).toBe(true)
     expect(isOwnPreviewUrl('http://api--122.preview.knecht.test/')).toBe(true)
-    // Foreign base: the preview prefix alone must never earn the token.
     expect(isOwnPreviewUrl('http://122.preview.evil.com/')).toBe(false)
-    // The dashboard itself and arbitrary hosts are not preview hosts.
     expect(isOwnPreviewUrl('http://knecht.test/')).toBe(false)
     expect(isOwnPreviewUrl('https://example.com/')).toBe(false)
     expect(isOwnPreviewUrl('not a url')).toBe(false)

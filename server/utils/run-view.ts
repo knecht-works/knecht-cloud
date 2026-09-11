@@ -3,12 +3,6 @@ import { schema } from '../db'
 import { getProject, getSessionRow } from './entities'
 import { hasPreviewTarget } from './preview-target'
 
-// The session columns the run endpoints (GET /api/runs and /api/runs/:id)
-// flatten into their run rows: the env fields under the same historical names
-// withSessionEnv serves, plus the session's object (issue/PR) and status for
-// the session grouping in the UI. One shared fragment so the list and detail
-// endpoints can never drift. The two project columns only feed
-// hasPreviewTarget (withPreviewTarget strips them again).
 export const runSessionColumns = {
   envState: schema.sessions.envState,
   previewHosts: schema.sessions.previewHosts,
@@ -33,9 +27,6 @@ interface PreviewTargetRow {
   projectPreviewPort: number | null
 }
 
-// Turn a row selected with runSessionColumns into the payload: the project
-// columns become the one `hasPreviewTarget` flag the workspace renders its
-// preview frame on.
 export function withPreviewTarget<R extends PreviewTargetRow>(row: R): Omit<R, 'projectEnv' | 'projectDevServer' | 'projectPreviewPort'> & { hasPreviewTarget: boolean } {
   const { projectEnv, projectDevServer, projectPreviewPort, ...rest } = row
   return {
@@ -44,12 +35,6 @@ export function withPreviewTarget<R extends PreviewTargetRow>(row: R): Omit<R, '
   }
 }
 
-// The run payload the dashboard consumes: the run row plus its session's env
-// fields, flattened in under their historical names. The UI reads
-// envState/previewHosts/previewReady off the run since before sessions
-// existed; serving them from the session keeps every page working while the
-// dedicated session UI is still to come. `sessionId` is what preview URLs
-// are built from.
 export function withSessionEnv<R extends Run>(run: R, session?: Session) {
   const s = session ?? getSessionRow(run.sessionId)
   const project = getProject(run.projectId)

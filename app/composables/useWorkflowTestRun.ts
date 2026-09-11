@@ -9,8 +9,6 @@ export interface TestRunRow {
   finishedAt: string | number | null
 }
 
-// The run's per-step execution records (run_steps): drives per-card status
-// and the run log's step timeline (runLogTimeline → KRunLog).
 export interface TestRunStepRow {
   id: number
   stepIndex: number
@@ -33,27 +31,18 @@ interface TestProject {
   defaultBranch: string
 }
 
-// The workflow editor's inline test run: pick a project + branch, start a real
-// run (manual runs always execute the current draft), poll it while live.
-// `beforeStart` runs before each start (the page flushes its pending autosave
-// so the server pins the latest draft); `onStarted` lets the page react when a
-// test kicks off (it collapses the open step settings).
-// `P` is the caller's project row shape (the picker binds the full row).
 export function useWorkflowTestRun<P extends TestProject>(
   workflowId: () => number | undefined,
   opts?: { beforeStart?: () => Promise<unknown>, onStarted?: () => void },
 ) {
   const toastError = useToastError()
 
-  // The "Run" popover (project + branch picker together).
   const open = ref(false)
   const project = ref<P>()
   const starting = ref(false)
   const activeRun = ref<TestRunRow | null>(null)
   const activeRunSteps = ref<TestRunStepRow[]>([])
 
-  // Branch the test runs against; follows the picked project (default = its
-  // default branch) and offers that project's branches.
   const testBranch = ref<string>()
   watch(project, p => testBranch.value = p?.defaultBranch ?? 'main')
   const { items: testBranchItems } = useBranchPicker(
@@ -61,9 +50,6 @@ export function useWorkflowTestRun<P extends TestProject>(
     () => project.value?.defaultBranch,
   )
 
-  // Mock trigger-event data: a manual test fills {{ inputs.* }} with these, so
-  // workflows built for triggers are testable without one. Empty fields are
-  // omitted; kept across runs so retest exercises the same event.
   const mockInputs = reactive<Record<string, string>>({})
   const filledInputs = () => {
     const filled = Object.fromEntries(Object.entries(mockInputs).filter(([, v]) => v.trim()))
@@ -104,9 +90,6 @@ export function useWorkflowTestRun<P extends TestProject>(
     },
   )
 
-  // Re-attach to a live run of this workflow, so navigating away and back
-  // doesn't lose an in-flight run's progress. Only live runs are restored
-  // (the newest one); runs that finished while away stay on the runs page.
   async function reattach() {
     const id = workflowId()
     if (!id) return
@@ -127,7 +110,6 @@ export function useWorkflowTestRun<P extends TestProject>(
     reattach()
   }, { immediate: true })
 
-  // A run cancelled from elsewhere (the run detail page) leaves test mode too.
   watch(() => activeRun.value?.status, (status) => {
     if (status === 'cancelled') detach()
   })
@@ -137,7 +119,6 @@ export function useWorkflowTestRun<P extends TestProject>(
     activeRunSteps.value = []
   }
 
-  // Actually stop the run server-side, then return the editor to edit mode.
   const cancelling = ref(false)
   async function cancel() {
     if (!activeRun.value) return
@@ -154,8 +135,6 @@ export function useWorkflowTestRun<P extends TestProject>(
     }
   }
 
-  // Resume the failed run from the step that stopped it (completed steps keep
-  // their results); polling picks the run back up as it goes live again.
   const retrying = ref(false)
   async function retry() {
     if (!activeRun.value) return

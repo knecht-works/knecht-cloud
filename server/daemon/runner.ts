@@ -15,35 +15,10 @@ import { configureSessionEnv } from './ddev'
 import { copyIntoSandbox, startEnvStack, streamInSandbox } from './sandbox'
 import { ensureEnvUp } from './envs'
 
-// The in-process serial runner (tech-stack.md §4). Each run executes inside
-// its SESSION's environment (ADR 0006): an isolated git checkout that boots
-// as a uniquely-named ddev project on the host daemon. The session's first
-// run clones and boots; later runs and follow-ups reuse the same checkout,
-// env and agent conversation. Project-facing steps (bash/agent) exec INSIDE
-// the session's web container; ddev commands and git steps run host-side
-// (daemon/sandbox.ts). The run row tracks the run status; the session row
-// tracks the environment state (envState), which the preview proxy and the
-// idle-stopper read. SSE is deferred: the UI polls the rows.
-//
-// Execution is engine-generic (workflow-engine-plan.md D3–D5): the step
-// sequence is PINNED onto the run row at start; each step gets a run_steps row
-// whose result is persisted before the next step runs; the step's error policy
-// (retry with exponential backoff, timeout, continueOnError) wraps every
-// action the same way.
-
-// Cap a step's stored outputs (workflow-engine-plan.md D4): results transit the
-// context and the DB: large data belongs in the sandbox filesystem, passed by
-// path/reference.
 const MAX_OUTPUT_BYTES = 64 * 1024
 
-// The abort controllers of runs THIS process is executing, so a cancel (POST
-// /api/runs/:id/cancel) can stop the runner mid-run: step boundaries check the
-// signal, streamed sandbox commands are killed through it.
 const controllers = new Map<number, AbortController>()
 
-// Abort a run this process is executing. Returns false when the run isn't
-// in-flight here (already finished, or a stale 'running' row after a crash);
-// the caller has already flipped the row, so nothing else is needed.
 export function cancelRun(runId: number): boolean {
   const controller = controllers.get(runId)
   if (!controller) return false
@@ -51,14 +26,8 @@ export function cancelRun(runId: number): boolean {
   return true
 }
 
-// Where a retry resumes: completed top-level steps are skipped (their
-// persisted outputs replay into the context), the step that stopped the run
-// re-executes from its start. `tailRowId` is that step's row: it and every
-// later row (its nested sub-rows) are dropped on resume so the step gets
-// fresh rows.
 export function resumePoint(runId: number): { fromIndex: number, tailRowId: number | null } {
-  // Only workflow rows: follow-up rows appended after the run finished are not
-  // part of the pinned step sequence and must not shift the resume point.
+  // Follow-up rows appended after the run finished must not shift the resume point.
   const top = db
     .select({ id: schema.runSteps.id, stepIndex: schema.runSteps.stepIndex, status: schema.runSteps.status })
     .from(schema.runSteps)
@@ -75,12 +44,6 @@ export function resumePoint(runId: number): { fromIndex: number, tailRowId: numb
   return { fromIndex: last.stepIndex, tailRowId: last.id }
 }
 
-// Execute a run. Called only by the dispatcher (server/plugins/dispatcher.ts),
-// which awaits the returned promise to track the concurrency slot; the promise
-// never rejects. Repo credentials are minted on demand from the GitHub App
-// (github-app.ts): installation tokens expire after 1h, so each git network
-// operation fetches a fresh one instead of holding a single token across a
-// possibly-long run.
 export function startRun(runId: number, project: Project): Promise<void> {
   return execRun(runId, project).catch((e) => {
     appendLog(runId, `\nRunner crashed: ${(e as Error).message}\n`)
@@ -98,10 +61,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     return
   }
 
-  // Pin the definition: from here on the run executes this snapshot, immune to
-  // workflow edits (and to the workflow being deleted mid-queue). Draft test
-  // runs arrive with steps already pinned at creation; production runs resolve
-  // the published version here.
+  // Pinned so the run is immune to workflow edits mid-queue.
   let steps = run.steps
   if (!steps) {
     const workflow = run.workflowId ? getWorkflow(run.workflowId) : undefined
@@ -113,8 +73,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     db.update(schema.runs).set({ steps }).where(eq(schema.runs.id, runId)).run()
   }
 
-  // Claim conditionally: a cancel can land while the run sits queued, and the
-  // claim must lose that race instead of reviving a cancelled run.
+  // A cancel can land while the run sits queued; the claim must lose that race.
   const claimed = db.update(schema.runs)
     .set({ status: 'running', startedAt: new Date(), finishedAt: null })
     .where(and(eq(schema.runs.id, runId), eq(schema.runs.status, 'queued')))
@@ -124,20 +83,11 @@ async function execRun(runId: number, project: Project): Promise<void> {
   const controller = new AbortController()
   controllers.set(runId, controller)
 
-  // Everything logs into runs.log, the ONE stream: each step's slice is
-  // recovered from it via the byte offset its row records (logStart).
   const log = (text: string) => appendLog(runId, text)
 
   try {
-    // A retry resumes instead of restarting: the step that stopped the run
-    // loses its rows (it re-runs fresh), the completed steps before it are
-    // skipped and their outputs replay into the context (replayOutputs), so
-    // the sequence continues as if never interrupted. A fresh run has no rows
-    // and resumes from 0, i.e. runs normally.
     const resume = resumePoint(runId)
     if (resume.tailRowId !== null) {
-      // Follow-up rows are kept: they record an already-delivered conversation,
-      // not steps of the sequence being resumed.
       db.delete(schema.runSteps)
         .where(and(
           eq(schema.runSteps.runId, runId),
@@ -155,16 +105,8 @@ async function execRun(runId: number, project: Project): Promise<void> {
     const token = await getInstallationToken(project.owner, project.name)
     const dir = await prepareSessionCheckout(project, sessionId, token, log, session.branch ?? run.branch ?? project.defaultBranch)
 
-    // Derive the environment from the checkout + settings and write the ddev
-    // files (a repo without its own ddev config gets one generated here), then
-    // store the host set the environment serves (the proxy serves the whole
-    // set under per-session preview origins; the UI builds its host switcher
-    // from the stored list). The project's urlMode is pinned onto the session
-    // on its FIRST run: the env baked into the session's environment either
-    // was or wasn't translated, and the proxy must match that for the
-    // session's lifetime. The dev server port is pinned on EVERY boot
-    // (reboot and restore do the same): it describes the container just
-    // built, which the proxy and the boot step's restart read live.
+    // urlMode is pinned on the first run: the proxy must match the env baked into
+    // the environment even if the project setting changes later.
     const urlMode = session.urlMode ?? project.urlMode
     const { env, warnings, injected, devServerPort, changed } = await configureSessionEnv(dir, project, sessionId, urlMode)
     db.update(schema.sessions)
@@ -178,10 +120,6 @@ async function execRun(runId: number, project: Project): Promise<void> {
       .run()
     log(`Environment: ${sessionSandboxName(sessionId)} (${formatEnvSummary(env)}, +${injected} env var(s))\n`)
     for (const warning of warnings) log(`Warning: ${warning}\n`)
-    // The environment definition changed since the containers were built
-    // (a new dev server command, a PHP override): a running stack keeps the
-    // old one until ddev reconciles it, so apply it now. ensureUp later
-    // starts only what is not running and would leave it stale.
     if (changed && session.envState === 'up') {
       log(`Environment definition changed: applying it\n`)
       await startEnvStack(sessionId)
@@ -220,10 +158,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
   }
 }
 
-// A one-shot session (no object) mirrors its single run: it closes when the
-// run reaches a terminal state. Closed is a display state, not a gate:
-// dashboard follow-ups still land on it. Object sessions close with their
-// object instead (webhook close events).
+// Closed is a display state, not a gate: dashboard follow-ups still land on it.
 function closeObjectlessSession(sessionId: number): void {
   db.update(schema.sessions)
     .set({ status: 'closed', closedAt: new Date() })
@@ -231,10 +166,6 @@ function closeObjectlessSession(sessionId: number): void {
     .run()
 }
 
-// Rebuild the context a resumed run's already-executed steps had produced:
-// their persisted outputs land back under steps.<id> (and the action's legacy
-// key) in execution order, exactly as the original pass merged them. Rows
-// without outputs (or a fresh run's empty list) contribute nothing.
 function replayOutputs(runId: number, ctx: RunContext): void {
   const rows = db
     .select({ stepId: schema.runSteps.stepId, type: schema.runSteps.type, outputs: schema.runSteps.outputs })
@@ -251,17 +182,12 @@ function replayOutputs(runId: number, ctx: RunContext): void {
   }
 }
 
-// Position of a nested step list: which composite step owns it and, inside a
-// loop, which iteration; `collect` gathers the iteration's outputs.
 interface StepScope {
   parentStepId?: string
   iteration?: number
   collect?: Record<string, unknown>
 }
 
-// Execute a step list in order, merging each step's outputs into the context.
-// Recurses through composite steps (if/loop) via execStep → runComposite.
-// `startIndex` skips a resumed run's completed prefix (top-level call only).
 async function execSteps(
   runId: number,
   steps: Step[],
@@ -275,8 +201,7 @@ async function execSteps(
     rt.signal.throwIfAborted()
     const outputs = await execStep(runId, index, step, ctx, rt, scope)
     if (outputs && step.id) {
-      // steps.<id> is the collision-free reference; the legacy top-level key
-      // keeps pre-id templates ({{ branch.name }}, {{ pr.url }}) rendering.
+      // Pre-id templates ({{ pr.url }}) still read the top-level key.
       ctx.steps[step.id] = outputs
       if (scope.collect) scope.collect[step.id] = outputs
       const legacyKey = isComposite(step) ? undefined : actionFor(step.type).legacyKey
@@ -285,9 +210,6 @@ async function execSteps(
   }
 }
 
-// Run a composite step's body. The composite's own run_steps row is already
-// open (execStep); each sub-step gets its own row tagged with
-// parentStepId/iteration so the timeline renders the tree.
 async function runComposite(
   runId: number,
   step: CompositeStep,
@@ -299,8 +221,6 @@ async function runComposite(
     const matched = evalConditions(step.conditions, ctx)
     rt.log(`\n▶ if: conditions ${matched ? 'matched → then' : 'not matched → else'}\n`)
     const branch = matched ? step.then : step.else
-    // An if is transparent to an enclosing loop: its sub-steps keep the
-    // iteration tag and contribute to the iteration's collected outputs.
     await execSteps(runId, branch, ctx, rt, { parentStepId: step.id, iteration: scope.iteration, collect: scope.collect })
     return { matched }
   }
@@ -308,8 +228,6 @@ async function runComposite(
   const items = resolveLoopItems(step.items, ctx)
   rt.log(`\n▶ loop: ${items.length} iteration(s)\n`)
   const results: Record<string, unknown>[] = []
-  // Innermost loop wins for {{ loop.item }}/{{ loop.index }}; restore the
-  // outer loop's values when done (nested loops).
   const prevLoop = ctx.loop
   try {
     for (const [index, item] of items.entries()) {
@@ -325,10 +243,6 @@ async function runComposite(
   return { results, count: items.length }
 }
 
-// Execute one step under its error policy. The run_steps row is inserted
-// before the action runs and finalized (status/outputs/error) before the next
-// step is scheduled; retries update the same row. Returns the step's outputs,
-// or undefined when it produced none (or failed with continueOnError).
 async function execStep(
   runId: number,
   index: number,
@@ -337,12 +251,10 @@ async function execStep(
   rt: ActionRuntime,
   scope: StepScope,
 ): Promise<Record<string, unknown> | undefined> {
-  // Composites render nothing up front: conditions/loop items are evaluated
-  // against the LIVE context as the body executes.
+  // Not rendered up front: a composite's conditions and items must see the live context.
   const action = isComposite(step) ? null : actionFor(step.type)
   const rendered = action ? renderStepParams(step, ctx, action.rawParams) : step
-  // Read the offset BEFORE inserting: nothing logs between here and the
-  // action's '\n▶ <label>' banner, so the banner is the first bytes at it.
+  // Read the offset before inserting: the action's banner must be the first bytes at it.
   const logStart = runLogBytes(runId)
   const row = db.insert(schema.runSteps).values({
     runId,
@@ -370,8 +282,6 @@ async function execStep(
     }
     catch (e) {
       const error = (e as Error).message
-      // A cancel kills the in-flight command; close the row out instead of
-      // burning retries on an aborted run.
       if (rt.signal.aborted) {
         finalize({ status: 'failed', error: 'Cancelled', attempt })
         throw e
@@ -383,9 +293,6 @@ async function execStep(
         await sleep(delay * 1000)
         continue
       }
-      // An ActionError carries the failure's outputs (bash exit code + output
-      // tail, an HTTP error response), recorded, and still referencable by
-      // later steps when the run continues.
       const failOutputs = capOutputs((e as ActionError).outputs)
       finalize({ status: 'failed', error, attempt, outputs: failOutputs })
       if (step.continueOnError) {
@@ -397,12 +304,8 @@ async function execStep(
   }
 }
 
-// One action attempt under the step's timeout (StepMeta.timeoutSeconds,
-// defaultStepTimeout(type) when unset). The action runs with a signal
-// that also fires on timeout, so streamed sandbox commands are killed; the
-// surrounding race fails the attempt even when an action ignores its signal.
-// A timeout is an ordinary step failure (retry/continueOnError apply): only
-// the run-level signal (rt.signal here) marks a cancel in execStep's catch.
+// The race fails the attempt even when an action ignores its signal.
+// A timeout is an ordinary failure; only rt.signal marks a cancel.
 function runActionTimed(
   action: RegisteredAction,
   step: Step,
@@ -434,9 +337,6 @@ function updateStepRow(rowId: number, patch: StepRowPatch): void {
   db.update(schema.runSteps).set(patch).where(eq(schema.runSteps.id, rowId)).run()
 }
 
-// The step's own params for the run_steps snapshot: meta stripped, and
-// composite sub-step definitions dropped (they live in the pinned run
-// snapshot; duplicating whole subtrees into every row helps nobody).
 function stepParams(step: Step): Record<string, unknown> {
   const skip = new Set<string>(STEP_META_KEYS)
   if (isComposite(step)) for (const key of COMPOSITE_CHILD_KEYS[step.type]) skip.add(key)
@@ -452,8 +352,6 @@ function capOutputs(outputs: Record<string, unknown> | undefined): Record<string
   return outputs
 }
 
-// Exported: the follow-up executor and the agent bridge append to the same
-// run log the runner streams into.
 export function appendLog(runId: number, text: string): void {
   db.update(schema.runs)
     .set({ log: sql`${schema.runs.log} || ${text}` })
@@ -461,13 +359,8 @@ export function appendLog(runId: number, text: string): void {
     .run()
 }
 
-// Current byte length of a run's log, i.e. the offset where the next append
-// lands: what run_steps.logStart records at row insert. Read from the DB
-// (not tracked as a counter) because the agent bridge and the follow-up
-// banners append outside the runner's log closure, and cast to blob because
-// sqlite's length() on TEXT counts characters while the dashboard cuts the
-// log with TextEncoder (bytes). Synchronous sqlite plus the single-writer
-// runner make the value exact for the row about to be inserted.
+// Other writers append outside this module. Cast to blob: sqlite's length()
+// on TEXT counts characters while the dashboard cuts the log in bytes.
 export function runLogBytes(runId: number): number {
   return db
     .select({ bytes: sql<number>`length(cast(${schema.runs.log} as blob))` })
@@ -483,10 +376,6 @@ function finish(runId: number, status: 'success' | 'failed' | 'cancelled'): void
     .run()
 }
 
-// A successful run fired from a Jira ticket hands its result back: the PR a
-// `create-pr` step opened (prUrl is written onto the row mid-run) is commented
-// on the ticket. Best-effort: the run is already finished, so a failed comment
-// only logs.
 async function handBackToJira(runId: number, trigger: string | null, inputs: Record<string, string> | null, log: (text: string) => void): Promise<void> {
   const ticket = inputs?.identifier
   if (trigger !== 'jira' || !ticket) return

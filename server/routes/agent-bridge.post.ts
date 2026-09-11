@@ -113,7 +113,7 @@ export default defineEventHandler(async (event) => {
         if (!add.length && !remove.length) throw new BridgeError('nothing to do: pass labels to add or remove')
         if (add.length) {
           // Only labels that already exist in the repo may be applied: Knecht
-          // never invents labels (ADR 0007).
+          // never invents labels.
           const existing = new Set(await listRepoLabels(project.owner, project.name))
           const unknown = add.filter(l => !existing.has(l))
           if (unknown.length) {

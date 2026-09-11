@@ -2,10 +2,6 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
-// The mention pipeline (ADR 0007) against the real schema: member gate,
-// starter-run bootstrapping, follow-up queueing, and the setup hint. Only the
-// GitHub API and the dispatcher are faked.
-
 const reactions: number[] = []
 const comments: { issue: number, body: string }[] = []
 vi.mock('../../server/utils/github-app', () => ({
@@ -84,7 +80,6 @@ describe('handleMention', () => {
 
     const outcome = await handleMention(project, payload('@Knecht-Test check the login page'))
     expect(outcome).toContain('queued starter run')
-    // Acknowledged with a reaction on the mention comment.
     expect(reactions).toEqual([99])
 
     const runs = db.select().from(schema.runs).where(eq(schema.runs.projectId, project.id)).all()
@@ -98,8 +93,6 @@ describe('handleMention', () => {
     expect(session.objectKind).toBe('issue')
     expect(session.objectNumber).toBe(5)
 
-    // The follow-up anchors the mention's OWN run, not the starter: its
-    // timeline must never land inside the starter workflow's run.
     const followup = db.select().from(schema.followups).where(eq(schema.followups.sessionId, session.id)).get()!
     expect(followup.runId).toBe(mentionRun.id)
     expect(followup.origin).toBe('mention')
@@ -114,7 +107,6 @@ describe('handleMention', () => {
     await handleMention(project, payload('@knecht-test second'))
 
     const runs = db.select().from(schema.runs).where(eq(schema.runs.projectId, project.id)).all()
-    // ONE starter boot, one mention run per mention.
     expect(runs.filter(r => r.kind === 'workflow')).toHaveLength(1)
     expect(runs.filter(r => r.kind === 'mention')).toHaveLength(2)
     const followups = db.select().from(schema.followups).where(eq(schema.followups.sessionId, runs[0]!.sessionId)).all()
@@ -123,7 +115,6 @@ describe('handleMention', () => {
 
   it('a mention on an object with a live session gets its own run', async () => {
     const project = makeProject()
-    // A trigger already worked on issue #5: session exists with an env.
     const run = makeRun(project, [], { status: 'success' })
     db.update(schema.sessions)
       .set({ objectKind: 'issue', objectNumber: 5, envState: 'stopped' })

@@ -5,15 +5,6 @@ import { requireSession } from '../../../utils/entities'
 import { dispatchRuns } from '../../../daemon/dispatcher'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 
-// POST /api/runs/:id/followups → send a follow-up prompt to the run's
-// session: the agent continues the session's conversation inside the
-// existing sandbox. Whether to publish is part of the prompt itself: the
-// agent commits/pushes when asked and keeps an existing PR current;
-// otherwise changes stay in the checkout for preview-first iteration.
-//
-// Fast lane vs queue: an 'up' env costs no new RAM, so its follow-up starts
-// immediately; a stopped/archived env must be revived, which takes a
-// dispatcher slot like a run does.
 const bodySchema = z.object({
   prompt: z.string().trim().min(1),
 })

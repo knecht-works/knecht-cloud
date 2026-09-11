@@ -1,6 +1,4 @@
 <script setup lang="ts">
-// A screen's top bar: a title block (optional eyebrow + subtitle) with a
-// right-aligned actions slot. Standard header across the dashboard screens.
 withDefaults(defineProps<{
   title: string
   sub?: string

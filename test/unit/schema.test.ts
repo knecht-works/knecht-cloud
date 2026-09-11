@@ -30,7 +30,6 @@ describe('parseWorkflow (YAML authoring sugar)', () => {
   it('normalizes a flat condition list into one OR group and backfills ids', () => {
     const gate = steps.find(s => s.type === 'if') as Extract<Step, { type: 'if' }>
     expect(gate.conditions).toEqual([[{ left: '{{ steps.link_check.broken }}', op: 'gt', right: '0' }]])
-    // Every step in the tree got an id, including the nested loop body.
     const loop = gate.then[0] as Extract<Step, { type: 'loop' }>
     expect(loop.id).toBeTruthy()
     expect(loop.steps[0]!.id).toBeTruthy()

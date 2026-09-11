@@ -2,10 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { Trigger } from '../../server/db/schema'
 import { githubObject, matchGithubEvent } from '../../server/utils/github-webhook'
 
-// The webhook matcher's object extraction (ADR 0006): PR and issue
-// deliveries carry the object their run's session belongs to; pushes have
-// none.
-
 function trigger(overrides: Partial<Trigger>): Trigger {
   return {
     webhookEvent: 'push',

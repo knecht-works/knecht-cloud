@@ -5,12 +5,6 @@ import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { TRIGGER_SOURCES } from '../../utils/trigger-sources'
 
-// POST /api/triggers → create a trigger. The body is a discriminated union on
-// `source`: a schedule carries a cron expression; a github trigger listens for
-// deliveries on the app webhook (/api/github/webhook, configured automatically
-// at setup); a manual trigger just fires on demand; registry sources (jira, …)
-// carry their settings in `config`, validated by the source's own schema. Each
-// fires `workflowId` against `projectIds`.
 const projectIds = z.array(z.number().int()).default([])
 const workflowId = z.number().int()
 const bodySchema = z.discriminatedUnion('source', [
@@ -20,7 +14,6 @@ const bodySchema = z.discriminatedUnion('source', [
     workflowId,
     projectIds,
     webhookEvent: z.enum(['push', 'pull_request', 'issues']).default('push'),
-    // push: the pushed branch; pull_request: the base branch. Empty = all.
     webhookBranches: z.array(z.string().min(1)).default([]),
     issueActions: z.array(z.enum(['opened', 'labeled'])).min(1).default(['opened']),
     issueLabel: z.string().min(1).nullish(),
@@ -73,9 +66,7 @@ export default defineEventHandler(async (event) => {
   if ('config' in data) {
     const def = TRIGGER_SOURCES.find(d => d.source === data.source)!
     values.config = data.config
-    // Seed the state (e.g. jira's already-matching keys) so the trigger reacts
-    // to changes from now on. A failure here is a connection problem the user
-    // should see at create time, not a broken trigger later.
+    // Seed the state so the trigger does not fire on its backlog.
     try {
       values.state = await def.init(data.config)
     }

@@ -1,15 +1,7 @@
 <script setup lang="ts">
-// The builder's code editor (the registry's 'code' fields): prism-code-editor,
-// a textarea with a highlight overlay, plus its basic editing extensions
-// (Tab indent, auto-indent, auto-closing pairs, Mod+/ comments, undo/redo).
-// VarField owns the box around it (label, ring, invalid state) and wires the
-// {{ }} autocomplete straight onto the editor's textarea; this component only
-// bridges editor <-> v-model and exposes the editor for programmatic inserts.
 import { createEditor, type PrismEditor } from 'prism-code-editor'
 import { defaultKeymap, editHistory, editorCommands } from 'prism-code-editor/commands'
 import { matchBrackets } from 'prism-code-editor/match-brackets'
-// Grammars (highlighting) + language behavior (comment tokens, auto-indent;
-// clike registers 'javascript').
 import 'prism-code-editor/prism/languages/bash'
 import 'prism-code-editor/prism/languages/javascript'
 import 'prism-code-editor/languages/bash'
@@ -21,9 +13,7 @@ const props = defineProps<{
   lang: 'javascript' | 'bash'
   placeholder?: string
   disabled?: boolean
-  /** Minimum visible lines (the box grows with the content). */
   rows?: number
-  /** Height in px the box stops growing at; the content scrolls inside. */
   maxHeight?: number
 }>()
 
@@ -44,8 +34,6 @@ onMounted(() => {
   }, editorCommands(defaultKeymap), editHistory(), matchBrackets(true))
 })
 
-// External writes (chip inserts go through insertText and keep history; this
-// covers programmatic resets like switching the inspected step).
 watch(model, (value) => {
   const ed = editor.value
   if (ed && ed.value !== (value ?? '')) ed.setOptions({ value: value ?? '' })
@@ -72,9 +60,6 @@ defineExpose({ editor })
 </template>
 
 <style scoped>
-/* Blend the editor into the knecht field look: our mono font and type scale,
-   transparent background (the VarField box paints the surface), brand caret
-   and a translucent primary selection. */
 .k-code-editor :deep(.prism-code-editor) {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -85,7 +70,6 @@ defineExpose({ editor })
   --pce-cursor: var(--text-default);
   --pce-selection: color-mix(in oklab, var(--primary) 30%, transparent);
   --padding-inline: 0.625rem;
-  /* No highlighted current line: in a short field it reads as a stripe. */
   --pce-bg-highlight: transparent;
   --pce-border-highlight: none;
 }

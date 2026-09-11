@@ -1,13 +1,6 @@
 import Docker from 'dockerode'
 import { resolveContainerUser, serviceContainerName, WEB_PROJECT_DIR } from './sandbox'
 
-// An interactive TTY shell inside one of a run's service containers, over the
-// docker socket (dockerode exec with a hijacked duplex stream: no sshd, no
-// node-pty). The web container gets the same identity every Knecht exec uses
-// (this process's uid, HOME/USER from the container passwd, project dir);
-// other services (db, extra ddev services) get their default user, like
-// `ddev ssh -s <service>`. The transport side lives in api/runs/[id]/terminal.ts.
-
 const docker = new Docker({ socketPath: '/var/run/docker.sock' })
 
 export interface RunTerminal {
@@ -41,10 +34,7 @@ export async function openRunTerminal(
   await exec.resize({ w: size.cols, h: size.rows }).catch(() => {})
   return {
     stream,
-    // Resize failures (a session that just ended) must not surface.
     resize: (cols, rows) => void exec.resize({ w: cols, h: rows }).catch(() => {}),
-    // Destroying the hijacked stream hangs up bash; a container stop kills
-    // the session anyway.
     close: () => stream.destroy(),
   }
 }

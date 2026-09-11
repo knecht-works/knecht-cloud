@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import type { SessionObjectKind } from '~/utils/dashboard'
 
-// Header row above a session's runs in the run lists: the object (issue/PR)
-// icon and number, its title, an optional project link, the live-env dot and
-// the link out to the thread. Shared by the global runs page and the project
-// page so the two group headers can never drift apart.
 defineProps<{
-  /** the session's object, as built by groupRunsBySession */
   object: {
     kind: SessionObjectKind
     number: number | null
@@ -15,7 +10,6 @@ defineProps<{
     closed: boolean
     live: boolean
   }
-  /** link to the owning project; omitted on the project page itself */
   project?: { id: number, name: string }
 }>()
 </script>

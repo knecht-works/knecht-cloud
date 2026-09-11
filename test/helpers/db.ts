@@ -3,10 +3,6 @@ import { db, schema } from '../../server/db'
 import type { Project, Run, Session } from '../../server/db/schema'
 import { ensureStepIds, type Step } from '../../shared/utils/workflow'
 
-// Minimal row builders for engine tests. Tests assert on the persisted
-// contract (runs/run_steps rows), so a new required column gets its default
-// here once instead of in every test.
-
 let nextGithubId = 1
 
 export function makeProject(overrides: Partial<typeof schema.projects.$inferInsert> = {}): Project {
@@ -21,7 +17,6 @@ export function makeProject(overrides: Partial<typeof schema.projects.$inferInse
   }).returning().get()
 }
 
-// A one-shot session for a run to execute in (every run needs one, ADR 0006).
 export function makeSession(project: Project, overrides: Partial<typeof schema.sessions.$inferInsert> = {}): Session {
   return db.insert(schema.sessions).values({
     projectId: project.id,
@@ -29,8 +24,6 @@ export function makeSession(project: Project, overrides: Partial<typeof schema.s
   }).returning().get()
 }
 
-// A queued run with its step sequence already pinned (the runner executes the
-// snapshot; no workflows row is needed), inside a fresh one-shot session.
 export function makeRun(project: Project, steps: Step[], overrides: Partial<typeof schema.runs.$inferInsert> = {}): Run {
   return db.insert(schema.runs).values({
     projectId: project.id,

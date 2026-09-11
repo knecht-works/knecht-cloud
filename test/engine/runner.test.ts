@@ -6,16 +6,9 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
 import { getRun, getSteps, makeProject, makeRun, requeue } from '../helpers/db'
 
-// The engine contract, tested front to back: a pinned step sequence goes in,
-// runs/run_steps rows come out. Everything is the real code (runner, actions,
-// context, real SQLite); only the container and GitHub boundaries are faked:
-// commands run on the test host in a per-run temp git repo (local-sandbox.ts).
-
 vi.mock('../../server/daemon/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../server/daemon/git')>()
   const { fakeCheckout } = await import('../helpers/local-sandbox')
-  // Only the checkout is faked: createBranch/commitAll stay the real git code,
-  // running against the fake checkout's real repo.
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
 const startEnvStack = vi.hoisted(() => vi.fn(async () => {}))
@@ -46,12 +39,10 @@ describe('runner', () => {
       { type: 'bash', id: 'use', command: 'echo got: {{ steps.greet.stdout }}' },
     ])
     expect(run.status).toBe('success')
-    // A one-shot session mirrors its single run: closed once it finished.
     const { getSessionRow } = await import('../helpers/db')
     expect(getSessionRow(run.sessionId).status).toBe('closed')
     expect(steps).toHaveLength(2)
     expect(steps.every(s => s.status === 'success')).toBe(true)
-    // The second step's params were rendered against the first step's outputs.
     expect(steps[1]!.params?.command).toBe('echo got: hello')
     expect(steps[1]!.outputs?.stdout).toBe('got: hello')
   })
@@ -61,10 +52,8 @@ describe('runner', () => {
     const { project, run } = await execute([step])
     expect(startEnvStack).not.toHaveBeenCalled()
     db.update(schema.sessions).set({ envState: 'up' }).where(eq(schema.sessions.id, run.sessionId)).run()
-    // Same settings: the files are unchanged, the running stack is left alone.
     await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, project)
     expect(startEnvStack).not.toHaveBeenCalled()
-    // A PHP override changed the generated config: the stack is reconciled.
     await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, { ...project, phpVersion: '8.2' })
     expect(startEnvStack).toHaveBeenCalledWith(run.sessionId)
   })
@@ -77,7 +66,6 @@ describe('runner', () => {
     expect(run.status).toBe('failed')
     expect(steps).toHaveLength(1)
     expect(steps[0]!.status).toBe('failed')
-    // The failure's outputs are recorded on the row (ActionError).
     expect(steps[0]!.outputs?.exitCode).toBe(3)
   })
 
@@ -94,7 +82,6 @@ describe('runner', () => {
 
   it('retries a failing step and records the attempt count', async () => {
     const { run, steps } = await execute([
-      // Fails on the first attempt, succeeds once the marker file exists.
       {
         type: 'bash',
         id: 'retry_me',
@@ -121,7 +108,6 @@ describe('runner', () => {
     const project = makeProject()
     const run = makeRun(project, [{ type: 'bash', id: 'forever', command: 'sleep 30' }])
     const done = startRun(run.id, project)
-    // Wait until the step is actually executing, then cancel.
     for (let i = 0; i < 100 && getSteps(run.id).length === 0; i++) await sleep(50)
     expect(getSteps(run.id).length).toBe(1)
     expect(cancelRun(run.id)).toBe(true)
@@ -131,9 +117,7 @@ describe('runner', () => {
   })
 
   it('records each step row\'s byte offset into the run log', async () => {
-    // The umlauts force byte and character offsets apart across the step
-    // boundary (the prelude's own '▶' banners already do before it), so the
-    // assertions below fail if offsets were counted in characters.
+    // The umlauts force byte and character offsets apart, so counting in characters fails below.
     const { run, steps } = await execute([
       { type: 'bash', id: 'one', command: 'echo grüß gott' },
       { type: 'bash', id: 'two', command: 'echo servus' },
@@ -142,9 +126,6 @@ describe('runner', () => {
     const [a, b] = steps
     expect(a!.logStart).toBeGreaterThan(0)
     expect(b!.logStart!).toBeGreaterThan(a!.logStart!)
-    // The byte-level contract the dashboard's segmentation relies on: every
-    // offset points at the step's own '\n▶ ' banner, and the slice between
-    // two offsets is exactly the earlier step's output.
     const bytes = Buffer.from(run.log, 'utf8')
     for (const row of steps) {
       expect(bytes.subarray(row.logStart!).toString('utf8').startsWith('\n▶ ')).toBe(true)
@@ -168,8 +149,6 @@ describe('runner', () => {
 
     expect(getRun(run.id).status).toBe('success')
     const steps = getSteps(run.id)
-    // The completed first step was NOT re-executed; the failing step got a
-    // fresh row whose params rendered from the replayed context.
     expect(steps.filter(s => s.stepId === 'first')).toHaveLength(1)
     const flaky = steps.filter(s => s.stepId === 'flaky')
     expect(flaky).toHaveLength(1)
@@ -242,7 +221,6 @@ describe('runner', () => {
     const commit = steps.find(s => s.stepId === 'commit')!
     expect(commit.outputs?.created).toBe(true)
     expect(commit.outputs?.sha).toMatch(/^[0-9a-f]{40}$/)
-    // The commit really exists in the worktree's repo.
     const { execa } = await import('execa')
     const { stdout } = await execa('git', ['-C', checkoutDirOf(run.sessionId), 'log', '-1', '--format=%s %an'])
     expect(stdout).toBe(`Test change (run ${run.id}) Knecht Test`)

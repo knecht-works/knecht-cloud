@@ -2,23 +2,6 @@ import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
 import { hostname } from 'node:os'
 import { execa } from 'execa'
 
-// The agent bridge: how in-sandbox git gets its push/fetch credentials and
-// how a PR is opened from inside a session's sandbox. The sandbox holds only
-// the bridge env vars (KNECHT_BRIDGE_URL + a per-session token, also baked
-// into the clone's credential.helper config); the `knecht-git` CLI
-// (sandbox/knecht-git) POSTs to /agent-bridge
-// (server/routes/agent-bridge.post.ts), which mints a short-lived
-// installation token scoped to the session's ONE repo. The blast radius of a
-// prompt-injected agent is that repo for about an hour; branch protection on
-// the repo guards its default branch.
-
-// Per-session bearer token, derived (not stored): HMAC over the session id
-// with a key stretched from NUXT_SESSION_PASSWORD (same secret crypto.ts
-// derives from, different HKDF info so the keys are independent). The HMAC
-// input string and the KNECHT_RUN_ID env name keep their historical `run`
-// naming: tokens baked into pre-session checkouts (git credential helper
-// config) must stay valid, and the id they carry is the session id now.
-// Verification recomputes.
 function bridgeKey(): Buffer {
   const password = process.env.NUXT_SESSION_PASSWORD
   if (!password || password.length < 32) {
@@ -28,6 +11,8 @@ function bridgeKey(): Buffer {
 }
 
 export function bridgeToken(sessionId: number): string {
+  // The `run-` prefix must stay: tokens baked into older checkouts' credential
+  // helper config were derived with it.
   return createHmac('sha256', bridgeKey()).update(`run-${sessionId}`).digest('hex')
 }
 
@@ -37,12 +22,6 @@ export function verifyBridgeToken(sessionId: number, provided: string): boolean 
   return expected.length === given.length && timingSafeEqual(expected, given)
 }
 
-// The address the sandbox reaches THIS app under. Sandboxes sit on the
-// knecht-ingress docker network; so does the app (as a container in prod,
-// joined at boot by daemon/sandbox.ts) or the docker host (dev, where Knecht
-// is a plain host process listening on 0.0.0.0 and reachable via the network
-// gateway). Resolved once per boot; a null means the bridge is unavailable
-// and the agent simply gets no git tools this run.
 const INGRESS_NETWORK = 'knecht-ingress'
 let cachedBase: string | null | undefined
 
@@ -54,7 +33,6 @@ export async function bridgeBaseUrl(): Promise<string | null> {
 
 async function resolveBase(): Promise<string | null> {
   const port = process.env.NITRO_PORT || process.env.PORT || '3000'
-  // Containerized: our own IP on the ingress network.
   try {
     const { stdout } = await execa('docker', [
       'inspect', '-f',
@@ -64,7 +42,7 @@ async function resolveBase(): Promise<string | null> {
     if (stdout.trim()) return `http://${stdout.trim()}:${port}`
   }
   catch {
-    // Not running as a container (dev), fall through to the gateway.
+    // Not a container: try the gateway.
   }
   try {
     const { stdout } = await execa('docker', [
@@ -73,7 +51,7 @@ async function resolveBase(): Promise<string | null> {
     if (stdout.trim()) return `http://${stdout.trim()}:${port}`
   }
   catch {
-    // Network not created yet or docker unavailable.
+    // No ingress network yet.
   }
   return null
 }

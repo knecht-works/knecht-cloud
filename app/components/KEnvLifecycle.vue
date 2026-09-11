@@ -1,18 +1,10 @@
 <script setup lang="ts">
 import type { EnvState } from '#shared/utils/run'
 
-// The revival action for an environment that is not up: reboot a stopped
-// one, restore an archived one, run the workflow again when it is gone. One
-// component because the workspace renders it in two places: inside the
-// preview frame's offline viewport, or as a plain card for a headless
-// environment that has no frame.
 defineProps<{
   envState: EnvState
-  /** Null once the workflow was deleted: running again is impossible then. */
   workflowId: number | null
-  /** A reboot/restore is in flight. */
   reviving: boolean
-  /** A fresh run is being created. */
   restarting: boolean
 }>()
 

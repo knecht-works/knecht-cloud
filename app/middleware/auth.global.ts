@@ -1,6 +1,4 @@
-// Global page guard (secure-by-default): every route requires a session except
-// the public ones below. The mirror of server/middleware/auth.ts on the page
-// side: new pages are protected automatically, no opt-in to forget.
+// Every route requires a session except these; mirror of server/middleware/auth.ts.
 const PUBLIC_ROUTES = ['/login', '/setup']
 
 export default defineNuxtRouteMiddleware((to) => {

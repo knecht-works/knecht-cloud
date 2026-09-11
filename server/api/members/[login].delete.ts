@@ -1,8 +1,5 @@
 import { getMember, listMembers, removeMember } from '../../utils/members'
 
-// DELETE /api/members/:login → revoke access. The owner is protected so the
-// instance always keeps its original claim; everyone else can be removed by any
-// member (they lose access on their next request / once their session expires).
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)
 

@@ -1,9 +1,5 @@
 import { previewHostname } from '../../shared/utils/preview-host'
 
-// The dashboard's public origin, for URLs built SERVER-side (PR bodies,
-// webhook endpoints, anywhere no request URL is at hand). Prod sets
-// KNECHT_BASE_DOMAIN and https is implied; dev, where scheme and port differ
-// (http://lvh.me:3333), overrides with the full KNECHT_BASE_URL.
 export function dashboardOrigin(): string {
   const url = process.env.KNECHT_BASE_URL
   if (url) return url.replace(/\/+$/, '')
@@ -11,9 +7,6 @@ export function dashboardOrigin(): string {
   return domain ? `https://${domain}` : ''
 }
 
-// The preview origin a session's primary host is served under (or, with a
-// label, one of its additional hosts), or null when no base origin is
-// configured.
 export function previewOrigin(sessionId: number, label?: string): string | null {
   const origin = dashboardOrigin()
   if (!origin) return null
@@ -21,9 +14,6 @@ export function previewOrigin(sessionId: number, label?: string): string | null 
   return `${url.protocol}//${previewHostname(sessionId, url.host, label)}`
 }
 
-// Append the session's preview link to a PR body: every PR Knecht opens carries
-// it, so reviewers get the live environment next to the diff. Appended
-// host-side (never left to the agent), so it is always present and correct.
 export function withPreviewFooter(body: string, sessionId: number): string {
   const origin = previewOrigin(sessionId)
   if (!origin) return body

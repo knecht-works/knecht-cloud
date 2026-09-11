@@ -1,10 +1,3 @@
-// The client-side step registry, assembled from one def file per step type
-// (app/utils/steps/<type>.ts): each carries the step's complete client-side
-// description: identity, editor fields, defaults, outputs and list
-// presentation. The server pairs each def with an action module
-// (server/workflows/actions/<type>.ts); the shared Step union
-// (shared/utils/workflow.ts) is the type-level single source both build on.
-
 import type { InjectionKey, Ref } from 'vue'
 import { COMPOSITE_CHILD_KEYS, deriveStepId, isComposite, STEP_META_KEYS, stepChildren, stepIds } from '#shared/utils/workflow'
 import type { RegisteredStepDef, StepMeta, StepVar } from '~/utils/steps/define'
@@ -22,7 +15,7 @@ import { createPrStep } from '~/utils/steps/create-pr'
 
 export type { RegisteredStepDef, StepField, StepMeta, StepVar } from '~/utils/steps/define'
 
-// Registry order = library order (grouped by `group` in the UI).
+// Registry order is the library order in the UI.
 export const STEP_DEFS: RegisteredStepDef[] = [
   ddevStartStep,
   bashStep,
@@ -39,8 +32,6 @@ export const STEP_DEFS: RegisteredStepDef[] = [
 
 const BY_TYPE = new Map(STEP_DEFS.map(d => [d.type, d]))
 
-// Lookup that tolerates unknown types (a removed step type in an old run's
-// records). Callers that render history use this.
 export function stepDefFor(type: string): RegisteredStepDef | undefined {
   return BY_TYPE.get(type as WorkflowStep['type'])
 }
@@ -49,16 +40,11 @@ export function stepDef(type: WorkflowStep['type']): RegisteredStepDef {
   return BY_TYPE.get(type)!
 }
 
-// A fresh step for the given type, with its stable id derived from the type's
-// label against the steps it's joining (run_command, run_command_2, …): the
-// single creation path (library click AND drag-drop).
 export function makeStep(type: WorkflowStep['type'], steps: WorkflowStep[]): WorkflowStep {
   const def = stepDef(type)
   return { ...def.make(), id: deriveStepId(def.label, stepIds(steps)) }
 }
 
-// How a step instance presents in lists: the def's identity, overlaid with its
-// instance-specific derivation (def.meta) and the user's custom label/note.
 export function workflowStepMeta(step: WorkflowStep): StepMeta {
   const def = stepDef(step.type)
   const derived = def.meta?.(step) ?? {}
@@ -70,7 +56,6 @@ export function workflowStepMeta(step: WorkflowStep): StepMeta {
   }
 }
 
-// Variables seeded into every run before the first step (workflows/context.ts).
 const CONTEXT_VARS: StepVar[] = [
   { path: 'run.id', hint: 'This run\'s number' },
   { path: 'run.url', hint: 'Link to this run in the dashboard' },
@@ -80,11 +65,6 @@ const CONTEXT_VARS: StepVar[] = [
   { path: 'project.defaultBranch', hint: 'The default branch' },
 ]
 
-// Event data a trigger seeds the run with (server/utils/github-webhook.ts).
-// A FIXED contract across all trigger kinds: the event's subject (issue, PR,
-// head commit) fills identifier/title/body/url, so every variable exists for
-// every trigger and one workflow serves them all. Empty on manual and
-// scheduled runs.
 export const TRIGGER_VARS: StepVar[] = [
   { path: 'inputs.title', hint: 'Issue/PR title, or the commit message' },
   { path: 'inputs.body', hint: 'Issue/PR body' },
@@ -95,21 +75,15 @@ export const TRIGGER_VARS: StepVar[] = [
 
 export interface VarGroup {
   label: string
-  /** Accent for the group's chips: the source step's kind colour. */
   color: string
   vars: StepVar[]
 }
 
-// A variable path split for two-tone rendering: the routing prefix
-// (`steps.s2.`) drawn dimmed, the final segment (`stdout`) readable. The
-// segment is what authors scan for. Used by the chips and the autocomplete.
 export function varPathParts(path: string): [string, string] {
   const at = path.lastIndexOf('.')
   return [path.slice(0, at + 1), path.slice(at + 1)]
 }
 
-// The {{ steps.<id>.… }} group one prior step contributes, or null when it has
-// no outputs (or no id yet).
 export function stepOutputGroup(step: WorkflowStep, position: number): VarGroup | null {
   const def = stepDef(step.type)
   const outputs = [...def.outputs, ...(def.dynamicOutputs?.(step) ?? [])]
@@ -122,7 +96,6 @@ export function stepOutputGroup(step: WorkflowStep, position: number): VarGroup 
   }
 }
 
-// What a loop's body can additionally reference.
 export const LOOP_VARS: VarGroup = {
   label: 'Loop',
   color: STEP_KIND_COLOR.flow,
@@ -132,9 +105,6 @@ export const LOOP_VARS: VarGroup = {
   ],
 }
 
-// The output groups of the steps BEFORE `index`: the one home for the
-// "values flow front to back" scoping rule, shared by the top-level editor
-// (availableVars) and composite sub-lists (WorkflowStepList).
 export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup[] {
   const groups: VarGroup[] = []
   steps.slice(0, index).forEach((step, i) => {
@@ -144,37 +114,22 @@ export function stepOutputGroups(steps: WorkflowStep[], index: number): VarGroup
   return groups
 }
 
-// Everything a step at `index` can reference: the run context plus the outputs
-// of every step BEFORE it. Outputs are offered under the step's stable id
-// ({{ steps.<id>.<output> }}), so a step type used twice stays unambiguous.
-// (Sub-steps of composites extend this, see WorkflowStepList, with the loop
-// vars and their prior siblings.)
 export function availableVars(steps: WorkflowStep[], index: number): VarGroup[] {
   return [...baseVarGroups(), ...stepOutputGroups(steps, index)]
 }
 
-// The run-seeded groups every step sees regardless of position: the root
-// list's `varsBase` (composite sub-lists inherit their parent's scope).
 export function baseVarGroups(): VarGroup[] {
-  // Context vars are seeded by the trigger/run: they wear the trigger colour.
   return [
     { label: 'Context', color: STEP_KIND_COLOR.trigger, vars: CONTEXT_VARS },
     { label: 'Trigger event', color: STEP_KIND_COLOR.trigger, vars: TRIGGER_VARS },
   ]
 }
 
-// One problem preventing a step from saving, phrased for the editor UI.
-// `step` is the step the problem sits on: for a composite that can be one of
-// its sub-steps, so the UI can name (and open) the exact offender.
 export interface StepIssue {
   step: WorkflowStep
   message: string
 }
 
-// Every problem on the step and (for composites) its sub-steps, depth-first:
-// what "Incomplete" actually means, spelled out. A step is saveable when its
-// required fields are filled, its sub-steps (if any) are valid, and, for an
-// if, every condition row is usable.
 export function stepIssues(step: WorkflowStep): StepIssue[] {
   const issues: StepIssue[] = []
   if (step.type === 'if') {
@@ -199,25 +154,13 @@ export function stepValid(step: WorkflowStep): boolean {
   return stepIssues(step).length === 0
 }
 
-// Whether the workflow's CURRENT state (the draft, falling back to the
-// published steps) would pass the server's strict run validation: manual runs
-// execute exactly this, so pickers and run buttons gate on it.
 export function workflowRunnable(w: { steps: WorkflowStep[], draftSteps: WorkflowStep[] | null }): boolean {
   const steps = w.draftSteps ?? w.steps
   return steps.length > 0 && steps.every(stepValid)
 }
 
-// Provided by the editor page, flipped after a failed explicit save: the
-// save click is the fixed validation point, so from then on every component
-// drops the pristine grace and highlights all problems.
 export const FORCE_STEP_ISSUES: InjectionKey<Ref<boolean>> = Symbol('force-step-issues')
 
-// A step whose own params are all still at their just-added defaults: "not
-// configured yet" rather than "broken". The editor holds back such a step's
-// error highlights until the user starts filling it in; the save stays
-// blocked either way (stepValid). Meta (id/label/note) doesn't count as
-// configuring, nor do a composite's sub-step lists (each sub-step has its own
-// pristineness).
 export function stepPristine(step: WorkflowStep): boolean {
   const defaults = stepDef(step.type).make() as unknown as Record<string, unknown>
   const s = step as unknown as Record<string, unknown>

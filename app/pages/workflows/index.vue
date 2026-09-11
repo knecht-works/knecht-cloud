@@ -1,15 +1,11 @@
 <script setup lang="ts">
 const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
-// Stats + automation columns stream in lazily: they don't gate the list.
 const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
 const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 const toastError = useToastError()
 
 type WorkflowItem = NonNullable<typeof workflows.value>[number]
 
-// Flip the workflow's automation master switch. The server refuses to enable
-// a workflow that never had a complete version (nothing for triggers to run);
-// the toast carries that reason.
 async function toggleEnabled(w: WorkflowItem) {
   try {
     await $fetch(`/api/workflows/${w.id}`, {
@@ -23,8 +19,6 @@ async function toggleEnabled(w: WorkflowItem) {
   }
 }
 
-// Create the workflow right away and open it: the editor autosaves into the
-// fresh row, so there is nothing to type before it exists.
 const creating = ref(false)
 async function createWorkflow() {
   creating.value = true
@@ -44,9 +38,6 @@ function fmt(seconds: number) {
   return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
 }
 
-// Each workflow enriched with run stats (rate, avg, status) plus its configured
-// automation: the triggers it owns give both the projects it fires against and
-// the trigger summary: no run needs to have happened yet.
 const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const wRuns = (runs.value ?? []).filter(r => r.workflowId === w.id)
   const completed = wRuns.filter(r => r.status === 'success' || r.status === 'failed')
@@ -63,7 +54,6 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const status = latest ? RUN_STATUS_META[latest.status] : IDLE_STATUS_META
   const statusText = latest ? `${status.label} · ${timeAgo(latest.createdAt)}` : 'No runs yet'
 
-  // Projects + trigger summary from the workflow's triggers (its automation).
   const wTriggers = (triggers.value ?? []).filter(t => t.workflowId === w.id)
   const names = [...new Set(wTriggers.flatMap(t => t.projects))]
   const projects = names.length > 3 ? [...names.slice(0, 2), `+${names.length - 2}`] : names
@@ -88,7 +78,6 @@ const metrics = computed(() => {
   }
 })
 
-// ── import (YAML/JSON export files, or hand-written definitions) ────────────
 const importInput = ref<HTMLInputElement>()
 const importing = ref(false)
 async function importFile(e: Event) {

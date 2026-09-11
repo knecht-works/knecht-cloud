@@ -18,7 +18,6 @@ export const aiStep = defineStep({
     { path: 'text', hint: 'The agent\'s output' },
     { path: 'json', hint: 'When Output format is set, the validated result; otherwise the output parsed as JSON if it is valid JSON' },
   ],
-  // Each declared output field becomes its own steps.<id>.json.<field> variable.
   dynamicOutputs: step => aiOutputFields(step.output ?? '').map(f => ({
     path: `json.${f.name}`,
     hint: `${f.name} (${f.type}) from the output format`,

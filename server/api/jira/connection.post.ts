@@ -3,10 +3,6 @@ import { jiraMyself } from '../../utils/jira'
 import { jiraCredentials, saveJiraCredentials } from '../../utils/jira-credentials'
 import { keyPreview } from '../../utils/settings'
 
-// POST /api/jira/connection → save the Jira Cloud connection. The credentials
-// are validated with a live /myself call BEFORE anything is stored, so a typo
-// in the URL or a revoked token surfaces immediately instead of as silent
-// poller failures later.
 const bodySchema = z.object({
   siteUrl: z.string().trim().min(1)
     .transform(u => u.replace(/\/+$/, ''))

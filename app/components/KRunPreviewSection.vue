@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import type { EnvState, EnvTransition } from '#shared/utils/run'
 
-// The preview anchors the workspace whenever the workflow boots an env that
-// serves something (a repo with its own ddev config, or a dev server on a
-// preview port); a workflow without a boot step renders nothing. While the
-// env is offline, its lifecycle state (stopped/archived/gone) renders inside
-// the frame with its revival action, or as a plain card for a headless env
-// (nothing to browse, so no frame at all).
 const props = defineProps<{
   runId: number
   projectId: number
@@ -18,26 +12,18 @@ const props = defineProps<{
   hasBootStep: boolean
   previewOnline: boolean
   isLive: boolean
-  /** The lifecycle step in flight, from the server or a click that is still
-   *  waiting for it (KRunWorkspace). */
   busy: EnvTransition | null
 }>()
 
 const emit = defineEmits<{
-  /** Reboot/restore changed the run's env state; the parent refreshes. */
   changed: []
-  /** A reboot/restore request is in flight (or just finished: null). */
   pending: [transition: EnvTransition | null]
-  /** "Run again" created a fresh run; the parent selects it. */
   started: [runId: number]
 }>()
 
 const toastError = useToastError()
 const reviving = computed(() => props.busy === 'rebooting' || props.busy === 'restoring')
 
-// Walk the env DOWN its lifecycle on demand (stop exports the database and
-// frees the containers, archive snapshots and deletes the heavy sandbox);
-// the reverse steps (reboot/restore) live here.
 async function reboot() {
   const restoring = props.envState === 'archived'
   emit('pending', restoring ? 'restoring' : 'rebooting')
@@ -53,10 +39,7 @@ async function reboot() {
   }
 }
 
-// Start the same workflow on the same project as a NEW run. A torn-down env
-// ('down') can't be rebooted (its sandbox and checkout are gone), so re-running
-// is the way to get a fresh preview. Deliberately does not reuse the run's own
-// branch: a create-branch step overwrote it with the run's own work branch.
+// Deliberately not the run's own branch: a create-branch step overwrote it with the work branch.
 const restarting = ref(false)
 async function runAgain() {
   if (!props.workflowId) return

@@ -4,12 +4,7 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import { defineAction, ActionError } from './types'
 
-// User JavaScript: NEVER in the control-plane process (workflow-engine-plan.md
-// D7): the script runs inside the run's web container, the same trust
-// boundary as the bash step. Contract: the code defines `main(input)`
-// (sync or async) and returns a JSON-serializable value, exposed to later steps
-// as steps.<id>.result. `input` comes from the templated param: a single
-// {{ ref }} passes the referenced value raw (rawParams).
+// User JavaScript runs in the run's web container, never in the control-plane process.
 const RESULT_MARKER = '__KNECHT_JS_RESULT__'
 
 export const jsAction = defineAction({
@@ -23,8 +18,6 @@ export const jsAction = defineAction({
     rt.log(`\n▶ js\n`)
     await rt.sandbox.ensureUp()
 
-    // `input` was raw-resolved: any JSON value, embedded into the script as a
-    // literal so nothing needs quoting through the shell.
     const input = (step as { input?: unknown }).input
     const script = [
       step.code,

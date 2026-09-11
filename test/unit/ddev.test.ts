@@ -7,7 +7,6 @@ import { devServerIsPreview, freeHostPorts, previewTargetPort, readDdevHosts, re
 import { normalizeSharedFolder } from '../../server/utils/storage'
 import { resolveEnv, type ResolvedEnv } from '../../shared/utils/env-spec'
 
-// A repo with its own ddev config, as the runner resolves it before writing.
 function tracked(hosts: string[] = []): ResolvedEnv {
   return resolveEnv({
     source: 'ddev',
@@ -26,7 +25,6 @@ function checkout(configYaml?: string): string {
   return dir
 }
 
-// The package manager caches every run shares on the host (daemon/ddev.ts).
 const cacheEnv = [
   'pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store',
   'YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn',
@@ -34,8 +32,6 @@ const cacheEnv = [
   'BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun',
 ]
 
-// ddev's URL variables for a repo without ddev hostnames of its own: the
-// preview is the primary (daemon/ddev.ts ddevUrlEnv).
 const previewDdevEnv = [
   'DDEV_PRIMARY_URL=http://7.preview.knecht.test',
   'DDEV_PRIMARY_URL_WITHOUT_PORT=http://7.preview.knecht.test',
@@ -165,7 +161,6 @@ describe('writeDdevConfig', () => {
       const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
       const host = join(data, 'shared', '5', 'web/uploads')
       expect(compose.services.web.volumes).toContain(`${host}:/var/www/html/web/uploads`)
-      // Invalid paths are dropped, and there is no read-only suffix.
       expect(compose.services.web.volumes.filter((v: string) => !v.endsWith(':ro'))).toHaveLength(1)
       // The host dir exists (docker would create a root-owned one otherwise).
       expect(existsSync(host)).toBe(true)
@@ -341,8 +336,6 @@ describe('freeHostPorts', () => {
   })
 
   it('probes past ports ddev has reserved, stopped projects included (they bind nothing, so the host says free)', async () => {
-    // Whatever the host hands out first counts as reserved: the result must
-    // then be other ports, still distinct.
     const seen = new Set<number>()
     const reserved = {
       has(port: number) {

@@ -3,9 +3,6 @@ import { z } from 'zod'
 import { db, schema } from '../../db'
 import { workflowDocumentSchema } from '../../workflows/schema'
 
-// POST /api/workflows/import → create a workflow from an exported (or
-// hand-written) YAML/JSON document. Validation errors come back path-precise;
-// a taken name gets a numeric suffix instead of failing the import.
 const bodySchema = z.object({
   source: z.string().min(1),
 })
@@ -29,11 +26,8 @@ export default defineEventHandler(async (event) => {
     zodBadRequest(result.error, 'Invalid workflow')
   }
 
-  // Imports never overwrite: an existing name gets ` 2`, ` 3`, … appended.
   const name = uniqueWorkflowName(result.data.name)
 
-  // An import passes the strict document schema (min 1 complete step), so the
-  // workflow is born published and can run immediately.
   return db
     .insert(schema.workflows)
     .values({ name, description: result.data.description, steps: result.data.steps, publishedAt: new Date() })

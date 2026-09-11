@@ -1,9 +1,3 @@
-// A minimal standard 5-field cron evaluator: "minute hour day-of-month month
-// day-of-week". Each field supports '*', '*/n' steps, 'a-b' ranges, 'a,b' lists
-// and plain numbers: enough for the schedules the Triggers UI generates and for
-// hand-written ones. No seconds, no '@' aliases, no 'L/W/#'. Day-of-month and
-// day-of-week combine with OR when both are restricted (the POSIX rule).
-
 interface CronSpec {
   minute: Set<number>
   hour: Set<number>
@@ -34,7 +28,6 @@ function parseField(field: string, min: number, max: number): Set<number> {
     }
     else {
       lo = Number(rangePart)
-      // "n/step" means "from n to the end, every step"; a bare "n" is just n.
       hi = stepPart === undefined ? lo : max
     }
 
@@ -66,7 +59,6 @@ function parseCron(expr: string): CronSpec {
   }
 }
 
-// True if `expr` parses as a cron expression we can evaluate.
 export function isValidCron(expr: string): boolean {
   try {
     parseCron(expr)
@@ -91,10 +83,6 @@ function matches(spec: CronSpec, t: Date): boolean {
   return true
 }
 
-// The next local time strictly after `from` that the expression matches, found by
-// scanning minute by minute up to ~13 months ahead. Returns null when nothing
-// matches in that window (e.g. an impossible "0 0 30 2 *"). Date math handles DST
-// and month lengths.
 export function nextRun(expr: string, from: Date = new Date()): Date | null {
   const spec = parseCron(expr)
   const t = new Date(from.getTime())

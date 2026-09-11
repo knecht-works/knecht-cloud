@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { runWorkspacePath } from '#shared/utils/routes'
 
-// Global run history: every execution across all projects, newest first,
-// grouped by session so runs on the same issue/PR read as one piece of work.
-// A run drills into its project workspace; the list polls while anything is
-// live.
 const { data: runs, refresh } = await useFetch('/api/runs', { default: () => [] })
 
 const anyLive = computed(() => (runs.value ?? []).some(r => isLiveStatus(r.status)))
@@ -18,13 +14,10 @@ const metrics = computed(() => {
     total: list.length,
     running: list.filter(r => isLiveStatus(r.status)).length,
     rate: completed.length ? Math.round((success / completed.length) * 100) : 0,
-    // Distinct sessions whose environment is up: what is occupying the host.
     liveEnvs: new Set(list.filter(r => r.envState === 'up').map(r => r.sessionId)).size,
   }
 })
 
-// Session groups (utils/dashboard.ts) with the newest run exposed as `head`:
-// the header row reads the project off it.
 const sessionGroups = computed(() =>
   groupRunsBySession(runs.value ?? []).map(g => ({ ...g, head: g.runs[0]! })))
 </script>
@@ -60,7 +53,6 @@ const sessionGroups = computed(() =>
       />
     </div>
 
-    <!-- Empty state: no runs yet -->
     <div
       v-if="!runs.length"
       class="k-card flex flex-col items-center gap-4 px-6 py-16 text-center"
@@ -81,9 +73,6 @@ const sessionGroups = computed(() =>
       </div>
     </div>
 
-    <!-- Run list, grouped by session: an issue/PR session gets a header row
-         (object, title, project, thread link) with its runs nested under it;
-         one-shot runs (manual, push, schedule) stay plain rows. -->
     <div
       v-else
       class="k-card overflow-hidden"

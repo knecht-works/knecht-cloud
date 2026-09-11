@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MODEL_NAME_RE, stripLegacyModelPrefix } from '../../shared/utils/ai'
 
-// Bare model names: what the store accepts and how legacy
-// provider-prefixed values are normalized on their way into the runtime.
-
 describe('MODEL_NAME_RE', () => {
   it('accepts bare, slashed and versioned model names', () => {
     for (const id of ['claude-sonnet-4-5', 'gpt-4o', 'meta-llama/llama-3.3-70b', 'qwen:32b', 'o1']) {

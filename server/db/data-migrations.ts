@@ -3,12 +3,7 @@ import { db, schema } from './index'
 import { stripLegacyModelPrefix } from '../../shared/utils/ai'
 import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '../../shared/utils/workflow'
 
-// One-time data migrations: JS transformations the SQL migration files can't
-// express (drizzle-kit only generates SQL). Same contract as the schema
-// migrations: each entry runs exactly once per instance, tracked by name in
-// `data_migrations`, applied in list order right after the SQL migrations
-// (server/plugins/migrate.ts), so updates never depend on version order.
-// Append-only: never rename or remove an entry once released.
+// Append-only: entries are tracked by name, never rename or remove a released one.
 const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0001_step_id_slugs', run: stepIdSlugs },
   { name: '0002_bare_ai_step_models', run: bareAiStepModels },
@@ -25,14 +20,6 @@ export function runDataMigrations(): void {
   }
 }
 
-// Workflows saved before ids were label-derived carry sequential `s<n>` ids.
-// Rewrite them to the current standard (label/type slug), including the
-// workflow's own {{ steps.<id>… }} references. Runs pinned before this keep
-// their old ids: they're historical records, not definitions.
-// Model names lost their provider prefix: ai-step overrides
-// saved as 'anthropic/claude-sonnet-4-5' become 'claude-sonnet-4-5'. The
-// settings row is handled in SQL (0020); runs pinned before this keep their
-// prefixed snapshots (historical records, the runtime strips defensively).
 function bareAiStepModels(): void {
   for (const row of db.select().from(schema.workflows).all()) {
     let changed = false

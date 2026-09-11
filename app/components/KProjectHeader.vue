@@ -1,9 +1,4 @@
 <script setup lang="ts">
-// The header both project pages share (workspace and settings): favicon or
-// framework icon, repo name, framework badge, GitHub link, and the actions
-// that belong to the project rather than the page: "Start workflow" (branch
-// + workflow picker) and the overflow menu with the destructive disconnect.
-// The `nav` slot holds the one button that switches between the two pages.
 const props = withDefaults(defineProps<{
   project: {
     id: number
@@ -14,8 +9,6 @@ const props = withDefaults(defineProps<{
     frameworkVersion?: string | null
     favicon?: string | null
   }
-  // Runs still executing or waiting: the disconnect aborts them, so the
-  // confirm names them instead of hiding it in the generic list.
   activeRuns?: number
 }>(), { activeRuns: 0 })
 
@@ -29,16 +22,10 @@ const fwLabel = computed(() =>
   props.project.frameworkVersion ? `${fw.value.label} ${props.project.frameworkVersion}` : fw.value.label)
 const repoName = computed(() => props.project.fullName.split('/').pop() ?? 'Project')
 
-// ── Start a workflow (picked from the list, right at the project) ──────────
 const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
-// Manual runs execute the workflow's current state, so the picker offers
-// every workflow that would pass the run validation (finish half-built ones
-// in the editor first).
 const startableWorkflows = computed(() => (workflowList.value ?? []).filter(workflowRunnable))
 const startOpen = ref(false)
 
-// Branch the run checks out; defaults to the repo's default branch (main). The
-// list is fetched lazily from GitHub; the picker always includes the default.
 const selectedBranch = ref(props.project.defaultBranch)
 const { items: branchItems } = useBranchPicker(
   () => `/api/projects/${props.project.id}/branches`,
@@ -51,8 +38,6 @@ function startWorkflow(workflowId: number) {
   return start(workflowId, selectedBranch.value)
 }
 
-// ── Disconnect (delete project + its runs, envs and checkouts) ─────────────
-// Destructive, so it lives in the overflow menu behind a confirm.
 const confirmDisconnect = ref(false)
 const menuItems = [{
   label: 'Disconnect project',

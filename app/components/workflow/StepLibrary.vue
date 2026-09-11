@@ -1,7 +1,4 @@
 <script setup lang="ts">
-// The step library: searchable, grouped by kind; Enter adds the top match,
-// the fast path is type-two-letters-Enter. Items can also be dragged straight
-// into the rail (the page tracks the dragged type + insertion point).
 const props = defineProps<{ editable: boolean }>()
 const emit = defineEmits<{
   add: [type: WorkflowStep['type']]

@@ -1,23 +1,16 @@
 import type { Step } from '#shared/utils/workflow'
 
-// Shared display helpers for the dashboard screens: keeps status mapping and
-// formatting in one place so the screens stay free of ad-hoc logic.
-
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
 
 type DotColor = 'primary' | 'orange' | 'neutral' | 'error'
 
 export interface RunStatusMeta {
   dot: DotColor
-  /** true while the run is still live (drives the pulse + progress framing) */
   pulse: boolean
-  /** CSS colour for the status text */
   text: string
-  /** short human label */
   label: string
 }
 
-// Maps a run's lifecycle status to the design's dot + text treatment.
 export const RUN_STATUS_META: Record<RunStatus, RunStatusMeta> = {
   success: { dot: 'primary', pulse: false, text: 'var(--text-primary)', label: 'Succeeded' },
   running: { dot: 'orange', pulse: true, text: 'var(--accent-orange)', label: 'Running' },
@@ -26,12 +19,10 @@ export const RUN_STATUS_META: Record<RunStatus, RunStatusMeta> = {
   cancelled: { dot: 'neutral', pulse: false, text: 'var(--text-dimmed)', label: 'Cancelled' },
 }
 
-// True while the run still occupies the runner (drives polling + live UI).
 export function isLiveStatus(status: RunStatus | null | undefined): boolean {
   return status === 'queued' || status === 'running'
 }
 
-// "Ready / no runs yet" state for a project that has never been run.
 export const IDLE_STATUS_META: RunStatusMeta = {
   dot: 'neutral',
   pulse: false,
@@ -39,8 +30,6 @@ export const IDLE_STATUS_META: RunStatusMeta = {
   label: 'No runs yet',
 }
 
-// Trigger-source presentation, shared by every place a trigger (or the trigger
-// that fired a run) shows up: run meta, project panel, editor head.
 interface TriggerSourceMeta {
   icon: string
   label: string
@@ -55,15 +44,10 @@ const TRIGGER_SOURCE_META: Record<string, TriggerSourceMeta> = {
   mention: { icon: 'i-lucide-at-sign', label: 'Mention', color: 'var(--accent-violet)' },
 }
 
-// Unknown sources (added later) render generically instead of breaking.
 export function triggerSourceMeta(source: string): TriggerSourceMeta {
   return TRIGGER_SOURCE_META[source] ?? { icon: 'i-lucide-zap', label: source, color: 'var(--accent-violet)' }
 }
 
-// Session-object presentation: the issue or PR a session works on. Drives the
-// session groups in the run lists and the run header's object chip. A closed
-// object switches to its closed icon (GitHub's pattern) instead of a text
-// label.
 export type SessionObjectKind = 'issue' | 'pull_request'
 
 interface SessionObjectMeta {
@@ -82,12 +66,6 @@ export function sessionObjectMeta(kind: SessionObjectKind): SessionObjectMeta {
   return SESSION_OBJECT_META[kind]
 }
 
-// Runs grouped by session for the run lists: runs on the same issue/PR
-// collect under one object header, one-shot runs (no object) stay plain
-// rows. Sessions are ordered by their newest run (the list arrives newest
-// first and Map preserves first-seen order); WITHIN a session the runs are
-// flipped to chronological order, so a session reads top-down like the story
-// of the work.
 interface SessionRunRow {
   sessionId: number
   objectKind: SessionObjectKind | null
@@ -125,8 +103,6 @@ export function groupRunsBySession<T extends SessionRunRow>(runs: T[]) {
   })
 }
 
-// Framework presentation, keyed by the DDEV project `type` read from the repo's
-// `.ddev/config.yaml`. Drives the label + accent colour across the dashboard.
 interface FrameworkMeta {
   label: string
   color: string
@@ -154,9 +130,7 @@ export function frameworkMeta(type?: string | null): FrameworkMeta {
   return FRAMEWORKS[t] ?? { label: type.toUpperCase(), color: 'var(--text-toned)' }
 }
 
-// Workflow step "kind" → accent colour, shared by the builder and the overview
-// step chain. det = deterministic, ai = agent, out = output, flow = control
-// flow (if/loop), trigger.
+// det = deterministic, out = output, flow = if/loop
 export type StepKind = 'det' | 'ai' | 'out' | 'flow' | 'trigger'
 
 export const STEP_KIND_COLOR: Record<StepKind, string> = {
@@ -167,14 +141,9 @@ export const STEP_KIND_COLOR: Record<StepKind, string> = {
   trigger: 'var(--accent-violet)',
 }
 
-// A workflow step as returned by /api/workflows: the shared step model
-// (shared/utils/workflow.ts) under the name the app code grew up with.
-// Presentation of a step instance lives with its def: workflowStepMeta
-// (~/utils/workflow-steps.ts) reads the per-step registry.
 export type WorkflowStep = Step
 
-// Human-readable message from a failed `$fetch` call. H3 packs it into
-// `error.data.statusMessage`; returns `fallback` when the response has none.
+// H3 puts the status message of a failed `$fetch` into `error.data.statusMessage`.
 export function errMsg(e: unknown, fallback: string): string {
   return (e as { data?: { statusMessage?: string } }).data?.statusMessage ?? fallback
 }
@@ -189,8 +158,6 @@ function toDate(value: TimeValue): Date | null {
   return Number.isNaN(date.getTime()) ? null : date
 }
 
-// Compact relative time ("4m ago", "2h ago"). Accepts a Date, epoch seconds,
-// or an ISO string; returns '' for nullish input.
 export function timeAgo(value: TimeValue): string {
   const date = toDate(value)
   if (!date) return ''
@@ -204,8 +171,6 @@ export function timeAgo(value: TimeValue): string {
   return `${days}d ago`
 }
 
-// Compact run duration ("42s", "3m 12s", "1h 04m"). A missing end measures
-// against now (a still-running run); returns '' when the run never started.
 export function runDuration(start: TimeValue, end: TimeValue): string {
   const from = toDate(start)
   if (!from) return ''

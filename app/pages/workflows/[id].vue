@@ -3,26 +3,13 @@ import { runWorkspacePath } from '#shared/utils/routes'
 import { flattenSteps } from '#shared/utils/workflow'
 import type { TestRunRow } from '~/composables/useWorkflowTestRun'
 
-// The workflow edit surface. A numbered step rail on the left (editable: add
-// from the library, reorder, remove, edit each step's params) and a context
-// panel on the right. Edits autosave continuously: name/description straight
-// onto the row, the steps as a loosely validated DRAFT. Manual runs (the
-// inline test here, the project page) always execute the draft, validated at
-// start. Only AUTOMATION runs a published snapshot: the automation switch
-// publishes the current state when turned on, and "Apply changes" updates the
-// snapshot while it is on. Per-step progress overlays derive from the run
-// log's `▶ <step>` markers: no extra backend tracking.
-
 const route = useRoute()
 const toast = useToast()
 const toastError = useToastError()
 
-// The id is the workflow's identity (the name is a display field).
 const id = computed(() => Number(route.params.id))
 
 const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
-// The run picker's projects and the trigger panel load lazily: neither blocks
-// rendering the editor itself.
 const { data: projects } = useFetch('/api/projects', {
   default: () => [],
   lazy: true,
@@ -30,22 +17,14 @@ const { data: projects } = useFetch('/api/projects', {
 })
 const { data: allTriggers, refresh: refreshTriggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 
-// The persisted record (null for an unknown id).
 const saved = computed(() => workflows.value?.find(w => w.id === id.value) ?? null)
 const notFound = computed(() => !saved.value)
 
-// ── the editor's working copy ────────────────────────────────────────────────
-// Two independent autosaves (the settings-page pattern): `meta` (name +
-// description) PATCHes the row directly since neither affects execution;
-// `steps` PATCHes the loose draft. Publish promotes the persisted draft.
 const meta = reactive({ name: '', description: '' })
 const metaOriginal = ref('')
 const steps = ref<WorkflowStep[]>([])
 const stepsOriginal = ref('')
-// A failed publish drops the pristine grace everywhere and flags every issue.
 const submitted = ref(false)
-// Which steps have their settings expanded: several can be open at once.
-// Tracked by step OBJECT (not index), so the open state survives reordering.
 const openSteps = ref(new Set<WorkflowStep>())
 
 function toggleStep(step: WorkflowStep) {
@@ -53,19 +32,15 @@ function toggleStep(step: WorkflowStep) {
   else openSteps.value.add(step)
 }
 
-// Open a step's settings and bring its card into view.
 function revealStep(step: WorkflowStep) {
   openSteps.value.add(step)
   nextTick(() => document.getElementById(`step-card-${step.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
 }
 
-// Any step in the tree carrying `id`: nested steps are always visible in the
-// rail now, so a deep link opens the exact card.
 function stepWithId(stepId: string): WorkflowStep | undefined {
   return flattenSteps(steps.value).find(s => s.id === stepId)
 }
 
-// Deep link from a run's failure card: ?step=<id> lands with that step open.
 onMounted(() => {
   const stepId = route.query.step
   if (typeof stepId !== 'string') return
@@ -73,9 +48,6 @@ onMounted(() => {
   if (step) revealStep(step)
 })
 
-// Initialize ONCE per workflow (and again on discard): from then on the
-// editor owns the working copy, a list refresh never resets it. The steps
-// start from the persisted draft, falling back to the published version.
 function loadMeta() {
   meta.name = saved.value?.name ?? ''
   meta.description = saved.value?.description ?? ''
@@ -95,9 +67,6 @@ watch(id, () => {
   loadSteps()
 })
 
-// ── autosave (meta + draft) ──────────────────────────────────────────────────
-// The shared name rule (shared/utils/workflow.ts): the same regex the
-// server's patch schema validates with.
 const nameValid = computed(() => WORKFLOW_NAME_RE.test(meta.name.trim()))
 
 const metaSave = useAutosave(async () => {
@@ -106,7 +75,6 @@ const metaSave = useAutosave(async () => {
     body: { name: meta.name.trim(), description: meta.description },
   })
   metaOriginal.value = JSON.stringify({ ...meta })
-  // Safe: the steps working copy lives separately, nothing to clobber.
   await refresh()
 })
 watch(meta, () => {
@@ -124,7 +92,6 @@ const draftSave = useAutosave(async () => {
     method: 'PATCH',
     body: { draftSteps: JSON.parse(json) },
   })
-  // No refresh: the editor owns the draft.
   stepsOriginal.value = json
 })
 watch(stepsJson, (json) => {
@@ -132,7 +99,6 @@ watch(stepsJson, (json) => {
   draftSave.schedule()
 })
 
-// One indicator for both autosaves: an error wins, then an in-flight save.
 const saveState = computed(() => {
   if (metaSave.state.value === 'error' || draftSave.state.value === 'error') return 'error' as const
   if (metaSave.state.value === 'saving' || draftSave.state.value === 'saving') return 'saving' as const
@@ -142,29 +108,16 @@ const saveState = computed(() => {
 const saveErrorText = computed(() =>
   metaSave.state.value === 'error' ? metaSave.error.value : draftSave.error.value)
 
-// ── live version ─────────────────────────────────────────────────────────────
-// Every complete save auto-promotes to the live version (`steps`); only an
-// incomplete save stays behind as `draftSteps`, and triggers keep running the
-// last complete version meanwhile. So "the server holds a draft" simply means
-// "the current edits are not runnable yet".
 const hasIncompleteEdits = computed(() => !!saved.value?.draftSteps)
 
-// ── inline test run (composable owns picker, run state and polling) ────────
-// Tests execute the DRAFT: the pending autosave is flushed first so the
-// server pins exactly what the rail shows.
 const { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
   = useWorkflowTestRun<(typeof projects.value)[number]>(() => saved.value?.id, {
     beforeStart: () => draftSave.flush(),
     onStarted: () => openSteps.value.clear(),
   })
 
-// The "Trigger event (mock)" section of the run popover, collapsed by default.
 const mockOpen = ref(false)
 
-// The run popover's open state, doubling as the validation trigger: clicking
-// Run on an invalid draft flags every issue and opens the issue list instead
-// of the picker (the same move the automation switch makes). The button stays
-// clickable so the click can explain itself.
 const runPickerOpen = computed({
   get: () => open.value,
   set: (isOpen: boolean) => {
@@ -179,13 +132,9 @@ const runPickerOpen = computed({
 
 const editable = computed(() => !activeRun.value)
 
-// ── triggers wired to this workflow (the head of the flow) ──────────────────
-// Manual is always implicit; configured triggers (schedule/webhook/saved
-// manual) stack above it and are managed right here.
 const workflowTriggers = computed(() =>
   saved.value ? (allTriggers.value ?? []).filter(t => t.workflowId === saved.value!.id) : [])
 const triggerModalOpen = ref(false)
-// Clicking a trigger row edits it; "Add trigger" opens a blank form.
 const editingTrigger = ref<(typeof workflowTriggers)['value'][number] | null>(null)
 
 function editTrigger(t: (typeof workflowTriggers)['value'][number]) {
@@ -217,10 +166,6 @@ async function removeTrigger(t: { id: number }) {
   }
 }
 
-// The automation master switch, THE lightswitch: on = triggers fire (with
-// the latest complete version), off = paused. Manual runs / tests are
-// unaffected either way. Turning it on flushes the pending autosave first so
-// "the current state" is what just went live.
 const togglingEnabled = ref(false)
 async function toggleEnabled() {
   if (!saved.value || togglingEnabled.value) return
@@ -247,8 +192,6 @@ async function toggleEnabled() {
   }
 }
 
-// The agent's reply tool (comment + labels on the session's issue/PR): on by
-// default, rarely touched, so the switch hides behind the Advanced fold.
 const advancedOpen = ref(false)
 const togglingReplies = ref(false)
 async function toggleReplies() {
@@ -269,9 +212,6 @@ async function toggleReplies() {
   }
 }
 
-// ── header overflow menu: export (a browser download; the endpoint sets
-// content-disposition), discard draft, and the destructive delete behind a
-// confirm. Export serves the current state, so it needs a complete one. ─────
 const confirmDelete = ref(false)
 const menuItems = computed(() => [
   (['yaml', 'json'] as const).map(format => ({
@@ -299,25 +239,15 @@ const menuItems = computed(() => [
   ],
 ])
 
-// ── step mutations (step identity/fields come from the registry) ────────────
 function addStep(type: WorkflowStep['type']) {
   const step = makeStep(type, steps.value)
   steps.value.push(step)
   openSteps.value.add(steps.value.at(-1)!)
 }
 
-// ── drag & drop: one insertion-line model for reorder, moves and library ────
-// Row-level tracking lives in StepCard/StepList (via WORKFLOW_DND); the page
-// wires the library, the rail container and the single drop handler.
 const { drag, startLibDrag, overList, overAt, performDrop, endDrag }
   = useWorkflowDnd(steps, openSteps, editable)
 
-// ── validation (gates publishing and running, never saving) ─────────────────
-// Everything blocking a publish, one row per problem: the header's popover
-// lists these; clicking a row opens the affected step. `target` is the
-// TOP-LEVEL step to reveal (sub-step problems name the offender in the text
-// but expand their composite's card). `pristine` rows sit on a step the user
-// hasn't started filling in: still blocking, but rendered as neutral to-dos.
 interface DraftIssue { target?: WorkflowStep, pristine: boolean, text: string }
 const draftIssues = computed<DraftIssue[]>(() => {
   const list: DraftIssue[] = []
@@ -337,27 +267,19 @@ const draftIssues = computed<DraftIssue[]>(() => {
   return list
 })
 const valid = computed(() => !draftIssues.value.length)
-// Problems the editor highlights: those on steps the user has actually
-// started configuring, or ALL of them once a publish attempt failed.
 const flaggedIssues = computed(() => draftIssues.value.filter(i => submitted.value || !i.pristine))
-// Children (field highlights, sub-step borders) follow the same switch.
 provide(FORCE_STEP_ISSUES, submitted)
 
-// Once every problem is fixed, drop back into the quiet (pristine-aware)
-// mode: freshly added steps stay calm again until the next publish attempt.
 watch(valid, (ok) => {
   if (ok) submitted.value = false
 })
 
-// The header popover's open state, closed when a row jumps to its step.
 const issuesOpen = ref(false)
 function jumpToIssue(issue: DraftIssue) {
   issuesOpen.value = false
   if (issue.target) revealStep(issue.target)
 }
 
-// ── discard ──────────────────────────────────────────────────────────────────
-// Drop incomplete edits and snap the rail back to the last complete version.
 async function discardDraft() {
   try {
     await draftSave.flush()
@@ -370,8 +292,6 @@ async function discardDraft() {
   }
 }
 
-// Cmd/Ctrl+S has nothing left to save (autosave does), but muscle memory
-// deserves better than the browser's save dialog: flush the pending edits.
 function onKeydown(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
@@ -379,8 +299,6 @@ function onKeydown(e: KeyboardEvent) {
     void metaSave.flush()
   }
 }
-// Closing the tab mid-save (or mid-debounce) could lose the last edit; the
-// route-leave case needs nothing, useAutosave flushes on unmount.
 function onBeforeUnload(e: BeforeUnloadEvent) {
   if (saveState.value === 'saving') e.preventDefault()
 }
@@ -415,7 +333,6 @@ async function removeWorkflow() {
   }
 }
 
-// ── page mode ───────────────────────────────────────────────────────────
 type Mode = 'draft' | 'edit' | 'running' | 'success' | 'failed'
 const mode = computed<Mode>(() => {
   const run = activeRun.value
@@ -428,29 +345,20 @@ const mode = computed<Mode>(() => {
   return 'edit'
 })
 
-// ── per-step status (vocabulary + treatments live in utils/step-status) ────
-
-// Run status for EVERY step in the tree, keyed by step id (nested rows carry
-// parentStepId/iteration; buildStatusMap infers skipped/pending for row-less
-// steps). Empty map without a run: cards fall back to idle/selected.
 const statusMap = computed(() => buildStatusMap(steps.value, activeRun.value, activeRunSteps.value))
 
-// The test run's log timeline (same presentation as the run workspace's log).
 const testTimeline = computed(() => runLogTimeline(activeRunSteps.value))
 
 const statusOf = (step: WorkflowStep | undefined): StepStatus | undefined =>
   step ? statusMap.value.get(step.id ?? '')?.status : undefined
 
-// 1-based "step N of M" for the live banner (top-level steps started so far).
 const startedSteps = computed(() => Math.max(1, steps.value.filter((s) => {
   const status = statusOf(s)
   return status === 'done' || status === 'running' || status === 'error'
 }).length))
 
-// The failed test's banner facts: the step that stopped the run (1-based
-// position + label) and how many later steps never ran. A runner crash can
-// leave the dying step's row on 'running', so that counts as the stopper too.
-// Null when the run failed before its first step row; the log has the story.
+// A runner crash can leave the dying step's row on 'running', so that counts
+// as the stopper too. Null when the run failed before its first step row.
 const failedStep = computed(() => {
   if (mode.value !== 'failed') return null
   const i = steps.value.findIndex((s) => {
@@ -461,16 +369,12 @@ const failedStep = computed(() => {
   return { n: i + 1, label: workflowStepMeta(steps.value[i]!).label, skipped: steps.value.length - i - 1 }
 })
 
-// Leaving a failed test jumps straight into fixing it: the failed step's
-// settings open and its card scrolls into view.
 function backToEditing() {
   const failed = failedStep.value ? steps.value[failedStep.value.n - 1] : undefined
   detach()
   if (failed) revealStep(failed)
 }
 
-// The recursive rail (WorkflowStepList/StepCard) reads the page-global state
-// through this context.
 provide(RAIL_CTX, {
   editable,
   openSteps,
@@ -480,7 +384,6 @@ provide(RAIL_CTX, {
   submitted,
 })
 
-// ── run-derived summary values (real, parsed from the log + timestamps) ────
 const pr = computed(() => {
   const m = activeRun.value?.log.match(/Opened PR #(\d+): (\S+)/)
   return m ? { number: m[1], url: m[2] } : null
@@ -529,13 +432,11 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
     </div>
 
     <template v-else>
-      <!-- Header -->
       <KPageHeader
         class="mb-4.5"
         icon="i-lucide-workflow"
         icon-color="var(--text-primary)"
       >
-        <!-- The title is the name field: always editable, autosaved. -->
         <input
           v-if="editable"
           v-model="meta.name"
@@ -630,9 +531,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </UTooltip>
           </template>
           <template v-else>
-            <!-- The quiet header: autosave surfaces only while saving or on
-                 error, everything else lives where it acts (the automation
-                 panel owns the snapshot state). -->
             <span
               v-if="saveState === 'saving'"
               class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
@@ -653,18 +551,13 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 /> Not saved
               </span>
             </UTooltip>
-            <!-- onCloseAutoFocus prevented: closing would refocus the chip,
-                 which scrolls the header back into view and cancels the
-                 jump-to-step scroll a row click just started. -->
-            <!-- Hidden while the rail is empty: the empty state already says
-                 what to do, a chip would just nag. -->
+            <!-- onCloseAutoFocus prevented: refocusing the chip scrolls the header
+                 back into view and cancels the jump-to-step scroll. -->
             <UPopover
               v-if="draftIssues.length && steps.length"
               v-model:open="issuesOpen"
               :content="{ align: 'end', onCloseAutoFocus: (e: Event) => e.preventDefault() }"
             >
-              <!-- Orange only once a touched step is broken; while everything
-                   missing is just not-yet-configured, the chip stays neutral. -->
               <button
                 type="button"
                 class="k-mono flex cursor-pointer items-center gap-1.5 text-2xs"
@@ -714,7 +607,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
         </template>
       </KPageHeader>
 
-      <!-- Banner -->
       <div
         v-if="mode === 'running'"
         class="mb-4.5 overflow-hidden rounded-lg border"
@@ -773,18 +665,13 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
         </div>
       </div>
 
-      <!-- Two columns: step rail (settings expand inline in the cards) +
-           library. Sidebar sizing matches projects/[id].vue exactly
-           (viewport-based clamp, can't drift between screens). -->
+      <!-- Sidebar sizing matches projects/[id].vue, keep them in sync. -->
       <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]">
         <div
           class="min-w-0"
           @dragover="overList(steps, 1, $event)"
           @drop.prevent="performDrop()"
         >
-          <!-- Triggers: the head of the flow, ONE grouped panel (master switch,
-               configured triggers, the always-available manual start), joined to
-               the steps below by the rail spine so it reads as a single flow. -->
           <div class="mb-3 flex gap-3.5">
             <div class="flex w-7.5 flex-none flex-col items-center">
               <span
@@ -805,13 +692,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             <div
               class="min-w-0 flex-1 overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-panel"
             >
-              <!-- Header + master switch, THE lightswitch: on = triggers fire
-                   with the latest complete version, off = paused (manual runs
-                   / tests are unaffected). While the current edits are
-                   incomplete, triggers keep running the last complete version;
-                   the subline says so. Only shown once a trigger is
-                   configured: with just the implicit manual start there is
-                   nothing the switch could control. -->
               <div
                 v-if="saved && workflowTriggers.length"
                 class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2.5 transition-colors"
@@ -847,9 +727,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 </UTooltip>
               </div>
 
-              <!-- Configured triggers (divided rows within the group). Dimmed
-                   when the row is paused individually OR the master switch is
-                   off, so a paused automation is visibly inert. -->
               <div
                 v-for="t in workflowTriggers"
                 :key="t.id"
@@ -896,8 +773,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 />
               </div>
 
-              <!-- Manual: always available, run it now against a chosen
-                   project + branch (right here, not from a separate button). -->
               <div class="flex items-center gap-3 px-3 py-2.5">
                 <KStepIcon
                   icon="i-lucide-play"
@@ -954,8 +829,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                           class="w-full"
                         />
 
-                        <!-- Mock trigger event: fills {{ inputs.* }} so workflows
-                             built for triggers are testable without one. -->
                         <button
                           type="button"
                           :aria-expanded="mockOpen"
@@ -1014,8 +887,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 </UPopover>
               </div>
 
-              <!-- Add another trigger (group footer). Configure them anytime;
-                   they fire once the automation switch is on. -->
               <button
                 type="button"
                 class="flex w-full cursor-pointer items-center gap-2 border-t border-muted px-3 py-2.5 text-left text-xs text-muted transition-colors hover:bg-(--surface-glass) disabled:cursor-not-allowed disabled:opacity-50"
@@ -1029,8 +900,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 Add trigger
               </button>
 
-              <!-- Rare switches live behind the fold (settings style): today
-                   just the reply tool for runs on an issue/PR session. -->
               <div class="border-t border-muted px-3 py-2.5">
                 <button
                   type="button"
@@ -1068,7 +937,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </div>
           </div>
 
-          <!-- Empty (draft) -->
           <div
             v-if="!steps.length"
             class="flex gap-3.5"
@@ -1107,7 +975,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </div>
           </div>
 
-          <!-- Step rail: the recursive flowchart (if branches, loop bodies) -->
           <WorkflowStepList
             v-else
             :steps="steps"
@@ -1115,7 +982,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             :vars-base="baseVarGroups()"
           />
 
-          <!-- Add-step affordance under the rail (also the append drop zone) -->
           <div
             v-if="editable && steps.length"
             class="flex flex-col"
@@ -1134,7 +1000,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
             </div>
           </div>
 
-          <!-- Run output, below the steps -->
           <div
             v-if="activeRun"
             class="ml-11 mt-1"
@@ -1233,7 +1098,6 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
           </div>
         </div>
 
-        <!-- Right column: the step library -->
         <div class="lg:sticky lg:top-4">
           <WorkflowStepLibrary
             :editable="editable"

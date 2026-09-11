@@ -1,5 +1,4 @@
 <script setup lang="ts">
-// Access: your account plus the login allowlist deciding who can sign in.
 const { user, clear } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()
@@ -12,10 +11,7 @@ interface Member {
 }
 const { data: members } = await useFetch<Member[]>('/api/members')
 
-// Member logins are stored lowercased; the session login keeps GitHub's original
-// casing: normalise before comparing. `me` is the signed-in member's own row
-// (always present: the /api gate only lets members through); `others` is the
-// rest of the team.
+// Member logins are stored lowercased; the session login keeps GitHub's casing.
 const myLogin = computed(() => user.value?.login.toLowerCase())
 const me = computed(() => members.value?.find(m => m.login === myLogin.value))
 const others = computed(() => members.value?.filter(m => m.login !== myLogin.value) ?? [])
@@ -72,11 +68,6 @@ async function remove(login: string) {
       </span>
     </template>
 
-    <!-- One compact card per person in a grid, so the panel's full width is
-         used instead of one person per full-width row. You come first (with
-         sign-out where your account is); the invite form is the grid's
-         still-empty card (dashed, with an inline input), so adding someone
-         reads as "filling the next slot". -->
     <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
       <div class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3">
         <UAvatar

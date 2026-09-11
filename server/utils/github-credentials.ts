@@ -3,10 +3,6 @@ import { db } from '../db'
 import { githubApp } from '../db/schema'
 import { decrypt, encrypt } from './crypto'
 
-// The single source of GitHub App credentials. They live encrypted in the DB,
-// created from the UI via the manifest flow (server/routes/setup/*), so an
-// instance needs no GitHub env vars at all. No DB row → not configured.
-
 export interface GithubAppCredentials {
   appId: string
   clientId: string
@@ -25,12 +21,8 @@ export interface SavableGithubApp {
   webhookSecret?: string | null
 }
 
-// undefined = not loaded yet, null = loaded and not configured. Credentials never
-// change after first-run setup (the flow is single-use), so caching is safe;
-// saveGithubAppCredentials() clears it for the in-process transition.
 let cache: GithubAppCredentials | null | undefined
 
-// The configured credentials, or null when the instance has not been set up.
 export function githubAppCredentials(): GithubAppCredentials | null {
   if (cache !== undefined) return cache
 
@@ -47,13 +39,6 @@ export function githubAppCredentials(): GithubAppCredentials | null {
   return cache
 }
 
-// Dev-only read-side fallback: an automated instance (the CI boot e2e, a fresh
-// dev VM) can run workflows without the interactive manifest setup by handing
-// the app id + PEM private key over env. Nothing is persisted, so unsetting the
-// vars restores the unconfigured state. The OAuth client fields stay empty:
-// browser login falls back to /setup and automation logs in via /_test/login;
-// repo access (installation tokens) only needs app id + key. A stored app
-// (the DB row) always wins. Dead code in production builds, like /_test/login.
 function devTestCredentials(): GithubAppCredentials | null {
   if (!import.meta.dev) return null
   const appId = process.env.KNECHT_TEST_GITHUB_APP_ID
@@ -62,14 +47,10 @@ function devTestCredentials(): GithubAppCredentials | null {
   return { appId, clientId: '', clientSecret: '', privateKey, webhookSecret: null }
 }
 
-// Whether the instance has a GitHub App at all (repo access needs app id +
-// private key). The setup flow gates on this to decide first-run vs. locked.
 export function isGithubAppConfigured(): boolean {
   return githubAppCredentials() !== null
 }
 
-// Persist the credentials GitHub returned from the manifest conversion. Secrets
-// are encrypted here; the row is a singleton (id = 1).
 export function saveGithubAppCredentials(app: SavableGithubApp): void {
   db.insert(githubApp)
     .values({

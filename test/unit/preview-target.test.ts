@@ -12,7 +12,6 @@ describe('hasPreviewTarget', () => {
     expect(hasPreviewTarget({ ...unbooted, previewPort: 3000, envState: 'up' }, generatedProject)).toBe(true)
     expect(hasPreviewTarget({ ...unbooted, envState: 'up' }, generatedProject)).toBe(false)
     expect(hasPreviewTarget({ ...unbooted, envState: 'stopped' }, generatedProject)).toBe(false)
-    // A configured dev server counts only through the pinned port once booted.
     expect(hasPreviewTarget({ ...unbooted, envState: 'up' }, { ...generatedProject, devServer: 'npm run dev', previewPort: 3000 })).toBe(false)
   })
 
@@ -25,7 +24,6 @@ describe('hasPreviewTarget', () => {
     expect(hasPreviewTarget(unbooted, ddevProject)).toBe(true)
     expect(hasPreviewTarget(unbooted, generatedProject)).toBe(false)
     expect(hasPreviewTarget(unbooted, { ...generatedProject, devServer: 'npm run dev', previewPort: 3000 })).toBe(true)
-    // A port alone is not a dev server (the boot writes no daemon for it).
     expect(hasPreviewTarget(unbooted, { ...generatedProject, previewPort: 3000 })).toBe(false)
   })
 

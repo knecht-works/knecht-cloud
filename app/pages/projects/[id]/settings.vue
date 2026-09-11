@@ -3,28 +3,16 @@ import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type PackageManagerName, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 
-// The project's configuration, split off the workspace page: everything here
-// is set up once (env, database dump, persistent folders) and rarely touched
-// again, so it lives one step away instead of crowding the run workspace.
 const route = useRoute()
 const toast = useToast()
 const toastError = useToastError()
 const id = Number(route.params.id)
 
 const { data: project } = await useFetch(`/api/projects/${id}`)
-// Only for the header's disconnect confirm, which warns about active runs.
 const { data: runs } = useFetch('/api/runs', { query: { projectId: id }, default: () => [], lazy: true })
 const activeRunCount = computed(() =>
   (runs.value ?? []).filter(r => r.status === 'running' || r.status === 'queued').length)
 
-// ── Environment ────────────────────────────────────────────────────────────
-// What the repo resolves to (server/utils/framework.ts, on the default
-// branch; each run's log shows the session branch's). A repo with its own
-// ddev config is described read-only: that file is the truth. Any other repo
-// gets its environment generated from what its files say, and PHP/Node can
-// be overridden here when the detection is wrong (empty = detected). Both
-// kinds may run a dev server: next to the site for a ddev repo, as the site
-// for a generated one.
 const detectedEnv = computed(() => projectDetectedEnv(project.value?.ddevEnv))
 const envSource = computed(() => detectedEnv.value.source)
 const ddevSpec = computed(() => {
@@ -35,15 +23,10 @@ const ddevSpec = computed(() => {
     { label: 'PHP', value: e.phpVersion },
     { label: 'Database', value: e.dbType ? `${e.dbType}${e.dbVersion ? ` ${e.dbVersion}` : ''}` : null },
     { label: 'Node', value: e.nodeVersion },
-    // Detected the same way as for a generated env (lockfiles, package.json),
-    // so a ddev repo also sees which tool its boot commands will call. Only
-    // when something was found: the npm fallback is not a fact about the repo.
     { label: 'Package manager', value: resolvedEnv.value.packageManager.source === 'default' ? null : formatPackageManager(resolvedEnv.value.packageManager.value) },
   ].filter(r => r.value)
 })
 
-// The overrides the card edits: PHP, Node and the package manager, set when
-// the detection is wrong (null = detected). Saved in one PATCH.
 const phpOverride = ref<string | null>(project.value?.phpVersion ?? null)
 const nodeOverride = ref<string | null>(project.value?.nodeVersion ?? null)
 const packageManagerOverride = ref<PackageManagerName | null>(project.value?.packageManager ?? null)
@@ -52,15 +35,11 @@ const envOverrides = computed(() => ({
   nodeVersion: nodeOverride.value,
   packageManager: packageManagerOverride.value,
 }))
-// Each dropdown leads with the "not overridden" choice, worded by what it
-// means: what a repo file said, or the default because none did.
 function overrideItems<K extends keyof typeof envOverrides.value>(field: K, choices: readonly string[], format: (value: EnvSpec[K]) => string) {
   const detected = detectedEnv.value.fields[field]
   const label = detected
     ? `Detected: ${format(detected.value)} (${sourceLabel(detected.source)})`
     : `Default: ${format(ENV_DEFAULTS[field])}`
-  // A detected version outside the list (a mise.toml pin like 22.4) is still
-  // shown on its entry; only the overrides are limited to the list.
   return [{ label, value: null as string | null }, ...choices.map(v => ({ label: v, value: v }))]
 }
 const phpItems = computed(() => overrideItems('phpVersion', [...DDEV_PHP_VERSIONS].reverse(), String))
@@ -70,7 +49,7 @@ const packageManagerItems = computed(() => overrideItems('packageManager', PACKA
 const { state: envState, error: envError, schedule: scheduleEnv } = useAutosave(async () => {
   const body = envOverrides.value
   await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
-  // The watcher compares against the project: keep it at the saved value,
+  // The watcher compares against the project, so keep it at the saved value
   // or a second edit back to the original would count as unchanged.
   if (project.value) project.value = { ...project.value, ...body }
 })
@@ -80,17 +59,9 @@ watch(envOverrides, (next) => {
   scheduleEnv()
 })
 
-// ── Dev server ─────────────────────────────────────────────────────────────
-// A command (run under a login shell in the web container) and the port it
-// listens on. Next to a repo's own web server it is a sidecar the browser
-// reaches at KNECHT_DEV_SERVER_URL; in a generated environment it is what
-// gives the environment a preview at all. Saved together: the server
-// rejects a command without a port.
 const devServer = ref(project.value?.devServer ?? '')
 const previewPort = ref(project.value?.previewPort == null ? '' : String(project.value.previewPort))
 const previewPortNumber = computed(() => /^\d+$/.test(previewPort.value.trim()) ? Number(previewPort.value.trim()) : null)
-// A port is only stored together with its command: clearing the command
-// clears the port too (a stored port alone would still count as a preview).
 const devServerBody = computed(() => {
   const command = devServer.value.trim() || null
   return { devServer: command, previewPort: command ? previewPortNumber.value : null }
@@ -108,18 +79,12 @@ watch(devServerBody, ({ devServer: command, previewPort: port }) => {
   scheduleDev()
 })
 
-// The same resolution the boot does, so the page shows exactly what a run
-// will get: setting > detected > default.
 const resolvedEnv = computed(() => resolveEnv(detectedEnv.value, { ...envOverrides.value, ...devServerBody.value }))
 
-// ── Env variables (.env textarea, auto-saved) ──────────────────────────────
-// Edited as raw `KEY=value` lines (parseEnvText / envVarsToText helpers),
-// parsed and persisted on change like every other card.
 const envText = ref(envVarsToText(project.value?.envVars ?? []))
 const { state: envVarsState, error: envVarsError, schedule: scheduleEnvVars } = useAutosave(async () => {
   const envVars = parseEnvText(envText.value)
   await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { envVars } })
-  // Same as the env card: the watcher compares against the saved value.
   if (project.value) project.value = { ...project.value, envVars }
 })
 watch(envText, () => {
@@ -127,9 +92,6 @@ watch(envText, () => {
   scheduleEnvVars()
 })
 
-// ── Agent instructions (project layer, auto-saved) ─────────────────────────
-// Rules for this project only, layered on top of the instance instructions
-// from Settings → Agent.
 const agentInstructions = ref(project.value?.agentInstructions ?? '')
 const { state: instructionsState, error: instructionsError, schedule: scheduleInstructions } = useAutosave(async () => {
   await $fetch(`/api/projects/${id}`, {
@@ -142,15 +104,7 @@ watch(agentInstructions, () => {
   scheduleInstructions()
 })
 
-// ── Preview URL mode ───────────────────────────────────────────────────────
-// 'env' (default): the project derives all URLs from env vars; Knecht points
-// them at the preview origins and serves responses untouched. 'rewrite':
-// compatibility for projects with hard-coded/DB-stored absolute URLs; the
-// proxy rewrites every response. Applies to NEW runs; existing runs keep the
-// mode they booted with.
 const urlMode = ref<'env' | 'rewrite'>(project.value?.urlMode ?? 'env')
-// Collapsed by default: the default mode is right for strictly env-based
-// projects, so ideally nobody ever opens this.
 const urlModeAdvancedOpen = ref(false)
 const urlModeOptions = [
   {
@@ -177,15 +131,9 @@ async function setUrlMode(mode: 'env' | 'rewrite') {
   }
 }
 
-// Database dump upload (shared with the setup wizard via useProjectDump).
 const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump, remove: removeDump } = useProjectDump(project)
 
-// ── Persistent folders ─────────────────────────────────────────────────────
-// Project-relative folders whose files persist across ALL runs and previews
-// (one shared host dir each, bind-mounted writable): the place for git-ignored
-// CMS uploads. Optionally seeded from a zip; removing a folder here stops the
-// mounting but keeps the data (re-adding the path brings the files back).
 const sharedFolders = computed(() => project.value?.sharedFolders ?? [])
 const newFolder = ref('')
 const savingFolders = ref(false)
@@ -213,8 +161,6 @@ async function addFolder() {
   newFolder.value = ''
 }
 
-// Seed a folder from a zip: the hidden input is shared, `seedTarget` remembers
-// which folder's upload button opened it.
 const seedInput = ref<HTMLInputElement>()
 const seedTarget = ref('')
 const seeding = ref(false)
@@ -245,10 +191,6 @@ async function uploadSeed(event: Event) {
   }
 }
 
-// ── Boot commands (project layer, auto-saved) ──────────────────────────────
-// How THIS project boots: runs after `ddev start` + DB import on a session's
-// first boot, before any workflow-specific ddev-start commands. Lives here so
-// one generic workflow can serve projects that boot differently.
 const bootCommands = ref(project.value?.bootCommands ?? '')
 const { state: bootState, error: bootError, schedule: scheduleBoot } = useAutosave(async () => {
   await $fetch(`/api/projects/${id}`, {
@@ -261,10 +203,6 @@ watch(bootCommands, () => {
   scheduleBoot()
 })
 
-// ── Mentions ───────────────────────────────────────────────────────────────
-// @-mentioning Knecht on one of this repo's issues/PRs runs the comment as a
-// follow-up. The starter workflow is what boots the environment when the
-// mentioned thread has no session yet; only published workflows qualify.
 const { data: workflows } = await useFetch('/api/workflows')
 const starterItems = computed(() =>
   (workflows.value ?? [])
@@ -321,9 +259,6 @@ async function toggleMentions() {
       <span class="k-mono text-xs text-muted">Settings</span>
     </div>
 
-    <!-- The same header as the workspace, with the project's actions; only
-         the nav button differs (back to the workspace instead of Settings).
-         The breadcrumb above already says where we are. -->
     <KProjectHeader
       class="mb-5.5"
       :project="project"
@@ -341,10 +276,7 @@ async function toggleMentions() {
       </template>
     </KProjectHeader>
 
-    <!-- Same two-column grid as the workspace and the workflow editor
-         (sidebar clamp identical on every detail page): the env editor gets
-         the wide column; the read-only DDEV facts and the rarer upload
-         panels sit in the sidebar. -->
+    <!-- Sidebar sizing matches the workspace and the workflow editor, keep them in sync. -->
     <div class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
       <div class="flex flex-col gap-4.5">
         <KPanel
@@ -376,10 +308,6 @@ async function toggleMentions() {
               />
             </div>
 
-            <!-- Deliberately tucked away: the default (env) is right for strictly
-               env-based projects and should never need touching. The escape
-               hatch exists for projects with hard-coded/DB-stored URLs. Only
-               a repo with its own web server has base URLs to speak of. -->
             <div
               v-if="envSource === 'ddev'"
               class="mt-4"
@@ -538,7 +466,6 @@ async function toggleMentions() {
             v-else
             class="flex flex-col gap-3"
           >
-            <!-- The repo ships its own ddev config: read-only, that file is the truth. -->
             <div
               v-if="envSource === 'ddev'"
               class="flex flex-col gap-2"
@@ -552,9 +479,6 @@ async function toggleMentions() {
                 <span class="k-mono text-xs text-toned">{{ row.value }}</span>
               </div>
             </div>
-            <!-- No ddev config in the repo: Knecht generates the environment.
-                 Each dropdown says where its value comes from and can override
-                 it; empty means detected. -->
             <div
               v-else
               class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2"
@@ -659,8 +583,6 @@ async function toggleMentions() {
           </div>
         </KPanel>
 
-        <!-- Only an environment with a database container can import a dump
-             (the boot step applies the same rule). -->
         <KPanel
           v-if="resolvedEnv.hasDb.value"
           title="Database dump"

@@ -8,17 +8,8 @@ import { getSessionRow } from './entities'
 import { sessionPreviewUrl } from './preview-target'
 import { sessionCheckoutDir } from './storage'
 
-// Fallback favicon source for projects whose repo scan found none: once a
-// run's preview is browsable (ddev-start), read the site's <head> for its
-// icon link and store the icon as a data URI on the project. Covers sites
-// whose icon is generated at build time, hashed, or served by the CMS and
-// therefore never sits in the repo as a favicon.* file. Best-effort and
-// fire-and-forget: any failure just keeps the generic project icon.
-
 const MAX_HTML_BYTES = 512_000
 
-// Shared with the repo-scan favicon lookup (utils/github.ts): one icon size
-// cap and one extension-to-MIME map, wherever the icon comes from.
 export const FAVICON_MAX_BYTES = 200_000
 export const FAVICON_MIME_BY_EXT: Record<string, string> = {
   svg: 'image/svg+xml',
@@ -37,22 +28,16 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
     const session = getSessionRow(sessionId)
     const preview = session && sessionPreviewUrl(session)
     if (!addr || !preview) return
-    // The site's own hostname on the web server; a generated environment
-    // has none, its dev server answers to the preview host.
     const port = previewTargetPort(session)
     const primary = readDdevHosts(sessionCheckoutDir(sessionId)).primary ?? new URL(preview).host
 
     const page = await fetchFrom(addr, port, primary, '/', MAX_HTML_BYTES)
     const href = page ? iconHref(page.body.toString('utf8')) : null
 
-    // A head that inlines its icon as a data URI is already what we store.
     if (href?.startsWith('data:image/')) return save(project.id, href)
 
-    // Resolve the href (relative or absolute) against the site. Whatever host
-    // it names, the fetch stays inside the run's web container (fetchFrom
-    // connects to its address, the hostname only becomes the Host header): a
-    // canonical domain the site serves in rewrite mode works, and a CDN host
-    // the container doesn't serve just fails the fetch or the image check.
+    // Whatever host the href names, the fetch stays inside the web container:
+    // the hostname only becomes the Host header.
     const iconUrl = new URL(href ?? '/favicon.ico', `http://${primary}/`)
     const icon = await fetchFrom(addr, port, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
     if (!icon?.body.byteLength) return
@@ -62,7 +47,7 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
     save(project.id, `data:${mime};base64,${icon.body.toString('base64')}`)
   }
   catch {
-    // Best-effort only.
+    // Best-effort.
   }
 }
 
@@ -73,9 +58,6 @@ function save(projectId: number, favicon: string): void {
     .run()
 }
 
-// The document's icon link. rel is matched by token so "shortcut icon" and
-// "icon" hit but "mask-icon" (monochrome Safari glyph) doesn't; a plain icon
-// wins over apple-touch-icon, which is the fallback.
 function iconHref(html: string): string | null {
   let appleTouch: string | null = null
   for (const link of html.match(/<link\s[^>]*>/gi) ?? []) {
@@ -89,10 +71,6 @@ function iconHref(html: string): string | null {
   return appleTouch
 }
 
-// GET a path from the run's web container (plain HTTP on the preview port,
-// the Host header selects the site, exactly like the preview proxy). Follows
-// same-project redirects a few hops (e.g. / → /en/); resolves null on errors,
-// 4xx/5xx or oversized bodies instead of throwing.
 async function fetchFrom(
   addr: string,
   port: number,
@@ -135,8 +113,6 @@ async function fetchFrom(
   })
   if (!res) return null
   if (res.location && hops > 0) {
-    // The redirect target may be absolute (the site's own host, whatever the
-    // scheme) or relative; either way the sandbox serves it on the same port.
     try {
       const url = new URL(res.location, `http://${host}${path}`)
       return fetchFrom(addr, port, url.hostname, `${url.pathname}${url.search}`, maxBytes, hops - 1)

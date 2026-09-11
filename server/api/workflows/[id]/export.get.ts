@@ -1,11 +1,5 @@
 import { publishStepsSchema, serializeWorkflow } from '../../../workflows/schema'
 
-// GET /api/workflows/:id/export?format=yaml|json → the workflow's CURRENT
-// state (the draft, falling back to the published steps) as a downloadable,
-// versioned document (workflow-engine-plan.md D9). Exports match what the
-// editor shows, so they run through the same strict validation as a manual
-// run: an incomplete workflow has nothing exportable (the file would be
-// rejected on re-import anyway). Ids come backfilled from the validation.
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
   const row = requireWorkflowRow(id)

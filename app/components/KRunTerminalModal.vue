@@ -1,8 +1,4 @@
 <script setup lang="ts">
-// The run's terminal as a modal: a container picker (multi-service runs
-// only), the xterm view (KRunTerminal) and an SSH command fallback in the
-// footer. SSH info is fetched once per open, not polled: it does one-shot
-// docker calls.
 interface SshInfo { services: string[], sshCommands: Record<string, string> | null }
 
 const props = defineProps<{ runId: number }>()
@@ -21,7 +17,6 @@ watch(open, async (isOpen) => {
     sshInfo.value = await $fetch<SshInfo>(`/api/runs/${props.runId}/ssh`)
   }
   catch {
-    // The terminal itself still works; only the picker/footer stay bare.
     sshInfo.value = { services: ['web'], sshCommands: null }
   }
 })
@@ -48,7 +43,6 @@ async function copySshCommand() {
   >
     <template #body>
       <div class="space-y-4">
-        <!-- Same pill pattern as the trigger modal's cron presets. -->
         <div v-if="terminalServices.length > 1">
           <span class="k-label">Container</span>
           <div class="mt-2 flex flex-wrap gap-1.5">
@@ -66,7 +60,6 @@ async function copySshCommand() {
             </button>
           </div>
         </div>
-        <!-- Keyed per service: switching pills opens a fresh shell in that container. -->
         <KRunTerminal
           v-if="open"
           :key="terminalService"

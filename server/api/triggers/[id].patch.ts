@@ -6,10 +6,6 @@ import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
 import type { NewTrigger } from '../../db/schema'
 
-// PATCH /api/triggers/:id → update a trigger. Covers the active toggle and full
-// edits (source, projects, schedule, GitHub event, registry-source config).
-// Changing the source rebuilds the source-specific fields: a schedule gets its
-// cron + next-fire, the others clear them.
 const bodySchema = z.object({
   active: z.boolean().optional(),
   workflowId: z.number().int().optional(),
@@ -20,7 +16,6 @@ const bodySchema = z.object({
   webhookBranches: z.array(z.string().min(1)).optional(),
   issueActions: z.array(z.enum(['opened', 'labeled'])).min(1).optional(),
   issueLabel: z.string().min(1).nullish(),
-  // Registry sources: validated below against the source's own schema.
   config: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -46,7 +41,6 @@ export default defineEventHandler(async (event) => {
   const nextSource = data.source ?? row.source
   if (data.source !== undefined) patch.source = data.source
 
-  // Rebuild the source-specific fields for the (possibly new) source.
   if (nextSource === 'schedule') {
     const cron = data.cron ?? row.cron
     if (!cron || !isValidCron(cron)) {
@@ -80,8 +74,7 @@ export default defineEventHandler(async (event) => {
     patch.issueLabel = null
   }
 
-  // Registry sources: validate the (new or kept) config and, when it changed,
-  // re-seed the state so the edited condition doesn't fire on its backlog.
+  // Re-seed the state so the edited condition does not fire on its backlog.
   const def = getTriggerSource(nextSource)
   if (def) {
     const parsed = def.configSchema.safeParse(data.config ?? row.config)
@@ -99,7 +92,6 @@ export default defineEventHandler(async (event) => {
     }
   }
   else if (nextSource !== row.source) {
-    // Switched away from a registry source: drop its config + state.
     patch.config = {}
     patch.state = {}
   }

@@ -2,9 +2,6 @@
 import { SETTINGS_LIMITS } from '#shared/utils/settings-limits'
 import type { DashboardSettings } from '~/composables/useSettings'
 
-// Environments: the tunable lifecycle limits. Autosaves like before, but every
-// field is validated against the server's bounds (SETTINGS_LIMITS) before a
-// request is sent, and a refused value shows its reason at the field.
 const { data: settings } = useSettings()
 
 type EnvSettings = Pick<DashboardSettings, 'idleStopMinutes' | 'previewRetentionDays' | 'archiveRetentionDays' | 'maxConcurrentRuns'>
@@ -18,9 +15,6 @@ function load() {
 }
 watch(settings, load, { immediate: true })
 
-// Each field is one step down the preview lifecycle ladder (live → stopped →
-// archived → deleted): "after how long of nobody touching it does a preview
-// take the next step". The labels name the transition, not an internal state.
 const ENV_FIELDS: { key: keyof EnvSettings, label: string, unit: string, hint: string }[] = [
   { key: 'idleStopMinutes', label: 'Live → stopped', unit: 'min', hint: 'Every live preview keeps a full environment running, eating server memory even when nobody looks at it. After this long without a visit it\'s stopped to free that memory. Opening it again brings it back in seconds, nothing is lost.' },
   { key: 'previewRetentionDays', label: 'Stopped → archived', unit: 'days', hint: 'A stopped preview untouched for this long is archived: the heavy environment is deleted, a small snapshot (database + code changes) is kept. Restoring takes a few minutes. 0 never archives.' },
@@ -45,9 +39,6 @@ function validate(): boolean {
   return ok
 }
 
-// Autosave (useAutosave: debounce, save state, flush on unmount). Invalid
-// values never leave the browser: only a form that passes every field check
-// schedules a request. Refreshing `original` is what stops the save loop.
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
   await patchSettings(settings, { ...form })
   original.value = JSON.stringify({ ...form })

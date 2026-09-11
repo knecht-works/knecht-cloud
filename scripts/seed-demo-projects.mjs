@@ -1,10 +1,6 @@
-// Seed fake demo projects (plus a few finished runs) into the local dev DB so
-// the projects dashboard has something to show. The repos do not exist on
-// GitHub: framework/ddevEnv/favicon are pre-filled so the GitHub backfill
-// never fires, but starting a real run against them will fail at checkout.
-//
-// Usage: npm run db:seed:demo  (idempotent, keyed on github_id; re-running
-// skips projects that are already there)
+// The repos do not exist on GitHub: framework/ddevEnv/favicon are pre-filled so
+// the backfill never fires, but a real run against them fails at checkout.
+// Usage: npm run db:seed:demo (idempotent, keyed on github_id)
 import Database from 'better-sqlite3'
 
 const dbPath = process.env.KNECHT_DB_PATH || '.data/knecht.db'
@@ -20,8 +16,7 @@ const ddevEnv = (phpVersion, nodeVersion = '20') => JSON.stringify({
   packageManager: 'npm',
 })
 
-// Fake github_ids far above any real installation's repos, so a later real
-// connect can never collide with a seeded row.
+// Far above any real repo id, so a later real connect can never collide.
 const projects = [
   { githubId: 990000001, owner: 'stadtwerke-mch', name: 'typo3-portal', defaultBranch: 'main', framework: 'typo3', frameworkVersion: '13.4', ddevEnv: ddevEnv('8.3') },
   { githubId: 990000002, owner: 'klinikum-nord', name: 'wp-relaunch', defaultBranch: 'develop', framework: 'wordpress', frameworkVersion: '6.5', ddevEnv: ddevEnv('8.2') },
@@ -31,10 +26,7 @@ const projects = [
   { githubId: 990000006, owner: 'verein-gruen', name: 'wp-events', defaultBranch: 'main', framework: 'wordpress', frameworkVersion: '6.4', ddevEnv: ddevEnv('8.2') },
 ]
 
-// Finished runs per seeded project (keyed by owner), so the cards show a
-// status and a duration instead of "No runs yet". Only success/failed: a
-// seeded 'queued' run would get claimed by the dispatcher and actually
-// executed against the nonexistent repo.
+// Only success/failed: a seeded 'queued' run would get claimed by the dispatcher.
 const runsByOwner = {
   'stadtwerke-mch': [
     { workflow: 'boot-and-preview', status: 'success', durationS: 38, agoMin: 45 },

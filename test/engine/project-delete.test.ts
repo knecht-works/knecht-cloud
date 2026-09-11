@@ -7,11 +7,6 @@ import { db, schema } from '../../server/db'
 import { dataDir } from '../../server/utils/storage'
 import { getSteps, makeProject, makeRun, makeSession } from '../helpers/db'
 
-// Disconnecting a project (utils/projects.ts): every row it owns goes in the
-// synchronous phase, work executing for it is aborted, and the background
-// phase tears down the per-session envs and the project's own folders. Same
-// wiring as runner.test.ts: real runner and DB, faked container boundary.
-
 vi.mock('../../server/daemon/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../server/daemon/git')>()
   const { fakeCheckout } = await import('../helpers/local-sandbox')
@@ -50,7 +45,6 @@ describe('deleteProject', () => {
     const project = makeProject()
     const other = makeProject()
 
-    // Two sessions with finished runs, steps and a follow-up.
     const runA = makeRun(project, [], { status: 'success' })
     const runB = makeRun(project, [], { status: 'failed' })
     db.insert(schema.runSteps).values({ runId: runA.id, stepIndex: 0, stepId: 'x', type: 'bash', status: 'success' }).run()
@@ -70,7 +64,6 @@ describe('deleteProject', () => {
 
     const background = deleteProject(project.id)
 
-    // Phase 1 is done before the promise settles.
     expect(db.select().from(schema.projects).where(eq(schema.projects.id, project.id)).get()).toBeUndefined()
     expect(count(schema.sessions, eq(schema.sessions.projectId, project.id))).toBe(0)
     expect(count(schema.runs, eq(schema.runs.projectId, project.id))).toBe(0)
@@ -82,7 +75,6 @@ describe('deleteProject', () => {
     expect(tornDown).toEqual(expect.arrayContaining([runA.sessionId, runB.sessionId]))
     for (const dir of dirs) expect(existsSync(dir)).toBe(false)
 
-    // The other project is untouched.
     expect(count(schema.runs, eq(schema.runs.id, otherRun.id))).toBe(1)
     expect(count(schema.sessions, eq(schema.sessions.id, otherRun.sessionId))).toBe(1)
     expect(existsSync(otherDir)).toBe(true)
@@ -98,7 +90,6 @@ describe('deleteProject', () => {
 
     const started = Date.now()
     await deleteProject(project.id)
-    // The runner returned promptly instead of sitting out the 30s step.
     await done
     expect(Date.now() - started).toBeLessThan(5000)
     expect(count(schema.runs, eq(schema.runs.id, run.id))).toBe(0)

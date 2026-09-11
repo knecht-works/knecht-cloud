@@ -56,7 +56,6 @@ describe('resolveEnv', () => {
       fields: { ...generated.fields, packageManager: { value: { name: 'pnpm', version: '9.1.0' }, source: 'package.json' } },
     }
     expect(resolveEnv(pinned, none).packageManager).toEqual({ value: { name: 'pnpm', version: '9.1.0' }, source: 'package.json' })
-    // The repo's pin only applies to the tool it pins.
     expect(resolveEnv(pinned, { ...none, packageManager: 'pnpm' }).packageManager).toEqual({ value: { name: 'pnpm', version: '9.1.0' }, source: 'setting' })
     expect(resolveEnv(pinned, { ...none, packageManager: 'bun' }).packageManager).toEqual({ value: { name: 'bun', version: null }, source: 'setting' })
   })

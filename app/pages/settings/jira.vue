@@ -1,8 +1,4 @@
 <script setup lang="ts">
-// Jira: the connection powering 'jira' triggers. The token is write-only: the
-// form is for connecting/replacing, the connected state shows who the token
-// authenticates as. Saving validates against Jira before anything is stored;
-// field mistakes are caught inline before the request.
 const toast = useToast()
 
 interface JiraConnection {
@@ -10,7 +6,6 @@ interface JiraConnection {
   siteUrl: string | null
   email: string | null
   accountName: string | null
-  /** Masked recognition preview of the stored token (first 8 + last 4 visible). */
   apiTokenPreview: string | null
 }
 const { data: jira } = useFetch<JiraConnection>('/api/jira/connection', { lazy: true })
@@ -24,9 +19,6 @@ watch(jira, (j) => {
   email.value = j.email ?? ''
 }, { immediate: true })
 
-// Mirrors the server's checks (https URL, email shape, token present) so the
-// obvious mistakes show at the field; Jira itself is the real gatekeeper and
-// its rejection lands in connectError.
 const fieldErrors = reactive({ siteUrl: '', email: '', token: '' })
 function validate(): boolean {
   fieldErrors.siteUrl = ''

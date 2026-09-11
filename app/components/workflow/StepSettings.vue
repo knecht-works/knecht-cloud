@@ -1,32 +1,20 @@
 <script setup lang="ts">
 import { defaultStepTimeout, deriveStepId, isComposite, isDerivedStepId, renameStepReferences, STEP_ID_RE, stepIds } from '#shared/utils/workflow'
 
-// The expanded step's settings, rendered inline inside its card: display
-// name/note, the registry-driven fields, and the n8n-style variable list,
-// everything available at THIS point of the sequence, click-to-insert into the
-// last-focused field (or type `{{` for autocomplete).
 const props = defineProps<{
   step: WorkflowStep
   groups: VarGroup[]
   editable: boolean
-  /** The workflow's ROOT step list; renames must stay tree-unique. */
   root: WorkflowStep[]
 }>()
 
 const def = computed(() => stepDef(props.step.type))
 const meta = computed(() => workflowStepMeta(props.step))
 
-// Step params are edited in place (the draft object owns the state).
 const record = computed(() => props.step as unknown as Record<string, string | boolean>)
 
-// The step's error policy (StepMeta), edited in place like the params.
 const policy = computed(() => props.step as { continueOnError?: boolean, timeoutSeconds?: number })
 
-// An empty required field blocks the save (stepIssues); the field itself
-// wears the highlight so the problem is visible right where it's fixed. A
-// pristine (just-added, untouched) step stays quiet: the required stars say
-// enough until the user starts filling it in, or until a failed save flips
-// the page's FORCE_STEP_ISSUES.
 const forced = inject(FORCE_STEP_ISSUES, () => ref(false), true)
 const pristine = computed(() => stepPristine(props.step))
 function fieldInvalid(f: StepField): boolean {
@@ -34,23 +22,16 @@ function fieldInvalid(f: StepField): boolean {
   return !!f.required && !String((props.step as unknown as Record<string, unknown>)[f.key] ?? '').trim()
 }
 
-// Empty (or invalid) input falls back to the runner's default: the key is
-// removed so the stored step doesn't pin the current default value.
+// The key is removed so the stored step does not pin the current default.
 function onTimeoutInput(value: string) {
   const seconds = Number.parseInt(value, 10)
   if (Number.isFinite(seconds) && seconds > 0) policy.value.timeoutSeconds = seconds
   else delete policy.value.timeoutSeconds
 }
 
-// ── step id: derived from the label, hand-editable, references follow ────────
-// While the id still looks auto-derived (run_command, run_command_2, or the
-// backfill's type slug link_check) a label edit re-derives it; a hand-edited
-// id sticks. Every rename rewrites the tree's {{ steps.<id>… }} references,
-// so templates never break.
 const idDraft = ref(props.step.id ?? '')
 watch(() => props.step.id, id => idDraft.value = id ?? '')
 
-// The tree's ids minus this step's own: what a rename must stay unique against.
 function takenIds(): Set<string> {
   const taken = stepIds(props.root)
   if (props.step.id) taken.delete(props.step.id)
@@ -86,16 +67,12 @@ function onLabelInput(value: string) {
   if (auto) renameId(deriveStepId(value.trim() || def.value.label, takenIds()))
 }
 
-// Chip inserts go to the last-focused template-capable field (falls back to
-// the first one). Typed against VarField's exposed API.
 interface VarFieldApi {
   insertVar: (path: string) => void
   acceptsVars: () => boolean
 }
 const fieldRefs = ref<(VarFieldApi | null)[]>([])
 const focused = ref<number | null>(null)
-// The if step has no registry fields; its condition editor routes inserts to
-// the last-focused condition side itself.
 const conditionEditor = ref<{ insertVar: (path: string) => void } | null>(null)
 
 function insert(path: string) {
@@ -108,17 +85,12 @@ function insert(path: string) {
 
 const hasVarFields = computed(() => def.value.fields.some(f => f.vars) || props.step.type === 'if')
 
-// The variable reference list is collapsed by default. On big workflows it
-// grows a row per prior step and would dwarf the actual settings. The header
-// stays visible (with a count and the `{{` hint), so insertion is one click
-// away and typing `{{` needs no expansion at all.
 const varsOpen = ref(false)
 const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length, 0))
 </script>
 
 <template>
   <div class="flex flex-col gap-4 border-t border-muted px-4 py-4">
-    <!-- display name + note (fall back to the derived label/detail) -->
     <div class="flex flex-col gap-2">
       <input
         :value="step.label ?? ''"
@@ -138,8 +110,6 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
         class="w-full bg-transparent text-xs text-muted outline-none placeholder:text-dimmed"
         @input="record.description = ($event.target as HTMLInputElement).value"
       >
-      <!-- the id templates reference this step under; invalid edits stay in
-           the draft (red) and revert on blur -->
       <div
         class="flex items-baseline"
         :title="`Templates reference this step as steps.${step.id}`"
@@ -162,7 +132,6 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       </div>
     </div>
 
-    <!-- settings fields, from the registry -->
     <template v-if="def.fields.length">
       <WorkflowVarField
         v-for="(f, i) in def.fields"
@@ -183,7 +152,6 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       {{ meta.detail }}. This step has no settings.
     </p>
 
-    <!-- if: the conditions (the branch lists render as rail columns, not here) -->
     <WorkflowConditionEditor
       v-if="step.type === 'if'"
       ref="conditionEditor"
@@ -192,7 +160,6 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       :editable="editable"
     />
 
-    <!-- error policy (StepMeta): every action carries these -->
     <div
       v-if="!isComposite(step)"
       class="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-muted pt-3.5"
@@ -220,7 +187,6 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       />
     </div>
 
-    <!-- available variables (n8n-style): context + prior steps' outputs -->
     <div
       v-if="hasVarFields"
       class="border-t border-muted pt-3.5"
@@ -245,9 +211,6 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
           :class="{ 'rotate-180': varsOpen }"
         />
       </button>
-      <!-- Aligned two-column list: a fixed label column (truncated, but the
-           leading step number stays visible, the full name is the title) and
-           the chip column, so rows scan cleanly however long a step name is. -->
       <div
         class="grid transition-[grid-template-rows] duration-300 ease-out"
         :style="{ gridTemplateRows: varsOpen ? '1fr' : '0fr' }"
