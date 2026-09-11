@@ -10,18 +10,27 @@ fi
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" || exit 0
 
 threshold=15
-stats=$(git diff HEAD --no-color -- 'app/**/*.ts' 'app/**/*.vue' 'server/**/*.ts' 'shared/**/*.ts' 'test/**/*.ts' 2>/dev/null \
-  | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' \
-  | awk '
+min_lines=20
+paths=('app/**/*.ts' 'app/**/*.vue' 'server/**/*.ts' 'shared/**/*.ts' 'test/**/*.ts')
+stats=$(
+  {
+    git diff HEAD --no-color -- "${paths[@]}" 2>/dev/null | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)'
+    # `git diff HEAD` skips untracked files; count a brand-new file as all added.
+    git ls-files --others --exclude-standard -- "${paths[@]}" 2>/dev/null | while IFS= read -r file; do
+      sed 's/^/+/' "$file"
+    done
+  } | awk '
       /^[+-][[:space:]]*$/ { next }
       /^\+/ { total++ }
-      /^\+[[:space:]]*(\/\/|\/\*|\*)/ { comments++ }
-      /^-[[:space:]]*(\/\/|\/\*|\*)/ { removed++ }
+      /^\+[[:space:]]*(\/\/|\/\*|\*|<!--)/ { comments++ }
+      /^-[[:space:]]*(\/\/|\/\*|\*|<!--)/ { removed++ }
       END { printf "%d %d %d", total + 0, comments + 0, removed + 0 }
-    ')
+    '
+)
 read -r total comments removed <<<"$stats"
 
-[ "$total" -eq 0 ] && exit 0
+# A small diff with one allowed WHY comment would trip the ratio on its own.
+[ "$total" -lt "$min_lines" ] && exit 0
 # A cleanup pass that only shortens comments must not trip the check.
 [ "$comments" -le "$removed" ] && exit 0
 ratio=$(( comments * 100 / total ))

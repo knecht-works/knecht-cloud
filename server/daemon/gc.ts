@@ -34,7 +34,8 @@ export async function collectGarbage(): Promise<GcResult> {
   return result
 }
 
-// Pre-DooD Sysbox sandboxes carried the knecht.run label instead of ddev's site-name.
+// List by both labels so an unrelated container is never touched: run stacks carry
+// ddev's site-name, hosts upgraded from Sysbox may still hold knecht.run ones.
 async function reapOrphanSandboxes(liveSessions: Set<number>): Promise<string[]> {
   const orphans = new Map<number, string>()
   try {

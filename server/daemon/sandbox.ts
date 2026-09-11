@@ -107,7 +107,7 @@ export async function removeEnvStack(sessionId: number): Promise<void> {
     await execa('docker', ['rm', '-f', sessionSandboxName(sessionId)])
   }
   catch {
-    // Pre-DooD Sysbox containers were named knecht-run-<id>.
+    // Only hosts upgraded from Sysbox still have a container under this name.
   }
 }
 
