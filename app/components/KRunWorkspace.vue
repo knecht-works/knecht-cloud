@@ -34,8 +34,9 @@ const failedStep = computed(() => {
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
-  const trigger = r.trigger ? triggerSourceMeta(r.trigger) : null
   const object = r.objectKind ? sessionObjectMeta(r.objectKind) : null
+  // A branch is set locally by create-branch and pushed only by create-pr.
+  const branchOnGitHub = !!r.prUrl || r.objectKind === 'pull_request'
   return [
     object && {
       icon: r.sessionStatus === 'closed' ? object.closedIcon : object.icon,
@@ -43,10 +44,11 @@ const meta = computed(() => {
       href: r.objectUrl ?? undefined,
     },
     { icon: 'i-lucide-workflow', text: r.workflow, href: r.workflowId ? `/workflows/${r.workflowId}` : undefined },
-    trigger && { icon: trigger.icon, text: trigger.label },
-    r.branch && { icon: 'i-lucide-git-branch', text: r.branch },
-    r.startedAt && { icon: 'i-lucide-timer', text: runDuration(r.startedAt, r.finishedAt) },
-    r.createdAt && { icon: 'i-lucide-calendar', text: timeAgo(r.createdAt) },
+    r.branch && {
+      icon: 'i-lucide-git-branch',
+      text: r.branch,
+      href: branchOnGitHub ? `https://github.com/${r.project}/tree/${r.branch}` : undefined,
+    },
   ].filter(Boolean) as { icon: string, text: string, href?: string }[]
 })
 
