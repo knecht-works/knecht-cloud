@@ -566,12 +566,14 @@ async function toggleMentions() {
               what the preview shows.
             </p>
             <div class="grid grid-cols-[1fr_7rem] gap-2">
-              <UInput
-                v-model="devServer"
-                placeholder="npm run dev"
-                size="sm"
-                :ui="{ base: 'k-mono text-xs' }"
-              />
+              <div class="k-code-box">
+                <WorkflowCodeEditor
+                  v-model="devServer"
+                  lang="bash"
+                  :rows="1"
+                  placeholder="npm run dev"
+                />
+              </div>
               <UInput
                 v-model="previewPort"
                 placeholder="Port"
