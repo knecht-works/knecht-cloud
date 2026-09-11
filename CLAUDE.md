@@ -81,3 +81,19 @@ Only `feat:` and `fix:` subjects reach the release changelog (filtered by .githu
 
 Everything internal (refactors, tests, CI, dependencies) uses the other types and stays out of the changelog automatically. When a commit mixes a user-visible change with internal work, the user-visible part decides the type and subject.
 
+## 7. Comments
+
+**Default: no comment. A comment must say something the code cannot.**
+
+Allowed: a non-obvious WHY (a constraint, a bug being worked around, a surprising invariant), kept to one or two lines, placed where the reader would otherwise be confused.
+
+Never write:
+- Comments that restate the code, the name, or the type (`webserver: string | null // e.g. 'nginx-fpm'`)
+- A header paragraph above every function, component, field, route, or ref
+- History or provenance ("legacy", "before X existed", "increment 2", "kept for compatibility"): that belongs in an ADR or the commit message
+- Section dividers (`// ── validation ──`)
+- Comments that describe UI behavior the template already shows
+- Comments explaining what the next few lines do when a well-named function would do it
+- Comments explaining how a platform mechanism works (Teleport, fixed positioning, a watcher, a cascade, an index). The reader knows Vue, Nuxt, SQLite and the browser; only say what is specific to THIS code
+
+Test: delete the comment. If the reader loses nothing, it should not exist. When you touch a file, do not add comments to code you did not change, and do not remove existing ones unless asked.
