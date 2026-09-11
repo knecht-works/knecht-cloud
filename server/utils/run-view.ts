@@ -1,4 +1,6 @@
 import type { DdevEnv, Run, Session } from '../db/schema'
+import type { Step } from '../../shared/utils/workflow'
+import { runHasEnv } from '../../shared/utils/run'
 import { schema } from '../db'
 import { getProject, getSessionRow } from './entities'
 import { hasPreviewTarget } from './preview-target'
@@ -18,35 +20,36 @@ export const runSessionColumns = {
   sessionStatus: schema.sessions.status,
 }
 
-interface PreviewTargetRow {
+interface SessionEnvRow {
   envState: Session['envState']
   previewHosts: string[]
   previewPort: number | null
+  steps: Step[] | null
   projectEnv: DdevEnv | null
   projectDevServer: string | null
   projectPreviewPort: number | null
 }
 
-export function withPreviewTarget<R extends PreviewTargetRow>(row: R): Omit<R, 'projectEnv' | 'projectDevServer' | 'projectPreviewPort'> & { hasPreviewTarget: boolean } {
+export function withSessionEnv<R extends SessionEnvRow>(row: R): Omit<R, 'projectEnv' | 'projectDevServer' | 'projectPreviewPort'> & { hasPreviewTarget: boolean, hasEnv: boolean } {
   const { projectEnv, projectDevServer, projectPreviewPort, ...rest } = row
   return {
     ...rest,
     hasPreviewTarget: hasPreviewTarget(row, { ddevEnv: projectEnv, devServer: projectDevServer, previewPort: projectPreviewPort }),
+    hasEnv: runHasEnv(row.envState, row.steps),
   }
 }
 
-export function withSessionEnv<R extends Run>(run: R, session?: Session) {
+export function withRunSessionEnv<R extends Run>(run: R, session?: Session) {
   const s = session ?? getSessionRow(run.sessionId)
   const project = getProject(run.projectId)
-  const env = {
+  return withSessionEnv({
+    ...run,
     envState: s?.envState ?? 'down' as const,
     previewHosts: s?.previewHosts ?? [],
-    previewPort: s?.previewPort ?? null,
-  }
-  return {
-    ...run,
-    ...env,
     previewReady: s?.previewReady ?? false,
-    hasPreviewTarget: project ? hasPreviewTarget(env, project) : false,
-  }
+    previewPort: s?.previewPort ?? null,
+    projectEnv: project?.ddevEnv ?? null,
+    projectDevServer: project?.devServer ?? null,
+    projectPreviewPort: project?.previewPort ?? null,
+  })
 }

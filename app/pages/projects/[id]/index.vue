@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { stepsInclude, type Step } from '#shared/utils/workflow'
-
 const route = useRoute()
 const id = Number(route.params.id)
 
@@ -28,7 +26,7 @@ if (Number.isInteger(queryRun) && !projectRuns.value.some(r => r.id === queryRun
   const fetched = await $fetch(`/api/runs/${queryRun}`).catch(() => null)
   if (fetched && fetched.projectId === id) {
     const { log, steps, ...row } = fetched
-    offListRun.value = { ...row, hasBootStep: stepsInclude((steps ?? []) as Step[], 'ddev-start') }
+    offListRun.value = row
   }
 }
 
@@ -75,7 +73,7 @@ const mascotLine = computed(() => {
   if (!r) return 'No runs yet. Start a workflow to boot this project.'
   if (r.status === 'running' || r.status === 'queued') return `Working on ${r.workflow} right now.`
   if (r.status === 'failed') return 'The last run failed. Open it to see why.'
-  if (!r.hasBootStep) return 'This workflow works without a preview environment.'
+  if (!r.hasEnv) return 'This workflow works without a preview environment.'
   if (r.envState === 'up') return r.hasPreviewTarget ? 'The preview is live and ready to inspect.' : 'The environment is up. Open the terminal or the IDE to work in it.'
   return 'Idle. Trigger a workflow to boot a fresh environment.'
 })

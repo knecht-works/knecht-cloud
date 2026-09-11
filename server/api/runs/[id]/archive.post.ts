@@ -1,7 +1,7 @@
 import { archiveEnv } from '../../../daemon/envs'
 import { requireSession } from '../../../utils/entities'
 import { sessionHasActiveWork } from '../../../utils/sessions'
-import { withSessionEnv } from '../../../utils/run-view'
+import { withRunSessionEnv } from '../../../utils/run-view'
 
 // The stop step is not skipped: stopping is what exports the database the
 // archive needs.
@@ -22,5 +22,5 @@ export default defineEventHandler(async (event) => {
     })
   }
   await archiveEnv(session.id)
-  return withSessionEnv(requireRun(id))
+  return withRunSessionEnv(requireRun(id))
 })

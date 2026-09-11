@@ -7,7 +7,7 @@ import { requireSession } from '../../../utils/entities'
 import { dispatchRuns } from '../../../daemon/dispatcher'
 import { hasActiveFollowup } from '../../../daemon/followups'
 import { sessionCheckoutDir } from '../../../utils/storage'
-import { withSessionEnv } from '../../../utils/run-view'
+import { withRunSessionEnv } from '../../../utils/run-view'
 
 // Resuming past completed steps needs the session's checkout (their file state).
 export default defineEventHandler((event) => {
@@ -42,5 +42,5 @@ export default defineEventHandler((event) => {
     .run()
   dispatchRuns()
 
-  return withSessionEnv(requireRun(id))
+  return withRunSessionEnv(requireRun(id))
 })

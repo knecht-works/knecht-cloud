@@ -2,7 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { cancelFollowupWork } from '../../../daemon/followups'
 import { cancelRun } from '../../../daemon/runner'
-import { withSessionEnv } from '../../../utils/run-view'
+import { withRunSessionEnv } from '../../../utils/run-view'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
@@ -23,5 +23,5 @@ export default defineEventHandler((event) => {
   else {
     cancelRun(id)
   }
-  return withSessionEnv(requireRun(id))
+  return withRunSessionEnv(requireRun(id))
 })

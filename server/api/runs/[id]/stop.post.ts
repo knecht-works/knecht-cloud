@@ -1,7 +1,7 @@
 import { stopEnv } from '../../../daemon/envs'
 import { requireSession } from '../../../utils/entities'
 import { sessionHasActiveWork } from '../../../utils/sessions'
-import { withSessionEnv } from '../../../utils/run-view'
+import { withRunSessionEnv } from '../../../utils/run-view'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
@@ -14,5 +14,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'Only a running environment can be stopped.' })
   }
   await stopEnv(session.id)
-  return withSessionEnv(requireRun(id))
+  return withRunSessionEnv(requireRun(id))
 })
