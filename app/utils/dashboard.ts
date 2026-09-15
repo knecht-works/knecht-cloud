@@ -1,4 +1,5 @@
 import type { Step } from '#shared/utils/workflow'
+import type { IntegrationId, ObjectKind } from '#shared/utils/integrations'
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
 
@@ -48,28 +49,34 @@ export function triggerSourceMeta(source: string): TriggerSourceMeta {
   return TRIGGER_SOURCE_META[source] ?? { icon: 'i-lucide-zap', label: source, color: 'var(--accent-violet)' }
 }
 
-export type SessionObjectKind = 'issue' | 'pull_request'
+export type SessionObjectKind = ObjectKind
 
 interface SessionObjectMeta {
   icon: string
   closedIcon: string
   label: string
   color: string
+  // Rendered before the key: "#12" for GitHub, "PROJ-12" for Jira.
+  prefix: string
 }
 
-const SESSION_OBJECT_META: Record<SessionObjectKind, SessionObjectMeta> = {
-  issue: { icon: 'i-lucide-circle-dot', closedIcon: 'i-lucide-circle-check', label: 'Issue', color: 'var(--text-primary)' },
-  pull_request: { icon: 'i-lucide-git-pull-request', closedIcon: 'i-lucide-git-pull-request-closed', label: 'PR', color: 'var(--accent-violet)' },
+const SESSION_OBJECT_META: Record<string, SessionObjectMeta> = {
+  'github:issue': { icon: 'i-lucide-circle-dot', closedIcon: 'i-lucide-circle-check', label: 'Issue', color: 'var(--text-primary)', prefix: '#' },
+  'github:pull_request': { icon: 'i-lucide-git-pull-request', closedIcon: 'i-lucide-git-pull-request-closed', label: 'PR', color: 'var(--accent-violet)', prefix: '#' },
+  'jira:issue': { icon: 'i-simple-icons-jira', closedIcon: 'i-lucide-circle-check', label: 'Ticket', color: '#579dff', prefix: '' },
 }
 
-export function sessionObjectMeta(kind: SessionObjectKind): SessionObjectMeta {
-  return SESSION_OBJECT_META[kind]
+const UNKNOWN_OBJECT: SessionObjectMeta = { icon: 'i-lucide-circle-dot', closedIcon: 'i-lucide-circle-check', label: 'Object', color: 'var(--text-toned)', prefix: '' }
+
+export function sessionObjectMeta(integration: IntegrationId, kind: SessionObjectKind): SessionObjectMeta {
+  return SESSION_OBJECT_META[`${integration}:${kind}`] ?? UNKNOWN_OBJECT
 }
 
 interface SessionRunRow {
   sessionId: number
+  objectIntegration: IntegrationId | null
   objectKind: SessionObjectKind | null
-  objectNumber: number | null
+  objectKey: string | null
   objectTitle: string | null
   objectUrl: string | null
   sessionStatus: 'open' | 'closed'
@@ -88,10 +95,11 @@ export function groupRunsBySession<T extends SessionRunRow>(runs: T[]) {
     groupRuns.reverse()
     return {
       sessionId: head.sessionId,
-      object: head.objectKind
+      object: head.objectIntegration && head.objectKind
         ? {
+            integration: head.objectIntegration,
             kind: head.objectKind,
-            number: head.objectNumber,
+            key: head.objectKey,
             title: head.objectTitle,
             url: head.objectUrl,
             closed: head.sessionStatus === 'closed',

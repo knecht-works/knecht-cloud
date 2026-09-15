@@ -232,6 +232,13 @@
       "when": 1789118484811,
       "tag": "0032_agent-session",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1789479063675,
+      "tag": "0033_session-objects",
+      "breakpoints": true
     }
   ]
 }

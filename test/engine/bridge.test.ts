@@ -33,7 +33,7 @@ function call(sessionId: number, body: object, token = bridgeToken(sessionId)) {
 }
 
 function bindObject(sessionId: number, kind: 'issue' | 'pull_request' = 'issue', number = 5) {
-  db.update(schema.sessions).set({ objectKind: kind, objectNumber: number }).where(eq(schema.sessions.id, sessionId)).run()
+  db.update(schema.sessions).set({ objectIntegration: 'github', objectKind: kind, objectKey: String(number) }).where(eq(schema.sessions.id, sessionId)).run()
 }
 
 function objectSession(overrides: Parameters<typeof makeRun>[2] = {}) {

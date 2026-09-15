@@ -3,6 +3,7 @@ import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqli
 import { ENV_STATES } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import { PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
+import { INTEGRATION_IDS, OBJECT_KINDS } from '../../shared/utils/integrations'
 import type { Step } from '../../shared/utils/workflow'
 
 export interface DdevEnv {
@@ -78,8 +79,9 @@ export const sessions = sqliteTable('sessions', {
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
 
-  objectKind: text('object_kind', { enum: ['issue', 'pull_request'] }),
-  objectNumber: integer('object_number'),
+  objectIntegration: text('object_integration', { enum: INTEGRATION_IDS }),
+  objectKind: text('object_kind', { enum: OBJECT_KINDS }),
+  objectKey: text('object_key'),
   objectUrl: text('object_url'),
   objectTitle: text('object_title'),
 
@@ -114,7 +116,7 @@ export const sessions = sqliteTable('sessions', {
     .default(sql`(unixepoch())`),
   closedAt: integer('closed_at', { mode: 'timestamp' }),
 }, table => [
-  uniqueIndex('sessions_object_idx').on(table.projectId, table.objectKind, table.objectNumber),
+  uniqueIndex('sessions_object_idx').on(table.projectId, table.objectIntegration, table.objectKind, table.objectKey),
   index('sessions_project_id_idx').on(table.projectId),
   index('sessions_env_state_idx').on(table.envState),
 ])

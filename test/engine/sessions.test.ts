@@ -21,11 +21,10 @@ function makeTrigger(workflowId: number, projectIds: number[]) {
 describe('resolveSession', () => {
   it('creates one session per object and finds it again', () => {
     const project = makeProject()
-    const object = { kind: 'issue' as const, number: 17, url: 'https://x/17', title: 'Bug' }
+    const object = { integration: 'github' as const, kind: 'issue' as const, key: '17', url: 'https://x/17', title: 'Bug' }
 
     const first = resolveSession(project, object, null)
-    expect(first.objectKind).toBe('issue')
-    expect(first.objectNumber).toBe(17)
+    expect(first).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '17' })
     expect(first.branch).toBe('main')
 
     const again = resolveSession(project, object, 'feature-x')
@@ -35,7 +34,7 @@ describe('resolveSession', () => {
 
   it('refreshes the object title on later events', () => {
     const project = makeProject()
-    const object = { kind: 'issue' as const, number: 3, title: 'Old title' }
+    const object = { integration: 'github' as const, kind: 'issue' as const, key: '3', title: 'Old title' }
     const first = resolveSession(project, object, null)
     resolveSession(project, { ...object, title: 'New title' }, null)
     expect(getSessionRow(first.id).objectTitle).toBe('New title')
@@ -52,7 +51,7 @@ describe('resolveSession', () => {
   it('keeps the same object separate across projects', () => {
     const a = makeProject()
     const b = makeProject()
-    const object = { kind: 'pull_request' as const, number: 5 }
+    const object = { integration: 'github' as const, kind: 'pull_request' as const, key: '5' }
     expect(resolveSession(a, object, null).id).not.toBe(resolveSession(b, object, null).id)
   })
 })
@@ -62,7 +61,7 @@ describe('fireTrigger with objects', () => {
     const project = makeProject()
     const wf = makePublishedWorkflow()
     const trigger = makeTrigger(wf.id, [project.id])
-    const object = { kind: 'issue' as const, number: 9, title: 'Flaky' }
+    const object = { integration: 'github' as const, kind: 'issue' as const, key: '9', title: 'Flaky' }
 
     const [first] = fireTrigger(trigger, { object })
     const [second] = fireTrigger(trigger, { object })
@@ -71,8 +70,7 @@ describe('fireTrigger with objects', () => {
     expect(runA.sessionId).toBe(runB.sessionId)
 
     const session = getSessionRow(runA.sessionId)
-    expect(session.objectKind).toBe('issue')
-    expect(session.objectNumber).toBe(9)
+    expect(session).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '9' })
   })
 
   it('gives objectless firings their own one-shot sessions', () => {
@@ -91,7 +89,7 @@ describe('fireTrigger with objects', () => {
 describe('syncObjectStatus', () => {
   it('mirrors close and reopen onto the session', () => {
     const project = makeProject()
-    const object = { kind: 'issue' as const, number: 21 }
+    const object = { integration: 'github' as const, kind: 'issue' as const, key: '21' }
     const session = resolveSession(project, object, null)
 
     syncObjectStatus(project.id, object, 'closed')
@@ -107,7 +105,7 @@ describe('syncObjectStatus', () => {
 
   it('ignores objects Knecht never worked on', () => {
     const project = makeProject()
-    expect(() => syncObjectStatus(project.id, { kind: 'issue', number: 999 }, 'closed')).not.toThrow()
+    expect(() => syncObjectStatus(project.id, { integration: 'github', kind: 'issue', key: '999' }, 'closed')).not.toThrow()
   })
 })
 
@@ -150,7 +148,7 @@ describe('withSessionLinks', () => {
     const project = makeProject()
     const run = makeRun(project, [])
     db.update(schema.sessions)
-      .set({ objectKind: 'issue', objectNumber: 5, previewReady: true })
+      .set({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5', previewReady: true })
       .where(eq(schema.sessions.id, run.sessionId))
       .run()
 
@@ -165,7 +163,7 @@ describe('withSessionLinks', () => {
     const project = makeProject()
     const run = makeRun(project, [], { prUrl: 'https://x/pull/9' })
     db.update(schema.sessions)
-      .set({ objectKind: 'pull_request', objectNumber: 9, previewReady: true })
+      .set({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '9', previewReady: true })
       .where(eq(schema.sessions.id, run.sessionId))
       .run()
 

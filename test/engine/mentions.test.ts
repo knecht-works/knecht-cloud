@@ -90,8 +90,7 @@ describe('handleMention', () => {
     expect(mentionRun.kind).toBe('mention')
     expect(mentionRun.trigger).toBe('mention')
     const session = getSessionRow(starterRun.sessionId)
-    expect(session.objectKind).toBe('issue')
-    expect(session.objectNumber).toBe(5)
+    expect(session).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5' })
 
     const followup = db.select().from(schema.followups).where(eq(schema.followups.sessionId, session.id)).get()!
     expect(followup.runId).toBe(mentionRun.id)
@@ -117,7 +116,7 @@ describe('handleMention', () => {
     const project = makeProject()
     const run = makeRun(project, [], { status: 'success' })
     db.update(schema.sessions)
-      .set({ objectKind: 'issue', objectNumber: 5, envState: 'stopped' })
+      .set({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5', envState: 'stopped' })
       .where(eq(schema.sessions.id, run.sessionId))
       .run()
 
