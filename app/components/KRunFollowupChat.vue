@@ -27,9 +27,11 @@ watch(followupActive, (v) => {
 
 usePollWhile(() => followupActive.value, refreshFollowups)
 
+const runPending = computed(() => isLiveStatus(props.status))
 const canFollowup = computed(() =>
-  (props.status === 'success' || props.status === 'failed') && props.envState !== 'down')
+  props.status !== 'cancelled' && (runPending.value || props.envState !== 'down'))
 const followupHint = computed(() => {
+  if (runPending.value) return 'It starts once the run has finished.'
   if (props.envState === 'stopped') return 'The environment reboots first (a few seconds).'
   if (props.envState === 'archived') return 'The environment is restored first (a few minutes).'
   return null
