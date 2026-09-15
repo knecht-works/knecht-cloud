@@ -302,7 +302,7 @@ async function removeAiKey() {
     <KPanel
       title="Instructions"
       icon="i-lucide-list-checks"
-      accent="var(--primary)"
+      accent="var(--accent-orange)"
     >
       <template #action>
         <KSaveStatus
