@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import type { Trigger } from '../../db/schema'
+import { z } from 'zod'
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
 
@@ -8,6 +8,28 @@ export function verifyGithubSignature(raw: string, secret: string, provided: str
   const a = Buffer.from(expected)
   const b = Buffer.from(provided)
   return a.length === b.length && timingSafeEqual(a, b)
+}
+
+export const githubTriggerConfigSchema = z.object({
+  event: z.enum(['push', 'pull_request', 'issues']).default('push'),
+  branches: z.array(z.string().min(1)).default([]),
+  issueActions: z.array(z.enum(['opened', 'labeled'])).min(1).default(['opened']),
+  issueLabel: z.string().min(1).nullable().default(null),
+}).refine(
+  c => !(c.event === 'issues' && c.issueActions.includes('labeled') && !c.issueLabel),
+  'A label is required to trigger on "labeled"',
+)
+
+export type GithubTriggerConfig = z.infer<typeof githubTriggerConfigSchema>
+
+export function githubEventLabel(c: GithubTriggerConfig): string {
+  if (c.event === 'issues') {
+    const parts = c.issueActions.map(a => (a === 'labeled' ? `label "${c.issueLabel ?? '?'}"` : a))
+    return `On issues · ${parts.join(', ')}`
+  }
+  if (!c.branches.length) return `On ${c.event}`
+  const prefix = c.event === 'pull_request' ? 'base ' : ''
+  return `On ${c.event} · ${prefix}${c.branches.join(', ')}`
 }
 
 export interface GithubPayload {
@@ -67,14 +89,14 @@ function branchMatches(filter: string[], branch: string): boolean {
   return filter.length === 0 || filter.includes(branch)
 }
 
-export function matchGithubEvent(t: Trigger, event: string, payload: GithubPayload): GithubMatch | null {
-  if (event !== (t.webhookEvent ?? 'push')) return null
+export function matchGithubEvent(c: GithubTriggerConfig, event: string, payload: GithubPayload): GithubMatch | null {
+  if (event !== c.event) return null
 
   if (event === 'push') {
     const ref = payload.ref ?? ''
     if (payload.deleted || !ref.startsWith('refs/heads/')) return null
     const branch = ref.slice('refs/heads/'.length)
-    if (!branchMatches(t.webhookBranches, branch)) return null
+    if (!branchMatches(c.branches, branch)) return null
     return {
       branch,
       inputs: {
@@ -91,7 +113,7 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
   if (event === 'pull_request') {
     if (!PR_ACTIONS.has(payload.action ?? '')) return null
     const base = payload.pull_request?.base?.ref ?? ''
-    if (!branchMatches(t.webhookBranches, base)) return null
+    if (!branchMatches(c.branches, base)) return null
     // The branch filter is about the base; the run checks out the head.
     const head = payload.pull_request?.head?.ref ?? ''
     return {
@@ -103,8 +125,8 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
 
   if (event === 'issues') {
     const action = payload.action ?? ''
-    if (!t.issueActions.includes(action as (typeof t.issueActions)[number])) return null
-    if (action === 'labeled' && (!t.issueLabel || payload.label?.name !== t.issueLabel)) return null
+    if (!c.issueActions.includes(action as (typeof c.issueActions)[number])) return null
+    if (action === 'labeled' && (!c.issueLabel || payload.label?.name !== c.issueLabel)) return null
     return {
       branch: null,
       inputs: subjectInputs(event, payload.issue),

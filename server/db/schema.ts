@@ -284,8 +284,6 @@ export const dataMigrations = sqliteTable('data_migrations', {
     .default(sql`(unixepoch())`),
 })
 
-export type IssueAction = 'opened' | 'labeled'
-
 export const triggers = sqliteTable('triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   source: text('source', { enum: ['schedule', 'github', 'manual', 'jira'] }).notNull(),
@@ -300,17 +298,6 @@ export const triggers = sqliteTable('triggers', {
 
   cron: text('cron'),
   nextFireAt: integer('next_fire_at', { mode: 'timestamp' }),
-
-  webhookEvent: text('webhook_event'),
-  webhookBranches: text('webhook_branches', { mode: 'json' })
-    .$type<string[]>()
-    .notNull()
-    .default(sql`'[]'`),
-  issueActions: text('issue_actions', { mode: 'json' })
-    .$type<IssueAction[]>()
-    .notNull()
-    .default(sql`'["opened"]'`),
-  issueLabel: text('issue_label'),
 
   config: text('config', { mode: 'json' })
     .$type<Record<string, unknown>>()

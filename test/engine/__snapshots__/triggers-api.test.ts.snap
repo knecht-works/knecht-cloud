@@ -3,16 +3,18 @@
 exports[`POST /api/triggers > creates a github trigger with push defaults and describes it 1`] = `
 {
   "active": true,
-  "config": {},
+  "config": {
+    "branches": [],
+    "event": "push",
+    "issueActions": [
+      "opened",
+    ],
+    "issueLabel": null,
+  },
   "endpoint": null,
   "event": "On push",
   "firedCount": 0,
   "id": Any<Number>,
-  "issueActions": [
-    "opened",
-  ],
-  "issueLabel": null,
-  "kind": "Webhook",
   "lastFiredAt": null,
   "projectIds": [
     Any<Number>,
@@ -21,8 +23,6 @@ exports[`POST /api/triggers > creates a github trigger with push defaults and de
     "test-php",
   ],
   "source": "github",
-  "webhookBranches": [],
-  "webhookEvent": "push",
   "workflowId": Any<Number>,
   "workflowName": Any<String>,
 }

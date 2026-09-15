@@ -9,10 +9,6 @@ const props = defineProps<{
     workflowId: number
     projectIds: number[]
     endpoint: string | null
-    webhookEvent: string | null
-    webhookBranches: string[]
-    issueActions: ('opened' | 'labeled')[]
-    issueLabel: string | null
     config: Record<string, unknown>
   } | null
 }>()
@@ -66,6 +62,22 @@ function issueActions(): ('opened' | 'labeled')[] {
   ]
 }
 
+interface GithubConfig {
+  event?: 'push' | 'pull_request' | 'issues'
+  branches?: string[]
+  issueActions?: ('opened' | 'labeled')[]
+  issueLabel?: string | null
+}
+
+function githubConfig(): GithubConfig {
+  return {
+    event: githubEvent.value,
+    branches: parsedBranches(),
+    issueActions: issueActions(),
+    issueLabel: issueLabeled.value ? issueLabel.value.trim() : null,
+  }
+}
+
 const cronLooksValid = computed(() => cron.value.trim().split(/\s+/).length === 5)
 const issuesLookValid = computed(() =>
   githubEvent.value !== 'issues'
@@ -88,12 +100,7 @@ async function create() {
         projectIds: projectIds.value,
       }
       if (source.value === 'schedule') body.cron = cron.value.trim()
-      if (source.value === 'github') {
-        body.webhookEvent = githubEvent.value
-        body.webhookBranches = parsedBranches()
-        body.issueActions = issueActions()
-        body.issueLabel = issueLabeled.value ? issueLabel.value.trim() : null
-      }
+      if (source.value === 'github') body.config = githubConfig()
       await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body })
       emit('created')
       toast.add({ title: 'Trigger updated', color: 'success' })
@@ -107,12 +114,7 @@ async function create() {
       projectIds: projectIds.value,
     }
     if (source.value === 'schedule') body.cron = cron.value.trim()
-    if (source.value === 'github') {
-      body.webhookEvent = githubEvent.value
-      body.webhookBranches = parsedBranches()
-      body.issueActions = issueActions()
-      body.issueLabel = issueLabeled.value ? issueLabel.value.trim() : null
-    }
+    if (source.value === 'github') body.config = githubConfig()
 
     await $fetch('/api/triggers', { method: 'POST', body })
     emit('created')
@@ -136,11 +138,12 @@ watch(open, (isOpen) => {
       if (props.trigger.source === 'schedule' && props.trigger.endpoint) {
         cron.value = props.trigger.endpoint
       }
-      githubEvent.value = (props.trigger.webhookEvent ?? 'push') as typeof githubEvent.value
-      branchFilter.value = props.trigger.webhookBranches.join(', ')
-      issueOpened.value = props.trigger.issueActions.includes('opened')
-      issueLabeled.value = props.trigger.issueActions.includes('labeled')
-      issueLabel.value = props.trigger.issueLabel ?? ''
+      const c = props.trigger.source === 'github' ? props.trigger.config as GithubConfig : {}
+      githubEvent.value = c.event ?? 'push'
+      branchFilter.value = (c.branches ?? []).join(', ')
+      issueOpened.value = (c.issueActions ?? ['opened']).includes('opened')
+      issueLabeled.value = (c.issueActions ?? []).includes('labeled')
+      issueLabel.value = c.issueLabel ?? ''
       return
     }
     if (props.presetWorkflowId) workflowId.value = props.presetWorkflowId

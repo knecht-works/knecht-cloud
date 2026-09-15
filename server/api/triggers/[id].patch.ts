@@ -12,10 +12,6 @@ const bodySchema = z.object({
   source: z.enum(['schedule', 'github', 'manual', 'jira']).optional(),
   projectIds: z.array(z.number().int()).optional(),
   cron: z.string().min(1).optional(),
-  webhookEvent: z.enum(['push', 'pull_request', 'issues']).optional(),
-  webhookBranches: z.array(z.string().min(1)).optional(),
-  issueActions: z.array(z.enum(['opened', 'labeled'])).min(1).optional(),
-  issueLabel: z.string().min(1).nullish(),
   config: z.record(z.string(), z.unknown()).optional(),
 })
 
@@ -40,6 +36,22 @@ export default defineEventHandler(async (event) => {
 
   const nextSource = data.source ?? row.source
   if (data.source !== undefined) patch.source = data.source
+  const def = getTriggerSource(nextSource)
+  if (!def) {
+    throw createError({ statusCode: 400, statusMessage: `${nextSource} triggers are not available` })
+  }
+
+  // A switched source starts from an empty config: the old one belongs to another schema.
+  const config = def.configSchema.safeParse(data.config ?? (nextSource === row.source ? row.config : {}))
+  if (!config.success) {
+    throw createError({ statusCode: 400, statusMessage: config.error.issues[0]?.message ?? 'Invalid trigger config' })
+  }
+  patch.config = config.data
+
+  const projectError = def.validateProjects?.(patch.projectIds ?? row.projectIds)
+  if (projectError) {
+    throw createError({ statusCode: 400, statusMessage: projectError })
+  }
 
   if (nextSource === 'schedule') {
     const cron = data.cron ?? row.cron
@@ -47,43 +59,12 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: 'Invalid cron expression' })
     }
     patch.cron = cron
-    patch.webhookEvent = null
     const active = patch.active ?? row.active
     patch.nextFireAt = active ? nextRun(cron) : null
-  }
-  else if (nextSource === 'github') {
-    patch.cron = null
-    patch.nextFireAt = null
-    const webhookEvent = data.webhookEvent ?? row.webhookEvent ?? 'push'
-    const issueActions = data.issueActions ?? row.issueActions
-    const issueLabel = data.issueLabel !== undefined ? data.issueLabel : row.issueLabel
-    if (webhookEvent === 'issues' && issueActions.includes('labeled') && !issueLabel) {
-      throw createError({ statusCode: 400, statusMessage: 'A label is required to trigger on "labeled"' })
-    }
-    patch.webhookEvent = webhookEvent
-    patch.webhookBranches = data.webhookBranches ?? row.webhookBranches
-    patch.issueActions = issueActions
-    patch.issueLabel = issueLabel
   }
   else {
     patch.cron = null
     patch.nextFireAt = null
-    patch.webhookEvent = null
-    patch.webhookBranches = []
-    patch.issueActions = ['opened']
-    patch.issueLabel = null
-  }
-
-  const def = getTriggerSource(nextSource)
-  if (def) {
-    const parsed = def.configSchema.safeParse(data.config ?? row.config)
-    if (!parsed.success) {
-      throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message ?? 'Invalid trigger config' })
-    }
-    patch.config = parsed.data
-  }
-  else if (nextSource !== row.source) {
-    patch.config = {}
   }
 
   const updated = db.update(schema.triggers).set(patch).where(eq(schema.triggers.id, id)).returning().get()
