@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { db, schema } from '../../db'
 import { publishStepsSchema } from '../../workflows/schema'
 import { dispatchRuns } from '../../daemon/dispatcher'
+import { emptyInputs } from '../../utils/inputs'
 import { resolveSession } from '../../utils/sessions'
 
 const bodySchema = z.object({
@@ -36,7 +37,7 @@ export default defineEventHandler(async (event) => {
       workflowId: workflow.id,
       trigger: 'manual',
       branch: session.branch ?? project.defaultBranch,
-      inputs: result.data.inputs ?? null,
+      inputs: { ...emptyInputs('manual'), ...result.data.inputs },
       steps: validated.data,
     })
     .returning()

@@ -66,11 +66,15 @@ const CONTEXT_VARS: StepVar[] = [
 ]
 
 export const TRIGGER_VARS: StepVar[] = [
-  { path: 'inputs.title', hint: 'Issue/PR title, or the commit message' },
-  { path: 'inputs.body', hint: 'Issue/PR body' },
+  { path: 'inputs.title', hint: 'Issue/PR/ticket title, or the commit message' },
+  { path: 'inputs.body', hint: 'Issue/PR/ticket body' },
   { path: 'inputs.identifier', hint: 'Issue/PR number, commit sha, ticket key' },
-  { path: 'inputs.url', hint: 'Link to the issue, PR or commit' },
-  { path: 'inputs.event', hint: 'e.g. push, pull_request, issues' },
+  { path: 'inputs.url', hint: 'Link to the issue, PR, ticket or commit' },
+  { path: 'inputs.event', hint: 'e.g. push, pull_request, issues, issue' },
+  { path: 'inputs.status', hint: 'open/closed, or the ticket status' },
+  { path: 'inputs.assignee', hint: 'Assignee as shown in the tool' },
+  { path: 'inputs.labels', hint: 'Comma-separated labels' },
+  { path: 'inputs.author', hint: 'Who opened it, or who pushed' },
 ]
 
 export interface VarGroup {

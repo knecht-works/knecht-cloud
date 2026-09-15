@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Trigger } from '../db/schema'
+import { emptyInputs, type TriggerInputs } from './inputs'
 import type { SessionObject } from './sessions'
 
 export function verifyGithubSignature(raw: string, secret: string, provided: string): boolean {
@@ -18,31 +19,46 @@ export interface GithubPayload {
   pusher?: { name?: string }
   repository?: { id?: number, full_name?: string }
   sender?: { login?: string }
-  pull_request?: {
-    number?: number
-    title?: string
-    body?: string | null
-    html_url?: string
+  pull_request?: GithubSubject & {
     head?: { ref?: string }
     base?: { ref?: string }
   }
-  issue?: {
-    number?: number
-    title?: string
-    body?: string | null
-    html_url?: string
+  issue?: GithubSubject & {
     pull_request?: object
   }
   comment?: { id?: number, body?: string, user?: { login?: string, type?: string } }
   label?: { name?: string }
 }
 
-// Inputs are the same five keys for every trigger kind, so a workflow can
-// never reference a variable some trigger cannot provide.
+interface GithubSubject {
+  number?: number
+  title?: string
+  body?: string | null
+  html_url?: string
+  state?: string
+  user?: { login?: string }
+  assignees?: { login?: string }[]
+  labels?: { name?: string }[]
+}
+
 export interface GithubMatch {
   branch: string | null
-  inputs: Record<string, string>
+  inputs: TriggerInputs
   object: SessionObject | null
+}
+
+function subjectInputs(event: string, subject: GithubSubject | undefined): TriggerInputs {
+  return {
+    ...emptyInputs(event),
+    identifier: String(subject?.number ?? ''),
+    title: subject?.title ?? '',
+    body: subject?.body ?? '',
+    url: subject?.html_url ?? '',
+    status: subject?.state ?? '',
+    assignee: subject?.assignees?.[0]?.login ?? '',
+    labels: (subject?.labels ?? []).map(l => l.name).filter(Boolean).join(', '),
+    author: subject?.user?.login ?? '',
+  }
 }
 
 const PR_ACTIONS = new Set(['opened', 'reopened', 'synchronize'])
@@ -54,8 +70,6 @@ function branchMatches(filter: string[], branch: string): boolean {
 export function matchGithubEvent(t: Trigger, event: string, payload: GithubPayload): GithubMatch | null {
   if (event !== (t.webhookEvent ?? 'push')) return null
 
-  const common = { event }
-
   if (event === 'push') {
     const ref = payload.ref ?? ''
     if (payload.deleted || !ref.startsWith('refs/heads/')) return null
@@ -64,11 +78,11 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
     return {
       branch,
       inputs: {
-        ...common,
+        ...emptyInputs(event),
         identifier: payload.after?.slice(0, 7) ?? '',
         title: payload.head_commit?.message ?? '',
-        body: '',
         url: payload.head_commit?.url ?? '',
+        author: payload.pusher?.name ?? '',
       },
       object: null,
     }
@@ -82,13 +96,7 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
     const head = payload.pull_request?.head?.ref ?? ''
     return {
       branch: head || null,
-      inputs: {
-        ...common,
-        identifier: String(payload.pull_request?.number ?? ''),
-        title: payload.pull_request?.title ?? '',
-        body: payload.pull_request?.body ?? '',
-        url: payload.pull_request?.html_url ?? '',
-      },
+      inputs: subjectInputs(event, payload.pull_request),
       object: githubObject('pull_request', payload),
     }
   }
@@ -99,13 +107,7 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
     if (action === 'labeled' && (!t.issueLabel || payload.label?.name !== t.issueLabel)) return null
     return {
       branch: null,
-      inputs: {
-        ...common,
-        identifier: String(payload.issue?.number ?? ''),
-        title: payload.issue?.title ?? '',
-        body: payload.issue?.body ?? '',
-        url: payload.issue?.html_url ?? '',
-      },
+      inputs: subjectInputs(event, payload.issue),
       object: githubObject('issue', payload),
     }
   }
