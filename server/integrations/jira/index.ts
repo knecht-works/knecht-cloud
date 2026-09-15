@@ -10,7 +10,7 @@ import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
-import { addJiraComment, getJiraComment, jiraIssueUrl, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
+import { addJiraComment, getJiraComment, getJiraIssueContext, jiraIssueUrl, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
 import { jiraCredentials, recordJiraDelivery } from './credentials'
 
 export const jiraTriggerConfigSchema = z.object({
@@ -211,6 +211,7 @@ export const jira: Integration = {
   objects: {
     kinds: ['issue'],
     describe: object => `ticket ${object.key}`,
+    context: (_project, object) => getJiraIssueContext(object.key),
   },
 
   mentions: {

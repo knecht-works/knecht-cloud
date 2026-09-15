@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { addCommentReaction, addIssueLabels, createIssueComment, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
+import { addCommentReaction, addIssueLabels, createIssueComment, getIssueContext, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
 import { isMember } from '../../utils/members'
@@ -91,6 +91,7 @@ export const github: Integration = {
   objects: {
     kinds: ['issue', 'pull_request'],
     describe: object => `${object.kind === 'issue' ? 'issue' : 'pull request'} #${object.key}`,
+    context: (project, object) => getIssueContext(project.owner, project.name, Number(object.key)),
   },
 
   mentions: {

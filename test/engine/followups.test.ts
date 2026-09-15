@@ -17,10 +17,13 @@ vi.mock('../../server/daemon/sandbox', () => ({
   spawnInSandbox: () => { throw new Error('not in this test') },
   streamInSandbox: async () => {},
 }))
-const agent = vi.hoisted(() => ({ reply: async (): Promise<string> => 'agent reply' }))
+const agent = vi.hoisted(() => ({ reply: async (): Promise<string> => 'agent reply', messages: [] as string[] }))
 vi.mock('../../server/workflows/actions/ai', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/workflows/actions/ai')>(),
-  runFollowupPrompt: () => agent.reply(),
+  runFollowupPrompt: (_rt: unknown, message: string) => {
+    agent.messages.push(message)
+    return agent.reply()
+  },
 }))
 
 const { db, schema } = await import('../../server/db')
@@ -48,6 +51,18 @@ describe('follow-up replies on the thread', () => {
     comments.length = 0
     await startFollowup(followup.id)
     expect(comments).toHaveLength(0)
+  })
+
+  it('points a mention at knecht-object for the thread state, a dashboard follow-up not', async () => {
+    agent.reply = async () => 'ok'
+    const mention = objectFollowup('mention')
+    await startFollowup(mention.followup.id)
+    expect(agent.messages.at(-1)).toContain('This session belongs to issue #5; run `knecht-object` for its current state, comments included.')
+    expect(agent.messages.at(-1)).toContain('more')
+
+    const dashboard = objectFollowup('dashboard')
+    await startFollowup(dashboard.followup.id)
+    expect(agent.messages.at(-1)).not.toContain('knecht-object')
   })
 
   it('does not double-post when the agent already replied through the bridge', async () => {

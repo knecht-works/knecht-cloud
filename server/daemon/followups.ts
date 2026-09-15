@@ -7,7 +7,7 @@ import { createContext } from '../workflows/context'
 import { getProject, getRun, getSessionRow } from '../utils/entities'
 import { getIntegration } from '../integrations'
 import { sessionCheckoutDir } from '../utils/storage'
-import { agentRepliedSince, sessionObject, withSessionLinks } from '../utils/sessions'
+import { agentRepliedSince, describeObject, sessionObject, withSessionLinks } from '../utils/sessions'
 import { currentBranch } from './git'
 import { appendLog, runLogBytes } from './runner'
 import { copyIntoSandbox, spawnInSandbox, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
@@ -136,7 +136,7 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
   }
 
   try {
-    const reply = await runFollowupPrompt(rt, followupMessage(followup))
+    const reply = await runFollowupPrompt(rt, followupMessage(followup, session))
     await syncSessionBranch(session.id, run.id, rt)
     finalizeRow({ status: 'success', outputs: { text: reply.slice(0, 8 * 1024) } })
     log(`\n✓ Follow-up done\n`)
@@ -161,9 +161,12 @@ async function postMentionReply(followup: Followup, session: Session, project: P
 }
 
 // Without the header the agent reads a follow-up as an output-contract correction and does nothing.
-function followupMessage(followup: Followup): string {
+function followupMessage(followup: Followup, session: Session): string {
   const publish = 'Publishing: if this session already has an open pull request, commit your changes (in logical chunks with proper messages) and push when you are done; never open a second PR. Otherwise leave your changes in the working tree for review in the preview, unless the request above asks you to commit, push or open a PR.'
-  return `A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}\n\n${publish}`
+  const object = followup.origin === 'mention' ? sessionObject(session) : null
+  // A mention rarely repeats the ticket; the state stays out of the prompt and is read on demand.
+  const thread = object ? `This session belongs to ${describeObject(object)}; run \`knecht-object\` for its current state, comments included.\n\n` : ''
+  return `${thread}A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}\n\n${publish}`
 }
 
 async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRuntime): Promise<void> {
