@@ -150,7 +150,7 @@ describe('github webhook route', () => {
       inputs: { event: 'pull_request', identifier: '42', title: 'Add feature', body: 'Because', url: 'https://x/pull/42' },
     })
     const session = getSessionRow(run!.sessionId)
-    expect(session).toMatchObject({ objectKind: 'pull_request', objectNumber: 42, objectTitle: 'Add feature', objectUrl: 'https://x/pull/42' })
+    expect(session).toMatchObject({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '42', objectTitle: 'Add feature', objectUrl: 'https://x/pull/42' })
   })
 
   it('fires an issues trigger on opened and on the configured label only', async () => {
@@ -173,12 +173,12 @@ describe('github webhook route', () => {
       inputs: { event: 'issues', identifier: '7', title: 'Broken', body: 'boom', url: 'https://x/issues/7' },
     })
     expect(runsOf(opened.id)[0]!.sessionId).toBe(run!.sessionId)
-    expect(getSessionRow(run!.sessionId)).toMatchObject({ objectKind: 'issue', objectNumber: 7 })
+    expect(getSessionRow(run!.sessionId)).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '7' })
   })
 
   it('mirrors closed and reopened onto the object session', async () => {
     const project = makeProject()
-    const session = resolveSession(project, { kind: 'issue', number: 3, title: 'Flaky' }, null)
+    const session = resolveSession(project, { integration: 'github', kind: 'issue', key: '3', title: 'Flaky' }, null)
     const issue = { number: 3, title: 'Flaky', html_url: 'https://x/issues/3' }
 
     await deliver('issues', { action: 'closed', issue, repository: repo(project) })

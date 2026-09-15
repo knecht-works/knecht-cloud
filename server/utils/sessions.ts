@@ -1,13 +1,31 @@
 import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
+import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import { sessionPreviewUrl } from './preview-target'
 
 export interface SessionObject {
-  kind: 'issue' | 'pull_request'
-  number: number
+  integration: IntegrationId
+  kind: ObjectKind
+  key: string
   url?: string
   title?: string
+}
+
+export function sessionObject(session: Session): SessionObject | null {
+  if (!session.objectIntegration || !session.objectKind || !session.objectKey) return null
+  return {
+    integration: session.objectIntegration,
+    kind: session.objectKind,
+    key: session.objectKey,
+    url: session.objectUrl ?? undefined,
+    title: session.objectTitle ?? undefined,
+  }
+}
+
+export function describeObject(object: SessionObject): string {
+  if (object.integration === 'jira') return `ticket ${object.key}`
+  return `${object.kind === 'issue' ? 'issue' : 'pull request'} #${object.key}`
 }
 
 export function findObjectSession(projectId: number, object: SessionObject): Session | undefined {
@@ -16,8 +34,9 @@ export function findObjectSession(projectId: number, object: SessionObject): Ses
     .from(schema.sessions)
     .where(and(
       eq(schema.sessions.projectId, projectId),
+      eq(schema.sessions.objectIntegration, object.integration),
       eq(schema.sessions.objectKind, object.kind),
-      eq(schema.sessions.objectNumber, object.number),
+      eq(schema.sessions.objectKey, object.key),
     ))
     .get()
 }
@@ -41,8 +60,9 @@ export function resolveSession(project: Project, object: SessionObject | null, b
     .insert(schema.sessions)
     .values({
       projectId: project.id,
+      objectIntegration: object?.integration ?? null,
       objectKind: object?.kind ?? null,
-      objectNumber: object?.number ?? null,
+      objectKey: object?.key ?? null,
       objectUrl: object?.url ?? null,
       objectTitle: object?.title ?? null,
       branch: branch ?? project.defaultBranch,

@@ -28,7 +28,7 @@ describe('matchGithubEvent objects', () => {
       action: 'synchronize',
       pull_request: { number: 42, title: 'Add feature', html_url: 'https://x/pull/42', head: { ref: 'feat' }, base: { ref: 'main' } },
     })
-    expect(match!.object).toEqual({ kind: 'pull_request', number: 42, url: 'https://x/pull/42', title: 'Add feature' })
+    expect(match!.object).toEqual({ integration: 'github', kind: 'pull_request', key: '42', url: 'https://x/pull/42', title: 'Add feature' })
   })
 
   it('an issues delivery carries the issue as object', () => {
@@ -36,7 +36,7 @@ describe('matchGithubEvent objects', () => {
       action: 'opened',
       issue: { number: 7, title: 'Broken', body: 'boom', html_url: 'https://x/issues/7' },
     })
-    expect(match!.object).toEqual({ kind: 'issue', number: 7, url: 'https://x/issues/7', title: 'Broken' })
+    expect(match!.object).toEqual({ integration: 'github', kind: 'issue', key: '7', url: 'https://x/issues/7', title: 'Broken' })
   })
 
   it('githubObject refuses payloads without a number', () => {

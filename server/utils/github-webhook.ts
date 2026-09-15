@@ -117,8 +117,9 @@ export function githubObject(kind: SessionObject['kind'], payload: GithubPayload
   const subject = kind === 'issue' ? payload.issue : payload.pull_request
   if (typeof subject?.number !== 'number') return null
   return {
+    integration: 'github',
     kind,
-    number: subject.number,
+    key: String(subject.number),
     url: subject.html_url,
     title: subject.title ?? undefined,
   }

@@ -37,8 +37,9 @@ export async function handleMention(project: Project, payload: GithubPayload): P
   const issue = payload.issue
   if (typeof issue?.number !== 'number') return 'ignored (no issue number)'
   const object: SessionObject = {
+    integration: 'github',
     kind: issue.pull_request ? 'pull_request' : 'issue',
-    number: issue.number,
+    key: String(issue.number),
     url: issue.html_url,
     title: issue.title,
   }
@@ -97,7 +98,7 @@ async function postHint(project: Project, object: SessionObject, reason: 'no-sta
     ? 'I can pick this up once the project has a starter workflow: it boots the environment my work runs in. Choose one in the project settings under Mentions, then mention me again.'
     : 'The project\'s starter workflow is not published yet, so I cannot boot an environment for this thread. Publish it, then mention me again.'
   try {
-    await createIssueComment(project.owner, project.name, object.number, text)
+    await createIssueComment(project.owner, project.name, Number(object.key), text)
   }
   catch (e) {
     console.error(`mention hint reply failed: ${(e as Error).message}`)

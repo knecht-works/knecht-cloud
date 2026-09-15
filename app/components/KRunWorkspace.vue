@@ -34,13 +34,13 @@ const failedStep = computed(() => {
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
-  const object = r.objectKind ? sessionObjectMeta(r.objectKind) : null
+  const object = r.objectIntegration && r.objectKind ? sessionObjectMeta(r.objectIntegration, r.objectKind) : null
   // A branch is set locally by create-branch and pushed only by create-pr.
   const branchOnGitHub = !!r.prUrl || r.objectKind === 'pull_request'
   return [
     object && {
       icon: r.sessionStatus === 'closed' ? object.closedIcon : object.icon,
-      text: `${object.label} #${r.objectNumber}`,
+      text: `${object.label} ${object.prefix}${r.objectKey}`,
       href: r.objectUrl ?? undefined,
     },
     { icon: 'i-lucide-workflow', text: r.workflow, href: r.workflowId ? `/workflows/${r.workflowId}` : undefined },
