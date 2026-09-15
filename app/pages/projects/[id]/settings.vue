@@ -418,6 +418,7 @@ async function toggleMentions() {
         <KPanel
           title="Mentions"
           icon="i-lucide-at-sign"
+          accent="var(--accent-orange)"
         >
           <div class="flex flex-col">
             <p class="text-2xs leading-relaxed text-dimmed">
@@ -440,7 +441,6 @@ async function toggleMentions() {
               :model-value="starterItems.find(i => i.value === starterWorkflowId)"
               :items="starterItems"
               placeholder="Choose a workflow…"
-              icon="i-lucide-rocket"
               class="w-full"
               @update:model-value="(item: { value: number } | undefined) => setStarter(item?.value ?? null)"
             />
@@ -482,6 +482,7 @@ async function toggleMentions() {
           v-if="jira?.configured"
           title="Jira"
           icon="i-simple-icons-jira"
+          accent="var(--color-jira)"
         >
           <div class="flex flex-col">
             <p class="text-2xs leading-relaxed text-dimmed">
@@ -495,7 +496,6 @@ async function toggleMentions() {
               :model-value="jiraItems.find(i => i.value === jiraProjectKey)"
               :items="jiraItems"
               placeholder="Not linked"
-              icon="i-simple-icons-jira"
               class="w-full"
               @update:model-value="(item: { value: string | null } | undefined) => setJiraProject(item?.value ?? null)"
             />
