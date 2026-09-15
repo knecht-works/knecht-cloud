@@ -11,8 +11,36 @@ interface JiraConnection {
   webhookUrl: string | null
   webhookSecret: string | null
   webhookEvents: string[]
+  lastDelivery: { at: number, summary: string } | null
+  lastRejected: { at: number, reason: 'signature' | 'empty-body' | 'no-project' } | null
 }
-const { data: jira } = useFetch<JiraConnection>('/api/jira/connection', { lazy: true })
+const { data: jira, refresh: refreshJira } = useFetch<JiraConnection>('/api/jira/connection', { lazy: true })
+
+// Jira has no delivery log, so this page is where the admin sees the webhook arrive.
+let poll: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  poll = setInterval(() => {
+    if (jira.value?.configured) void refreshJira()
+  }, 5000)
+})
+onUnmounted(() => clearInterval(poll))
+
+const REJECT_COPY: Record<NonNullable<JiraConnection['lastRejected']>['reason'], string> = {
+  'signature': 'with a wrong secret. Paste the secret below into the webhook again.',
+  'empty-body': 'without a body. Uncheck "Exclude body" in the webhook.',
+  'no-project': 'for a Jira project no project is linked to. Link it in the project settings.',
+}
+const deliveryState = computed(() => {
+  const j = jira.value
+  if (!j?.configured) return null
+  const rejected = j.lastRejected
+  const delivered = j.lastDelivery
+  if (rejected && (!delivered || rejected.at > delivered.at)) {
+    return { tone: 'error' as const, text: `A delivery arrived ${timeAgo(rejected.at)} ${REJECT_COPY[rejected.reason]}` }
+  }
+  if (delivered) return { tone: 'ok' as const, text: `Last delivery ${timeAgo(delivered.at)}: ${delivered.summary}` }
+  return { tone: 'waiting' as const, text: 'No delivery yet. Edit any ticket in a linked project; it should show up here within seconds.' }
+})
 
 const secretShown = ref(false)
 async function copy(label: string, text: string | null) {
@@ -203,14 +231,38 @@ async function disconnect() {
       v-if="jira?.configured"
       class="mt-7 border-t border-muted pt-6"
     >
-      <span class="k-label">Webhook</span>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <span class="k-label">Webhook</span>
+        <UButton
+          :to="`${jira.siteUrl}/plugins/servlet/webhooks`"
+          target="_blank"
+          color="neutral"
+          variant="outline"
+          size="sm"
+          icon="i-lucide-external-link"
+          label="Open Jira webhooks"
+        />
+      </div>
       <p class="mt-2 max-w-3xl text-2xs leading-relaxed text-muted">
-        Register it once as a Jira admin (Settings → System → WebHooks) with this secret and these events.
+        Create a webhook there as a Jira admin and fill the form in this order.
       </p>
 
-      <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+      <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
         <div>
-          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">URL</span>
+          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">1 · Name</span>
+          <div class="mt-2 flex items-center gap-2">
+            <code class="k-mono min-w-0 flex-1 truncate rounded-md border border-muted bg-(--surface-muted) px-3 py-2 text-xs text-toned">Knecht</code>
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-copy"
+              aria-label="Copy name"
+              @click="copy('Name', 'Knecht')"
+            />
+          </div>
+        </div>
+        <div>
+          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">2 · URL</span>
           <div class="mt-2 flex items-center gap-2">
             <code class="k-mono min-w-0 flex-1 truncate rounded-md border border-muted bg-(--surface-muted) px-3 py-2 text-xs text-toned">{{ jira.webhookUrl }}</code>
             <UButton
@@ -223,7 +275,7 @@ async function disconnect() {
           </div>
         </div>
         <div>
-          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Secret</span>
+          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">3 · Secret</span>
           <div class="mt-2 flex items-center gap-2">
             <code class="k-mono min-w-0 flex-1 truncate rounded-md border border-muted bg-(--surface-muted) px-3 py-2 text-xs text-toned">{{ secretShown ? jira.webhookSecret : '•'.repeat(24) }}</code>
             <UButton
@@ -245,7 +297,7 @@ async function disconnect() {
       </div>
 
       <div class="mt-4">
-        <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Events</span>
+        <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">4 · Events</span>
         <div class="mt-2 flex flex-wrap gap-1.5">
           <span
             v-for="event in jira.webhookEvents"
@@ -253,22 +305,48 @@ async function disconnect() {
             class="k-mono rounded-full border border-default px-2.5 py-1 text-2xs text-muted"
           >{{ event }}</span>
         </div>
+        <p class="mt-2 text-2xs text-dimmed">
+          Keep the scope on all issues and leave "Exclude body" unchecked; Knecht only reacts to linked projects.
+        </p>
       </div>
 
       <p
+        v-if="deliveryState"
+        class="mt-4 flex items-center gap-2 text-2xs leading-normal"
+        :class="deliveryState.tone === 'error' ? 'text-error' : deliveryState.tone === 'ok' ? 'text-primary' : 'text-dimmed'"
+      >
+        <KStatusDot
+          :color="deliveryState.tone === 'error' ? 'error' : deliveryState.tone === 'ok' ? 'primary' : 'neutral'"
+          :pulse="deliveryState.tone === 'waiting'"
+          :size="6"
+        />
+        {{ deliveryState.text }}
+      </p>
+    </div>
+
+    <div
+      v-if="jira?.configured"
+      class="mt-7 border-t border-muted pt-6"
+    >
+      <span class="k-label">Projects</span>
+      <p class="mt-2 max-w-3xl text-2xs leading-relaxed text-muted">
+        Nothing fires until a project is linked to its Jira project: open a
+        <NuxtLink
+          to="/projects"
+          class="text-toned underline underline-offset-2"
+        >project</NuxtLink>, then Settings → Jira. After that, Jira triggers pick that project.
+      </p>
+      <p
         v-if="!jira.accountId"
-        class="mt-4 text-2xs leading-normal text-error"
+        class="mt-3 text-2xs leading-normal text-error"
       >
         Reconnect once with the API token: mentions and "assigned to Knecht" triggers need the account id, which this connection was made before Knecht stored it.
       </p>
       <p
         v-else
-        class="mt-4 text-2xs text-dimmed"
+        class="mt-3 text-2xs text-dimmed"
       >
-        Connected as {{ jira.accountName }}<span
-          v-if="jira.accountId"
-          class="k-mono"
-        > ({{ jira.accountId }})</span>. Mention it on a ticket to give Knecht a follow-up.
+        Connected as {{ jira.accountName }}<span class="k-mono"> ({{ jira.accountId }})</span>. Mention it on a ticket to give Knecht a follow-up.
       </p>
     </div>
   </KPanel>

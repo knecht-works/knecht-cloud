@@ -23,7 +23,7 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
 const { db, schema } = await import('../../server/db')
-const { jiraCredentials, saveJiraCredentials } = await import('../../server/integrations/jira/credentials')
+const { jiraConnectionStatus, jiraCredentials, saveJiraCredentials } = await import('../../server/integrations/jira/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
 const handler = (await import('../../server/api/jira/webhook.post')).default
 
@@ -239,6 +239,22 @@ describe('jira webhook route', () => {
     api.fetched = { id: '78', body: doc('@knecht have a look'), author: { accountId: 'user-2', displayName: 'Bob' } }
     const res = await deliver({ webhookEvent: 'comment_created', issue: issue(project), comment: { id: 78 } })
     expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
+  })
+
+  it('remembers the last accepted and the last rejected delivery for the settings page', async () => {
+    const project = makeJiraProject()
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) })
+    expect(jiraConnectionStatus().lastDelivery).toMatchObject({ summary: `jira:issue_created ${project.jiraProjectKey}-12`, at: expect.any(Number) })
+
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) }, 'wrong')
+    expect(jiraConnectionStatus().lastRejected).toMatchObject({ reason: 'signature', at: expect.any(Number) })
+
+    await callRoute(handler, { body: '', headers: { 'x-hub-signature': 'sha256=00' } })
+    expect(jiraConnectionStatus().lastRejected?.reason).toBe('empty-body')
+
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue({ jiraProjectKey: 'NOPE' }) })
+    expect(jiraConnectionStatus().lastRejected?.reason).toBe('no-project')
+    expect(jiraConnectionStatus().lastDelivery?.summary).toBe(`jira:issue_created ${project.jiraProjectKey}-12`)
   })
 
   it('ignores comments by the connection account and comments without a mention', async () => {

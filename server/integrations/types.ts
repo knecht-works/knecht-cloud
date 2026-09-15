@@ -32,6 +32,10 @@ export interface WebhookDelivery {
   summary: string
 }
 
+export type DeliveryRecord
+  = { ok: true, summary: string }
+    | { ok: false, reason: 'signature' | 'empty-body' | 'no-project' }
+
 export interface TriggerMatch {
   branch: string | null
   inputs: TriggerInputs
@@ -53,6 +57,8 @@ export interface Integration {
     // null: the delivery belongs to no project of this instance.
     parse(raw: string, headers: WebhookHeaders): Promise<WebhookDelivery | null>
     match(trigger: Trigger, delivery: WebhookDelivery): TriggerMatch | null
+    // For integrations whose admin UI shows no delivery log.
+    record?(result: DeliveryRecord): void
   }
 
   objects: {
