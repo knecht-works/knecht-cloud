@@ -23,100 +23,66 @@ type Source = 'schedule' | 'github' | 'manual' | 'jira'
 const SOURCES: { key: Source, label: string, icon: string, hint: string }[] = [
   { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock', hint: 'Run on a cron schedule' },
   { key: 'github', label: 'GitHub', icon: 'i-simple-icons-github', hint: 'Run on GitHub events' },
+  { key: 'jira', label: 'Jira', icon: 'i-simple-icons-jira', hint: 'Run on Jira tickets' },
   { key: 'manual', label: 'Manual', icon: 'i-lucide-play', hint: 'Run on demand only' },
 ]
 
-const CRON_PRESETS = [
-  { label: 'Every 15 min', cron: '*/15 * * * *' },
-  { label: 'Hourly', cron: '0 * * * *' },
-  { label: 'Daily · 09:00', cron: '0 9 * * *' },
-  { label: 'Weekdays · 09:00', cron: '0 9 * * 1-5' },
-  { label: 'Weekly · Mon 09:00', cron: '0 9 * * 1' },
-]
-
-const { data: projects } = useFetch('/api/projects', {
-  default: () => [],
-  lazy: true,
-  transform: rows => rows.map(p => ({ label: p.fullName, value: p.id })),
-})
+const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
 
 const source = ref<Source>('schedule')
 const workflowId = ref<number>()
 const projectIds = ref<number[]>([])
-const cron = ref('0 9 * * *')
-const githubEvent = ref<'push' | 'pull_request' | 'issues'>('push')
-const branchFilter = ref('')
-const issueOpened = ref(true)
-const issueLabeled = ref(false)
-const issueLabel = ref('')
+const config = ref<Record<string, unknown>>({})
+const valid = ref(false)
 const creating = ref(false)
 
-function parsedBranches(): string[] {
-  return branchFilter.value.split(',').map(b => b.trim()).filter(Boolean)
-}
-
-function issueActions(): ('opened' | 'labeled')[] {
-  return [
-    ...(issueOpened.value ? ['opened'] as const : []),
-    ...(issueLabeled.value ? ['labeled'] as const : []),
-  ]
-}
-
-interface GithubConfig {
-  event?: 'push' | 'pull_request' | 'issues'
-  branches?: string[]
-  issueActions?: ('opened' | 'labeled')[]
-  issueLabel?: string | null
-}
-
-function githubConfig(): GithubConfig {
-  return {
-    event: githubEvent.value,
-    branches: parsedBranches(),
-    issueActions: issueActions(),
-    issueLabel: issueLabeled.value ? issueLabel.value.trim() : null,
-  }
-}
-
-const cronLooksValid = computed(() => cron.value.trim().split(/\s+/).length === 5)
-const issuesLookValid = computed(() =>
-  githubEvent.value !== 'issues'
-  || (issueActions().length > 0 && (!issueLabeled.value || !!issueLabel.value.trim())),
+// A Jira trigger fires for exactly one project, and only a linked one qualifies.
+const projectItems = computed(() =>
+  (projects.value ?? [])
+    .filter(p => source.value !== 'jira' || p.jiraProjectKey)
+    .map(p => ({ label: source.value === 'jira' ? `${p.fullName} · ${p.jiraProjectKey}` : p.fullName, value: p.id })),
 )
+const singleProject = computed({
+  get: () => projectIds.value[0],
+  set: (value: number | undefined) => {
+    projectIds.value = value === undefined ? [] : [value]
+  },
+})
+const jiraProjectKey = computed(() =>
+  (projects.value ?? []).find(p => p.id === projectIds.value[0])?.jiraProjectKey ?? null)
+
+// Sync: the edit preload sets the source first and the config right after.
+watch(source, () => {
+  config.value = {}
+  valid.value = false
+}, { flush: 'sync' })
+
 const canCreate = computed(() =>
   !!workflowId.value
   && projectIds.value.length > 0
-  && (source.value !== 'schedule' || cronLooksValid.value)
-  && (source.value !== 'github' || issuesLookValid.value),
+  && (source.value === 'manual' || valid.value),
 )
+
+function body(): Record<string, unknown> {
+  const base: Record<string, unknown> = { source: source.value, projectIds: projectIds.value }
+  if (source.value === 'schedule') base.cron = config.value.cron
+  else base.config = config.value
+  return base
+}
 
 async function create() {
   if (!canCreate.value) return
   creating.value = true
   try {
     if (props.trigger) {
-      const body: Record<string, unknown> = {
-        source: source.value,
-        projectIds: projectIds.value,
-      }
-      if (source.value === 'schedule') body.cron = cron.value.trim()
-      if (source.value === 'github') body.config = githubConfig()
-      await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body })
+      await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body: body() })
       emit('created')
       toast.add({ title: 'Trigger updated', color: 'success' })
       open.value = false
       return
     }
 
-    const body: Record<string, unknown> = {
-      source: source.value,
-      workflowId: workflowId.value,
-      projectIds: projectIds.value,
-    }
-    if (source.value === 'schedule') body.cron = cron.value.trim()
-    if (source.value === 'github') body.config = githubConfig()
-
-    await $fetch('/api/triggers', { method: 'POST', body })
+    await $fetch('/api/triggers', { method: 'POST', body: { ...body(), workflowId: workflowId.value } })
     emit('created')
     toast.add({ title: 'Trigger created', color: 'success' })
     open.value = false
@@ -135,15 +101,9 @@ watch(open, (isOpen) => {
       source.value = props.trigger.source
       workflowId.value = props.trigger.workflowId
       projectIds.value = [...props.trigger.projectIds]
-      if (props.trigger.source === 'schedule' && props.trigger.endpoint) {
-        cron.value = props.trigger.endpoint
-      }
-      const c = props.trigger.source === 'github' ? props.trigger.config as GithubConfig : {}
-      githubEvent.value = c.event ?? 'push'
-      branchFilter.value = (c.branches ?? []).join(', ')
-      issueOpened.value = (c.issueActions ?? ['opened']).includes('opened')
-      issueLabeled.value = (c.issueActions ?? []).includes('labeled')
-      issueLabel.value = c.issueLabel ?? ''
+      config.value = props.trigger.source === 'schedule'
+        ? { cron: props.trigger.endpoint ?? '0 9 * * *' }
+        : { ...props.trigger.config }
       return
     }
     if (props.presetWorkflowId) workflowId.value = props.presetWorkflowId
@@ -153,12 +113,7 @@ watch(open, (isOpen) => {
   source.value = 'schedule'
   workflowId.value = undefined
   projectIds.value = []
-  cron.value = '0 9 * * *'
-  githubEvent.value = 'push'
-  branchFilter.value = ''
-  issueOpened.value = true
-  issueLabeled.value = false
-  issueLabel.value = ''
+  config.value = {}
 })
 </script>
 
@@ -201,117 +156,49 @@ watch(open, (isOpen) => {
         </div>
 
         <div>
-          <span class="k-label">Projects</span>
+          <span class="k-label">{{ source === 'jira' ? 'Project' : 'Projects' }}</span>
           <USelectMenu
+            v-if="source === 'jira'"
+            v-model="singleProject"
+            value-key="value"
+            :items="projectItems"
+            placeholder="Select a linked project…"
+            icon="i-lucide-box"
+            class="mt-2 w-full"
+          />
+          <USelectMenu
+            v-else
             v-model="projectIds"
             value-key="value"
             multiple
-            :items="projects"
+            :items="projectItems"
             placeholder="Select projects…"
             icon="i-lucide-box"
             class="mt-2 w-full"
           />
           <p class="mt-2 text-2xs text-dimmed">
-            Fires the workflow once per selected project.
+            {{ source === 'jira'
+              ? 'Only projects linked to a Jira project (project settings) are listed; the trigger watches that Jira project.'
+              : 'Fires the workflow once per selected project.' }}
           </p>
         </div>
 
-        <div v-if="source === 'schedule'">
-          <span class="k-label">Schedule</span>
-          <UInput
-            v-model="cron"
-            placeholder="0 9 * * *"
-            class="mt-2 w-full"
-            :ui="{ base: 'k-mono' }"
-          />
-          <div class="mt-2 flex flex-wrap gap-1.5">
-            <button
-              v-for="p in CRON_PRESETS"
-              :key="p.cron"
-              type="button"
-              class="k-mono cursor-pointer rounded-full border px-2.5 py-1 text-2xs transition-colors"
-              :class="cron.trim() === p.cron
-                ? 'border-(--primary-border) bg-(--lime-950) text-primary'
-                : 'border-default text-dimmed hover:text-muted'"
-              @click="cron = p.cron"
-            >
-              {{ p.label }}
-            </button>
-          </div>
-          <p
-            v-if="!cronLooksValid"
-            class="mt-2 text-2xs text-error"
-          >
-            A cron expression has 5 fields: minute hour day month weekday.
-          </p>
-        </div>
-
-        <div
+        <KTriggerFormSchedule
+          v-if="source === 'schedule'"
+          v-model:config="config"
+          v-model:valid="valid"
+        />
+        <KTriggerFormGithub
           v-else-if="source === 'github'"
-          class="space-y-4"
-        >
-          <div>
-            <span class="k-label">GitHub event</span>
-            <USelectMenu
-              v-model="githubEvent"
-              value-key="value"
-              :items="[
-                { label: 'Push', value: 'push' },
-                { label: 'Pull request', value: 'pull_request' },
-                { label: 'Issues', value: 'issues' },
-              ]"
-              class="mt-2 w-full"
-            />
-          </div>
-
-          <div v-if="githubEvent !== 'issues'">
-            <span class="k-label">{{ githubEvent === 'pull_request' ? 'Base branches' : 'Branches' }}</span>
-            <UInput
-              v-model="branchFilter"
-              placeholder="main, staging"
-              class="mt-2 w-full"
-              :ui="{ base: 'k-mono' }"
-            />
-            <p class="mt-2 text-2xs text-dimmed">
-              {{ githubEvent === 'pull_request'
-                ? 'Fires when a pull request targeting one of these branches is opened or pushed to. Comma-separated, empty = every branch.'
-                : 'Fires on pushes to these branches. Comma-separated, empty = every branch.' }}
-            </p>
-          </div>
-
-          <div v-else>
-            <span class="k-label">Fires when</span>
-            <div class="mt-2 space-y-2">
-              <UCheckbox
-                v-model="issueOpened"
-                label="An issue is opened"
-              />
-              <UCheckbox
-                v-model="issueLabeled"
-                label="A label is added"
-              />
-              <UInput
-                v-if="issueLabeled"
-                v-model="issueLabel"
-                placeholder="Label name, e.g. knecht"
-                class="w-full"
-                :ui="{ base: 'k-mono' }"
-              />
-            </div>
-            <p
-              v-if="!issuesLookValid"
-              class="mt-2 text-2xs text-error"
-            >
-              {{ issueLabeled && !issueLabel.trim()
-                ? 'Name the label that fires the trigger.'
-                : 'Pick at least one issue event.' }}
-            </p>
-          </div>
-
-          <p class="text-2xs text-dimmed">
-            Events arrive via the GitHub App webhook (see Settings); no per-repo setup needed.
-          </p>
-        </div>
+          v-model:config="config"
+          v-model:valid="valid"
+        />
+        <KTriggerFormJira
+          v-else-if="source === 'jira'"
+          v-model:config="config"
+          v-model:valid="valid"
+          :project-key="jiraProjectKey"
+        />
 
         <div class="flex justify-end gap-2 pt-1">
           <UButton
