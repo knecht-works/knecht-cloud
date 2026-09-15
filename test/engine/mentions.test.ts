@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
+import type { Project } from '../../server/db/schema'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
 const reactions: number[] = []
@@ -16,7 +17,8 @@ vi.mock('../../server/utils/github-app', () => ({
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
 const { db, schema } = await import('../../server/db')
-const { handleMention } = await import('../../server/utils/mentions')
+const { github } = await import('../../server/integrations/github')
+const { handleMention: handle } = await import('../../server/utils/mentions')
 
 function payload(body: string, overrides: Record<string, unknown> = {}) {
   return {
@@ -25,6 +27,13 @@ function payload(body: string, overrides: Record<string, unknown> = {}) {
     comment: { id: 99, body, user: { login: 'SamuelReichor', type: 'User' } },
     ...overrides,
   }
+}
+
+// The GitHub payloads go through the integration's parser, like a real delivery.
+async function handleMention(project: Project, body: ReturnType<typeof payload>): Promise<string> {
+  const raw = JSON.stringify({ ...body, repository: { id: project.githubId } })
+  const delivery = await github.webhook.parse(raw, name => (name === 'x-github-event' ? 'issue_comment' : undefined))
+  return handle(github, delivery!.project, delivery!.comment!)
 }
 
 function makeStarter() {
@@ -56,7 +65,7 @@ describe('handleMention', () => {
     }))).toContain('not an instance member')
     expect(await handleMention(project, payload('@knecht-test hi', {
       comment: { id: 1, body: '@knecht-test hi', user: { login: 'other[bot]', type: 'Bot' } },
-    }))).toContain('bot comment')
+    }))).toContain('by Knecht itself')
   })
 
   it('answers to the fixed @knecht-works handle as well as the instance slug', async () => {
@@ -128,6 +137,16 @@ describe('handleMention', () => {
     expect(mentionRun.workflow).toBe('Mention')
     const followup = db.select().from(schema.followups).where(eq(schema.followups.sessionId, run.sessionId)).get()!
     expect(followup.runId).toBe(mentionRun.id)
+  })
+
+  it('a comment on a pull request is a mention on that pull request', async () => {
+    const project = makeProject({ starterWorkflowId: makeStarter().id })
+    const outcome = await handleMention(project, payload('@knecht-test review this', {
+      issue: { number: 7, title: 'Recolor the pill', html_url: 'https://x/pull/7', pull_request: { url: 'https://api/pulls/7' } },
+    }))
+    expect(outcome).toContain('queued starter run')
+    const run = db.select().from(schema.runs).where(eq(schema.runs.projectId, project.id)).get()!
+    expect(getSessionRow(run.sessionId)).toMatchObject({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '7' })
   })
 
   it('respects the project toggle', async () => {

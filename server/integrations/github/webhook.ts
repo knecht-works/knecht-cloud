@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import type { Trigger } from '../db/schema'
-import { emptyInputs, type TriggerInputs } from './inputs'
-import type { SessionObject } from './sessions'
+import type { Trigger } from '../../db/schema'
+import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
+import type { SessionObject } from '../../utils/sessions'
 
 export function verifyGithubSignature(raw: string, secret: string, provided: string): boolean {
   const expected = `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}`
@@ -30,7 +30,7 @@ export interface GithubPayload {
   label?: { name?: string }
 }
 
-interface GithubSubject {
+export interface GithubSubject {
   number?: number
   title?: string
   body?: string | null
@@ -97,7 +97,7 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
     return {
       branch: head || null,
       inputs: subjectInputs(event, payload.pull_request),
-      object: githubObject('pull_request', payload),
+      object: githubObject('pull_request', payload.pull_request),
     }
   }
 
@@ -108,15 +108,14 @@ export function matchGithubEvent(t: Trigger, event: string, payload: GithubPaylo
     return {
       branch: null,
       inputs: subjectInputs(event, payload.issue),
-      object: githubObject('issue', payload),
+      object: githubObject('issue', payload.issue),
     }
   }
 
   return null
 }
 
-export function githubObject(kind: SessionObject['kind'], payload: GithubPayload): SessionObject | null {
-  const subject = kind === 'issue' ? payload.issue : payload.pull_request
+export function githubObject(kind: SessionObject['kind'], subject: GithubSubject | undefined): SessionObject | null {
   if (typeof subject?.number !== 'number') return null
   return {
     integration: 'github',

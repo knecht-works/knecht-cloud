@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
+import { getIntegration } from '../integrations'
 import { sessionPreviewUrl } from './preview-target'
 
 export interface SessionObject {
@@ -24,8 +25,7 @@ export function sessionObject(session: Session): SessionObject | null {
 }
 
 export function describeObject(object: SessionObject): string {
-  if (object.integration === 'jira') return `ticket ${object.key}`
-  return `${object.kind === 'issue' ? 'issue' : 'pull request'} #${object.key}`
+  return getIntegration(object.integration).objects.describe(object)
 }
 
 export function findObjectSession(projectId: number, object: SessionObject): Session | undefined {
