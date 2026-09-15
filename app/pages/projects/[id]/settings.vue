@@ -423,8 +423,9 @@ async function toggleMentions() {
             <p class="text-2xs leading-relaxed text-dimmed">
               Write
               <span class="k-mono text-toned">@knecht-works &lt;instruction&gt;</span>
-              in a comment on one of this repo's issues or pull requests and
-              Knecht does what the comment says, then answers in the thread.
+              in a comment on one of this repo's issues or pull requests, or mention the
+              Knecht account on a ticket of the linked Jira project, and Knecht does what
+              the comment says, then answers in the thread.
             </p>
             <div class="k-label mb-1.5 mt-3">
               Which workflow boots the environment for a new thread?
