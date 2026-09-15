@@ -11,7 +11,7 @@ import type { SessionObject } from '../../utils/sessions'
 import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
 import { addJiraComment, getJiraComment, jiraIssueUrl, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
-import { jiraCredentials } from './credentials'
+import { jiraCredentials, recordJiraDelivery } from './credentials'
 
 export const jiraTriggerConfigSchema = z.object({
   event: z.enum(['created', 'labeled', 'transitioned', 'assigned']),
@@ -204,6 +204,8 @@ export const jira: Integration = {
       if (!delivery.event) return null
       return matchJiraEvent(trigger.config as JiraTriggerConfig, delivery.event.payload as JiraPayload)
     },
+
+    record: recordJiraDelivery,
   },
 
   objects: {

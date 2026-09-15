@@ -14,15 +14,23 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
 
   const raw = (await readRawBody(event, 'utf8')) ?? ''
   const header = (name: string) => getHeader(event, name)
+  const record = integration.webhook.record ?? (() => {})
+  if (!raw.trim()) {
+    record({ ok: false, reason: 'empty-body' })
+    throw createError({ statusCode: 400, statusMessage: 'Empty body' })
+  }
   if (!integration.webhook.verify(raw, header)) {
+    record({ ok: false, reason: 'signature' })
     throw createError({ statusCode: 401, statusMessage: 'Invalid signature' })
   }
 
   const delivery = await integration.webhook.parse(raw, header)
   if (!delivery) {
+    record({ ok: false, reason: 'no-project' })
     console.log(`${integration.id} webhook: no matching project`)
     return { ok: true, skipped: 'no matching project' }
   }
+  record({ ok: true, summary: delivery.summary })
   const { project } = delivery
 
   let outcome: string | undefined

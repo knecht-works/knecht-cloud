@@ -350,6 +350,11 @@ export const jiraConnection = sqliteTable('jira_connection', {
   accountName: text('account_name'),
   accountId: text('account_id'),
   webhookSecretEnc: text('webhook_secret_enc'),
+  // Jira shows no delivery log, so the settings page reports what arrived here.
+  lastDeliveryAt: integer('last_delivery_at', { mode: 'timestamp' }),
+  lastDeliverySummary: text('last_delivery_summary'),
+  lastRejectedAt: integer('last_rejected_at', { mode: 'timestamp' }),
+  lastRejectedReason: text('last_rejected_reason', { enum: ['signature', 'empty-body', 'no-project'] }),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
