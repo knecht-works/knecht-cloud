@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../../db'
@@ -7,6 +6,7 @@ import { getProject } from '../../utils/entities'
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import { tryParseJson } from '../../utils/json'
 import { dashboardOrigin } from '../../utils/origin'
+import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
@@ -166,10 +166,7 @@ export const jira: Integration = {
   webhook: {
     verify(raw, header) {
       const secret = jiraCredentials()?.webhookSecret
-      if (!secret) return false
-      const expected = Buffer.from(`sha256=${createHmac('sha256', secret).update(raw).digest('hex')}`)
-      const provided = Buffer.from(header('x-hub-signature') ?? '')
-      return expected.length === provided.length && timingSafeEqual(expected, provided)
+      return !!secret && verifySha256Signature(raw, secret, header('x-hub-signature') ?? '')
     },
 
     async parse(raw, _header) {

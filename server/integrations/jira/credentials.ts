@@ -35,6 +35,11 @@ export function jiraCredentials(): JiraCredentials | null {
   if (cache !== undefined) return cache
 
   const row = db.select().from(jiraConnection).where(eq(jiraConnection.id, 1)).get()
+  // A connection from before webhooks has no secret yet; minting one here keeps the row usable without a reconnect.
+  if (row && !row.webhookSecretEnc) {
+    row.webhookSecretEnc = encrypt(randomBytes(32).toString('hex'))
+    db.update(jiraConnection).set({ webhookSecretEnc: row.webhookSecretEnc }).where(eq(jiraConnection.id, 1)).run()
+  }
   cache = row
     ? {
         siteUrl: row.siteUrl,

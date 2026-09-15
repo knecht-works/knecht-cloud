@@ -1,8 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{
-  // The linked Jira project of the selected project: statuses are listed for it.
-  projectKey: string | null
-}>()
+const props = defineProps<{ projectKey: string | null }>()
 const config = defineModel<Record<string, unknown>>('config', { required: true })
 const valid = defineModel<boolean>('valid', { default: false })
 

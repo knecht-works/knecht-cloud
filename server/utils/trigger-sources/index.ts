@@ -2,8 +2,8 @@ import { z } from 'zod'
 import type { Trigger } from '../../db/schema'
 import { INTEGRATIONS } from '../../integrations'
 
-// A new source also needs a form section in KTriggerCreateModal.vue and a
-// TRIGGER_SOURCE_META entry in app/utils/dashboard.ts.
+// A new source also needs a KTriggerForm<Source>.vue component wired into
+// KTriggerCreateModal.vue and a TRIGGER_SOURCE_META entry in app/utils/dashboard.ts.
 
 export type TriggerSource = 'schedule' | 'github' | 'manual' | 'jira'
 

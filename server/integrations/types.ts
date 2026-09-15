@@ -7,7 +7,6 @@ import type { SessionObject } from '../utils/sessions'
 export type WebhookHeaders = (name: string) => string | undefined
 
 export interface CommentAuthor {
-  // Stable identity in the tool (GitHub login, Jira accountId).
   id: string
   // What the tool shows: the value that ends up in followups.requestedBy.
   name: string
