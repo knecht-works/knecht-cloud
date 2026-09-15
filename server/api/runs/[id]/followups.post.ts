@@ -19,15 +19,15 @@ export default defineEventHandler(async (event) => {
     zodBadRequest(result.error, 'Invalid follow-up')
   }
 
-  if (run.status !== 'success' && run.status !== 'failed') {
-    throw createError({ statusCode: 409, statusMessage: 'Only finished runs accept follow-ups' })
+  if (run.status === 'cancelled') {
+    throw createError({ statusCode: 409, statusMessage: 'A cancelled run accepts no follow-ups. Retry it first.' })
   }
-  if (session.envState === 'down') {
+  // A queued or running run boots the environment itself; the follow-up waits behind it.
+  const pending = run.status === 'queued' || run.status === 'running'
+  if (!pending && session.envState === 'down') {
     throw createError({ statusCode: 409, statusMessage: 'The session\'s environment is gone. Run the workflow again.' })
   }
-  if (sessionHasActiveWork(session.id)) {
-    throw createError({ statusCode: 409, statusMessage: 'The session is still executing work' })
-  }
+  const busy = pending || sessionHasActiveWork(session.id)
 
   const { user } = await requireUserSession(event)
   const followup = db.insert(schema.followups).values({
@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
     requestedBy: user.login,
   }).returning().get()
 
-  if (session.envState === 'up') void startFollowup(followup.id)
+  if (session.envState === 'up' && !busy) void startFollowup(followup.id)
   else dispatchRuns()
 
   return followup
