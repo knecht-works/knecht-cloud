@@ -3,6 +3,7 @@ import type { Project, Session } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import type { Integration, WebhookComment } from '../integrations'
 import { getWorkflowRow } from './entities'
+import { emptyInputs } from './inputs'
 import { resolveSession, sessionHasActiveWork, type SessionObject } from './sessions'
 
 export async function handleMention(integration: Integration, project: Project, comment: WebhookComment): Promise<string> {
@@ -30,6 +31,7 @@ export async function handleMention(integration: Integration, project: Project, 
       workflowId: starter.id,
       trigger: 'mention',
       branch: session.branch ?? project.defaultBranch,
+      inputs: emptyInputs('mention'),
     }).returning().get()
     queueMentionRun(project, session, comment.body, comment.author.name)
     dispatchRuns()

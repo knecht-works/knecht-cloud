@@ -1,14 +1,7 @@
-import { createHmac, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
-
-export function verifyGithubSignature(raw: string, secret: string, provided: string): boolean {
-  const expected = `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}`
-  const a = Buffer.from(expected)
-  const b = Buffer.from(provided)
-  return a.length === b.length && timingSafeEqual(a, b)
-}
+import type { TriggerMatch } from '../types'
 
 export const githubTriggerConfigSchema = z.object({
   event: z.enum(['push', 'pull_request', 'issues']).default('push'),
@@ -63,12 +56,6 @@ export interface GithubSubject {
   labels?: { name?: string }[]
 }
 
-export interface GithubMatch {
-  branch: string | null
-  inputs: TriggerInputs
-  object: SessionObject | null
-}
-
 function subjectInputs(event: string, subject: GithubSubject | undefined): TriggerInputs {
   return {
     ...emptyInputs(event),
@@ -89,7 +76,7 @@ function branchMatches(filter: string[], branch: string): boolean {
   return filter.length === 0 || filter.includes(branch)
 }
 
-export function matchGithubEvent(c: GithubTriggerConfig, event: string, payload: GithubPayload): GithubMatch | null {
+export function matchGithubEvent(c: GithubTriggerConfig, event: string, payload: GithubPayload): TriggerMatch | null {
   if (event !== c.event) return null
 
   if (event === 'push') {

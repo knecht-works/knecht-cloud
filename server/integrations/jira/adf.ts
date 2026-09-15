@@ -128,7 +128,7 @@ export function markdownToAdf(markdown: string): AdfNode {
     const numbered = line.match(/^\s*\d+[.)]\s+(.*)$/)
     if (bullet || numbered) {
       flush()
-      const ordered = !numbered ? false : true
+      const ordered = !!numbered
       const items: AdfNode[] = []
       let j = i
       while (j < lines.length) {
