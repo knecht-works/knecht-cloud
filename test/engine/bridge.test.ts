@@ -60,9 +60,16 @@ describe('agent bridge', () => {
 
   it('rejects an unknown op', async () => {
     const { sessionId } = objectSession()
-    const res = await call(sessionId, { op: 'status', status: 'Done' })
+    const res = await call(sessionId, { op: 'assign', to: 'me' })
     expect(res.status).toBe(400)
     expect(res.text).toContain('invalid request')
+  })
+
+  it('refuses a status change where the integration has no statuses', async () => {
+    const { sessionId } = objectSession()
+    const res = await call(sessionId, { op: 'status', status: 'Done' })
+    expect(res.status).toBe(400)
+    expect(res.text).toContain('not supported for issue #5')
   })
 
   it('refuses to comment on a session that has no object', async () => {
@@ -70,7 +77,7 @@ describe('agent bridge', () => {
     mkdirSync(join(sessionCheckoutDir(run.sessionId), '.git'), { recursive: true })
     const res = await call(run.sessionId, { op: 'comment', body: 'hi' })
     expect(res.status).toBe(400)
-    expect(res.text).toContain('does not belong to an issue or pull request')
+    expect(res.text).toContain('does not belong to a ticket, issue or pull request')
   })
 
   it('posts a comment on the object and records the reply', async () => {

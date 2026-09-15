@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import { and, asc, eq, gte, isNull, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
-import type { Project } from '../db/schema'
+import type { Project, Session } from '../db/schema'
 import { COMPOSITE_CHILD_KEYS, defaultStepTimeout, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
 import { actionFor, type ActionError, type ActionRuntime, type RegisteredAction } from '../workflows/actions'
@@ -9,7 +9,9 @@ import { createContext, evalConditions, renderStepParams, resolveLoopItems, type
 import { formatEnvSummary } from '../../shared/utils/env-spec'
 import { sessionSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
-import { addJiraComment } from '../utils/jira'
+import { getRun, getWorkflowRow } from '../utils/entities'
+import { describeObject, sessionObject } from '../utils/sessions'
+import { getIntegration } from '../integrations'
 import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
 import { copyIntoSandbox, spawnInSandbox, startEnvStack, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
@@ -147,13 +149,14 @@ async function execRun(runId: number, project: Project): Promise<void> {
     log(`\n✓ Done\n`)
     finish(runId, 'success')
     closeObjectlessSession(session.id)
-    await handBackToJira(runId, run.trigger, run.inputs, log)
+    await notifyRunFinished(runId, project, session, 'success', log)
   }
   catch (e) {
     const cancelled = controller.signal.aborted
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
     finish(runId, cancelled ? 'cancelled' : 'failed')
     closeObjectlessSession(session.id)
+    if (!cancelled) await notifyRunFinished(runId, project, session, 'failed', log)
   }
   finally {
     controllers.delete(runId)
@@ -378,16 +381,20 @@ function finish(runId: number, status: 'success' | 'failed' | 'cancelled'): void
     .run()
 }
 
-async function handBackToJira(runId: number, trigger: string | null, inputs: Record<string, string> | null, log: (text: string) => void): Promise<void> {
-  const ticket = inputs?.identifier
-  if (trigger !== 'jira' || !ticket) return
-  const prUrl = db.select({ prUrl: schema.runs.prUrl }).from(schema.runs).where(eq(schema.runs.id, runId)).get()?.prUrl
-  if (!prUrl) return
+// The integration's own write-back on the object (Jira comments the PR link);
+// the workflow's replies toggle covers it like every other reply.
+async function notifyRunFinished(runId: number, project: Project, session: Session, status: 'success' | 'failed', log: (text: string) => void): Promise<void> {
+  const object = sessionObject(session)
+  const run = getRun(runId)
+  if (!object || !run) return
+  const integration = getIntegration(object.integration)
+  if (!integration.onRunFinished) return
+  const workflow = run.workflowId ? getWorkflowRow(run.workflowId) : undefined
+  if (workflow && !workflow.repliesEnabled) return
   try {
-    await addJiraComment(ticket, 'Knecht opened a pull request for this ticket:', prUrl)
-    log(`Commented the PR link on ${ticket}\n`)
+    await integration.onRunFinished(project, session, run, status)
   }
   catch (e) {
-    log(`Could not comment the PR link on ${ticket}: ${(e as Error).message}\n`)
+    log(`Could not report the result on ${describeObject(object)}: ${(e as Error).message}\n`)
   }
 }

@@ -20,7 +20,6 @@ vi.mock('../../server/utils/github-app', () => ({
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
   createIssueComment: async () => {},
 }))
-vi.mock('../../server/utils/jira', () => ({ addJiraComment: async () => {} }))
 // Nitro's useStorage does not exist in the engine tests.
 vi.mock('../../server/utils/sandbox-assets', () => ({ readSandboxAsset: async () => Buffer.from('# Knecht sandbox instructions\n') }))
 

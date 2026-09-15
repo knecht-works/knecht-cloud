@@ -7,16 +7,17 @@ import { db, schema } from '../db'
 import type { Session } from '../db/schema'
 import { currentBranch, pushBranch } from '../daemon/git'
 import { appendLog } from '../daemon/runner'
+import { getIntegration, type Integration } from '../integrations'
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { getProject, getSessionRow, getWorkflowRow } from '../utils/entities'
-import { addIssueLabels, createIssueComment, createPullRequest, getInstallationToken, listRepoLabels, removeIssueLabel } from '../utils/github-app'
+import { createPullRequest, getInstallationToken } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
-import { describeObject, recordAgentReply, sessionObject, withSessionLinks } from '../utils/sessions'
+import { describeObject, recordAgentReply, sessionObject, withSessionLinks, type SessionObject } from '../utils/sessions'
 import { sessionCheckoutDir } from '../utils/storage'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
 // Plain git works inside the sandbox (the session's checkout is a
-// self-contained clone, daemon/git.ts), so the bridge is down to four ops,
+// self-contained clone, daemon/git.ts), so the bridge is down to a few ops,
 // called by the CLIs mounted into the web container:
 //   - `credential` (knecht-git): the git credential helper's token source;
 //     hands plain git a repo-scoped ~1h installation token for push/fetch.
@@ -24,13 +25,12 @@ import { sessionCheckoutDir } from '../utils/storage'
 //     a pull request (a GitHub API call the sandbox has no other path to),
 //     and syncs the session's branch (+ the newest run's branch/prUrl) so
 //     the dashboard shows them.
-//   - `comment` (knecht-reply): posts a reply on the session's object (ADR
-//     0007). Object sessions only; a workflow can opt its runs out
-//     (workflows.repliesEnabled).
-//   - `label` (knecht-label): adds EXISTING repo labels to / removes labels
-//     from the session's object. Never creates labels, never closes or
-//     assigns: the bridge is where that boundary is enforced, a raw GitHub
-//     token could not be narrowed like this.
+//   - `comment` (knecht-reply), `label` (knecht-label), `status`
+//     (knecht-status): act on the session's object through the capabilities
+//     of its integration (ADR 0007). Object sessions only; a workflow can opt
+//     its runs out (workflows.repliesEnabled). The bridge is where the
+//     boundary is enforced: a raw provider token could not be narrowed to
+//     "comment, label, transition, nothing else".
 // Outside /api on purpose: the session gate (server/middleware/auth.ts) skips
 // non-API paths, and this route authenticates with its own per-session token
 // (server/utils/agent-bridge.ts) instead. The x-knecht-run-id header carries
@@ -44,6 +44,7 @@ const bodySchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('open-pr'), title: z.string().min(1), body: z.string().optional() }),
   z.object({ op: z.literal('comment'), body: z.string().min(1) }),
   z.object({ op: z.literal('label'), add: z.array(z.string().min(1)).optional(), remove: z.array(z.string().min(1)).optional() }),
+  z.object({ op: z.literal('status'), status: z.string().min(1) }),
 ])
 
 // Replies are plain text: the CLI prints the body verbatim to the agent, and
@@ -99,35 +100,33 @@ export default defineEventHandler(async (event) => {
         return reply(event, 200, ghToken)
       }
       case 'comment': {
-        const object = requireObject(session)
+        const { integration, object, label } = requireObject(session)
         requireRepliesEnabled(sessionId)
-        const comment = await createIssueComment(project.owner, project.name, object.number, withSessionLinks(body.body, sessionId))
+        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId)))
         recordAgentReply(sessionId)
-        log(`\nagent-reply: commented on ${object.label}\n`)
-        return reply(event, 200, `posted the reply on ${object.label}: ${comment.url}`)
+        log(`\nagent-reply: commented on ${label}\n`)
+        return reply(event, 200, `posted the reply on ${label}${comment.url ? `: ${comment.url}` : ''}`)
       }
       case 'label': {
-        const object = requireObject(session)
+        const { integration, object, label } = requireObject(session)
         requireRepliesEnabled(sessionId)
         const add = body.add ?? []
         const remove = body.remove ?? []
         if (!add.length && !remove.length) throw new BridgeError('nothing to do: pass labels to add or remove')
-        if (add.length) {
-          // Only labels that already exist in the repo may be applied: Knecht
-          // never invents labels.
-          const existing = new Set(await listRepoLabels(project.owner, project.name))
-          const unknown = add.filter(l => !existing.has(l))
-          if (unknown.length) {
-            throw new BridgeError(`these labels do not exist in the repo and Knecht never creates labels: ${unknown.join(', ')}. Existing labels: ${[...existing].join(', ') || '(none)'}`)
-          }
-          await addIssueLabels(project.owner, project.name, object.number, add)
-        }
-        for (const label of remove) {
-          await removeIssueLabel(project.owner, project.name, object.number, label)
-        }
-        const did = [add.length ? `added ${add.join(', ')}` : '', remove.length ? `removed ${remove.join(', ')}` : ''].filter(Boolean).join('; ')
-        log(`\nagent-label: ${did} on ${object.label}\n`)
-        return reply(event, 200, `${did} on ${object.label}`)
+        const apply = integration.capabilities.label
+        if (!apply) throw new BridgeError(`labels are not supported for ${label}`)
+        const did = await viaIntegration(() => apply(project, object, add, remove))
+        log(`\nagent-label: ${did} on ${label}\n`)
+        return reply(event, 200, `${did} on ${label}`)
+      }
+      case 'status': {
+        const { integration, object, label } = requireObject(session)
+        requireRepliesEnabled(sessionId)
+        const setStatus = integration.capabilities.setStatus
+        if (!setStatus) throw new BridgeError(`setting a status is not supported for ${label}`)
+        const did = await viaIntegration(() => setStatus(project, object, body.status))
+        log(`\nagent-status: ${did} on ${label}\n`)
+        return reply(event, 200, `${did} on ${label}`)
       }
       case 'open-pr': {
         const branch = await currentBranch(dir)
@@ -164,13 +163,23 @@ export default defineEventHandler(async (event) => {
 class BridgeError extends Error {}
 
 // The session's object, or a clear refusal: the reply ops only exist on
-// sessions that belong to an issue or PR.
-function requireObject(session: Session): { number: number, label: string } {
+// sessions that belong to a ticket, issue or PR.
+function requireObject(session: Session): { integration: Integration, object: SessionObject, label: string } {
   const object = sessionObject(session)
-  if (!object || object.integration !== 'github') {
-    throw new BridgeError('this session does not belong to an issue or pull request, so there is no thread to post on')
+  if (!object) {
+    throw new BridgeError('this session does not belong to a ticket, issue or pull request, so there is no thread to post on')
   }
-  return { number: Number(object.key), label: describeObject(object) }
+  return { integration: getIntegration(object.integration), object, label: describeObject(object) }
+}
+
+// A refused or failed provider call is the agent's problem to read, not a server fault.
+async function viaIntegration<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  }
+  catch (e) {
+    throw new BridgeError((e as Error).message)
+  }
 }
 
 // The workflow-level opt-out (workflows.repliesEnabled): enforced against
@@ -185,6 +194,6 @@ function requireRepliesEnabled(sessionId: number): void {
   if (!running?.workflowId) return
   const workflow = getWorkflowRow(running.workflowId)
   if (workflow && !workflow.repliesEnabled) {
-    throw new BridgeError('replying on the issue/PR is disabled for this workflow (workflow settings, Advanced)')
+    throw new BridgeError('replying on the thread is disabled for this workflow (workflow settings, Advanced)')
   }
 }
