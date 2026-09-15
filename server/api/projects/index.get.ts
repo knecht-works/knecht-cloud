@@ -1,6 +1,7 @@
 import { desc } from 'drizzle-orm'
 import { db, schema } from '../../db'
 import { backfillFrameworks } from '../../utils/framework'
+import { withLinks } from '../../utils/project-links'
 
 export default defineEventHandler(async () => {
   const projects = db
@@ -10,5 +11,5 @@ export default defineEventHandler(async () => {
     .all()
 
   await backfillFrameworks(projects)
-  return projects
+  return withLinks(projects)
 })

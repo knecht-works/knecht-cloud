@@ -62,8 +62,8 @@ force-added.
 
 ## Replying on the ticket, issue or pull request
 
-When this session belongs to a Jira ticket or a GitHub issue or pull request
-(the environment variable `KNECHT_OBJECT` names it), extra tools talk to that
+When this session belongs to a ticket, issue or pull request (the
+environment variable `KNECHT_OBJECT` names it), extra tools talk to that
 thread:
 
 - `knecht-object` prints its current state: description, status, labels and
@@ -77,7 +77,7 @@ thread:
   removes labels. On GitHub only the repository's EXISTING labels can be
   added; you cannot create labels there, so if none fits, say so in your
   reply instead.
-- `knecht-status "<status name>"` moves a Jira ticket to that status (for
+- `knecht-status "<status name>"` moves the ticket to that status (for
   example `knecht-status "In Review"`); the reply lists the reachable statuses
   if the name does not match. GitHub issues have no statuses: the tool refuses.
 

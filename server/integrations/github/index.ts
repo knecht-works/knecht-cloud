@@ -42,6 +42,7 @@ function parseComment(payload: GithubPayload): WebhookComment | undefined {
 
 export const github: Integration = {
   id: 'github',
+  name: 'GitHub',
 
   isConfigured: () => !!githubAppCredentials()?.webhookSecret,
 

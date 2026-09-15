@@ -10,6 +10,7 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
 const { db, schema } = await import('../../server/db')
 const { INTEGRATIONS } = await import('../../server/integrations')
 const { INPUT_KEYS } = await import('../../server/utils/inputs')
+const { setProjectLink } = await import('../../server/utils/project-links')
 const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
 const { jiraCredentials, saveJiraCredentials } = await import('../../server/integrations/jira/credentials')
 
@@ -23,7 +24,7 @@ interface Fixture {
   signatureHeader: string
   headers: Record<string, string>
   project: () => { id: number }
-  body: (project: { githubId: number, jiraProjectKey: string | null }) => object
+  body: (project: { githubId: number, jiraProjectKey: string }) => object
   unknownBody: object
   triggerConfig: Record<string, unknown>
 }
@@ -44,7 +45,12 @@ const FIXTURES: Record<string, Fixture> = {
     secret: () => jiraCredentials()!.webhookSecret!,
     signatureHeader: 'x-hub-signature',
     headers: {},
-    project: () => makeProject({ jiraProjectKey: `CONTRACT${++jiraKeys}` }),
+    project: () => {
+      const project = makeProject()
+      const jiraProjectKey = `CONTRACT${++jiraKeys}`
+      setProjectLink(project.id, 'jira', jiraProjectKey)
+      return { ...project, jiraProjectKey }
+    },
     body: p => ({ webhookEvent: 'jira:issue_created', issue: { key: `${p.jiraProjectKey}-1`, fields: { summary: 'T', project: { key: p.jiraProjectKey } } } }),
     unknownBody: { webhookEvent: 'jira:issue_created', issue: { key: 'X-1', fields: { project: { key: 'X' } } } },
     triggerConfig: { event: 'created' },

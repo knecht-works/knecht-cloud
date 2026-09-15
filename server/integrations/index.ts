@@ -3,7 +3,7 @@ import { github } from './github'
 import { jira } from './jira'
 import type { Integration } from './types'
 
-export type { CommentAuthor, DeliveryRecord, Integration, TriggerMatch, WebhookComment, WebhookDelivery, WebhookHeaders } from './types'
+export type { CommentAuthor, DeliveryRecord, Integration, LinkTarget, TriggerMatch, WebhookComment, WebhookDelivery, WebhookHeaders } from './types'
 
 export const INTEGRATIONS: readonly Integration[] = [github, jira]
 

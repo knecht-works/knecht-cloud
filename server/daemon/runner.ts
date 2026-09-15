@@ -381,7 +381,7 @@ function finish(runId: number, status: 'success' | 'failed' | 'cancelled'): void
     .run()
 }
 
-// The integration's own write-back on the object (Jira comments the PR link);
+// The integration's own write-back on the object (a ticket gets the PR link as a comment);
 // the workflow's replies toggle covers it like every other reply.
 async function notifyRunFinished(runId: number, project: Project, session: Session, status: 'success' | 'failed', log: (text: string) => void): Promise<void> {
   const object = sessionObject(session)

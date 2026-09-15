@@ -5,7 +5,7 @@ const SECTIONS = [
   { label: 'Access', icon: 'i-lucide-users', to: '/settings' },
   { label: 'Agent', icon: 'i-lucide-sparkles', to: '/settings/agent' },
   { label: 'Environments', icon: 'i-lucide-box', to: '/settings/environments' },
-  { label: 'Jira', icon: 'i-simple-icons-jira', to: '/settings/jira' },
+  ...Object.values(INTEGRATION_UI).flatMap(ui => ui.settingsPath ? [{ label: ui.label, icon: ui.icon, to: ui.settingsPath }] : []),
   { label: 'Advanced', icon: 'i-lucide-sliders-horizontal', to: '/settings/advanced' },
 ]
 

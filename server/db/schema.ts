@@ -1,9 +1,9 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { ENV_STATES } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import { PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
-import { INTEGRATION_IDS, OBJECT_KINDS } from '../../shared/utils/integrations'
+import { INTEGRATION_IDS, OBJECT_KINDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
 import type { Step } from '../../shared/utils/workflow'
 
 export interface DdevEnv {
@@ -56,8 +56,6 @@ export const projects = sqliteTable('projects', {
   devServer: text('dev_server'),
   previewPort: integer('preview_port'),
 
-  jiraProjectKey: text('jira_project_key').unique(),
-
   mentionsEnabled: integer('mentions_enabled', { mode: 'boolean' }).notNull().default(true),
   // PRAGMA foreign_keys is off, so onDelete is declarative; the delete route nulls this.
   starterWorkflowId: integer('starter_workflow_id')
@@ -73,6 +71,25 @@ export const projects = sqliteTable('projects', {
 
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
+
+// Which external container of an integration (a Jira project) feeds a project.
+// An external container feeds at most one project.
+export const projectLinks = sqliteTable('project_links', {
+  // PRAGMA foreign_keys is off, so the cascade is declarative; deleteProject removes links.
+  projectId: integer('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  integration: text('integration', { enum: INTEGRATION_IDS }).notNull(),
+  externalKey: text('external_key').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, table => [
+  primaryKey({ columns: [table.projectId, table.integration] }),
+  uniqueIndex('project_links_target_idx').on(table.integration, table.externalKey),
+])
+
+export type ProjectLink = typeof projectLinks.$inferSelect
 
 // Env paths keep the `run-<id>` prefix with the SESSION id: the migration seeded one session per run.
 export const sessions = sqliteTable('sessions', {
@@ -288,7 +305,7 @@ export const dataMigrations = sqliteTable('data_migrations', {
 
 export const triggers = sqliteTable('triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  source: text('source', { enum: ['schedule', 'github', 'manual', 'jira'] }).notNull(),
+  source: text('source', { enum: TRIGGER_SOURCES }).notNull(),
   // PRAGMA foreign_keys is off, so the cascade is declarative; the delete route removes triggers.
   workflowId: integer('workflow_id')
     .notNull()

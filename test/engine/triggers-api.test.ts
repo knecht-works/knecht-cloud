@@ -6,6 +6,7 @@ import { makeProject } from '../helpers/db'
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
 const { db, schema } = await import('../../server/db')
+const { setProjectLink } = await import('../../server/utils/project-links')
 const create = (await import('../../server/api/triggers/index.post')).default
 const patch = (await import('../../server/api/triggers/[id].patch')).default
 
@@ -81,7 +82,8 @@ describe('POST /api/triggers', () => {
 
   it('creates a jira trigger only for exactly one project linked to a Jira project', async () => {
     const wf = makeWorkflow()
-    const linked = makeProject({ jiraProjectKey: 'API' })
+    const linked = makeProject()
+    setProjectLink(linked.id, 'jira', 'API')
     const unlinked = makeProject()
     expect((await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id, unlinked.id], config: { event: 'created' } })).json)
       .toMatchObject({ statusMessage: 'A Jira trigger fires for exactly one project' })

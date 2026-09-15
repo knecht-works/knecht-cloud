@@ -133,7 +133,7 @@ async function disconnect() {
   <KPanel
     title="Jira"
     icon="i-simple-icons-jira"
-    accent="var(--color-jira)"
+    :accent="integrationUi('jira').color"
   >
     <template #action>
       <span

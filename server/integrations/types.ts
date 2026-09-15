@@ -42,14 +42,27 @@ export interface TriggerMatch {
   object: SessionObject | null
 }
 
+export interface LinkTarget {
+  key: string
+  name: string
+}
+
 export interface Integration {
   id: IntegrationId
+  name: string
   isConfigured(): boolean
 
   trigger: {
     configSchema: z.ZodType<Record<string, unknown>>
     eventLabel(config: Record<string, unknown>): string
-    validateProjects?(projectIds: number[]): string | null
+  }
+
+  // Integrations whose events come from a container that must be mapped to
+  // a project first (a Jira project). Their triggers fire for exactly one
+  // linked project; GitHub needs none because the repository is the project.
+  link?: {
+    label: string
+    listTargets(): Promise<LinkTarget[]>
   }
 
   webhook: {
