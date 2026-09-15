@@ -1,59 +1,26 @@
-import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
-import { addCommentReaction, createIssueComment } from './github-app'
+import type { Integration, WebhookComment } from '../integrations'
 import { getWorkflowRow } from './entities'
-import { isMember } from './members'
 import { resolveSession, sessionHasActiveWork, type SessionObject } from './sessions'
-import type { GithubPayload } from './github-webhook'
 
-const MENTION_HANDLE = 'knecht-works'
-
-let cachedSlug: string | null | undefined
-function appSlug(): string | null {
-  if (cachedSlug !== undefined) return cachedSlug
-  cachedSlug = db.select({ slug: schema.githubApp.slug }).from(schema.githubApp).where(eq(schema.githubApp.id, 1)).get()?.slug ?? null
-  return cachedSlug
-}
-
-function mentionsKnecht(body: string): boolean {
-  const handles = [MENTION_HANDLE, appSlug()].filter((h): h is string => !!h)
-  return handles.some(h => new RegExp(`@${h}\\b`, 'i').test(body))
-}
-
-export async function handleMention(project: Project, payload: GithubPayload): Promise<string> {
-  if (payload.action !== 'created') return 'ignored (not a new comment)'
-
-  const body = payload.comment?.body ?? ''
-  const author = (payload.comment?.user?.login ?? '').toLowerCase()
-  if (!body || !author) return 'ignored (empty comment)'
-  // Includes Knecht's own replies: the guaranteed reply would otherwise loop.
-  if (payload.comment?.user?.type === 'Bot') return 'ignored (bot comment)'
-  if (!mentionsKnecht(body)) return 'ignored (no mention)'
+export async function handleMention(integration: Integration, project: Project, comment: WebhookComment): Promise<string> {
+  if (comment.fromSelf) return 'ignored (comment by Knecht itself)'
+  if (!comment.body) return 'ignored (empty comment)'
+  if (!comment.mentionsKnecht) return 'ignored (no mention)'
   if (!project.mentionsEnabled) return 'ignored (mentions disabled for project)'
-  if (!isMember(author)) return `ignored (@${author} is not an instance member)`
+  if (!integration.mentions.allowsAuthor(comment.author)) return `ignored (${comment.author.name} is not an instance member)`
 
-  const issue = payload.issue
-  if (typeof issue?.number !== 'number') return 'ignored (no issue number)'
-  const object: SessionObject = {
-    integration: 'github',
-    kind: issue.pull_request ? 'pull_request' : 'issue',
-    key: String(issue.number),
-    url: issue.html_url,
-    title: issue.title,
-  }
-
-  if (typeof payload.comment?.id === 'number') {
-    void addCommentReaction(project.owner, project.name, payload.comment.id, 'eyes').catch(() => {})
-  }
+  const { object } = comment
+  void integration.mentions.acknowledge?.(project, comment).catch(() => {})
 
   const session = resolveSession(project, object, null)
 
   if (session.envState === 'down' && !sessionHasActiveWork(session.id)) {
     const starter = project.starterWorkflowId ? getWorkflowRow(project.starterWorkflowId) : undefined
     if (!starter || !starter.publishedAt) {
-      await postHint(project, object, starter ? 'starter-unpublished' : 'no-starter')
+      await postHint(integration, project, object, starter ? 'starter-unpublished' : 'no-starter')
       return 'replied with a setup hint (no usable starter workflow)'
     }
     const run = db.insert(schema.runs).values({
@@ -64,12 +31,12 @@ export async function handleMention(project: Project, payload: GithubPayload): P
       trigger: 'mention',
       branch: session.branch ?? project.defaultBranch,
     }).returning().get()
-    queueMentionRun(project, session, body, author)
+    queueMentionRun(project, session, comment.body, comment.author.name)
     dispatchRuns()
     return `queued starter run ${run.id} + mention run on session ${session.id}`
   }
 
-  const runId = queueMentionRun(project, session, body, author)
+  const runId = queueMentionRun(project, session, comment.body, comment.author.name)
   dispatchRuns()
   return `queued mention run ${runId} on session ${session.id}`
 }
@@ -93,12 +60,12 @@ function queueMentionRun(project: Project, session: Session, prompt: string, req
   return runId
 }
 
-async function postHint(project: Project, object: SessionObject, reason: 'no-starter' | 'starter-unpublished'): Promise<void> {
+async function postHint(integration: Integration, project: Project, object: SessionObject, reason: 'no-starter' | 'starter-unpublished'): Promise<void> {
   const text = reason === 'no-starter'
     ? 'I can pick this up once the project has a starter workflow: it boots the environment my work runs in. Choose one in the project settings under Mentions, then mention me again.'
     : 'The project\'s starter workflow is not published yet, so I cannot boot an environment for this thread. Publish it, then mention me again.'
   try {
-    await createIssueComment(project.owner, project.name, Number(object.key), text)
+    await integration.capabilities.comment(project, object, text)
   }
   catch (e) {
     console.error(`mention hint reply failed: ${(e as Error).message}`)
