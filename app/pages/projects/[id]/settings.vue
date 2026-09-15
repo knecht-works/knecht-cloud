@@ -421,28 +421,34 @@ async function toggleMentions() {
         >
           <div class="flex flex-col">
             <p class="text-2xs leading-relaxed text-dimmed">
-              Write
-              <span class="k-mono text-toned">@knecht-works &lt;instruction&gt;</span>
-              in a comment on one of this repo's issues or pull requests, or mention the
-              Knecht account on a ticket of the linked Jira project, and Knecht does what
-              the comment says, then answers in the thread.
+              Mention Knecht in a comment and it does what the comment says, then answers in the thread.
             </p>
-            <div class="k-label mb-1.5 mt-3">
-              Which workflow boots the environment for a new thread?
+            <ul class="mt-2 space-y-1 text-2xs leading-relaxed text-dimmed">
+              <li>
+                <span class="text-muted">GitHub:</span>
+                <span class="k-mono text-toned">@knecht-works &lt;instruction&gt;</span> on an issue or pull request.
+              </li>
+              <li v-if="jira?.configured">
+                <span class="text-muted">Jira:</span>
+                mention the Knecht account on a ticket of the linked project.
+              </li>
+            </ul>
+            <div class="k-label mb-1.5 mt-4">
+              Starter workflow
             </div>
             <USelectMenu
               :model-value="starterItems.find(i => i.value === starterWorkflowId)"
               :items="starterItems"
-              placeholder="Choose a starter workflow…"
+              placeholder="Choose a workflow…"
               icon="i-lucide-rocket"
               class="w-full"
               @update:model-value="(item: { value: number } | undefined) => setStarter(item?.value ?? null)"
             />
-            <p
-              v-if="!starterWorkflowId"
-              class="k-mono mt-1.5 text-2xs text-dimmed"
-            >
-              Until one is chosen, Knecht answers mentions with a setup hint.
+            <p class="mt-1.5 text-2xs leading-relaxed text-dimmed">
+              Boots the environment for a thread that has no session yet.
+              <template v-if="!starterWorkflowId">
+                Until one is chosen, Knecht answers mentions with a setup hint.
+              </template>
             </p>
 
             <div class="mt-3.5">
