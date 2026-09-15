@@ -261,7 +261,16 @@ async function disconnect() {
         </div>
       </div>
 
-      <p class="mt-4 text-2xs text-dimmed">
+      <p
+        v-if="!jira.accountId"
+        class="mt-4 text-2xs leading-normal text-error"
+      >
+        Reconnect once with the API token: mentions and "assigned to Knecht" triggers need the account id, which this connection was made before Knecht stored it.
+      </p>
+      <p
+        v-else
+        class="mt-4 text-2xs text-dimmed"
+      >
         Connected as {{ jira.accountName }}<span
           v-if="jira.accountId"
           class="k-mono"

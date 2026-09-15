@@ -4,8 +4,9 @@ import { addCommentReaction, addIssueLabels, createIssueComment, listRepoLabels,
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
 import { isMember } from '../../utils/members'
+import { verifySha256Signature } from '../../utils/signature'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import { githubEventLabel, githubObject, githubTriggerConfigSchema, matchGithubEvent, verifyGithubSignature, type GithubPayload, type GithubTriggerConfig } from './webhook'
+import { githubEventLabel, githubObject, githubTriggerConfigSchema, matchGithubEvent, type GithubPayload, type GithubTriggerConfig } from './webhook'
 
 const MENTION_HANDLE = 'knecht-works'
 
@@ -52,7 +53,7 @@ export const github: Integration = {
   webhook: {
     verify(raw, header) {
       const secret = githubAppCredentials()?.webhookSecret
-      return !!secret && verifyGithubSignature(raw, secret, header('x-hub-signature-256') ?? '')
+      return !!secret && verifySha256Signature(raw, secret, header('x-hub-signature-256') ?? '')
     },
 
     async parse(raw, header) {
