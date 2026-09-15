@@ -56,6 +56,8 @@ export const projects = sqliteTable('projects', {
   devServer: text('dev_server'),
   previewPort: integer('preview_port'),
 
+  jiraProjectKey: text('jira_project_key').unique(),
+
   mentionsEnabled: integer('mentions_enabled', { mode: 'boolean' }).notNull().default(true),
   // PRAGMA foreign_keys is off, so onDelete is declarative; the delete route nulls this.
   starterWorkflowId: integer('starter_workflow_id')
@@ -346,6 +348,8 @@ export const jiraConnection = sqliteTable('jira_connection', {
   email: text('email').notNull(),
   apiTokenEnc: text('api_token_enc').notNull(),
   accountName: text('account_name'),
+  accountId: text('account_id'),
+  webhookSecretEnc: text('webhook_secret_enc'),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()

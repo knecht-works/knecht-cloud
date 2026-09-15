@@ -22,6 +22,25 @@ vi.mock('../../server/utils/github-app', () => ({
   },
   createPullRequest: async () => null,
 }))
+const jiraApi = vi.hoisted(() => ({
+  comments: [] as { key: string, body: unknown }[],
+  labels: [] as { key: string, add: string[], remove: string[] }[],
+  transitions: [] as { key: string, id: string }[],
+}))
+vi.mock('../../server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+  addJiraComment: async (key: string, body: unknown) => {
+    jiraApi.comments.push({ key, body })
+    return { url: `https://acme.atlassian.net/browse/${key}?focusedCommentId=1` }
+  },
+  updateJiraLabels: async (key: string, add: string[], remove: string[]) => {
+    jiraApi.labels.push({ key, add, remove })
+  },
+  listJiraTransitions: async () => [{ id: '11', to: 'In Progress' }, { id: '21', to: 'In Review' }],
+  transitionJiraIssue: async (key: string, id: string) => {
+    jiraApi.transitions.push({ key, id })
+  },
+}))
 
 const { db, schema } = await import('../../server/db')
 const { bridgeToken } = await import('../../server/utils/agent-bridge')
@@ -41,6 +60,14 @@ function objectSession(overrides: Parameters<typeof makeRun>[2] = {}) {
   const run = makeRun(project, [], { status: 'success', ...overrides })
   mkdirSync(join(sessionCheckoutDir(run.sessionId), '.git'), { recursive: true })
   bindObject(run.sessionId)
+  return { project, run, sessionId: run.sessionId }
+}
+
+function ticketSession() {
+  const project = makeProject()
+  const run = makeRun(project, [], { status: 'success' })
+  mkdirSync(join(sessionCheckoutDir(run.sessionId), '.git'), { recursive: true })
+  db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: 'PROJ-1' }).where(eq(schema.sessions.id, run.sessionId)).run()
   return { project, run, sessionId: run.sessionId }
 }
 
@@ -111,5 +138,37 @@ describe('agent bridge', () => {
     expect(res.status).toBe(200)
     expect(res.text).toBe('added bug; removed help wanted on issue #5\n')
     expect(labels).toEqual({ added: ['bug'], removed: ['help wanted'] })
+  })
+})
+
+describe('agent bridge on a Jira ticket', () => {
+  it('posts the comment as ADF', async () => {
+    const { sessionId } = ticketSession()
+    const res = await call(sessionId, { op: 'comment', body: 'Done, see `auth.php`.' })
+    expect(res.status).toBe(200)
+    expect(res.text).toBe('posted the reply on ticket PROJ-1: https://acme.atlassian.net/browse/PROJ-1?focusedCommentId=1\n')
+    expect(jiraApi.comments.at(-1)).toMatchObject({ key: 'PROJ-1', body: { type: 'doc' } })
+  })
+
+  it('adds and removes labels without a registry check', async () => {
+    const { sessionId } = ticketSession()
+    const res = await call(sessionId, { op: 'label', add: ['anything'], remove: ['old'] })
+    expect(res.status).toBe(200)
+    expect(res.text).toBe('added anything; removed old on ticket PROJ-1\n')
+    expect(jiraApi.labels.at(-1)).toEqual({ key: 'PROJ-1', add: ['anything'], remove: ['old'] })
+  })
+
+  it('moves the ticket through the transition whose target matches the status', async () => {
+    const { sessionId, run } = ticketSession()
+    const res = await call(sessionId, { op: 'status', status: 'in review' })
+    expect(res.status).toBe(200)
+    expect(res.text).toBe('moved to "In Review" on ticket PROJ-1\n')
+    expect(jiraApi.transitions.at(-1)).toEqual({ key: 'PROJ-1', id: '21' })
+    const log = db.select({ log: schema.runs.log }).from(schema.runs).where(eq(schema.runs.id, run.id)).get()!.log
+    expect(log).toContain('agent-status: moved to "In Review" on ticket PROJ-1')
+
+    const unknown = await call(sessionId, { op: 'status', status: 'Shipped' })
+    expect(unknown.status).toBe(400)
+    expect(unknown.text).toContain('Reachable: In Progress, In Review')
   })
 })
