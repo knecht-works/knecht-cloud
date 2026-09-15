@@ -105,16 +105,12 @@ async function disconnect() {
     </template>
 
     <p class="mb-5 max-w-3xl text-2sm leading-relaxed text-muted">
-      Jira tickets start workflows through a webhook (created, labeled, moved to a status, or
-      assigned to Knecht) with the ticket as <span class="k-mono text-xs text-toned">{{ '\{\{ inputs.* \}\}' }}</span>;
-      the agent replies, labels and transitions the ticket, mentions of the account create
-      follow-ups, and finished runs report their pull request on the ticket. Connect once with an
+      Tickets start workflows and get Knecht's replies. Connect with an
       <a
         href="https://id.atlassian.com/manage-profile/security/api-tokens"
         target="_blank"
         class="text-toned underline underline-offset-2"
-      >API token</a>; a dedicated service account (e.g. "Knecht") keeps comments under its
-      own name and scopes what Knecht can see.
+      >API token</a>, ideally of a dedicated "Knecht" account, then register the webhook below.
     </p>
 
     <form
@@ -209,9 +205,7 @@ async function disconnect() {
     >
       <span class="k-label">Webhook</span>
       <p class="mt-2 max-w-3xl text-2xs leading-relaxed text-muted">
-        Register this webhook once in Jira (Settings → System → WebHooks, as a Jira admin) with the
-        secret below and the listed events; Knecht verifies every delivery with it.
-        Knecht only reacts to tickets of Jira projects that a project links to in its settings.
+        Register it once as a Jira admin (Settings → System → WebHooks) with this secret and these events.
       </p>
 
       <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
@@ -274,7 +268,7 @@ async function disconnect() {
         Connected as {{ jira.accountName }}<span
           v-if="jira.accountId"
           class="k-mono"
-        > ({{ jira.accountId }})</span>. Mention this account in a ticket comment to give Knecht a follow-up.
+        > ({{ jira.accountId }})</span>. Mention it on a ticket to give Knecht a follow-up.
       </p>
     </div>
   </KPanel>
