@@ -920,16 +920,16 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 >
                   <div class="min-w-0">
                     <div class="text-2sm text-highlighted">
-                      May the agent answer on the issue or PR?
+                      May the agent answer on the ticket, issue or PR?
                     </div>
                     <div class="k-mono text-2xs text-dimmed">
-                      Comments and existing labels, on the thread this run belongs to.
+                      Comments, labels and status changes on the thread this run belongs to, and the result report on a Jira ticket.
                     </div>
                   </div>
                   <KToggle
                     :active="saved.repliesEnabled"
                     :disabled="togglingReplies"
-                    :aria-label="saved.repliesEnabled ? 'Disable replies on the issue/PR' : 'Enable replies on the issue/PR'"
+                    :aria-label="saved.repliesEnabled ? 'Disable replies on the thread' : 'Enable replies on the thread'"
                     @toggle="toggleReplies"
                   />
                 </div>
