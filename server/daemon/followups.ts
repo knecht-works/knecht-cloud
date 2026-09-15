@@ -7,7 +7,7 @@ import { createContext } from '../workflows/context'
 import { getProject, getRun, getSessionRow } from '../utils/entities'
 import { createIssueComment } from '../utils/github-app'
 import { sessionCheckoutDir } from '../utils/storage'
-import { agentRepliedSince, withSessionLinks } from '../utils/sessions'
+import { agentRepliedSince, sessionObject, withSessionLinks } from '../utils/sessions'
 import { currentBranch } from './git'
 import { appendLog, runLogBytes } from './runner'
 import { copyIntoSandbox, spawnInSandbox, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
@@ -149,10 +149,11 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
 }
 
 async function postMentionReply(followup: Followup, session: Session, project: Project, text: string): Promise<void> {
-  if (followup.origin !== 'mention' || !session.objectNumber) return
+  const object = sessionObject(session)
+  if (followup.origin !== 'mention' || !object || object.integration !== 'github') return
   if (agentRepliedSince(session.id, followup.startedAt ?? followup.createdAt)) return
   try {
-    await createIssueComment(project.owner, project.name, session.objectNumber, withSessionLinks(text, session.id))
+    await createIssueComment(project.owner, project.name, Number(object.key), withSessionLinks(text, session.id))
   }
   catch (e) {
     appendLog(followup.runId, `\nCould not post the reply on the thread: ${(e as Error).message}\n`)

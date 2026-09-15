@@ -30,7 +30,7 @@ const { startFollowup } = await import('../../server/daemon/followups')
 function objectFollowup(origin: 'mention' | 'dashboard') {
   const project = makeProject()
   const run = makeRun(project, [], { status: 'success' })
-  db.update(schema.sessions).set({ objectKind: 'issue', objectNumber: 5 }).where(eq(schema.sessions.id, run.sessionId)).run()
+  db.update(schema.sessions).set({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5' }).where(eq(schema.sessions.id, run.sessionId)).run()
   const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'more', origin }).returning().get()
   return { run, followup }
 }

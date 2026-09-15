@@ -4,13 +4,14 @@ import type { H3Event } from 'h3'
 import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../db'
+import type { Session } from '../db/schema'
 import { currentBranch, pushBranch } from '../daemon/git'
 import { appendLog } from '../daemon/runner'
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { getProject, getSessionRow, getWorkflowRow } from '../utils/entities'
 import { addIssueLabels, createIssueComment, createPullRequest, getInstallationToken, listRepoLabels, removeIssueLabel } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
-import { recordAgentReply, withSessionLinks } from '../utils/sessions'
+import { describeObject, recordAgentReply, sessionObject, withSessionLinks } from '../utils/sessions'
 import { sessionCheckoutDir } from '../utils/storage'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
@@ -164,14 +165,12 @@ class BridgeError extends Error {}
 
 // The session's object, or a clear refusal: the reply ops only exist on
 // sessions that belong to an issue or PR.
-function requireObject(session: { objectKind: string | null, objectNumber: number | null }): { number: number, label: string } {
-  if (!session.objectKind || !session.objectNumber) {
+function requireObject(session: Session): { number: number, label: string } {
+  const object = sessionObject(session)
+  if (!object || object.integration !== 'github') {
     throw new BridgeError('this session does not belong to an issue or pull request, so there is no thread to post on')
   }
-  return {
-    number: session.objectNumber,
-    label: `${session.objectKind === 'issue' ? 'issue' : 'pull request'} #${session.objectNumber}`,
-  }
+  return { number: Number(object.key), label: describeObject(object) }
 }
 
 // The workflow-level opt-out (workflows.repliesEnabled): enforced against
