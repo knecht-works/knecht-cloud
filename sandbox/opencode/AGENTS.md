@@ -66,6 +66,10 @@ When this session belongs to a Jira ticket or a GitHub issue or pull request
 (the environment variable `KNECHT_OBJECT` names it), extra tools talk to that
 thread:
 
+- `knecht-object` prints its current state: description, status, labels and
+  the newest comments. Run it before you work on a mention or a follow-up
+  that refers to "this" without saying what; it is always live, so run it
+  again when you need the latest comments.
 - `knecht-reply "<text>"` posts a comment on it, as Knecht. Markdown works.
   Use it when the step asks you to answer, ask back, or report on the thread;
   keep replies short and concrete, written for the person who opened it.

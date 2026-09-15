@@ -47,7 +47,7 @@ async function stageAgentTools(): Promise<void> {
   const tools = toolsDir()
   await mkdir(tools, { recursive: true })
 
-  for (const name of ['knecht-git', 'knecht-reply', 'knecht-label', 'knecht-status', 'knecht-bridge-lib', 'ddev-shim', 'knecht-forward']) {
+  for (const name of ['knecht-git', 'knecht-reply', 'knecht-label', 'knecht-status', 'knecht-object', 'knecht-bridge-lib', 'ddev-shim', 'knecht-forward']) {
     const content = await readSandboxAsset(name)
     if (!content) continue
     if (content.subarray(0, 2).toString() !== '#!') {

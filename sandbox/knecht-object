@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Print the current state of the session's ticket, issue or pull request:
+# description, facts and the newest comments, fetched live by the Knecht host
+# (server/routes/agent-bridge.post.ts). See sandbox/opencode/AGENTS.md.
+set -euo pipefail
+
+LIB=/usr/local/lib/knecht-bridge-lib
+[ -f "$LIB" ] || { echo "knecht-object is not available: bridge lib not mounted" >&2; exit 1; }
+. "$LIB"
+
+require_bridge knecht-object
+
+bridge_post '{"op":"context"}'

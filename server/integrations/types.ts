@@ -64,6 +64,8 @@ export interface Integration {
   objects: {
     kinds: readonly ObjectKind[]
     describe(object: SessionObject): string
+    // Live state as markdown for the agent (`knecht-object`): description, facts, newest comments.
+    context(project: Project, object: SessionObject): Promise<string>
   }
 
   mentions: {
