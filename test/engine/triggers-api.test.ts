@@ -61,14 +61,14 @@ describe('POST /api/triggers', () => {
 
   it('describes github triggers by event, branches and labels', async () => {
     const wf = makeWorkflow()
-    const pr = await post({ source: 'github', workflowId: wf.id, projectIds: [], webhookEvent: 'pull_request', webhookBranches: ['main', 'staging'] })
+    const pr = await post({ source: 'github', workflowId: wf.id, projectIds: [], config: { event: 'pull_request', branches: ['main', 'staging'] } })
     expect(pr.json).toMatchObject({ event: 'On pull_request · base main, staging' })
-    const issues = await post({ source: 'github', workflowId: wf.id, projectIds: [], webhookEvent: 'issues', issueActions: ['opened', 'labeled'], issueLabel: 'knecht' })
+    const issues = await post({ source: 'github', workflowId: wf.id, projectIds: [], config: { event: 'issues', issueActions: ['opened', 'labeled'], issueLabel: 'knecht' } })
     expect(issues.json).toMatchObject({ event: 'On issues · opened, label "knecht"' })
   })
 
   it('requires a label to trigger on labeled issues', async () => {
-    const res = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [], webhookEvent: 'issues', issueActions: ['labeled'] })
+    const res = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [], config: { event: 'issues', issueActions: ['labeled'] } })
     expect(res.status).toBe(400)
     expect(res.json).toMatchObject({ statusMessage: 'A label is required to trigger on "labeled"' })
   })
@@ -97,20 +97,20 @@ describe('PATCH /api/triggers/:id', () => {
     expect(row(id).nextFireAt).not.toBeNull()
   })
 
-  it('switching a github trigger to a schedule clears the github fields', async () => {
-    const created = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [], webhookEvent: 'issues', issueActions: ['labeled'], issueLabel: 'knecht' })
+  it('switching a github trigger to a schedule clears the github config', async () => {
+    const created = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [], config: { event: 'issues', issueActions: ['labeled'], issueLabel: 'knecht' } })
     const id = (created.json as { id: number }).id
     const res = await update(id, { source: 'schedule', cron: '*/15 * * * *' })
     expect(res.status).toBe(200)
-    expect(res.json).toMatchObject({ source: 'schedule', endpoint: '*/15 * * * *', webhookEvent: null })
+    expect(res.json).toMatchObject({ source: 'schedule', endpoint: '*/15 * * * *', config: {} })
   })
 
   it('switching a schedule to github clears the cron and validates the label', async () => {
     const created = await post({ source: 'schedule', workflowId: makeWorkflow().id, projectIds: [], cron: '0 9 * * *' })
     const id = (created.json as { id: number }).id
-    const bad = await update(id, { source: 'github', webhookEvent: 'issues', issueActions: ['labeled'] })
+    const bad = await update(id, { source: 'github', config: { event: 'issues', issueActions: ['labeled'] } })
     expect(bad.status).toBe(400)
-    const res = await update(id, { source: 'github', webhookEvent: 'issues', issueActions: ['labeled'], issueLabel: 'go' })
+    const res = await update(id, { source: 'github', config: { event: 'issues', issueActions: ['labeled'], issueLabel: 'go' } })
     expect(res.json).toMatchObject({ source: 'github', endpoint: null, event: 'On issues · label "go"' })
     expect(row(id)).toMatchObject({ cron: null, nextFireAt: null })
   })
@@ -122,6 +122,13 @@ describe('PATCH /api/triggers/:id', () => {
     const project = makeProject({ name: 'other' })
     const res = await update(id, { workflowId: wf.id, projectIds: [project.id] })
     expect(res.json).toMatchObject({ workflowId: wf.id, workflowName: wf.name, projects: ['other'] })
+  })
+
+  it('keeps the config when only projects change', async () => {
+    const created = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [], config: { event: 'issues', issueActions: ['labeled'], issueLabel: 'knecht' } })
+    const id = (created.json as { id: number }).id
+    const res = await update(id, { projectIds: [makeProject().id] })
+    expect(res.json).toMatchObject({ event: 'On issues · label "knecht"' })
   })
 
   it('answers 404 for an unknown trigger', async () => {

@@ -40,7 +40,7 @@ const groups = computed(() => [
     label: 'Triggers',
     items: (triggers.value ?? []).map(t => ({
       label: t.event,
-      suffix: `${t.kind} · ${t.workflowName}`,
+      suffix: `${triggerSourceMeta(t.source).label} · ${t.workflowName}`,
       icon: 'i-lucide-zap',
       to: `/workflows/${t.workflowId}`,
       onSelect: close,
