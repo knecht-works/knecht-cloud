@@ -1,3 +1,4 @@
+import { INTEGRATIONS } from '../integrations'
 import { addMember, isMember, memberCount } from '../utils/members'
 
 export default defineEventHandler(async (event) => {
@@ -12,7 +13,7 @@ export default defineEventHandler(async (event) => {
 
   if (pathname.startsWith('/api/_setup/')) return
 
-  if (pathname === '/api/github/webhook') return
+  if (INTEGRATIONS.some(i => pathname === `/api/${i.id}/webhook`)) return
 
   const { user } = await requireUserSession(event)
 

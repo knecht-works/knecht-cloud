@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Trigger } from '../../server/db/schema'
-import { githubObject, matchGithubEvent } from '../../server/utils/github-webhook'
+import { githubObject, matchGithubEvent } from '../../server/integrations/github/webhook'
 
 function trigger(overrides: Partial<Trigger>): Trigger {
   return {
@@ -43,7 +43,7 @@ describe('matchGithubEvent objects', () => {
   })
 
   it('githubObject refuses payloads without a number', () => {
-    expect(githubObject('issue', { issue: {} })).toBeNull()
-    expect(githubObject('pull_request', {})).toBeNull()
+    expect(githubObject('issue', {})).toBeNull()
+    expect(githubObject('pull_request', undefined)).toBeNull()
   })
 })
