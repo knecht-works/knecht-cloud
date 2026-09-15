@@ -426,7 +426,7 @@ async function toggleMentions() {
             <ul class="mt-2 space-y-1 text-2xs leading-relaxed text-dimmed">
               <li>
                 <span class="text-muted">GitHub:</span>
-                <span class="k-mono text-toned">@knecht-works &lt;instruction&gt;</span> on an issue or pull request.
+                <code>@knecht-works &lt;instruction&gt;</code> on an issue or pull request.
               </li>
               <li v-if="jira?.configured">
                 <span class="text-muted">Jira:</span>
