@@ -55,10 +55,12 @@ function makeGithubTrigger(projectIds: number[], opts: GithubTriggerOpts = {}) {
     workflowId: makeWorkflow().id,
     projectIds,
     active: opts.active ?? true,
-    webhookEvent: opts.event ?? 'push',
-    webhookBranches: opts.branches ?? [],
-    issueActions: opts.issueActions ?? ['opened'],
-    issueLabel: opts.issueLabel ?? null,
+    config: {
+      event: opts.event ?? 'push',
+      branches: opts.branches ?? [],
+      issueActions: opts.issueActions ?? ['opened'],
+      issueLabel: opts.issueLabel ?? null,
+    },
   }).returning().get()
 }
 

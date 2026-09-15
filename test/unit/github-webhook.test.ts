@@ -1,20 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { Trigger } from '../../server/db/schema'
-import { githubObject, matchGithubEvent } from '../../server/integrations/github/webhook'
+import { githubObject, matchGithubEvent, type GithubTriggerConfig } from '../../server/integrations/github/webhook'
 
-function trigger(overrides: Partial<Trigger>): Trigger {
-  return {
-    webhookEvent: 'push',
-    webhookBranches: [],
-    issueActions: ['opened'],
-    issueLabel: null,
-    ...overrides,
-  } as Trigger
+function trigger(overrides: Partial<GithubTriggerConfig>): GithubTriggerConfig {
+  return { event: 'push', branches: [], issueActions: ['opened'], issueLabel: null, ...overrides }
 }
 
 describe('matchGithubEvent objects', () => {
   it('a push matches with no object', () => {
-    const match = matchGithubEvent(trigger({ webhookEvent: 'push' }), 'push', {
+    const match = matchGithubEvent(trigger({ event: 'push' }), 'push', {
       ref: 'refs/heads/main',
       after: 'abcdef1234',
       head_commit: { message: 'fix', url: 'https://x/c' },
@@ -25,7 +18,7 @@ describe('matchGithubEvent objects', () => {
   })
 
   it('a pull_request delivery carries the PR as object', () => {
-    const match = matchGithubEvent(trigger({ webhookEvent: 'pull_request' }), 'pull_request', {
+    const match = matchGithubEvent(trigger({ event: 'pull_request' }), 'pull_request', {
       action: 'synchronize',
       pull_request: { number: 42, title: 'Add feature', html_url: 'https://x/pull/42', head: { ref: 'feat' }, base: { ref: 'main' }, state: 'open', user: { login: 'sam' }, assignees: [{ login: 'ann' }, { login: 'bob' }], labels: [{ name: 'bug' }, { name: 'ui' }] },
     })
@@ -34,7 +27,7 @@ describe('matchGithubEvent objects', () => {
   })
 
   it('an issues delivery carries the issue as object', () => {
-    const match = matchGithubEvent(trigger({ webhookEvent: 'issues' }), 'issues', {
+    const match = matchGithubEvent(trigger({ event: 'issues' }), 'issues', {
       action: 'opened',
       issue: { number: 7, title: 'Broken', body: 'boom', html_url: 'https://x/issues/7' },
     })

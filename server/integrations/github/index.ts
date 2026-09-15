@@ -5,7 +5,7 @@ import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
 import { isMember } from '../../utils/members'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import { githubObject, matchGithubEvent, verifyGithubSignature, type GithubPayload } from './webhook'
+import { githubEventLabel, githubObject, githubTriggerConfigSchema, matchGithubEvent, verifyGithubSignature, type GithubPayload, type GithubTriggerConfig } from './webhook'
 
 const MENTION_HANDLE = 'knecht-works'
 
@@ -44,6 +44,11 @@ export const github: Integration = {
 
   isConfigured: () => !!githubAppCredentials()?.webhookSecret,
 
+  trigger: {
+    configSchema: githubTriggerConfigSchema,
+    eventLabel: config => githubEventLabel(config as GithubTriggerConfig),
+  },
+
   webhook: {
     verify(raw, header) {
       const secret = githubAppCredentials()?.webhookSecret
@@ -78,7 +83,7 @@ export const github: Integration = {
 
     match(trigger, delivery) {
       if (!delivery.event) return null
-      return matchGithubEvent(trigger, delivery.event.name, delivery.event.payload as GithubPayload)
+      return matchGithubEvent(trigger.config as GithubTriggerConfig, delivery.event.name, delivery.event.payload as GithubPayload)
     },
   },
 

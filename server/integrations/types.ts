@@ -1,3 +1,4 @@
+import type { z } from 'zod'
 import type { Project, Run, Session, Trigger } from '../db/schema'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import type { TriggerInputs } from '../utils/inputs'
@@ -41,6 +42,12 @@ export interface TriggerMatch {
 export interface Integration {
   id: IntegrationId
   isConfigured(): boolean
+
+  trigger: {
+    configSchema: z.ZodType<Record<string, unknown>>
+    eventLabel(config: Record<string, unknown>): string
+    validateProjects?(projectIds: number[]): string | null
+  }
 
   webhook: {
     verify(raw: string, headers: WebhookHeaders): boolean

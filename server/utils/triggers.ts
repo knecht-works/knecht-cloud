@@ -1,72 +1,28 @@
 import { eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
-import type { IssueAction, Trigger } from '../db/schema'
+import type { Trigger } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import { getWorkflowRow } from './entities'
 import { isGithubAppConfigured } from './github-credentials'
 import { emptyInputs, type TriggerInputs } from './inputs'
 import { resolveSession, type SessionObject } from './sessions'
-import { getTriggerSource } from './trigger-sources'
+import { getTriggerSource, type TriggerSource } from './trigger-sources'
 
-export type TriggerSource = 'schedule' | 'github' | 'manual' | 'jira'
-export type TriggerKind = 'Cron' | 'Webhook' | 'Manual' | 'Jira'
+export type { TriggerSource } from './trigger-sources'
 
 export interface TriggerSummary {
   id: number
   source: TriggerSource
   event: string
-  kind: TriggerKind
   workflowId: number
   workflowName: string
   projects: string[]
   projectIds: number[]
   endpoint: string | null
-  webhookEvent: string | null
-  webhookBranches: string[]
-  issueActions: IssueAction[]
-  issueLabel: string | null
   config: Record<string, unknown>
   active: boolean
   lastFiredAt: number | null
   firedCount: number
-}
-
-const KIND: Record<TriggerSource, TriggerKind> = {
-  schedule: 'Cron',
-  github: 'Webhook',
-  manual: 'Manual',
-  jira: 'Jira',
-}
-
-function relFuture(date: Date): string {
-  const mins = Math.round((date.getTime() - Date.now()) / 60_000)
-  if (mins <= 0) return 'now'
-  if (mins < 60) return `in ${mins}m`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `in ${hours}h`
-  return `in ${Math.round(hours / 24)}d`
-}
-
-function eventLabel(t: Trigger): string {
-  if (t.source === 'schedule') {
-    if (!t.active || !t.nextFireAt) return 'Paused'
-    return `Next run ${relFuture(t.nextFireAt)}`
-  }
-  if (t.source === 'github') return githubEventLabel(t)
-  const def = getTriggerSource(t.source)
-  if (def) return def.eventLabel(t)
-  return 'Run on demand'
-}
-
-function githubEventLabel(t: Trigger): string {
-  const event = t.webhookEvent ?? 'push'
-  if (event === 'issues') {
-    const parts = t.issueActions.map(a => (a === 'labeled' ? `label "${t.issueLabel ?? '?'}"` : a))
-    return `On issues · ${parts.join(', ')}`
-  }
-  if (!t.webhookBranches.length) return `On ${event}`
-  const prefix = event === 'pull_request' ? 'base ' : ''
-  return `On ${event} · ${prefix}${t.webhookBranches.join(', ')}`
 }
 
 function endpoint(t: Trigger): string | null {
@@ -101,17 +57,12 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
   return rows.map(t => ({
     id: t.id,
     source: t.source,
-    kind: KIND[t.source],
-    event: eventLabel(t),
+    event: getTriggerSource(t.source)?.eventLabel(t) ?? '',
     workflowId: t.workflowId,
     workflowName: workflowNames.get(t.workflowId) ?? '',
     projects: t.projectIds.map(id => names.get(id)).filter((n): n is string => !!n),
     projectIds: t.projectIds,
     endpoint: endpoint(t),
-    webhookEvent: t.webhookEvent,
-    webhookBranches: t.webhookBranches,
-    issueActions: t.issueActions,
-    issueLabel: t.issueLabel,
     config: t.config,
     active: t.active,
     lastFiredAt: t.lastFiredAt ? Math.floor(t.lastFiredAt.getTime() / 1000) : null,
