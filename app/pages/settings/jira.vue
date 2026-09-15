@@ -6,9 +6,25 @@ interface JiraConnection {
   siteUrl: string | null
   email: string | null
   accountName: string | null
+  accountId: string | null
   apiTokenPreview: string | null
+  webhookUrl: string | null
+  webhookSecret: string | null
+  webhookEvents: string[]
 }
 const { data: jira } = useFetch<JiraConnection>('/api/jira/connection', { lazy: true })
+
+const secretShown = ref(false)
+async function copy(label: string, text: string | null) {
+  if (!text) return
+  try {
+    await copyText(text)
+    toast.add({ title: `${label} copied`, color: 'success' })
+  }
+  catch {
+    toast.add({ title: `Could not copy the ${label.toLowerCase()}`, color: 'error' })
+  }
+}
 
 const siteUrl = ref('')
 const email = ref('')
@@ -89,9 +105,10 @@ async function disconnect() {
     </template>
 
     <p class="mb-5 max-w-3xl text-2sm leading-relaxed text-muted">
-      Jira triggers watch tickets (a label being added, a status being reached) and fire
-      workflows with the ticket as <span class="k-mono text-xs text-toned">{{ '\{\{ inputs.* \}\}' }}</span>;
-      finished runs comment the pull request link back on the ticket. Connect once with an
+      Jira tickets start workflows through a webhook (created, labeled, moved to a status, or
+      assigned to Knecht) with the ticket as <span class="k-mono text-xs text-toned">{{ '\{\{ inputs.* \}\}' }}</span>;
+      the agent replies, labels and transitions the ticket, mentions of the account create
+      follow-ups, and finished runs report their pull request on the ticket. Connect once with an
       <a
         href="https://id.atlassian.com/manage-profile/security/api-tokens"
         target="_blank"
@@ -185,5 +202,71 @@ async function disconnect() {
     >
       {{ connectError }}
     </p>
+
+    <div
+      v-if="jira?.configured"
+      class="mt-7 border-t border-muted pt-6"
+    >
+      <span class="k-label">Webhook</span>
+      <p class="mt-2 max-w-3xl text-2xs leading-relaxed text-muted">
+        Register this webhook once in Jira (Settings → System → WebHooks, as a Jira admin) with the
+        secret below and the listed events; Knecht verifies every delivery with it.
+        Knecht only reacts to tickets of Jira projects that a project links to in its settings.
+      </p>
+
+      <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div>
+          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">URL</span>
+          <div class="mt-2 flex items-center gap-2">
+            <code class="k-mono min-w-0 flex-1 truncate rounded-md border border-muted bg-(--surface-muted) px-3 py-2 text-xs text-toned">{{ jira.webhookUrl }}</code>
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-copy"
+              aria-label="Copy webhook URL"
+              @click="copy('Webhook URL', jira.webhookUrl)"
+            />
+          </div>
+        </div>
+        <div>
+          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Secret</span>
+          <div class="mt-2 flex items-center gap-2">
+            <code class="k-mono min-w-0 flex-1 truncate rounded-md border border-muted bg-(--surface-muted) px-3 py-2 text-xs text-toned">{{ secretShown ? jira.webhookSecret : '•'.repeat(24) }}</code>
+            <UButton
+              color="neutral"
+              variant="outline"
+              :icon="secretShown ? 'i-lucide-eye-off' : 'i-lucide-eye'"
+              :aria-label="secretShown ? 'Hide secret' : 'Reveal secret'"
+              @click="() => { secretShown = !secretShown }"
+            />
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-copy"
+              aria-label="Copy webhook secret"
+              @click="copy('Webhook secret', jira.webhookSecret)"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Events</span>
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          <span
+            v-for="event in jira.webhookEvents"
+            :key="event"
+            class="k-mono rounded-full border border-default px-2.5 py-1 text-2xs text-muted"
+          >{{ event }}</span>
+        </div>
+      </div>
+
+      <p class="mt-4 text-2xs text-dimmed">
+        Connected as {{ jira.accountName }}<span
+          v-if="jira.accountId"
+          class="k-mono"
+        > ({{ jira.accountId }})</span>. Mention this account in a ticket comment to give Knecht a follow-up.
+      </p>
+    </div>
   </KPanel>
 </template>

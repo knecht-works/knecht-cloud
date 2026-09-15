@@ -219,6 +219,34 @@ async function setStarter(value: number | null) {
     toastError('Failed to save', e)
   }
 }
+const { data: jira } = useFetch<{ configured: boolean }>('/api/jira/connection', { lazy: true })
+const jiraProjects = ref<{ key: string, name: string }[]>([])
+watch(() => jira.value?.configured, async (configured) => {
+  if (!configured) return
+  try {
+    jiraProjects.value = await $fetch<{ key: string, name: string }[]>('/api/jira/projects')
+  }
+  catch {
+    jiraProjects.value = []
+  }
+}, { immediate: true })
+const jiraItems = computed(() => [
+  { label: 'Not linked', value: null as string | null },
+  ...jiraProjects.value.map(p => ({ label: `${p.key} · ${p.name}`, value: p.key as string | null })),
+])
+const jiraProjectKey = ref<string | null>(project.value?.jiraProjectKey ?? null)
+async function setJiraProject(key: string | null) {
+  const previous = jiraProjectKey.value
+  jiraProjectKey.value = key
+  try {
+    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { jiraProjectKey: key } })
+  }
+  catch (e) {
+    jiraProjectKey.value = previous
+    toastError('Failed to link the Jira project', e)
+  }
+}
+
 const mentionsEnabled = ref(project.value?.mentionsEnabled ?? true)
 const mentionsAdvancedOpen = ref(false)
 async function toggleMentions() {
@@ -440,6 +468,30 @@ async function toggleMentions() {
                 />
               </div>
             </div>
+          </div>
+        </KPanel>
+
+        <KPanel
+          v-if="jira?.configured"
+          title="Jira"
+          icon="i-simple-icons-jira"
+        >
+          <div class="flex flex-col">
+            <p class="text-2xs leading-relaxed text-dimmed">
+              Tickets of the linked Jira project can start this repo's workflows, get Knecht's
+              replies, and turn mentions into follow-ups. One Jira project per repository.
+            </p>
+            <div class="k-label mb-1.5 mt-3">
+              Jira project
+            </div>
+            <USelectMenu
+              :model-value="jiraItems.find(i => i.value === jiraProjectKey)"
+              :items="jiraItems"
+              placeholder="Not linked"
+              icon="i-simple-icons-jira"
+              class="w-full"
+              @update:model-value="(item: { value: string | null } | undefined) => setJiraProject(item?.value ?? null)"
+            />
           </div>
         </KPanel>
       </div>
