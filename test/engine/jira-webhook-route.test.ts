@@ -145,11 +145,30 @@ describe('jira webhook route', () => {
 
     await deliver(updated(project, [{ field: 'labels', fromString: 'knecht', toString: 'knecht bug' }]))
     await deliver(updated(project, [{ field: 'labels', fromString: '', toString: 'other' }]))
-    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) })
     expect(runsOf(trigger.id)).toHaveLength(0)
 
     await deliver(updated(project, [{ field: 'labels', fromString: 'bug', toString: 'bug knecht' }]))
     expect(runsOf(trigger.id)).toHaveLength(1)
+  })
+
+  it('fires on a ticket created with the label, the status or the assignment already set', async () => {
+    const project = makeJiraProject()
+    const labeled = makeJiraTrigger(project.id, { event: 'labeled', label: 'knecht' })
+    const transitioned = makeJiraTrigger(project.id, { event: 'transitioned', status: 'In Progress' })
+    const assigned = makeJiraTrigger(project.id, { event: 'assigned' })
+
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project, { labels: ['bug'] }) })
+    expect(runsOf(labeled.id)).toHaveLength(0)
+    expect(runsOf(transitioned.id)).toHaveLength(0)
+    expect(runsOf(assigned.id)).toHaveLength(0)
+
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project, {
+      status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } },
+      assignee: { accountId: KNECHT_ACCOUNT, displayName: 'Knecht' },
+    }) })
+    expect(runsOf(labeled.id)).toHaveLength(1)
+    expect(runsOf(transitioned.id)).toHaveLength(1)
+    expect(runsOf(assigned.id)).toHaveLength(1)
   })
 
   it('fires on a transition to the configured status', async () => {
