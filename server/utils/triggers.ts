@@ -4,6 +4,7 @@ import type { IssueAction, Trigger } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import { getWorkflowRow } from './entities'
 import { isGithubAppConfigured } from './github-credentials'
+import { emptyInputs, type TriggerInputs } from './inputs'
 import { resolveSession, type SessionObject } from './sessions'
 import { getTriggerSource } from './trigger-sources'
 
@@ -121,7 +122,7 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
 export interface FireOverrides {
   projectIds?: number[]
   branch?: string | null
-  inputs?: Record<string, string>
+  inputs?: TriggerInputs
   object?: SessionObject | null
 }
 
@@ -147,7 +148,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
         trigger: t.source,
         triggerId: t.id,
         branch: session.branch ?? opts.branch ?? project.defaultBranch,
-        inputs: opts.inputs ?? null,
+        inputs: opts.inputs ?? emptyInputs(t.source),
       })
       .returning()
       .get()

@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { getJiraIssue, searchJiraIssueKeys } from '../jira'
 import { isJiraConfigured } from '../jira-credentials'
+import { emptyInputs } from '../inputs'
 import type { TriggerSourceDef, PollMatch } from './index'
 
 const configSchema = z.object({
@@ -61,7 +62,7 @@ export const jiraSource: TriggerSourceDef<'jira'> = {
       const issue = await getJiraIssue(key)
       matches.push({
         inputs: {
-          event: 'jira',
+          ...emptyInputs('jira'),
           identifier: issue.key,
           title: issue.title,
           body: issue.body,
