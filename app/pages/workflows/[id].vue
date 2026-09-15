@@ -923,7 +923,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                       May the agent answer on the ticket, issue or PR?
                     </div>
                     <div class="k-mono text-2xs text-dimmed">
-                      Comments, labels and status changes on the thread this run belongs to, and the result report on a Jira ticket.
+                      Comments, labels and status changes on the thread this run belongs to, and the result report on a ticket.
                     </div>
                   </div>
                   <KToggle

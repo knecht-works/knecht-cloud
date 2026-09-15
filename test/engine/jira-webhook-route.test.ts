@@ -25,6 +25,7 @@ vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 const { db, schema } = await import('../../server/db')
 const { jiraConnectionStatus, jiraCredentials, saveJiraCredentials } = await import('../../server/integrations/jira/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
+const { setProjectLink } = await import('../../server/utils/project-links')
 const handler = (await import('../../server/api/jira/webhook.post')).default
 
 const KNECHT_ACCOUNT = 'knecht-account-id'
@@ -48,7 +49,10 @@ function makeWorkflow() {
 
 let keyN = 0
 function makeJiraProject() {
-  return makeProject({ jiraProjectKey: `P${++keyN}` })
+  const project = makeProject()
+  const jiraProjectKey = `P${++keyN}`
+  setProjectLink(project.id, 'jira', jiraProjectKey)
+  return { ...project, jiraProjectKey }
 }
 
 function makeJiraTrigger(projectId: number, config: Record<string, unknown>) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const props = defineProps<{ projectKey: string | null }>()
+const props = defineProps<{ linkKey: string | null }>()
 const config = defineModel<Record<string, unknown>>('config', { required: true })
 const valid = defineModel<boolean>('valid', { default: false })
 
@@ -14,7 +14,7 @@ const status = ref(initial.status ?? '')
 const issueType = ref(initial.issueType ?? '')
 const statuses = ref<string[]>([])
 
-watch([() => props.projectKey, event], async ([key, ev]) => {
+watch([() => props.linkKey, event], async ([key, ev]) => {
   if (!key || ev !== 'transitioned') return
   try {
     statuses.value = await $fetch<string[]>('/api/jira/statuses', { query: { project: key } })
@@ -79,8 +79,8 @@ watch([event, label, status, issueType, looksValid], () => {
           v-else-if="event === 'transitioned'"
           v-model="status"
           :items="statuses"
-          :disabled="!projectKey"
-          :placeholder="projectKey ? 'Select a status…' : 'Pick a project first'"
+          :disabled="!linkKey"
+          :placeholder="linkKey ? 'Select a status…' : 'Pick a project first'"
           class="mt-2 w-full"
         />
         <p

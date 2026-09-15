@@ -1,11 +1,9 @@
 import { z } from 'zod'
 import type { Trigger } from '../../db/schema'
-import { INTEGRATIONS } from '../../integrations'
-
-// A new source also needs a KTriggerForm<Source>.vue component wired into
-// KTriggerCreateModal.vue and a TRIGGER_SOURCE_META entry in app/utils/dashboard.ts.
-
-export type TriggerSource = 'schedule' | 'github' | 'manual' | 'jira'
+import type { TriggerSource } from '../../../shared/utils/integrations'
+import { INTEGRATIONS, type Integration } from '../../integrations'
+import { getProject } from '../entities'
+import { projectLinks } from '../project-links'
 
 export interface TriggerSourceDef {
   source: TriggerSource
@@ -39,17 +37,27 @@ const manual: TriggerSourceDef = {
   eventLabel: () => 'Run on demand',
 }
 
-export const TRIGGER_SOURCES: readonly TriggerSourceDef[] = [
+function validateLinkedProjects(integration: Integration, projectIds: number[]): string | null {
+  const link = integration.link
+  if (!link) return null
+  if (projectIds.length !== 1) return `A ${integration.name} trigger fires for exactly one project`
+  const project = getProject(projectIds[0]!)
+  if (!project) return 'Unknown project'
+  if (!projectLinks(project.id)[integration.id]) return `Link ${project.fullName} to a ${link.label} first (project settings)`
+  return null
+}
+
+export const TRIGGER_SOURCE_DEFS: readonly TriggerSourceDef[] = [
   schedule,
   manual,
   ...INTEGRATIONS.map((i): TriggerSourceDef => ({
     source: i.id,
     configSchema: i.trigger.configSchema,
     eventLabel: t => i.trigger.eventLabel(t.config),
-    validateProjects: i.trigger.validateProjects,
+    validateProjects: ids => validateLinkedProjects(i, ids),
   })),
 ]
 
 export function getTriggerSource(source: string): TriggerSourceDef | undefined {
-  return TRIGGER_SOURCES.find(def => def.source === source)
+  return TRIGGER_SOURCE_DEFS.find(def => def.source === source)
 }

@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { TRIGGER_SOURCES } from '../../../shared/utils/integrations'
 import { db, schema } from '../../db'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
@@ -9,7 +10,7 @@ import type { NewTrigger } from '../../db/schema'
 const bodySchema = z.object({
   active: z.boolean().optional(),
   workflowId: z.number().int().optional(),
-  source: z.enum(['schedule', 'github', 'manual', 'jira']).optional(),
+  source: z.enum(TRIGGER_SOURCES).optional(),
   projectIds: z.array(z.number().int()).optional(),
   cron: z.string().min(1).optional(),
   config: z.record(z.string(), z.unknown()).optional(),

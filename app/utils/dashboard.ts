@@ -1,5 +1,6 @@
 import type { Step } from '#shared/utils/workflow'
-import type { IntegrationId, ObjectKind } from '#shared/utils/integrations'
+import { INTEGRATION_IDS, type IntegrationId, type ObjectKind } from '#shared/utils/integrations'
+import { INTEGRATION_UI, type SessionObjectMeta } from './integrations'
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
 
@@ -40,9 +41,11 @@ interface TriggerSourceMeta {
 const TRIGGER_SOURCE_META: Record<string, TriggerSourceMeta> = {
   manual: { icon: 'i-lucide-mouse-pointer-click', label: 'Manual', color: 'var(--text-primary)' },
   schedule: { icon: 'i-lucide-clock', label: 'Schedule', color: 'var(--accent-orange)' },
-  github: { icon: 'i-simple-icons-github', label: 'GitHub', color: 'var(--text-toned)' },
-  jira: { icon: 'i-simple-icons-jira', label: 'Jira', color: '#579dff' },
   mention: { icon: 'i-lucide-at-sign', label: 'Mention', color: 'var(--accent-violet)' },
+  ...Object.fromEntries(INTEGRATION_IDS.map((id) => {
+    const { icon, label, color } = INTEGRATION_UI[id]
+    return [id, { icon, label, color }]
+  })),
 }
 
 export function triggerSourceMeta(source: string): TriggerSourceMeta {
@@ -51,25 +54,10 @@ export function triggerSourceMeta(source: string): TriggerSourceMeta {
 
 export type SessionObjectKind = ObjectKind
 
-interface SessionObjectMeta {
-  icon: string
-  closedIcon: string
-  label: string
-  color: string
-  // Rendered before the key: "#12" for GitHub, "PROJ-12" for Jira.
-  prefix: string
-}
-
-const SESSION_OBJECT_META: Record<string, SessionObjectMeta> = {
-  'github:issue': { icon: 'i-lucide-circle-dot', closedIcon: 'i-lucide-circle-check', label: 'Issue', color: 'var(--text-primary)', prefix: '#' },
-  'github:pull_request': { icon: 'i-lucide-git-pull-request', closedIcon: 'i-lucide-git-pull-request-closed', label: 'PR', color: 'var(--accent-violet)', prefix: '#' },
-  'jira:issue': { icon: 'i-simple-icons-jira', closedIcon: 'i-lucide-circle-check', label: 'Ticket', color: '#579dff', prefix: '' },
-}
-
 const UNKNOWN_OBJECT: SessionObjectMeta = { icon: 'i-lucide-circle-dot', closedIcon: 'i-lucide-circle-check', label: 'Object', color: 'var(--text-toned)', prefix: '' }
 
 export function sessionObjectMeta(integration: IntegrationId, kind: SessionObjectKind): SessionObjectMeta {
-  return SESSION_OBJECT_META[`${integration}:${kind}`] ?? UNKNOWN_OBJECT
+  return INTEGRATION_UI[integration]?.objects[kind] ?? UNKNOWN_OBJECT
 }
 
 interface SessionRunRow {
