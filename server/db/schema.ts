@@ -316,10 +316,6 @@ export const triggers = sqliteTable('triggers', {
     .$type<Record<string, unknown>>()
     .notNull()
     .default(sql`'{}'`),
-  state: text('state', { mode: 'json' })
-    .$type<Record<string, unknown>>()
-    .notNull()
-    .default(sql`'{}'`),
 
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   lastFiredAt: integer('last_fired_at', { mode: 'timestamp' }),

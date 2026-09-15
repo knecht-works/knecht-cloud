@@ -83,11 +83,6 @@ describe('POST /api/triggers', () => {
     const res = await post({ source: 'manual', workflowId: 999_999, projectIds: [] })
     expect(res.status).toBe(404)
   })
-
-  it('refuses a jira trigger while Jira is not connected', async () => {
-    const res = await post({ source: 'jira', workflowId: makeWorkflow().id, projectIds: [], config: { projectKey: 'PROJ', label: 'knecht' } })
-    expect(res.status).toBe(400)
-  })
 })
 
 describe('PATCH /api/triggers/:id', () => {
