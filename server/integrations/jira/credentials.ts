@@ -17,6 +17,8 @@ export interface JiraCredentials {
 
 export const JIRA_WEBHOOK_EVENTS = ['jira:issue_created', 'jira:issue_updated', 'jira:issue_deleted', 'comment_created'] as const
 
+export type JiraRejectReason = 'signature' | 'empty-body' | 'no-project'
+
 export interface JiraConnectionStatus {
   configured: boolean
   siteUrl: string | null
@@ -27,6 +29,8 @@ export interface JiraConnectionStatus {
   webhookUrl: string | null
   webhookSecret: string | null
   webhookEvents: readonly string[]
+  lastDelivery: { at: number, summary: string } | null
+  lastRejected: { at: number, reason: JiraRejectReason } | null
 }
 
 let cache: JiraCredentials | null | undefined
@@ -57,8 +61,27 @@ export function isJiraConfigured(): boolean {
   return jiraCredentials() !== null
 }
 
+export function recordJiraDelivery(result: { ok: true, summary: string } | { ok: false, reason: JiraRejectReason }): void {
+  db.update(jiraConnection)
+    .set(result.ok
+      ? { lastDeliveryAt: new Date(), lastDeliverySummary: result.summary }
+      : { lastRejectedAt: new Date(), lastRejectedReason: result.reason })
+    .where(eq(jiraConnection.id, 1))
+    .run()
+}
+
 export function jiraConnectionStatus(): JiraConnectionStatus {
   const creds = jiraCredentials()
+  const row = db
+    .select({
+      lastDeliveryAt: jiraConnection.lastDeliveryAt,
+      lastDeliverySummary: jiraConnection.lastDeliverySummary,
+      lastRejectedAt: jiraConnection.lastRejectedAt,
+      lastRejectedReason: jiraConnection.lastRejectedReason,
+    })
+    .from(jiraConnection)
+    .where(eq(jiraConnection.id, 1))
+    .get()
   return {
     configured: !!creds,
     siteUrl: creds?.siteUrl ?? null,
@@ -69,6 +92,12 @@ export function jiraConnectionStatus(): JiraConnectionStatus {
     webhookUrl: creds ? `${dashboardOrigin()}/api/jira/webhook` : null,
     webhookSecret: creds?.webhookSecret ?? null,
     webhookEvents: JIRA_WEBHOOK_EVENTS,
+    lastDelivery: row?.lastDeliveryAt && row.lastDeliverySummary
+      ? { at: Math.floor(row.lastDeliveryAt.getTime() / 1000), summary: row.lastDeliverySummary }
+      : null,
+    lastRejected: row?.lastRejectedAt && row.lastRejectedReason
+      ? { at: Math.floor(row.lastRejectedAt.getTime() / 1000), reason: row.lastRejectedReason }
+      : null,
   }
 }
 
