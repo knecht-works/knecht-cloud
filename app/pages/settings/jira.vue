@@ -26,9 +26,19 @@ onMounted(() => {
 onUnmounted(() => clearInterval(poll))
 
 const REJECT_COPY: Record<NonNullable<JiraConnection['lastRejected']>['reason'], string> = {
-  'signature': 'with a wrong secret. Paste the secret below into the webhook again.',
+  'signature': 'with a wrong secret. Paste the secret into the webhook again.',
   'empty-body': 'without a body. Uncheck "Exclude body" in the webhook.',
-  'no-project': 'for a Jira project no project is linked to. Link it in the project settings.',
+  'no-project': 'for a Jira project no project is linked to yet.',
+}
+const EVENT_COPY: Record<string, string> = {
+  'jira:issue_created': 'issue created',
+  'jira:issue_updated': 'issue updated',
+  'jira:issue_deleted': 'issue deleted',
+  'comment_created': 'comment on',
+}
+function humanSummary(summary: string): string {
+  const [event, key] = summary.split(' ')
+  return `${EVENT_COPY[event ?? ''] ?? event} ${key ?? ''}`.trim()
 }
 const deliveryState = computed(() => {
   const j = jira.value
@@ -36,11 +46,13 @@ const deliveryState = computed(() => {
   const rejected = j.lastRejected
   const delivered = j.lastDelivery
   if (rejected && (!delivered || rejected.at > delivered.at)) {
-    return { tone: 'error' as const, text: `A delivery arrived ${timeAgo(rejected.at)} ${REJECT_COPY[rejected.reason]}` }
+    return { tone: 'error' as const, text: `Jira sent a delivery ${timeAgo(rejected.at)} ${REJECT_COPY[rejected.reason]}` }
   }
-  if (delivered) return { tone: 'ok' as const, text: `Last delivery ${timeAgo(delivered.at)}: ${delivered.summary}` }
-  return { tone: 'waiting' as const, text: 'No delivery yet. Edit any ticket in a linked project; it should show up here within seconds.' }
+  if (delivered) return { tone: 'ok' as const, text: `Receiving events · ${humanSummary(delivered.summary)}, ${timeAgo(delivered.at)}` }
+  return { tone: 'waiting' as const, text: 'Waiting for Jira' }
 })
+const detailsOpen = ref(false)
+const showDetails = computed(() => deliveryState.value?.tone !== 'ok' || detailsOpen.value)
 
 const secretShown = ref(false)
 async function copy(label: string, text: string | null) {
@@ -138,7 +150,7 @@ async function disconnect() {
         href="https://id.atlassian.com/manage-profile/security/api-tokens"
         target="_blank"
         class="text-toned underline underline-offset-2"
-      >API token</a>, ideally of a dedicated "Knecht" account, then register the webhook below.
+      >API token</a>, ideally of a dedicated "Knecht" account, then link each project to its Jira project in the project settings.
     </p>
 
     <form
@@ -228,126 +240,90 @@ async function disconnect() {
     </p>
 
     <div
-      v-if="jira?.configured"
-      class="mt-7 border-t border-muted pt-6"
+      v-if="jira?.configured && deliveryState"
+      class="mt-6 rounded-md border border-muted bg-(--surface-muted) px-4 py-3.5"
     >
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <span class="k-label">Webhook</span>
+      <div class="flex flex-wrap items-center gap-3">
+        <KStatusDot
+          :color="deliveryState.tone === 'error' ? 'error' : deliveryState.tone === 'ok' ? 'primary' : 'neutral'"
+          :pulse="deliveryState.tone === 'waiting'"
+          :size="7"
+        />
+        <span
+          class="min-w-0 flex-1 text-2sm"
+          :class="deliveryState.tone === 'error' ? 'text-error' : 'text-highlighted'"
+        >{{ deliveryState.text }}</span>
         <UButton
+          v-if="deliveryState.tone === 'ok'"
+          color="neutral"
+          variant="ghost"
+          size="sm"
+          :label="detailsOpen ? 'Hide webhook' : 'Show webhook'"
+          @click="() => { detailsOpen = !detailsOpen }"
+        />
+        <UButton
+          v-else
           :to="`${jira.siteUrl}/plugins/servlet/webhooks`"
           target="_blank"
-          color="neutral"
-          variant="outline"
+          color="primary"
           size="sm"
           icon="i-lucide-external-link"
-          label="Open Jira webhooks"
+          label="Set up in Jira"
         />
       </div>
-      <p class="mt-2 max-w-3xl text-2xs leading-relaxed text-muted">
-        Create a webhook there as a Jira admin and fill the form in this order.
-      </p>
 
-      <div class="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <div>
-          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">1 · Name</span>
-          <div class="mt-2 flex items-center gap-2">
-            <code class="k-mono min-w-0 flex-1 truncate rounded-md border border-muted bg-(--surface-muted) px-3 py-2 text-xs text-toned">Knecht</code>
+      <div
+        v-if="showDetails"
+        class="mt-3 border-t border-muted pt-3"
+      >
+        <p
+          v-if="deliveryState.tone !== 'ok'"
+          class="mb-3 max-w-3xl text-2xs leading-relaxed text-muted"
+        >
+          Create a webhook in Jira with these two values, tick <span class="text-toned">Issue created, updated, deleted</span>
+          and <span class="text-toned">Comment created</span>, and leave "Exclude body" unchecked.
+          Then edit any ticket in a linked project.
+        </p>
+        <div class="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2">
+          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">URL</span>
+          <code class="k-mono min-w-0 truncate text-xs text-toned">{{ jira.webhookUrl }}</code>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            icon="i-lucide-copy"
+            aria-label="Copy webhook URL"
+            @click="copy('Webhook URL', jira.webhookUrl)"
+          />
+          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Secret</span>
+          <code class="k-mono min-w-0 truncate text-xs text-toned">{{ secretShown ? jira.webhookSecret : '•'.repeat(24) }}</code>
+          <span class="flex gap-1">
             <UButton
               color="neutral"
-              variant="outline"
-              icon="i-lucide-copy"
-              aria-label="Copy name"
-              @click="copy('Name', 'Knecht')"
-            />
-          </div>
-        </div>
-        <div>
-          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">2 · URL</span>
-          <div class="mt-2 flex items-center gap-2">
-            <code class="k-mono min-w-0 flex-1 truncate rounded-md border border-muted bg-(--surface-muted) px-3 py-2 text-xs text-toned">{{ jira.webhookUrl }}</code>
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-copy"
-              aria-label="Copy webhook URL"
-              @click="copy('Webhook URL', jira.webhookUrl)"
-            />
-          </div>
-        </div>
-        <div>
-          <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">3 · Secret</span>
-          <div class="mt-2 flex items-center gap-2">
-            <code class="k-mono min-w-0 flex-1 truncate rounded-md border border-muted bg-(--surface-muted) px-3 py-2 text-xs text-toned">{{ secretShown ? jira.webhookSecret : '•'.repeat(24) }}</code>
-            <UButton
-              color="neutral"
-              variant="outline"
+              variant="ghost"
+              size="xs"
               :icon="secretShown ? 'i-lucide-eye-off' : 'i-lucide-eye'"
               :aria-label="secretShown ? 'Hide secret' : 'Reveal secret'"
               @click="() => { secretShown = !secretShown }"
             />
             <UButton
               color="neutral"
-              variant="outline"
+              variant="ghost"
+              size="xs"
               icon="i-lucide-copy"
               aria-label="Copy webhook secret"
               @click="copy('Webhook secret', jira.webhookSecret)"
             />
-          </div>
+          </span>
         </div>
       </div>
-
-      <div class="mt-4">
-        <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">4 · Events</span>
-        <div class="mt-2 flex flex-wrap gap-1.5">
-          <span
-            v-for="event in jira.webhookEvents"
-            :key="event"
-            class="k-mono rounded-full border border-default px-2.5 py-1 text-2xs text-muted"
-          >{{ event }}</span>
-        </div>
-        <p class="mt-2 text-2xs text-dimmed">
-          Keep the scope on all issues and leave "Exclude body" unchecked; Knecht only reacts to linked projects.
-        </p>
-      </div>
-
-      <p
-        v-if="deliveryState"
-        class="mt-4 flex items-center gap-2 text-2xs leading-normal"
-        :class="deliveryState.tone === 'error' ? 'text-error' : deliveryState.tone === 'ok' ? 'text-primary' : 'text-dimmed'"
-      >
-        <KStatusDot
-          :color="deliveryState.tone === 'error' ? 'error' : deliveryState.tone === 'ok' ? 'primary' : 'neutral'"
-          :pulse="deliveryState.tone === 'waiting'"
-          :size="6"
-        />
-        {{ deliveryState.text }}
-      </p>
     </div>
 
-    <div
-      v-if="jira?.configured"
-      class="mt-7 border-t border-muted pt-6"
+    <p
+      v-if="jira?.configured && !jira.accountId"
+      class="mt-4 text-2xs leading-normal text-error"
     >
-      <span class="k-label">Projects</span>
-      <p class="mt-2 max-w-3xl text-2xs leading-relaxed text-muted">
-        Nothing fires until a project is linked to its Jira project: open a
-        <NuxtLink
-          to="/projects"
-          class="text-toned underline underline-offset-2"
-        >project</NuxtLink>, then Settings → Jira. After that, Jira triggers pick that project.
-      </p>
-      <p
-        v-if="!jira.accountId"
-        class="mt-3 text-2xs leading-normal text-error"
-      >
-        Reconnect once with the API token: mentions and "assigned to Knecht" triggers need the account id, which this connection was made before Knecht stored it.
-      </p>
-      <p
-        v-else
-        class="mt-3 text-2xs text-dimmed"
-      >
-        Connected as {{ jira.accountName }}<span class="k-mono"> ({{ jira.accountId }})</span>. Mention it on a ticket to give Knecht a follow-up.
-      </p>
-    </div>
+      Reconnect once with the API token so mentions and "assigned to Knecht" triggers know the account.
+    </p>
   </KPanel>
 </template>
