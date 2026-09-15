@@ -1,12 +1,13 @@
 import type { z } from 'zod'
 import type { Trigger } from '../../db/schema'
+import type { TriggerInputs } from '../inputs'
 import { jiraSource } from './jira'
 
 // A new source also needs a form section in KTriggerCreateModal.vue and a
 // TRIGGER_SOURCE_META entry in app/utils/dashboard.ts.
 
 export interface PollMatch {
-  inputs: Record<string, string>
+  inputs: TriggerInputs
   branch?: string | null
 }
 
