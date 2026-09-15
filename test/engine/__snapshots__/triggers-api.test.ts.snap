@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`POST /api/triggers > creates a github trigger with push defaults and describes it 1`] = `
+{
+  "active": true,
+  "config": {},
+  "endpoint": null,
+  "event": "On push",
+  "firedCount": 0,
+  "id": Any<Number>,
+  "issueActions": [
+    "opened",
+  ],
+  "issueLabel": null,
+  "kind": "Webhook",
+  "lastFiredAt": null,
+  "projectIds": [
+    Any<Number>,
+  ],
+  "projects": [
+    "test-php",
+  ],
+  "source": "github",
+  "webhookBranches": [],
+  "webhookEvent": "push",
+  "workflowId": Any<Number>,
+  "workflowName": Any<String>,
+}
+`;
