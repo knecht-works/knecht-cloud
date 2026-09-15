@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Move the session's ticket to another status, as Knecht. Only integrations
+# with statuses support it (Jira: the transition whose target has that name);
+# the Knecht host applies it (server/routes/agent-bridge.post.ts). See
+# sandbox/opencode/AGENTS.md.
+set -euo pipefail
+
+LIB=/usr/local/lib/knecht-bridge-lib
+[ -f "$LIB" ] || { echo "knecht-status is not available: bridge lib not mounted" >&2; exit 1; }
+. "$LIB"
+
+usage() {
+  cat <<'EOF2'
+usage:
+  knecht-status <status name>     move this session's ticket to that status, e.g. knecht-status "In Review"
+EOF2
+  exit 2
+}
+
+require_bridge knecht-status
+
+[ "$#" -gt 0 ] || usage
+status="$*"
+[ -n "$status" ] || usage
+
+bridge_post "{\"op\":\"status\",\"status\":$(json_escape "$status")}"

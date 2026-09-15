@@ -25,7 +25,6 @@ vi.mock('../../server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
-vi.mock('../../server/utils/jira', () => ({ addJiraComment: async () => {} }))
 
 const { deleteProject } = await import('../../server/utils/projects')
 const { startRun } = await import('../../server/daemon/runner')

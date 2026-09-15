@@ -5,7 +5,7 @@ import { oneLine, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
 import { getProject, getRun, getSessionRow } from '../utils/entities'
-import { createIssueComment } from '../utils/github-app'
+import { getIntegration } from '../integrations'
 import { sessionCheckoutDir } from '../utils/storage'
 import { agentRepliedSince, sessionObject, withSessionLinks } from '../utils/sessions'
 import { currentBranch } from './git'
@@ -150,10 +150,10 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
 
 async function postMentionReply(followup: Followup, session: Session, project: Project, text: string): Promise<void> {
   const object = sessionObject(session)
-  if (followup.origin !== 'mention' || !object || object.integration !== 'github') return
+  if (followup.origin !== 'mention' || !object) return
   if (agentRepliedSince(session.id, followup.startedAt ?? followup.createdAt)) return
   try {
-    await createIssueComment(project.owner, project.name, Number(object.key), withSessionLinks(text, session.id))
+    await getIntegration(object.integration).capabilities.comment(project, object, withSessionLinks(text, session.id))
   }
   catch (e) {
     appendLog(followup.runId, `\nCould not post the reply on the thread: ${(e as Error).message}\n`)
