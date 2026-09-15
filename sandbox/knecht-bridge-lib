@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Shared scaffolding for the bridge CLIs (knecht-reply, knecht-label,
-# knecht-status): the
+# knecht-status, knecht-object): the
 # availability checks and the POST to the Knecht host's agent-bridge endpoint
 # (server/routes/agent-bridge.post.ts). Sourced by the CLIs, never executed;
 # mounted at /usr/local/lib/knecht-bridge-lib (server/daemon/ddev.ts).

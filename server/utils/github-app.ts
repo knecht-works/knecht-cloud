@@ -1,6 +1,7 @@
 import type { Octokit } from 'octokit'
 import { App } from 'octokit'
 import { githubAppCredentials } from './github-credentials'
+import { formatObjectContext } from './object-context'
 
 let cachedApp: App | null = null
 let cachedForAppId: string | null = null
@@ -102,6 +103,24 @@ export async function createIssueComment(owner: string, repo: string, issueNumbe
   const octokit = await getInstallationClient(owner, repo)
   const { data } = await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body })
   return { url: data.html_url }
+}
+
+export async function getIssueContext(owner: string, repo: string, issueNumber: number): Promise<string> {
+  const octokit = await getInstallationClient(owner, repo)
+  const { data: issue } = await octokit.rest.issues.get({ owner, repo, issue_number: issueNumber })
+  const comments = await octokit.paginate(octokit.rest.issues.listComments, { owner, repo, issue_number: issueNumber, per_page: 100 })
+  return formatObjectContext({
+    heading: `${issue.pull_request ? 'Pull request' : 'Issue'} #${issue.number}: ${issue.title}`,
+    url: issue.html_url,
+    facts: [
+      ['State', issue.state],
+      ['Author', issue.user?.login ?? ''],
+      ['Assignees', (issue.assignees ?? []).map(a => a.login).join(', ')],
+      ['Labels', issue.labels.map(l => (typeof l === 'string' ? l : l.name ?? '')).filter(Boolean).join(', ')],
+    ],
+    body: issue.body ?? '',
+    comments: comments.map(c => ({ author: c.user?.login ?? 'unknown', at: new Date(c.created_at), body: c.body ?? '' })),
+  })
 }
 
 export async function listRepoLabels(owner: string, repo: string): Promise<string[]> {

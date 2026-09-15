@@ -111,6 +111,7 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
       expect(integration.objects.describe({ integration: id, kind, key: '7' })).toContain('7')
     }
     expect(typeof integration.capabilities.comment).toBe('function')
+    expect(typeof integration.objects.context).toBe('function')
     for (const capability of ['label', 'setStatus'] as const) {
       const fn = integration.capabilities[capability]
       if (fn !== undefined) expect(typeof fn).toBe('function')

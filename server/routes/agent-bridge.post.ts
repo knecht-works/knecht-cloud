@@ -25,6 +25,8 @@ import { sessionCheckoutDir } from '../utils/storage'
 //     a pull request (a GitHub API call the sandbox has no other path to),
 //     and syncs the session's branch (+ the newest run's branch/prUrl) so
 //     the dashboard shows them.
+//   - `context` (knecht-object): the live state of the session's object, for
+//     the agent to read before it works on a mention.
 //   - `comment` (knecht-reply), `label` (knecht-label), `status`
 //     (knecht-status): act on the session's object through the capabilities
 //     of its integration (ADR 0007). Object sessions only; a workflow can opt
@@ -45,6 +47,7 @@ const bodySchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('comment'), body: z.string().min(1) }),
   z.object({ op: z.literal('label'), add: z.array(z.string().min(1)).optional(), remove: z.array(z.string().min(1)).optional() }),
   z.object({ op: z.literal('status'), status: z.string().min(1) }),
+  z.object({ op: z.literal('context') }),
 ])
 
 // Replies are plain text: the CLI prints the body verbatim to the agent, and
@@ -98,6 +101,10 @@ export default defineEventHandler(async (event) => {
         const ghToken = await getInstallationToken(project.owner, project.name)
         log(`\nagent-git: issued a repo credential to in-sandbox git\n`)
         return reply(event, 200, ghToken)
+      }
+      case 'context': {
+        const { integration, object } = requireObject(session)
+        return reply(event, 200, await viaIntegration(() => integration.objects.context(project, object)))
       }
       case 'comment': {
         const { integration, object, label } = requireObject(session)

@@ -1,5 +1,6 @@
 import { ofetch } from 'ofetch'
-import type { AdfNode } from './adf'
+import { formatObjectContext } from '../../utils/object-context'
+import { adfToMarkdown, type AdfNode } from './adf'
 import { jiraCredentials } from './credentials'
 
 interface JiraAuth {
@@ -105,6 +106,39 @@ export async function getJiraComment(issueKey: string, commentId: string): Promi
     body: res.body ?? null,
     author: { accountId: res.author?.accountId ?? '', displayName: res.author?.displayName ?? '' },
   }
+}
+
+export async function getJiraIssueContext(issueKey: string): Promise<string> {
+  const res = await jiraFetch<{
+    fields?: {
+      summary?: string
+      description?: AdfNode | null
+      status?: { name?: string }
+      assignee?: { displayName?: string } | null
+      reporter?: { displayName?: string } | null
+      labels?: string[]
+      issuetype?: { name?: string }
+      comment?: { comments?: { author?: { displayName?: string }, created?: string, body?: AdfNode | null }[] }
+    }
+  }>(`/issue/${encodeURIComponent(issueKey)}?fields=summary,description,status,assignee,reporter,labels,issuetype,comment`)
+  const fields = res.fields ?? {}
+  return formatObjectContext({
+    heading: `${issueKey}: ${fields.summary ?? ''}`,
+    url: jiraIssueUrl(issueKey),
+    facts: [
+      ['Type', fields.issuetype?.name ?? ''],
+      ['Status', fields.status?.name ?? ''],
+      ['Reporter', fields.reporter?.displayName ?? ''],
+      ['Assignee', fields.assignee?.displayName ?? ''],
+      ['Labels', (fields.labels ?? []).join(', ')],
+    ],
+    body: adfToMarkdown(fields.description),
+    comments: (fields.comment?.comments ?? []).map(c => ({
+      author: c.author?.displayName ?? 'unknown',
+      at: new Date(c.created ?? 0),
+      body: adfToMarkdown(c.body),
+    })),
+  })
 }
 
 export async function addJiraComment(issueKey: string, body: AdfNode): Promise<{ url: string }> {

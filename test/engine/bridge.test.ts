@@ -21,6 +21,7 @@ vi.mock('../../server/utils/github-app', () => ({
     labels.removed.push(name)
   },
   createPullRequest: async () => null,
+  getIssueContext: async (_o: string, _r: string, n: number) => `# Issue #${n}: Broken build\n\nIt fails.`,
 }))
 const jiraApi = vi.hoisted(() => ({
   comments: [] as { key: string, body: unknown }[],
@@ -40,6 +41,7 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   transitionJiraIssue: async (key: string, id: string) => {
     jiraApi.transitions.push({ key, id })
   },
+  getJiraIssueContext: async (key: string) => `# ${key}: Login broken\n\nStatus: To Do`,
 }))
 
 const { db, schema } = await import('../../server/db')
@@ -125,6 +127,17 @@ describe('agent bridge', () => {
     expect(res.text).toContain('disabled for this workflow')
   })
 
+  it('hands the agent the current state of the object', async () => {
+    const { sessionId } = objectSession()
+    const res = await call(sessionId, { op: 'context' })
+    expect(res.status).toBe(200)
+    expect(res.text).toBe('# Issue #5: Broken build\n\nIt fails.\n')
+
+    const bare = makeRun(makeProject(), [])
+    mkdirSync(join(sessionCheckoutDir(bare.sessionId), '.git'), { recursive: true })
+    expect((await call(bare.sessionId, { op: 'context' })).status).toBe(400)
+  })
+
   it('applies only existing labels and removes labels', async () => {
     const { sessionId } = objectSession()
     const unknown = await call(sessionId, { op: 'label', add: ['nope'] })
@@ -142,6 +155,13 @@ describe('agent bridge', () => {
 })
 
 describe('agent bridge on a Jira ticket', () => {
+  it('hands the agent the current state of the ticket', async () => {
+    const { sessionId } = ticketSession()
+    const res = await call(sessionId, { op: 'context' })
+    expect(res.status).toBe(200)
+    expect(res.text).toBe('# PROJ-1: Login broken\n\nStatus: To Do\n')
+  })
+
   it('posts the comment as ADF', async () => {
     const { sessionId } = ticketSession()
     const res = await call(sessionId, { op: 'comment', body: 'Done, see `auth.php`.' })
