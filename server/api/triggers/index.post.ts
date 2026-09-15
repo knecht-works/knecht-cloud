@@ -3,7 +3,6 @@ import { db, schema } from '../../db'
 import type { IssueAction } from '../../db/schema'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
-import { TRIGGER_SOURCES } from '../../utils/trigger-sources'
 
 const projectIds = z.array(z.number().int()).default([])
 const workflowId = z.number().int()
@@ -19,9 +18,6 @@ const bodySchema = z.discriminatedUnion('source', [
     issueLabel: z.string().min(1).nullish(),
   }),
   z.object({ source: z.literal('manual'), workflowId, projectIds }),
-  ...TRIGGER_SOURCES.map(def =>
-    z.object({ source: z.literal(def.source), workflowId, projectIds, config: def.configSchema }),
-  ),
 ])
 
 export default defineEventHandler(async (event) => {
@@ -44,7 +40,6 @@ export default defineEventHandler(async (event) => {
     issueActions: ['opened'] as IssueAction[],
     issueLabel: null as string | null,
     config: {} as Record<string, unknown>,
-    state: {} as Record<string, unknown>,
   }
 
   if (data.source === 'schedule') {
@@ -63,18 +58,6 @@ export default defineEventHandler(async (event) => {
     values.issueActions = data.issueActions
     values.issueLabel = data.issueLabel ?? null
   }
-  if ('config' in data) {
-    const def = TRIGGER_SOURCES.find(d => d.source === data.source)!
-    values.config = data.config
-    // Seed the state so the trigger does not fire on its backlog.
-    try {
-      values.state = await def.init(data.config)
-    }
-    catch {
-      throw createError({ statusCode: 400, statusMessage: `Could not reach ${data.source} to set up the trigger` })
-    }
-  }
-
   const row = db.insert(schema.triggers).values(values).returning().get()
 
   return toSummaries([row])[0]
