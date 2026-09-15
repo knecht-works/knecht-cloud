@@ -1,7 +1,6 @@
 import { z } from 'zod'
-import { jiraMyself } from '../../utils/jira'
-import { jiraCredentials, saveJiraCredentials } from '../../utils/jira-credentials'
-import { keyPreview } from '../../utils/settings'
+import { jiraMyself } from '../../integrations/jira/api'
+import { jiraConnectionStatus, saveJiraCredentials } from '../../integrations/jira/credentials'
 
 const bodySchema = z.object({
   siteUrl: z.string().trim().min(1)
@@ -18,9 +17,9 @@ export default defineEventHandler(async (event) => {
   }
   const { siteUrl, email, apiToken } = result.data
 
-  let accountName: string
+  let me: { displayName: string, accountId: string }
   try {
-    accountName = (await jiraMyself({ siteUrl, email, apiToken })).displayName
+    me = await jiraMyself({ siteUrl, email, apiToken })
   }
   catch {
     throw createError({
@@ -29,13 +28,6 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  saveJiraCredentials({ siteUrl, email, apiToken, accountName })
-  const creds = jiraCredentials()
-  return {
-    configured: true,
-    siteUrl: creds?.siteUrl ?? siteUrl,
-    email: creds?.email ?? email,
-    accountName: creds?.accountName ?? accountName,
-    apiTokenPreview: keyPreview(apiToken),
-  }
+  saveJiraCredentials({ siteUrl, email, apiToken, accountName: me.displayName, accountId: me.accountId })
+  return jiraConnectionStatus()
 })

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { listJiraStatuses } from '../../utils/jira'
-import { isJiraConfigured } from '../../utils/jira-credentials'
+import { listJiraStatuses } from '../../integrations/jira/api'
+import { isJiraConfigured } from '../../integrations/jira/credentials'
 
 export default defineEventHandler(async (event) => {
   if (!isJiraConfigured()) {

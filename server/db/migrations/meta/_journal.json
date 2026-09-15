@@ -253,6 +253,13 @@
       "when": 1789479713207,
       "tag": "0035_trigger-config",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1789479943653,
+      "tag": "0036_jira-webhook",
+      "breakpoints": true
     }
   ]
 }

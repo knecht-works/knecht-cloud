@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { z } from 'zod'
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 import { DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGERS } from '#shared/utils/env-spec'
@@ -25,6 +25,7 @@ const bodySchema = z.object({
     .optional(),
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
   bootCommands: z.string().max(4000).optional(),
+  jiraProjectKey: z.string().trim().min(1).nullable().optional(),
   mentionsEnabled: z.boolean().optional(),
   starterWorkflowId: z.number().int().nullable().optional(),
   phpVersion: z.enum(DDEV_PHP_VERSIONS).nullable().optional(),
@@ -41,6 +42,16 @@ export default defineEventHandler(async (event) => {
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid project config' })
+  }
+  if (result.data.jiraProjectKey) {
+    const taken = db
+      .select({ fullName: schema.projects.fullName })
+      .from(schema.projects)
+      .where(and(eq(schema.projects.jiraProjectKey, result.data.jiraProjectKey), ne(schema.projects.id, id)))
+      .get()
+    if (taken) {
+      throw createError({ statusCode: 400, statusMessage: `Jira project ${result.data.jiraProjectKey} is already linked to ${taken.fullName}` })
+    }
   }
   const next = { ...project, ...result.data }
   if (next.devServer && next.previewPort == null) {

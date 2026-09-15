@@ -21,6 +21,14 @@ vi.mock('../../server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
+const jiraComments = vi.hoisted(() => [] as { key: string, text: string }[])
+vi.mock('../../server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+  addJiraComment: async (key: string, body: { content?: { content?: { text?: string, marks?: unknown }[] }[] }) => {
+    jiraComments.push({ key, text: (body.content?.[0]?.content ?? []).map(n => n.text ?? '').join('') })
+    return { url: 'https://x' }
+  },
+}))
 
 const { startRun, cancelRun } = await import('../../server/daemon/runner')
 
@@ -32,6 +40,33 @@ async function execute(steps: Step[], overrides: Parameters<typeof makeRun>[2] =
 }
 
 describe('runner', () => {
+  it('reports the pull request or the failure back on a Jira ticket', async () => {
+    const project = makeProject()
+    let n = 0
+    const ticket = (overrides: Parameters<typeof makeRun>[2]) => {
+      const run = makeRun(project, [{ type: 'bash', id: 'work', command: overrides.status === 'failed' ? 'exit 1' : 'true' }], { ...overrides, status: 'queued' })
+      db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: `PROJ-${++n}` }).where(eq(schema.sessions.id, run.sessionId)).run()
+      return run
+    }
+
+    await startRun(ticket({ prUrl: 'https://x/pull/4' }).id, project)
+    expect(jiraComments.at(-1)).toEqual({ key: 'PROJ-1', text: 'Knecht opened a pull request for this ticket: https://x/pull/4' })
+
+    jiraComments.length = 0
+    await startRun(ticket({}).id, project)
+    expect(jiraComments).toHaveLength(0)
+
+    const failed = ticket({ status: 'failed' })
+    await startRun(failed.id, project)
+    expect(getRun(failed.id).status).toBe('failed')
+    expect(jiraComments.at(-1)?.text).toContain(`Knecht could not finish the run for this ticket: http://knecht.test/projects/${project.id}?run=${failed.id}`)
+
+    const silent = db.insert(schema.workflows).values({ name: 'silent-jira', steps: [], repliesEnabled: false }).returning().get()
+    jiraComments.length = 0
+    await startRun(ticket({ prUrl: 'https://x/pull/5', workflowId: silent.id }).id, project)
+    expect(jiraComments).toHaveLength(0)
+  })
+
   it('runs a linear workflow and passes outputs between steps', async () => {
     const { run, steps } = await execute([
       { type: 'bash', id: 'greet', command: 'echo hello' },

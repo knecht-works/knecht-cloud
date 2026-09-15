@@ -79,6 +79,21 @@ describe('POST /api/triggers', () => {
     expect(res.json).toMatchObject({ source: 'manual', event: 'Run on demand', endpoint: null })
   })
 
+  it('creates a jira trigger only for exactly one project linked to a Jira project', async () => {
+    const wf = makeWorkflow()
+    const linked = makeProject({ jiraProjectKey: 'API' })
+    const unlinked = makeProject()
+    expect((await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id, unlinked.id], config: { event: 'created' } })).json)
+      .toMatchObject({ statusMessage: 'A Jira trigger fires for exactly one project' })
+    expect((await post({ source: 'jira', workflowId: wf.id, projectIds: [unlinked.id], config: { event: 'created' } })).json)
+      .toMatchObject({ statusMessage: expect.stringContaining('Link knecht-works/test-php to a Jira project first') })
+    expect((await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { event: 'labeled' } })).json)
+      .toMatchObject({ statusMessage: 'A label is required to trigger on "labeled"' })
+    const res = await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { event: 'labeled', label: 'knecht', issueType: 'Bug' } })
+    expect(res.status).toBe(200)
+    expect(res.json).toMatchObject({ source: 'jira', event: 'On label "knecht" · Bug', config: { event: 'labeled', label: 'knecht', issueType: 'Bug' } })
+  })
+
   it('refuses an unknown workflow', async () => {
     const res = await post({ source: 'manual', workflowId: 999_999, projectIds: [] })
     expect(res.status).toBe(404)

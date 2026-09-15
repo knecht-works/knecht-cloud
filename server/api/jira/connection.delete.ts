@@ -1,6 +1,6 @@
-import { deleteJiraConnection } from '../../utils/jira-credentials'
+import { deleteJiraConnection, jiraConnectionStatus } from '../../integrations/jira/credentials'
 
 export default defineEventHandler(() => {
   deleteJiraConnection()
-  return { configured: false, siteUrl: null, email: null, accountName: null, apiTokenPreview: null }
+  return jiraConnectionStatus()
 })
