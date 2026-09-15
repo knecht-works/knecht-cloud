@@ -1,11 +1,12 @@
 import { z } from 'zod'
+import { TRIGGER_SOURCES } from '../../../shared/utils/integrations'
 import { db, schema } from '../../db'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
 
 const bodySchema = z.object({
-  source: z.enum(['schedule', 'github', 'manual', 'jira']),
+  source: z.enum(TRIGGER_SOURCES),
   workflowId: z.number().int(),
   projectIds: z.array(z.number().int()).default([]),
   cron: z.string().min(1).optional(),

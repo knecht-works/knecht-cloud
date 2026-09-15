@@ -219,33 +219,10 @@ async function setStarter(value: number | null) {
     toastError('Failed to save', e)
   }
 }
-const { data: jira } = useFetch<{ configured: boolean }>('/api/jira/connection', { lazy: true })
-const jiraProjects = ref<{ key: string, name: string }[]>([])
-watch(() => jira.value?.configured, async (configured) => {
-  if (!configured) return
-  try {
-    jiraProjects.value = await $fetch<{ key: string, name: string }[]>('/api/jira/projects')
-  }
-  catch {
-    jiraProjects.value = []
-  }
-}, { immediate: true })
-const jiraItems = computed(() => [
-  { label: 'Not linked', value: null as string | null },
-  ...jiraProjects.value.map(p => ({ label: `${p.key} · ${p.name}`, value: p.key as string | null })),
-])
-const jiraProjectKey = ref<string | null>(project.value?.jiraProjectKey ?? null)
-async function setJiraProject(key: string | null) {
-  const previous = jiraProjectKey.value
-  jiraProjectKey.value = key
-  try {
-    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { jiraProjectKey: key } })
-  }
-  catch (e) {
-    jiraProjectKey.value = previous
-    toastError('Failed to link the Jira project', e)
-  }
-}
+const { data: integrations } = useFetch('/api/integrations', { default: () => [], lazy: true })
+const configuredIntegrations = computed(() => integrations.value.filter(i => i.configured))
+const linkableIntegrations = computed(() =>
+  configuredIntegrations.value.flatMap(i => i.link ? [{ ...i, link: i.link }] : []))
 
 const mentionsEnabled = ref(project.value?.mentionsEnabled ?? true)
 const mentionsAdvancedOpen = ref(false)
@@ -425,13 +402,13 @@ async function toggleMentions() {
               Mention Knecht in a comment and it does what the comment says, then answers in the thread.
             </p>
             <ul class="mt-2 space-y-1 text-2xs leading-relaxed text-dimmed">
-              <li>
-                <span class="text-muted">GitHub:</span>
-                <code>@knecht-works &lt;instruction&gt;</code> on an issue or pull request.
-              </li>
-              <li v-if="jira?.configured">
-                <span class="text-muted">Jira:</span>
-                mention the Knecht account on a ticket of the linked project.
+              <li
+                v-for="i in configuredIntegrations"
+                :key="i.id"
+              >
+                <span class="text-muted">{{ i.name }}:</span>
+                <code v-if="integrationUi(i.id).mentionHint.code">{{ integrationUi(i.id).mentionHint.code }}</code>
+                {{ integrationUi(i.id).mentionHint.text }}
               </li>
             </ul>
             <div class="k-label mb-1.5 mt-4">
@@ -478,29 +455,13 @@ async function toggleMentions() {
           </div>
         </KPanel>
 
-        <KPanel
-          v-if="jira?.configured"
-          title="Jira"
-          icon="i-simple-icons-jira"
-          accent="var(--color-jira)"
-        >
-          <div class="flex flex-col">
-            <p class="text-2xs leading-relaxed text-dimmed">
-              Tickets of the linked Jira project can start this repo's workflows, get Knecht's
-              replies, and turn mentions into follow-ups. One Jira project per repository.
-            </p>
-            <div class="k-label mb-1.5 mt-3">
-              Jira project
-            </div>
-            <USelectMenu
-              :model-value="jiraItems.find(i => i.value === jiraProjectKey)"
-              :items="jiraItems"
-              placeholder="Not linked"
-              class="w-full"
-              @update:model-value="(item: { value: string | null } | undefined) => setJiraProject(item?.value ?? null)"
-            />
-          </div>
-        </KPanel>
+        <KProjectLinkPanel
+          v-for="i in linkableIntegrations"
+          :key="i.id"
+          :project-id="id"
+          :integration="i"
+          :model-value="project?.links[i.id] ?? null"
+        />
       </div>
 
       <div class="flex flex-col gap-4.5">

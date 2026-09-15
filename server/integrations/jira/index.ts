@@ -1,16 +1,14 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db, schema } from '../../db'
 import { runWorkspacePath } from '../../../shared/utils/routes'
-import { getProject } from '../../utils/entities'
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import { tryParseJson } from '../../utils/json'
 import { dashboardOrigin } from '../../utils/origin'
+import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
-import { addJiraComment, getJiraComment, getJiraIssueContext, jiraIssueUrl, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
+import { addJiraComment, getJiraComment, getJiraIssueContext, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
 import { jiraCredentials, recordJiraDelivery } from './credentials'
 
 export const jiraTriggerConfigSchema = z.object({
@@ -153,19 +151,18 @@ async function parseComment(object: SessionObject, payload: JiraPayload): Promis
 
 export const jira: Integration = {
   id: 'jira',
+  name: 'Jira',
 
   isConfigured: () => !!jiraCredentials()?.webhookSecret,
 
   trigger: {
     configSchema: jiraTriggerConfigSchema,
     eventLabel: config => jiraEventLabel(config as JiraTriggerConfig),
-    validateProjects(projectIds) {
-      if (projectIds.length !== 1) return 'A Jira trigger fires for exactly one project'
-      const project = getProject(projectIds[0]!)
-      if (!project) return 'Unknown project'
-      if (!project.jiraProjectKey) return `Link ${project.fullName} to a Jira project first (project settings)`
-      return null
-    },
+  },
+
+  link: {
+    label: 'Jira project',
+    listTargets: listJiraProjects,
   },
 
   webhook: {
@@ -177,9 +174,7 @@ export const jira: Integration = {
     async parse(raw, _header) {
       const payload = (tryParseJson(raw) ?? {}) as JiraPayload
       const projectKey = payload.issue?.fields?.project?.key
-      const project = projectKey
-        ? db.select().from(schema.projects).where(eq(schema.projects.jiraProjectKey, projectKey)).get()
-        : undefined
+      const project = projectKey ? linkedProject('jira', projectKey) : undefined
       const object = jiraObject(payload)
       if (!project || !object) return null
 

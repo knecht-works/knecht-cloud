@@ -6,9 +6,8 @@ import { getWorkflowRow } from './entities'
 import { isGithubAppConfigured } from './github-credentials'
 import { emptyInputs, type TriggerInputs } from './inputs'
 import { resolveSession, type SessionObject } from './sessions'
-import { getTriggerSource, type TriggerSource } from './trigger-sources'
-
-export type { TriggerSource } from './trigger-sources'
+import type { TriggerSource } from '../../shared/utils/integrations'
+import { getTriggerSource } from './trigger-sources'
 
 export interface TriggerSummary {
   id: number

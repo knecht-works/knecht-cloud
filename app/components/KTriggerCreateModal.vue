@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { INTEGRATION_IDS, type TriggerSource } from '#shared/utils/integrations'
+import KTriggerFormSchedule from '~/components/KTriggerFormSchedule.vue'
+
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
   presetWorkflowId?: number
   presetProjectIds?: number[]
   trigger?: {
     id: number
-    source: 'schedule' | 'github' | 'manual' | 'jira'
+    source: TriggerSource
     workflowId: number
     projectIds: number[]
     endpoint: string | null
@@ -19,15 +22,15 @@ const editing = computed(() => !!props.trigger)
 const toast = useToast()
 const toastError = useToastError()
 
-type Source = 'schedule' | 'github' | 'manual' | 'jira'
+type Source = TriggerSource
 const SOURCES: { key: Source, label: string, icon: string, hint: string }[] = [
   { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock', hint: 'Run on a cron schedule' },
-  { key: 'github', label: 'GitHub', icon: 'i-simple-icons-github', hint: 'Run on GitHub events' },
-  { key: 'jira', label: 'Jira', icon: 'i-simple-icons-jira', hint: 'Run on Jira tickets' },
+  ...INTEGRATION_IDS.map(id => ({ key: id, ...integrationUi(id) })),
   { key: 'manual', label: 'Manual', icon: 'i-lucide-play', hint: 'Run on demand only' },
 ]
 
 const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
+const { data: integrations } = useFetch('/api/integrations', { default: () => [], lazy: true })
 
 const source = ref<Source>('schedule')
 const workflowId = ref<number>()
@@ -36,11 +39,17 @@ const config = ref<Record<string, unknown>>({})
 const valid = ref(false)
 const creating = ref(false)
 
-// A Jira trigger fires for exactly one project, and only a linked one qualifies.
+const integration = computed(() => integrations.value.find(i => i.id === source.value) ?? null)
+const linked = computed(() => !!integration.value?.link)
+const linkKeyOf = (p: { links: Partial<Record<string, string>> }) => (integration.value ? p.links[integration.value.id] : undefined) ?? null
+const triggerForm = computed(() =>
+  source.value === 'schedule' ? KTriggerFormSchedule : integration.value ? integrationUi(integration.value.id).triggerForm : null)
+
+// A linked integration's trigger fires for exactly one project, and only a linked one qualifies.
 const projectItems = computed(() =>
   (projects.value ?? [])
-    .filter(p => source.value !== 'jira' || p.jiraProjectKey)
-    .map(p => ({ label: source.value === 'jira' ? `${p.fullName} · ${p.jiraProjectKey}` : p.fullName, value: p.id })),
+    .filter(p => !linked.value || linkKeyOf(p))
+    .map(p => ({ label: linked.value ? `${p.fullName} · ${linkKeyOf(p)}` : p.fullName, value: p.id })),
 )
 const singleProject = computed({
   get: () => projectIds.value[0],
@@ -48,8 +57,10 @@ const singleProject = computed({
     projectIds.value = value === undefined ? [] : [value]
   },
 })
-const jiraProjectKey = computed(() =>
-  (projects.value ?? []).find(p => p.id === projectIds.value[0])?.jiraProjectKey ?? null)
+const selectedLinkKey = computed(() => {
+  const project = (projects.value ?? []).find(p => p.id === projectIds.value[0])
+  return project ? linkKeyOf(project) : null
+})
 
 // Sync: the edit preload sets the source first and the config right after.
 watch(source, () => {
@@ -156,9 +167,9 @@ watch(open, (isOpen) => {
         </div>
 
         <div>
-          <span class="k-label">{{ source === 'jira' ? 'Project' : 'Projects' }}</span>
+          <span class="k-label">{{ linked ? 'Project' : 'Projects' }}</span>
           <USelectMenu
-            v-if="source === 'jira'"
+            v-if="linked"
             v-model="singleProject"
             value-key="value"
             :items="projectItems"
@@ -177,27 +188,18 @@ watch(open, (isOpen) => {
             class="mt-2 w-full"
           />
           <p class="mt-2 text-2xs text-dimmed">
-            {{ source === 'jira'
-              ? 'Only projects linked to a Jira project (project settings) are listed; the trigger watches that Jira project.'
+            {{ linked
+              ? `Only projects linked to a ${integration?.link?.label} (project settings) are listed; the trigger watches that ${integration?.link?.label}.`
               : 'Fires the workflow once per selected project.' }}
           </p>
         </div>
 
-        <KTriggerFormSchedule
-          v-if="source === 'schedule'"
+        <component
+          :is="triggerForm"
+          v-if="triggerForm"
           v-model:config="config"
           v-model:valid="valid"
-        />
-        <KTriggerFormGithub
-          v-else-if="source === 'github'"
-          v-model:config="config"
-          v-model:valid="valid"
-        />
-        <KTriggerFormJira
-          v-else-if="source === 'jira'"
-          v-model:config="config"
-          v-model:valid="valid"
-          :project-key="jiraProjectKey"
+          v-bind="linked ? { linkKey: selectedLinkKey } : {}"
         />
 
         <div class="flex justify-end gap-2 pt-1">

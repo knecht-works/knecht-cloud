@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Move the session's ticket to another status, as Knecht. Only integrations
-# with statuses support it (Jira: the transition whose target has that name);
-# the Knecht host applies it (server/routes/agent-bridge.post.ts). See
+# with statuses support it; the Knecht host applies it (server/routes/agent-bridge.post.ts). See
 # sandbox/opencode/AGENTS.md.
 set -euo pipefail
 

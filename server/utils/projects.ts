@@ -42,6 +42,7 @@ export function deleteProject(id: number): Promise<void> {
         .where(eq(schema.triggers.id, t.id))
         .run()
     }
+    tx.delete(schema.projectLinks).where(eq(schema.projectLinks.projectId, id)).run()
     tx.delete(schema.projects).where(eq(schema.projects.id, id)).run()
   })
 

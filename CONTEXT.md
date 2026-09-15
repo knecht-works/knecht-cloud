@@ -39,13 +39,16 @@ _Avoid_: Ticket, issue (when meaning the generic concept)
 **Mention**:
 A comment on an object that addresses Knecht, written by someone other than Knecht itself. A mention on a session's object creates a follow-up.
 
+**Project link**:
+The binding of a project to one external container of an integration (a Jira project). At most one per integration and project, and an external container links to at most one project. Triggers of a linked integration fire for exactly one linked project.
+
 **Capability**:
 An action an integration can perform on its objects on the agent's behalf: comment, label, set status. Not every integration has every capability.
 
 ### Work
 
 **Project**:
-A connected GitHub repository. The unit a run checks out and opens pull requests against. May be linked to at most one Jira project, and a Jira project links to at most one project.
+A connected GitHub repository. The unit a run checks out and opens pull requests against.
 _Avoid_: Repo (in domain language)
 
 **Session**:
