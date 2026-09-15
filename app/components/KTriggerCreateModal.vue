@@ -27,7 +27,6 @@ type Source = 'schedule' | 'github' | 'manual' | 'jira'
 const SOURCES: { key: Source, label: string, icon: string, hint: string }[] = [
   { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock', hint: 'Run on a cron schedule' },
   { key: 'github', label: 'GitHub', icon: 'i-simple-icons-github', hint: 'Run on GitHub events' },
-  { key: 'jira', label: 'Jira', icon: 'i-simple-icons-jira', hint: 'Run on Jira tickets' },
   { key: 'manual', label: 'Manual', icon: 'i-lucide-play', hint: 'Run on demand only' },
 ]
 
@@ -56,46 +55,6 @@ const issueLabeled = ref(false)
 const issueLabel = ref('')
 const creating = ref(false)
 
-const { data: jiraConnection } = useFetch<{ configured: boolean }>('/api/jira/connection', { lazy: true })
-const jiraProjects = ref<{ label: string, value: string }[]>([])
-const jiraProjectKey = ref('')
-const jiraCondition = ref<'label' | 'status' | 'assignee'>('label')
-const jiraLabel = ref('knecht')
-const jiraStatus = ref('')
-const jiraStatuses = ref<string[]>([])
-
-watch([source, () => jiraConnection.value?.configured], async ([src, configured]) => {
-  if (src !== 'jira' || !configured || jiraProjects.value.length) return
-  try {
-    const list = await $fetch<{ key: string, name: string }[]>('/api/jira/projects')
-    jiraProjects.value = list.map(p => ({ label: `${p.key} · ${p.name}`, value: p.key }))
-  }
-  catch {
-    // Jira unreachable: the dropdown stays empty.
-  }
-})
-
-watch([jiraProjectKey, jiraCondition], async ([key, condition]) => {
-  if (!key || condition !== 'status') return
-  try {
-    jiraStatuses.value = await $fetch<string[]>('/api/jira/statuses', { query: { project: key } })
-  }
-  catch {
-    jiraStatuses.value = []
-  }
-})
-
-function jiraConfig(): Record<string, unknown> {
-  return {
-    projectKey: jiraProjectKey.value,
-    ...(jiraCondition.value === 'label'
-      ? { label: jiraLabel.value.trim() }
-      : jiraCondition.value === 'status'
-        ? { status: jiraStatus.value }
-        : { assignee: true }),
-  }
-}
-
 function parsedBranches(): string[] {
   return branchFilter.value.split(',').map(b => b.trim()).filter(Boolean)
 }
@@ -112,21 +71,11 @@ const issuesLookValid = computed(() =>
   githubEvent.value !== 'issues'
   || (issueActions().length > 0 && (!issueLabeled.value || !!issueLabel.value.trim())),
 )
-const jiraLooksValid = computed(() =>
-  !!jiraConnection.value?.configured
-  && !!jiraProjectKey.value
-  && (jiraCondition.value === 'label'
-    ? !!jiraLabel.value.trim()
-    : jiraCondition.value === 'status'
-      ? !!jiraStatus.value
-      : true),
-)
 const canCreate = computed(() =>
   !!workflowId.value
   && projectIds.value.length > 0
   && (source.value !== 'schedule' || cronLooksValid.value)
-  && (source.value !== 'github' || issuesLookValid.value)
-  && (source.value !== 'jira' || jiraLooksValid.value),
+  && (source.value !== 'github' || issuesLookValid.value),
 )
 
 async function create() {
@@ -145,7 +94,6 @@ async function create() {
         body.issueActions = issueActions()
         body.issueLabel = issueLabeled.value ? issueLabel.value.trim() : null
       }
-      if (source.value === 'jira') body.config = jiraConfig()
       await $fetch(`/api/triggers/${props.trigger.id}`, { method: 'PATCH', body })
       emit('created')
       toast.add({ title: 'Trigger updated', color: 'success' })
@@ -165,7 +113,6 @@ async function create() {
       body.issueActions = issueActions()
       body.issueLabel = issueLabeled.value ? issueLabel.value.trim() : null
     }
-    if (source.value === 'jira') body.config = jiraConfig()
 
     await $fetch('/api/triggers', { method: 'POST', body })
     emit('created')
@@ -194,13 +141,6 @@ watch(open, (isOpen) => {
       issueOpened.value = props.trigger.issueActions.includes('opened')
       issueLabeled.value = props.trigger.issueActions.includes('labeled')
       issueLabel.value = props.trigger.issueLabel ?? ''
-      if (props.trigger.source === 'jira') {
-        const c = props.trigger.config as { projectKey?: string, label?: string, status?: string, assignee?: boolean }
-        jiraProjectKey.value = c.projectKey ?? ''
-        jiraCondition.value = c.status ? 'status' : c.assignee ? 'assignee' : 'label'
-        jiraLabel.value = c.label ?? 'knecht'
-        jiraStatus.value = c.status ?? ''
-      }
       return
     }
     if (props.presetWorkflowId) workflowId.value = props.presetWorkflowId
@@ -216,10 +156,6 @@ watch(open, (isOpen) => {
   issueOpened.value = true
   issueLabeled.value = false
   issueLabel.value = ''
-  jiraProjectKey.value = ''
-  jiraCondition.value = 'label'
-  jiraLabel.value = 'knecht'
-  jiraStatus.value = ''
 })
 </script>
 
@@ -372,78 +308,6 @@ watch(open, (isOpen) => {
           <p class="text-2xs text-dimmed">
             Events arrive via the GitHub App webhook (see Settings); no per-repo setup needed.
           </p>
-        </div>
-
-        <div
-          v-else-if="source === 'jira'"
-          class="space-y-4"
-        >
-          <p
-            v-if="jiraConnection && !jiraConnection.configured"
-            class="rounded-md border border-muted bg-(--surface-muted) px-3 py-2.5 text-2xs leading-normal text-muted"
-          >
-            Jira is not connected yet. Connect it in
-            <NuxtLink
-              to="/settings/jira"
-              class="text-toned underline underline-offset-2"
-            >Settings → Jira</NuxtLink>
-            first (site URL, email, API token), then pick a project here.
-          </p>
-
-          <template v-else>
-            <div>
-              <span class="k-label">Jira project</span>
-              <USelectMenu
-                v-model="jiraProjectKey"
-                value-key="value"
-                :items="jiraProjects"
-                placeholder="Select a Jira project…"
-                icon="i-simple-icons-jira"
-                class="mt-2 w-full"
-              />
-            </div>
-
-            <div>
-              <span class="k-label">Fires when</span>
-              <USelectMenu
-                v-model="jiraCondition"
-                value-key="value"
-                :items="[
-                  { label: 'A label is added', value: 'label' },
-                  { label: 'A status is reached', value: 'status' },
-                  { label: 'The ticket is assigned to the Knecht account', value: 'assignee' },
-                ]"
-                class="mt-2 w-full"
-              />
-              <UInput
-                v-if="jiraCondition === 'label'"
-                v-model="jiraLabel"
-                placeholder="Label name, e.g. knecht"
-                class="mt-2 w-full"
-                :ui="{ base: 'k-mono' }"
-              />
-              <USelectMenu
-                v-else-if="jiraCondition === 'status'"
-                v-model="jiraStatus"
-                :items="jiraStatuses"
-                :disabled="!jiraProjectKey"
-                :placeholder="jiraProjectKey ? 'Select a status…' : 'Pick a Jira project first'"
-                class="mt-2 w-full"
-              />
-              <p
-                v-else
-                class="mt-2 text-2xs text-dimmed"
-              >
-                Fires when a ticket is assigned to the account the Jira connection uses,
-                so "give it to Knecht" is a normal assignment in Jira.
-              </p>
-            </div>
-
-            <p class="text-2xs text-dimmed">
-              Knecht checks Jira about every 45 seconds; a ticket matching the condition starts
-              the workflow with the ticket as inputs, and re-matching later fires again.
-            </p>
-          </template>
         </div>
 
         <div class="flex justify-end gap-2 pt-1">

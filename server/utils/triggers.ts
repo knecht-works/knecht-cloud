@@ -54,7 +54,7 @@ function eventLabel(t: Trigger): string {
   }
   if (t.source === 'github') return githubEventLabel(t)
   const def = getTriggerSource(t.source)
-  if (def) return def.eventLabel(t.config)
+  if (def) return def.eventLabel(t)
   return 'Run on demand'
 }
 

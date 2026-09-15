@@ -74,7 +74,6 @@ export default defineEventHandler(async (event) => {
     patch.issueLabel = null
   }
 
-  // Re-seed the state so the edited condition does not fire on its backlog.
   const def = getTriggerSource(nextSource)
   if (def) {
     const parsed = def.configSchema.safeParse(data.config ?? row.config)
@@ -82,18 +81,9 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: parsed.error.issues[0]?.message ?? 'Invalid trigger config' })
     }
     patch.config = parsed.data
-    if (JSON.stringify(parsed.data) !== JSON.stringify(row.config)) {
-      try {
-        patch.state = await def.init(parsed.data)
-      }
-      catch {
-        throw createError({ statusCode: 400, statusMessage: `Could not reach ${nextSource} to set up the trigger` })
-      }
-    }
   }
   else if (nextSource !== row.source) {
     patch.config = {}
-    patch.state = {}
   }
 
   const updated = db.update(schema.triggers).set(patch).where(eq(schema.triggers.id, id)).returning().get()
