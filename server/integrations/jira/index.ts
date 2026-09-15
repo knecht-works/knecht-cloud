@@ -109,9 +109,15 @@ export function matchJiraEvent(c: JiraTriggerConfig, payload: JiraPayload): Trig
   if (!object) return null
   if (c.issueType && payload.issue?.fields?.issuetype?.name !== c.issueType) return null
 
+  const accountId = jiraCredentials()?.accountId
   let matched = false
-  if (c.event === 'created') {
-    matched = name === 'jira:issue_created'
+  if (name === 'jira:issue_created') {
+    // A ticket born with the label, in the status or assigned to Knecht has no changelog to gain them in.
+    const fields = payload.issue?.fields
+    matched = c.event === 'created'
+      || (c.event === 'labeled' && (fields?.labels ?? []).includes(c.label!))
+      || (c.event === 'transitioned' && fields?.status?.name === c.status)
+      || (c.event === 'assigned' && !!accountId && fields?.assignee?.accountId === accountId)
   }
   else if (name === 'jira:issue_updated') {
     if (c.event === 'labeled') {
@@ -122,7 +128,6 @@ export function matchJiraEvent(c: JiraTriggerConfig, payload: JiraPayload): Trig
       matched = change(payload, 'status')?.toString === c.status
     }
     else if (c.event === 'assigned') {
-      const accountId = jiraCredentials()?.accountId
       matched = !!accountId && change(payload, 'assignee')?.to === accountId
     }
   }
