@@ -313,6 +313,7 @@ function composeOverride({ hasDb, sharedMounts }: { hasDb: boolean, sharedMounts
     { host: join(tools, 'knecht-git'), dest: '/usr/local/bin/knecht-git' },
     { host: join(tools, 'knecht-reply'), dest: '/usr/local/bin/knecht-reply' },
     { host: join(tools, 'knecht-label'), dest: '/usr/local/bin/knecht-label' },
+    { host: join(tools, 'knecht-status'), dest: '/usr/local/bin/knecht-status' },
     { host: join(tools, 'knecht-forward'), dest: '/usr/local/bin/knecht-forward' },
     { host: join(tools, 'knecht-bridge-lib'), dest: '/usr/local/lib/knecht-bridge-lib' },
     // Shadows the stock in-container ddev shim, which silently no-ops.
