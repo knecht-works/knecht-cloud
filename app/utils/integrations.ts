@@ -2,6 +2,7 @@ import type { Component } from 'vue'
 import type { IntegrationId, ObjectKind } from '#shared/utils/integrations'
 import KTriggerFormGithub from '~/components/KTriggerFormGithub.vue'
 import KTriggerFormJira from '~/components/KTriggerFormJira.vue'
+import KTriggerFormPlane from '~/components/KTriggerFormPlane.vue'
 
 export interface SessionObjectMeta {
   icon: string
@@ -47,6 +48,18 @@ export const INTEGRATION_UI: Record<IntegrationId, IntegrationUi> = {
     triggerForm: KTriggerFormJira,
     objects: {
       issue: { icon: 'i-simple-icons-jira', closedIcon: 'i-lucide-circle-check', label: 'Ticket', color: '#579dff', prefix: '' },
+    },
+  },
+  plane: {
+    label: 'Plane',
+    icon: 'i-simple-icons-plane',
+    color: '#3f76ff',
+    hint: 'Run on Plane work items',
+    settingsPath: '/settings/plane',
+    mentionHint: { text: 'mention the Knecht account on a work item of the linked project.' },
+    triggerForm: KTriggerFormPlane,
+    objects: {
+      issue: { icon: 'i-simple-icons-plane', closedIcon: 'i-lucide-circle-check', label: 'Work item', color: '#3f76ff', prefix: '' },
     },
   },
 }
