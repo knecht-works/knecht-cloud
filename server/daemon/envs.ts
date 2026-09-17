@@ -212,14 +212,22 @@ export async function reapIdleEnvs(): Promise<void> {
     .where(eq(schema.runSteps.status, 'running'))
     .all()
     .map(r => r.runId)
-  const busy = new Set(runningRuns.length
-    ? db
-        .select({ sessionId: schema.runs.sessionId })
-        .from(schema.runs)
-        .where(inArray(schema.runs.id, runningRuns))
-        .all()
-        .map(r => r.sessionId)
-    : [])
+  const busy = new Set([
+    ...runningRuns.length
+      ? db
+          .select({ sessionId: schema.runs.sessionId })
+          .from(schema.runs)
+          .where(inArray(schema.runs.id, runningRuns))
+          .all()
+          .map(r => r.sessionId)
+      : [],
+    ...db
+      .select({ sessionId: schema.followups.sessionId })
+      .from(schema.followups)
+      .where(eq(schema.followups.status, 'running'))
+      .all()
+      .map(r => r.sessionId),
+  ])
   for (const { id } of idle) {
     try {
       if (busy.has(id)) {
