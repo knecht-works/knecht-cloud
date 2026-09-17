@@ -238,45 +238,12 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
             </p>
           </div>
           <div class="max-h-100 overflow-y-auto">
-            <div
-              v-for="(g, gi) in sessionGroups"
-              :key="g.sessionId"
-              :class="gi ? 'border-t border-muted' : ''"
-            >
-              <KSessionGroupHeader
-                v-if="g.object"
-                :object="g.object"
-              />
-              <NuxtLink
-                v-for="r in g.runs"
-                :key="r.id"
-                :to="{ query: { run: String(r.id) } }"
-                replace
-                class="relative flex items-center gap-3 pr-4.5 transition-colors hover:bg-(--surface-glass)"
-                :class="[
-                  g.object ? 'py-1.5 pl-8' : 'py-3 pl-4.5',
-                  r.id === selectedRunId ? 'bg-(--surface-glass)' : '',
-                ]"
-                :aria-current="r.id === selectedRunId ? 'true' : undefined"
-              >
-                <span
-                  v-if="r.id === selectedRunId"
-                  class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
-                />
-                <KStatusDot
-                  :color="RUN_STATUS_META[r.status].dot"
-                  :pulse="RUN_STATUS_META[r.status].pulse"
-                  :size="6"
-                />
-                <span
-                  class="k-mono min-w-0 truncate"
-                  :class="g.object ? 'text-2xs text-muted' : 'text-xs text-default'"
-                >{{ r.workflow }}</span>
-                <span class="k-mono shrink-0 text-2xs text-dimmed">#{{ r.id }}</span>
-                <span class="k-mono ml-auto w-14 text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
-                <span class="k-mono hidden w-16 text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
-              </NuxtLink>
-            </div>
+            <KSessionList
+              :groups="sessionGroups"
+              :run-to="r => ({ query: { run: String(r.id) } })"
+              replace
+              :selected-run-id="selectedRunId"
+            />
           </div>
         </KPanel>
 

@@ -39,7 +39,7 @@ const meta = computed(() => {
   const branchOnGitHub = !!r.prUrl || r.objectKind === 'pull_request'
   return [
     object && {
-      icon: r.sessionStatus === 'closed' ? object.closedIcon : object.icon,
+      icon: object.icon,
       text: `${object.prefix}${r.objectKey}`,
       href: r.objectUrl ?? undefined,
     },

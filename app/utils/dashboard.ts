@@ -54,7 +54,7 @@ export function triggerSourceMeta(source: string): TriggerSourceMeta {
 
 export type SessionObjectKind = ObjectKind
 
-const UNKNOWN_OBJECT: SessionObjectMeta = { icon: 'i-lucide-circle-dot', closedIcon: 'i-lucide-circle-check', label: 'Object', color: 'var(--text-toned)', prefix: '' }
+const UNKNOWN_OBJECT: SessionObjectMeta = { icon: 'i-lucide-circle-dot', label: 'Object', color: 'var(--text-toned)', prefix: '' }
 
 export function sessionObjectMeta(integration: IntegrationId, kind: SessionObjectKind): SessionObjectMeta {
   return INTEGRATION_UI[integration]?.objects[kind] ?? UNKNOWN_OBJECT
@@ -71,7 +71,23 @@ interface SessionRunRow {
   envState: 'down' | 'up' | 'stopped' | 'archived'
 }
 
-export function groupRunsBySession<T extends SessionRunRow>(runs: T[]) {
+export interface SessionObject {
+  integration: IntegrationId
+  kind: SessionObjectKind
+  key: string | null
+  title: string | null
+  url: string | null
+  closed: boolean
+  live: boolean
+}
+
+export interface SessionGroup<T> {
+  sessionId: number
+  object: SessionObject | null
+  runs: T[]
+}
+
+export function groupRunsBySession<T extends SessionRunRow>(runs: T[]): SessionGroup<T>[] {
   const bySession = new Map<number, T[]>()
   for (const r of runs) {
     const group = bySession.get(r.sessionId)

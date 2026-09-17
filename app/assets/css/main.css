@@ -78,6 +78,9 @@
   --accent-violet: #fcc46e;
   --accent-clay: #b46258;
   --accent-ink: #16220f;
+
+  /* third-party brand colors */
+  --brand-jira: #579dff;
   --lime-950: #16220f;
 
   /* primary / brand */
