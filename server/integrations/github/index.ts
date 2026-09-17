@@ -19,7 +19,7 @@ function appSlug(): string | null {
 
 function mentionsKnecht(body: string): boolean {
   const handles = [MENTION_HANDLE, appSlug()].filter((h): h is string => !!h)
-  return handles.some(h => new RegExp(`@${h}\\b`, 'i').test(body))
+  return handles.some(h => new RegExp(`@${RegExp.escape(h)}\\b`, 'i').test(body))
 }
 
 function parseComment(payload: GithubPayload): WebhookComment | undefined {
