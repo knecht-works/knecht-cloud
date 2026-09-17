@@ -24,24 +24,19 @@ const meta = computed(() => sessionObjectMeta(props.object.integration, props.ob
       class="size-3.5 flex-none"
       :style="{ color: object.closed ? 'var(--text-dimmed)' : meta.color }"
     />
-    <span class="k-mono flex-none text-2xs text-dimmed">{{ meta.prefix }}{{ object.key }}</span>
     <UTooltip :text="object.title ?? ''">
       <span
-        class="k-mono min-w-0 truncate text-2xs"
-        :class="object.closed ? 'text-dimmed' : 'text-muted'"
+        class="k-mono min-w-0 truncate text-xs"
+        :class="object.closed ? 'text-dimmed' : 'text-default'"
       >{{ object.title }}</span>
     </UTooltip>
+    <span class="k-mono flex-none text-2xs text-dimmed">{{ meta.prefix }}{{ object.key }}</span>
     <span class="ml-auto flex flex-none items-center gap-2">
       <NuxtLink
         v-if="project"
         :to="`/projects/${project.id}`"
         class="k-mono hidden text-2xs text-dimmed transition-colors hover:text-muted md:block"
       >{{ project.name }}</NuxtLink>
-      <KStatusDot
-        v-if="object.live"
-        color="primary"
-        :size="5"
-      />
       <a
         v-if="object.url"
         :href="object.url"
