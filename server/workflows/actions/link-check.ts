@@ -125,5 +125,8 @@ function extractLocs(xml: string): string[] {
 
 function decodeXmlEntities(text: string): string {
   const named: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: '\'' }
-  return text.replace(/&(amp|lt|gt|quot|apos);/g, (_, name: string) => named[name]!)
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&(amp|lt|gt|quot|apos);/g, (_, name: string) => named[name]!)
 }

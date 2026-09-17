@@ -62,13 +62,15 @@ describe('link-check action: sitemaps', () => {
       'GET /b.xml': (req, res) => xml(res, `
         <urlset>
           <url><loc>http://${req.headers.host}/page-two?a=1&amp;b=2</loc></url>
+          <url><loc>http://${req.headers.host}/page-three?c=1&#38;d=2&#x26;e=3</loc></url>
           <url><loc>http://${req.headers.host}/page-one</loc></url>
         </urlset>`),
       'GET /page-one': ok,
       'GET /page-two': ok,
+      'GET /page-three': ok,
     }, async (origin) => {
       const outputs = await linkCheckAction.run(step({ sitemap: `${origin}/sitemap.xml` }), bareRuntime())
-      expect(outputs).toEqual({ checked: 2, broken: 0, brokenUrls: [] })
+      expect(outputs).toEqual({ checked: 3, broken: 0, brokenUrls: [] })
     })
   })
 

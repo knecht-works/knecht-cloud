@@ -3,7 +3,7 @@ import { createServer, type AddressInfo, type Server } from 'node:net'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
-import type { EnvVar } from '../../shared/utils/env'
+import { unquote, type EnvVar } from '../../shared/utils/env'
 import { resolveEnv, type EnvOverrides, type ResolvedEnv } from '../../shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT, previewHostname, previewLabel } from '../../shared/utils/preview-host'
 import { checkoutReader, detectEnv, GENERATED_MARKER, parseDdevConfig, type DdevConfigFile } from '../utils/env-detect'
@@ -373,14 +373,6 @@ function envUrlTranslator(hosts: string[], sessionId: number): (value: string) =
 function expandEnvRefs(value: string, known: Map<string, string>): string {
   return value.replace(/\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)/g, (match, braced: string | undefined, bare: string | undefined) =>
     known.get(braced ?? bare!) ?? match)
-}
-
-function unquote(v: string): string {
-  const q = v[0]
-  if (v.length >= 2 && (q === '"' || q === '\'') && v[v.length - 1] === q) {
-    return v.slice(1, -1)
-  }
-  return v
 }
 
 export function readDdevConfig(checkoutDir: string): DdevConfigFile | null {

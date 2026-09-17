@@ -181,5 +181,6 @@ describe('devDaemonCommand', () => {
     // escaped once more for ddev's outer `bash -c "..."`, which unescapes them first.
     expect(devDaemonCommand(`node -e 'console.log("$HOME")'`))
       .toBe(String.raw`bash -lc 'node -e '\\''console.log(\"\$HOME\")'\\'''`)
+    expect(devDaemonCommand('echo `date` \\n')).toBe(String.raw`bash -lc 'echo \`date\` \\n'`)
   })
 })
