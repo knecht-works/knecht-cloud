@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { runWorkspacePath } from '#shared/utils/routes'
 import { flattenSteps } from '#shared/utils/workflow'
-import type { TestRunRow } from '~/composables/useWorkflowTestRun'
 
 const route = useRoute()
 const toast = useToast()
@@ -388,14 +387,6 @@ const pr = computed(() => {
   const m = activeRun.value?.log.match(/Opened PR #(\d+): (\S+)/)
   return m ? { number: m[1], url: m[2] } : null
 })
-
-function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): string {
-  if (!a || !b) return '-'
-  const ms = new Date(b).getTime() - new Date(a).getTime()
-  if (!Number.isFinite(ms) || ms < 0) return '-'
-  const s = Math.round(ms / 1000)
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
 </script>
 
 <template>
@@ -640,7 +631,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
         <div class="text-2sm leading-snug text-toned">
           <b>Test succeeded.</b> All {{ steps.length }} steps green<template v-if="pr">
             · Pull Request #{{ pr.number }} created
-          </template> · runtime {{ fmtDuration(activeRun!.startedAt, activeRun!.finishedAt) }}
+          </template> · runtime {{ runDuration(activeRun!.startedAt, activeRun!.finishedAt) }}
         </div>
       </div>
       <div
@@ -1058,7 +1049,7 @@ function fmtDuration(a: TestRunRow['startedAt'], b: TestRunRow['finishedAt']): s
                 </a>
                 <div class="flex items-center gap-6">
                   <span class="k-mono text-2xs text-dimmed">Steps <span class="text-primary">{{ steps.length }} / {{ steps.length }}</span></span>
-                  <span class="k-mono text-2xs text-dimmed">Runtime <span class="text-toned">{{ fmtDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
+                  <span class="k-mono text-2xs text-dimmed">Runtime <span class="text-toned">{{ runDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
                 </div>
               </div>
               <div class="border-t border-muted">
