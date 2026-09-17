@@ -217,7 +217,7 @@ function rewriteUrls(
   protocol: string,
 ): string {
   for (const { host, previewHost } of mappings) {
-    const h = host.replaceAll('.', '\\.')
+    const h = RegExp.escape(host)
     text = text
       .replace(
         new RegExp(`(https?:)?((?:\\\\+)?/)(?:\\\\+)?/${h}`, 'gi'),
