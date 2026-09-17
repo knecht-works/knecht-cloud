@@ -18,17 +18,14 @@ const meta = computed(() => sessionObjectMeta(props.object.integration, props.ob
 </script>
 
 <template>
-  <div class="flex items-center gap-2 px-4.5 pb-1 pt-3">
+  <div class="flex items-center gap-2.5 px-4.5 pb-1 pt-3">
     <UIcon
-      :name="object.closed ? meta.closedIcon : meta.icon"
+      :name="meta.icon"
       class="size-3.5 flex-none"
       :style="{ color: object.closed ? 'var(--text-dimmed)' : meta.color }"
     />
     <UTooltip :text="object.title ?? ''">
-      <span
-        class="k-mono min-w-0 truncate text-xs"
-        :class="object.closed ? 'text-dimmed' : 'text-default'"
-      >{{ object.title }}</span>
+      <span class="k-mono min-w-0 truncate text-xs text-default">{{ object.title }}</span>
     </UTooltip>
     <span class="k-mono flex-none text-2xs text-dimmed">{{ meta.prefix }}{{ object.key }}</span>
     <span class="ml-auto flex flex-none items-center gap-2">

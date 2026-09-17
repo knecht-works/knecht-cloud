@@ -5,7 +5,6 @@ import KTriggerFormJira from '~/components/KTriggerFormJira.vue'
 
 export interface SessionObjectMeta {
   icon: string
-  closedIcon: string
   label: string
   color: string
   // Rendered before the key: "#12" for GitHub, "PROJ-12" for Jira.
@@ -32,19 +31,19 @@ export const INTEGRATION_UI: Record<IntegrationId, IntegrationUi> = {
     mentionHint: { code: '@knecht-works <instruction>', text: 'on an issue or pull request.' },
     triggerForm: KTriggerFormGithub,
     objects: {
-      issue: { icon: 'i-lucide-circle-dot', closedIcon: 'i-lucide-circle-check', label: 'Issue', color: 'var(--text-primary)', prefix: '#' },
-      pull_request: { icon: 'i-lucide-git-pull-request', closedIcon: 'i-lucide-git-pull-request-closed', label: 'PR', color: 'var(--accent-violet)', prefix: '#' },
+      issue: { icon: 'i-simple-icons-github', label: 'Issue', color: 'var(--text-highlighted)', prefix: '#' },
+      pull_request: { icon: 'i-simple-icons-github', label: 'PR', color: 'var(--text-highlighted)', prefix: '#' },
     },
   },
   jira: {
     label: 'Jira',
     icon: 'i-simple-icons-jira',
-    color: '#579dff',
+    color: 'var(--brand-jira)',
     hint: 'Run on Jira tickets',
     mentionHint: { text: 'mention the Knecht account on a ticket of the linked project.' },
     triggerForm: KTriggerFormJira,
     objects: {
-      issue: { icon: 'i-simple-icons-jira', closedIcon: 'i-lucide-circle-check', label: 'Ticket', color: '#579dff', prefix: '' },
+      issue: { icon: 'i-simple-icons-jira', label: 'Ticket', color: 'var(--brand-jira)', prefix: '' },
     },
   },
 }

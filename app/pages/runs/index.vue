@@ -18,8 +18,7 @@ const metrics = computed(() => {
   }
 })
 
-const sessionGroups = computed(() =>
-  groupRunsBySession(runs.value ?? []).map(g => ({ ...g, head: g.runs[0]! })))
+const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
 </script>
 
 <template>
@@ -73,43 +72,20 @@ const sessionGroups = computed(() =>
       </div>
     </div>
 
-    <div
+    <KPanel
       v-else
-      class="k-card overflow-hidden"
+      title="Sessions"
+      icon="i-lucide-messages-square"
+      :pad="0"
     >
-      <div
-        v-for="(g, gi) in sessionGroups"
-        :key="g.sessionId"
-        :class="gi ? 'border-t border-muted' : ''"
-      >
-        <KSessionGroupHeader
-          v-if="g.object"
-          :object="g.object"
-          :project="{ id: g.head.projectId, name: g.head.project }"
-        />
-        <NuxtLink
-          v-for="r in g.runs"
-          :key="r.id"
-          :to="runWorkspacePath(r.projectId, r.id)"
-          class="flex items-center gap-3 py-3 pr-4.5 transition-colors hover:bg-(--surface-glass)"
-          :class="g.object ? 'pl-8' : 'pl-4.5'"
-        >
-          <KStatusDot
-            :color="RUN_STATUS_META[r.status].dot"
-            :pulse="RUN_STATUS_META[r.status].pulse"
-            :size="6"
-          />
-          <span class="k-mono truncate text-xs text-default">{{ r.workflow }}</span>
-          <span class="k-mono text-2xs text-dimmed">#{{ r.id }}</span>
-          <span
-            v-if="!g.object"
-            class="k-mono hidden min-w-0 truncate text-2xs text-muted md:block"
-          >{{ r.project }}</span>
-
-          <span class="k-mono ml-auto w-14 flex-none text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
-          <span class="k-mono hidden w-16 flex-none text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
-        </NuxtLink>
-      </div>
-    </div>
+      <template #action>
+        <span class="k-mono text-2xs text-dimmed">{{ sessionGroups.length }} {{ sessionGroups.length === 1 ? 'session' : 'sessions' }}</span>
+      </template>
+      <KSessionList
+        :groups="sessionGroups"
+        :run-to="r => runWorkspacePath(r.projectId, r.id)"
+        show-project
+      />
+    </KPanel>
   </div>
 </template>
