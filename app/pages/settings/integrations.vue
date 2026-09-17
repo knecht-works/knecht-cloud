@@ -286,7 +286,7 @@ async function disconnect() {
         </p>
         <div class="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2">
           <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">URL</span>
-          <code class="k-mono min-w-0 truncate text-xs text-toned">{{ jira.webhookUrl }}</code>
+          <span class="k-mono min-w-0 truncate text-xs text-toned">{{ jira.webhookUrl }}</span>
           <UButton
             color="neutral"
             variant="ghost"
@@ -296,7 +296,7 @@ async function disconnect() {
             @click="copy('Webhook URL', jira.webhookUrl)"
           />
           <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Secret</span>
-          <code class="k-mono min-w-0 truncate text-xs text-toned">{{ secretShown ? jira.webhookSecret : '•'.repeat(24) }}</code>
+          <span class="k-mono min-w-0 truncate text-xs text-toned">{{ secretShown ? jira.webhookSecret : '•'.repeat(24) }}</span>
           <span class="flex gap-1">
             <UButton
               color="neutral"

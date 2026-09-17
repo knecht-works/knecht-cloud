@@ -18,7 +18,6 @@ export interface IntegrationUi {
   color: string
   // The trigger source picker's one-liner.
   hint: string
-  settingsPath?: string
   mentionHint: { code?: string, text: string }
   triggerForm: Component
   objects: Partial<Record<ObjectKind, SessionObjectMeta>>
@@ -42,7 +41,6 @@ export const INTEGRATION_UI: Record<IntegrationId, IntegrationUi> = {
     icon: 'i-simple-icons-jira',
     color: '#579dff',
     hint: 'Run on Jira tickets',
-    settingsPath: '/settings/jira',
     mentionHint: { text: 'mention the Knecht account on a ticket of the linked project.' },
     triggerForm: KTriggerFormJira,
     objects: {

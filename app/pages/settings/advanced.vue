@@ -36,44 +36,48 @@ watch(sshTarget, () => {
 </script>
 
 <template>
-  <KPanel
-    title="Remote access"
-    icon="i-lucide-terminal"
-    accent="var(--primary)"
-  >
-    <template #action>
-      <KSaveStatus
-        :state="saveState"
-        :error-text="saveError"
-      />
-    </template>
-    <p class="mb-5 text-2sm leading-relaxed text-muted">
-      How do you reach this server over SSH? The run page's terminal modal uses this
-      address to build the copy-pasteable SSH command. The web terminal and the IDE
-      work without it.
-      <template v-if="settings?.sshTargetDefault">
-        Leave it empty to use <span class="k-mono text-xs text-toned">{{ settings.sshTargetDefault }}</span>.
+  <div class="flex flex-col gap-4.5">
+    <KSettingsEnvironments />
+    <KSettingsAutoUpdate />
+    <KPanel
+      title="Remote access"
+      icon="i-lucide-terminal"
+      accent="var(--primary)"
+    >
+      <template #action>
+        <KSaveStatus
+          :state="saveState"
+          :error-text="saveError"
+        />
       </template>
-    </p>
-    <UInput
-      v-model="sshTarget"
-      :placeholder="settings?.sshTargetDefault ?? 'knecht@my-server.com'"
-      :disabled="isPreset(settings, 'sshTarget')"
-      :color="fieldError ? 'error' : undefined"
-      :highlight="!!fieldError"
-      class="k-mono w-full max-w-sm"
-    />
-    <p
-      v-if="isPreset(settings, 'sshTarget')"
-      class="k-mono mt-2 text-2xs text-dimmed"
-    >
-      Preset by the installation.
-    </p>
-    <p
-      v-if="fieldError"
-      class="mt-2 text-xs leading-normal text-error"
-    >
-      {{ fieldError }}
-    </p>
-  </KPanel>
+      <p class="mb-5 text-2sm leading-relaxed text-muted">
+        How do you reach this server over SSH? The run page's terminal modal uses this
+        address to build the copy-pasteable SSH command. The web terminal and the IDE
+        work without it.
+        <template v-if="settings?.sshTargetDefault">
+          Leave it empty to use <span class="k-mono text-xs text-toned">{{ settings.sshTargetDefault }}</span>.
+        </template>
+      </p>
+      <UInput
+        v-model="sshTarget"
+        :placeholder="settings?.sshTargetDefault ?? 'knecht@my-server.com'"
+        :disabled="isPreset(settings, 'sshTarget')"
+        :color="fieldError ? 'error' : undefined"
+        :highlight="!!fieldError"
+        class="k-mono w-full max-w-sm"
+      />
+      <p
+        v-if="isPreset(settings, 'sshTarget')"
+        class="k-mono mt-2 text-2xs text-dimmed"
+      >
+        Preset by the installation.
+      </p>
+      <p
+        v-if="fieldError"
+        class="mt-2 text-xs leading-normal text-error"
+      >
+        {{ fieldError }}
+      </p>
+    </KPanel>
+  </div>
 </template>

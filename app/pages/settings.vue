@@ -4,8 +4,7 @@ const route = useRoute()
 const SECTIONS = [
   { label: 'Access', icon: 'i-lucide-users', to: '/settings' },
   { label: 'Agent', icon: 'i-lucide-sparkles', to: '/settings/agent' },
-  { label: 'Environments', icon: 'i-lucide-box', to: '/settings/environments' },
-  ...Object.values(INTEGRATION_UI).flatMap(ui => ui.settingsPath ? [{ label: ui.label, icon: ui.icon, to: ui.settingsPath }] : []),
+  { label: 'Integrations', icon: 'i-lucide-plug', to: '/settings/integrations' },
   { label: 'Advanced', icon: 'i-lucide-sliders-horizontal', to: '/settings/advanced' },
 ]
 
@@ -18,7 +17,7 @@ function isActive(to: string) {
   <div>
     <KTopBar
       title="Settings"
-      sub="Access, agent and environment configuration."
+      sub="Access, agent, integrations and advanced configuration."
     >
       <template #actions>
         <KAppSearch />

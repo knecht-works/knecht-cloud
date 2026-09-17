@@ -48,9 +48,9 @@ watch([event, label, status, issueType, looksValid], () => {
     >
       Jira is not connected yet. Connect it in
       <NuxtLink
-        to="/settings/jira"
+        to="/settings/integrations"
         class="text-toned underline underline-offset-2"
-      >Settings → Jira</NuxtLink>
+      >Settings → Integrations</NuxtLink>
       first, register the webhook it shows, then link a project to its Jira project in the project settings.
     </p>
 
@@ -102,7 +102,7 @@ watch([event, label, status, issueType, looksValid], () => {
       </div>
 
       <p class="text-2xs text-dimmed">
-        Jira sends ticket events to the webhook from Settings → Jira; a matching ticket starts
+        Jira sends ticket events to the webhook from Settings → Integrations; a matching ticket starts
         the workflow with the ticket as inputs and keeps its session for replies and follow-ups.
       </p>
     </template>
