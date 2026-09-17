@@ -41,9 +41,8 @@ describe('reapIdleEnvs', () => {
     db.insert(schema.runSteps).values({
       runId: busy.id,
       stepIndex: 0,
-      stepId: 'followup-1',
-      type: 'ai',
-      origin: 'followup',
+      stepId: 'build',
+      type: 'bash',
     }).run()
     stopEnvStack.mockClear()
     await reapIdleEnvs()
@@ -53,18 +52,17 @@ describe('reapIdleEnvs', () => {
     expect(row.previewLastSeen!.getTime()).toBeGreaterThan(Date.now() - 60_000)
   })
 
-  it('stops the env once the step has finished and the window passed again', async () => {
+  it('stops the env once the follow-up has finished and the window passed again', async () => {
     const run = makeUpRun(STALE)
-    const step = db.insert(schema.runSteps).values({
+    const followup = db.insert(schema.followups).values({
+      sessionId: run.sessionId,
       runId: run.id,
-      stepIndex: 0,
-      stepId: 'followup-1',
-      type: 'ai',
-      origin: 'followup',
-    }).returning({ id: schema.runSteps.id }).get()
+      prompt: 'more',
+      status: 'running',
+    }).returning({ id: schema.followups.id }).get()
     await reapIdleEnvs()
     expect(getSessionRow(run.sessionId).envState).toBe('up')
-    db.update(schema.runSteps).set({ status: 'success' }).where(eq(schema.runSteps.id, step.id)).run()
+    db.update(schema.followups).set({ status: 'success' }).where(eq(schema.followups.id, followup.id)).run()
     await reapIdleEnvs()
     expect(getSessionRow(run.sessionId).envState).toBe('up')
     db.update(schema.sessions).set({ previewLastSeen: STALE }).where(eq(schema.sessions.id, run.sessionId)).run()
