@@ -156,13 +156,14 @@ usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refresh
     <KRunFollowupChat
       v-model:active="followupActive"
       :run-id="run.id"
+      :session-id="run.sessionId"
       :status="run.status"
       :env-state="run.envState"
-      :pr-url="run.prUrl"
       @changed="() => { refreshWorkspace(); emit('changed') }"
     />
 
     <KPanel
+      v-if="run.kind !== 'mention' || run.log"
       title="Log"
       icon="i-lucide-list-checks"
       :pad="0"
