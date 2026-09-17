@@ -11,6 +11,7 @@ Object.assign(globalThis, h3, entities, http)
 
 export interface RouteResponse {
   status: number
+  headers: Headers
   text: string
   json: unknown
 }
@@ -20,6 +21,7 @@ export interface RouteCall {
   route?: string
   path?: string
   body?: string | object
+  form?: FormData
   headers?: Record<string, string>
 }
 
@@ -31,10 +33,10 @@ export async function callRoute(handler: EventHandler, opts: RouteCall = {}): Pr
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
     const { port } = server.address() as AddressInfo
-    const body = opts.body === undefined ? undefined : typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body)
+    const body = opts.form ?? (opts.body === undefined ? undefined : typeof opts.body === 'string' ? opts.body : JSON.stringify(opts.body))
     const res = await fetch(`http://127.0.0.1:${port}${opts.path ?? '/'}`, {
       method: opts.method ?? 'POST',
-      headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...opts.headers },
+      headers: { ...(body !== undefined && !opts.form ? { 'content-type': 'application/json' } : {}), ...opts.headers },
       body,
     })
     const text = await res.text()
@@ -45,7 +47,7 @@ export async function callRoute(handler: EventHandler, opts: RouteCall = {}): Pr
     catch {
       // Plain-text response.
     }
-    return { status: res.status, text, json }
+    return { status: res.status, headers: res.headers, text, json }
   }
   finally {
     server.close()

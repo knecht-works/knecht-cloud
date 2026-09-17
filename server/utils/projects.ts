@@ -7,6 +7,7 @@ import { cancelFollowupWork } from '../daemon/followups'
 import { cancelRun } from '../daemon/runner'
 import { projectMemoryDir } from './agent-memory'
 import { dataDir, projectSharedDir, sessionArchiveDir } from './storage'
+import { removeAttachments } from './attachments'
 
 // FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
 export function deleteProject(id: number): Promise<void> {
@@ -28,10 +29,14 @@ export function deleteProject(id: number): Promise<void> {
     .all()
     .filter(t => t.projectIds.includes(id))
 
+  if (sessionIds.length) {
+    removeAttachments(db.select({ id: schema.followups.id }).from(schema.followups).where(inArray(schema.followups.sessionId, sessionIds)).all().map(f => f.id))
+  }
   db.transaction((tx) => {
     if (sessionIds.length) {
       const runIds = tx.select({ id: schema.runs.id }).from(schema.runs).where(eq(schema.runs.projectId, id)).all().map(r => r.id)
       if (runIds.length) tx.delete(schema.runSteps).where(inArray(schema.runSteps.runId, runIds)).run()
+      tx.delete(schema.agentItems).where(inArray(schema.agentItems.sessionId, sessionIds)).run()
       tx.delete(schema.followups).where(inArray(schema.followups.sessionId, sessionIds)).run()
       tx.delete(schema.runs).where(eq(schema.runs.projectId, id)).run()
       tx.delete(schema.sessions).where(eq(schema.sessions.projectId, id)).run()

@@ -47,6 +47,22 @@ describe('runDataMigrations', () => {
     expect(applied).toContain('0002_bare_ai_step_models')
   })
 
+  it('copies the reply of an old follow-up step row into a message item', () => {
+    const run = makeRun(makeProject(), [])
+    const answered = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'a', status: 'success' }).returning().get()
+    const silent = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'b', status: 'failed' }).returning().get()
+    const base = { runId: run.id, stepIndex: 0, type: 'ai', origin: 'followup' as const, status: 'success' as const }
+    db.insert(schema.runSteps).values({ ...base, stepId: `followup-${answered.id}`, outputs: { text: 'Done, see the diff.' } }).run()
+    db.insert(schema.runSteps).values({ ...base, stepId: `followup-${silent.id}`, outputs: { text: '' } }).run()
+
+    db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, '0004_followup_reply_items')).run()
+    runDataMigrations()
+
+    const items = db.select().from(schema.agentItems).where(eq(schema.agentItems.sessionId, run.sessionId)).all()
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({ followupId: answered.id, seq: 0, type: 'message', text: 'Done, see the diff.' })
+  })
+
   it('turns steps stored as failed with the Cancelled error into cancelled steps', () => {
     const run = makeRun(makeProject(), [])
     const base = { runId: run.id, stepIndex: 0, stepId: 's', type: 'bash' }

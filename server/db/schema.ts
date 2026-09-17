@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm'
-import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { ENV_STATES } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import { PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
@@ -129,6 +129,8 @@ export const sessions = sqliteTable('sessions', {
   previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),
   // The chat thread's session at the agent. Workflow ai steps never use it: each gets a fresh one.
   agentSessionId: text('agent_session_id'),
+  // Written by /compact, read once by the next turn as the fresh session's opening context.
+  agentHandover: text('agent_handover'),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
@@ -215,6 +217,12 @@ export const runSteps = sqliteTable('run_steps', {
   index('run_steps_run_id_idx').on(table.runId),
 ])
 
+export interface Attachment {
+  name: string
+  size: number
+  type: string
+}
+
 export const followups = sqliteTable('followups', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   sessionId: integer('session_id')
@@ -224,6 +232,13 @@ export const followups = sqliteTable('followups', {
     .notNull()
     .references(() => runs.id, { onDelete: 'cascade' }),
   prompt: text('prompt').notNull(),
+  // Overrides settings.aiModel for this turn only.
+  model: text('model'),
+  // The files live under followupAttachmentsDir(id); the row only knows what is there.
+  attachments: text('attachments', { mode: 'json' })
+    .$type<Attachment[]>()
+    .notNull()
+    .default(sql`'[]'`),
   requestedBy: text('requested_by'),
   origin: text('origin', { enum: ['dashboard', 'mention'] })
     .notNull()
@@ -245,6 +260,41 @@ export const followups = sqliteTable('followups', {
 
 export type Followup = typeof followups.$inferSelect
 export type NewFollowup = typeof followups.$inferInsert
+
+export const AGENT_ITEM_TYPES = ['message', 'tool', 'usage', 'notice', 'divider'] as const
+export type AgentItemType = (typeof AGENT_ITEM_TYPES)[number]
+
+// One row per transcript item of a chat turn; the user's message is the follow-up row itself.
+export const agentItems = sqliteTable('agent_items', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  sessionId: integer('session_id')
+    .notNull()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
+  followupId: integer('followup_id')
+    .notNull()
+    .references(() => followups.id, { onDelete: 'cascade' }),
+  seq: integer('seq').notNull(),
+  type: text('type', { enum: AGENT_ITEM_TYPES }).notNull(),
+  // The message text, the tool title, the notice, or the divider label.
+  text: text('text').notNull().default(''),
+  kind: text('kind'),
+  status: text('status', { enum: ['pending', 'in_progress', 'completed', 'failed'] }),
+  input: text('input', { mode: 'json' }).$type<unknown>(),
+  // Capped at a few KB when written; the full output is never kept.
+  output: text('output'),
+  diff: text('diff', { mode: 'json' }).$type<{ path: string, oldText: string | null, newText: string }>(),
+  locations: text('locations', { mode: 'json' }).$type<string[]>(),
+  cost: real('cost'),
+  tokens: text('tokens', { mode: 'json' }).$type<{ used: number, size: number }>(),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, table => [
+  index('agent_items_followup_id_idx').on(table.followupId),
+  index('agent_items_session_id_idx').on(table.sessionId),
+])
+
+export type AgentItem = typeof agentItems.$inferSelect
 
 export const workflows = sqliteTable('workflows', {
   id: integer('id').primaryKey({ autoIncrement: true }),
