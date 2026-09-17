@@ -203,7 +203,7 @@ watch(open, (isOpen) => {
           class="w-full"
         />
         <p class="text-xs text-dimmed">
-          A repo with a <code>.ddev/config.yaml</code> is booted from it (framework, PHP and
+          A repo with a <code class="k-code">.ddev/config.yaml</code> is booted from it (framework, PHP and
           database are read automatically); any other repo gets an environment generated from its
           files. Runs check out the selected branch and open PRs against it.
         </p>
@@ -307,7 +307,7 @@ watch(open, (isOpen) => {
             class="mt-3"
             :label="dumpName ? 'Replace dump' : 'Upload dump'"
             icon="i-lucide-upload"
-            variant="subtle"
+            variant="outline"
             color="neutral"
             size="sm"
             :loading="uploadingDump"

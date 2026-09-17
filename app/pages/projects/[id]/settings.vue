@@ -299,8 +299,8 @@ async function toggleMentions() {
 
           <div>
             <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
-              One <code>KEY=value</code> per line, like a .env file. Values can use
-              <code>$KNECHT_PREVIEW_URL</code> and <code>$KNECHT_DEV_SERVER_URL</code>
+              One <code class="k-code">KEY=value</code> per line, like a .env file. Values can use
+              <code class="k-code">$KNECHT_PREVIEW_URL</code> and <code class="k-code">$KNECHT_DEV_SERVER_URL</code>
               to follow the run's URLs.
             </p>
             <div class="k-code-box">
@@ -407,7 +407,10 @@ async function toggleMentions() {
                 :key="i.id"
               >
                 <span class="text-muted">{{ i.name }}:</span>
-                <code v-if="integrationUi(i.id).mentionHint.code">{{ integrationUi(i.id).mentionHint.code }}</code>
+                <code
+                  v-if="integrationUi(i.id).mentionHint.code"
+                  class="k-code"
+                >{{ integrationUi(i.id).mentionHint.code }}</code>
                 {{ integrationUi(i.id).mentionHint.text }}
               </li>
             </ul>
@@ -552,7 +555,7 @@ async function toggleMentions() {
           </template>
           <div>
             <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
-              What has to run after <code>ddev start</code> and the
+              What has to run after <code class="k-code">ddev start</code> and the
               database import before the site works. One command per line, run
               once per session, before any workflow-specific boot commands.
             </p>
@@ -581,7 +584,7 @@ async function toggleMentions() {
           <div>
             <p class="mb-2.5 text-2xs leading-relaxed text-dimmed">
               The command that starts your dev server, for example
-              <code>npm run dev</code> for Vite hot reloading, and
+              <code class="k-code">npm run dev</code> for Vite hot reloading, and
               the port it listens on. Without a ddev config in the repo this is
               what the preview shows.
             </p>
@@ -641,7 +644,7 @@ async function toggleMentions() {
               class="mt-2.5"
               :label="dumpName ? 'Replace dump' : 'Upload dump'"
               icon="i-lucide-upload"
-              variant="subtle"
+              variant="outline"
               color="neutral"
               size="sm"
               :loading="uploadingDump"
@@ -712,7 +715,7 @@ async function toggleMentions() {
                 type="submit"
                 label="Add"
                 icon="i-lucide-plus"
-                variant="subtle"
+                variant="outline"
                 color="neutral"
                 size="sm"
                 :loading="savingFolders"

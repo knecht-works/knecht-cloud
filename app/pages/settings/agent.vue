@@ -133,7 +133,7 @@ async function removeAiKey() {
       <div class="flex gap-10">
         <div class="min-w-0 max-w-4xl flex-1">
           <p class="mb-5 text-2sm leading-relaxed text-muted">
-            The <span class="k-mono text-xs text-toned">ai</span> workflow step
+            The <span class="k-code">ai</span> workflow step
             runs opencode inside the run's sandbox, authenticated against the selected
             provider with this key. The key is stored encrypted, and each step can override
             the default model.

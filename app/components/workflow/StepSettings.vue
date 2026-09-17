@@ -204,7 +204,7 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
         <span class="k-label transition-colors group-hover:text-muted">Variables</span>
         <span class="k-mono flex-none rounded-full border border-muted px-1.5 text-3xs leading-4 text-dimmed">{{ varCount }}</span>
         <span class="min-w-0 flex-1" />
-        <span class="truncate text-2xs text-dimmed">click to insert, or type <span class="k-mono text-muted">{{ '\{\{' }}</span> in a field</span>
+        <span class="truncate text-2xs text-dimmed">click to insert, or type <span class="k-code">{{ '\{\{' }}</span> in a field</span>
         <UIcon
           name="i-lucide-chevron-down"
           class="size-3.5 flex-none text-dimmed transition-transform duration-300"
