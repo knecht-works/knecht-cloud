@@ -92,7 +92,7 @@ const diffCounts = computed(() => ({
       </template>
       <pre
         v-else
-        class="k-mono max-h-80 overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 text-xs leading-relaxed text-muted"
+        class="k-mono max-h-80 overflow-y-auto whitespace-pre-wrap wrap-break-word px-3 py-2 text-xs leading-relaxed text-muted"
       >{{ item.output }}</pre>
     </div>
   </div>
