@@ -201,8 +201,8 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
         </div>
 
         <KPanel
-          title="Runs"
-          icon="i-lucide-play"
+          title="Sessions"
+          icon="i-lucide-messages-square"
           :pad="0"
         >
           <template #action>
@@ -222,7 +222,7 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
             <span
               v-else
               class="k-mono text-2xs text-dimmed"
-            >{{ projectRuns.length }} {{ projectRuns.length === 1 ? 'run' : 'runs' }}</span>
+            >{{ sessionGroups.length }} {{ sessionGroups.length === 1 ? 'session' : 'sessions' }}</span>
           </template>
 
           <div
@@ -252,9 +252,9 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
                 :key="r.id"
                 :to="{ query: { run: String(r.id) } }"
                 replace
-                class="relative flex items-center gap-3 py-3 pr-4.5 transition-colors hover:bg-(--surface-glass)"
+                class="relative flex items-center gap-3 pr-4.5 transition-colors hover:bg-(--surface-glass)"
                 :class="[
-                  g.object ? 'pl-8' : 'pl-4.5',
+                  g.object ? 'py-1.5 pl-8' : 'py-3 pl-4.5',
                   r.id === selectedRunId ? 'bg-(--surface-glass)' : '',
                 ]"
                 :aria-current="r.id === selectedRunId ? 'true' : undefined"
@@ -268,7 +268,10 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
                   :pulse="RUN_STATUS_META[r.status].pulse"
                   :size="6"
                 />
-                <span class="k-mono min-w-0 truncate text-xs text-default">{{ r.workflow }}</span>
+                <span
+                  class="k-mono min-w-0 truncate"
+                  :class="g.object ? 'text-2xs text-muted' : 'text-xs text-default'"
+                >{{ r.workflow }}</span>
                 <span class="k-mono shrink-0 text-2xs text-dimmed">#{{ r.id }}</span>
                 <span class="k-mono ml-auto w-14 text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
                 <span class="k-mono hidden w-16 text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>

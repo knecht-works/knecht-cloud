@@ -40,7 +40,7 @@ const meta = computed(() => {
   return [
     object && {
       icon: r.sessionStatus === 'closed' ? object.closedIcon : object.icon,
-      text: `${object.label} ${object.prefix}${r.objectKey}`,
+      text: `${object.prefix}${r.objectKey}`,
       href: r.objectUrl ?? undefined,
     },
     { icon: 'i-lucide-workflow', text: r.workflow, href: r.workflowId ? `/workflows/${r.workflowId}` : undefined },
