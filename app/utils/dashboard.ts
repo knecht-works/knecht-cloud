@@ -171,7 +171,11 @@ export function runDuration(start: TimeValue, end: TimeValue): string {
   const from = toDate(start)
   if (!from) return ''
   const to = toDate(end) ?? new Date()
-  const seconds = Math.max(0, Math.floor((to.getTime() - from.getTime()) / 1000))
+  return formatDuration((to.getTime() - from.getTime()) / 1000)
+}
+
+export function formatDuration(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds))
   if (seconds < 60) return `${seconds}s`
   const mins = Math.floor(seconds / 60)
   if (mins < 60) return `${mins}m ${seconds % 60}s`

@@ -34,10 +34,6 @@ async function createWorkflow() {
   }
 }
 
-function fmt(seconds: number) {
-  return `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, '0')}`
-}
-
 const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const wRuns = (runs.value ?? []).filter(r => r.workflowId === w.id)
   const completed = wRuns.filter(r => r.status === 'success' || r.status === 'failed')
@@ -48,7 +44,7 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
     .filter(r => r.status === 'success' && r.startedAt && r.finishedAt)
     .map(r => (new Date(r.finishedAt!).getTime() - new Date(r.startedAt!).getTime()) / 1000)
     .filter(n => Number.isFinite(n) && n >= 0)
-  const avg = durations.length ? fmt(durations.reduce((a, b) => a + b, 0) / durations.length) : null
+  const avg = durations.length ? formatDuration(durations.reduce((a, b) => a + b, 0) / durations.length) : null
 
   const latest = wRuns[0] ?? null
   const status = latest ? RUN_STATUS_META[latest.status] : IDLE_STATUS_META
