@@ -5,7 +5,7 @@ export type LiveEvent
   = | { type: 'item', sessionId: number, item: AgentItemView }
     | { type: 'followup', sessionId: number, followup: FollowupView }
     | { type: 'followup-removed', sessionId: number, id: number }
-  | { type: 'followup-reset', sessionId: number, followup: FollowupView }
+    | { type: 'followup-reset', sessionId: number, followup: FollowupView }
 
 const bus = new EventEmitter()
 bus.setMaxListeners(0)
