@@ -145,6 +145,30 @@ body {
   color: var(--accent-ink);
 }
 
+/* Thin, track-less scrollbars everywhere. Chrome and Firefox read the
+   standard properties (and then ignore ::-webkit-scrollbar); Safari
+   still needs the pseudo-elements. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-accented) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-accented);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(1 0 0 / 0.28);
+}
+
 /* One global focus outline for keyboard navigation. Text fields are
    excluded: browsers let :focus-visible match them even on mouse
    click, so they signal focus with their inset ring instead.
