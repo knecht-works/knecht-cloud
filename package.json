@@ -3,6 +3,9 @@
   "type": "module",
   "private": true,
   "license": "FSL-1.1-ALv2",
+  "engines": {
+    "node": ">=24.11.0"
+  },
   "scripts": {
     "build": "nuxt build",
     "dev": "nuxt dev",
@@ -30,7 +33,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.4.0",
     "@comark/nuxt": "^0.5.0",
-    "@nuxt/ui": "^4.8.2",
+    "@nuxt/ui": "^4.11.1",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
     "adm-zip": "^0.6.0",
@@ -40,7 +43,7 @@
     "drizzle-orm": "^0.45.2",
     "execa": "^9.6.1",
     "marklassian": "^1.2.1",
-    "nuxt": "^4.4.8",
+    "nuxt": "^4.5.2",
     "nuxt-auth-utils": "^0.5.29",
     "octokit": "^5.0.5",
     "prism-code-editor": "^5.2.0",

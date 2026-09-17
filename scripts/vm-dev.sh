@@ -14,10 +14,10 @@ STATE="$HOME/.knecht-dev"
 
 [ "$(uname -s)" = "Linux" ] || { echo "Run inside the VM:  npm run dev:vm"; exit 1; }
 
-# Node 22 (dev-only dependency of the VM; prod hosts run Knecht as a container).
+# Node 24 (dev-only dependency of the VM; prod hosts run Knecht as a container).
 if ! command -v node >/dev/null; then
-  echo "▶ Installing Node 22"
-  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null
+  echo "▶ Installing Node 24"
+  curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash - >/dev/null
   sudo apt-get install -y -qq nodejs
 fi
 # npm 11: the lockfile's generator; npm 10 resolves it differently (same pin

@@ -17,7 +17,7 @@ ARG NPM_VERSION=11.9.0
 
 
 # ═══ build: compile the Nuxt app ══════════════════════════════════════════════
-FROM node:22-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 ARG NPM_VERSION
 WORKDIR /app
 # Pin npm to the lockfile's generator so `npm ci` is deterministic: the base
@@ -29,7 +29,7 @@ RUN npm i -g npm@${NPM_VERSION} && npm ci && npm run build
 
 
 # ═══ tooling: shared runtime base ═════════════════════════════════════════════
-FROM node:22-bookworm-slim AS tooling
+FROM node:24-bookworm-slim AS tooling
 ARG NPM_VERSION
 
 # 1) Base system dependencies + git (clone/fetch project repos); gnupg
