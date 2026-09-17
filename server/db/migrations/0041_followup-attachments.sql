@@ -1,0 +1,1 @@
+ALTER TABLE `followups` ADD `attachments` text DEFAULT '[]' NOT NULL;

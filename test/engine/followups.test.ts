@@ -38,6 +38,36 @@ function objectFollowup(origin: 'mention' | 'dashboard') {
   return { run, followup }
 }
 
+describe('follow-up hand-over', () => {
+  it('opens the first turn after /compact with the stored summary, once', async () => {
+    const { run } = objectFollowup('dashboard')
+    db.update(schema.sessions).set({ agentHandover: 'Goal: recolor the pill. Branch pill-recolor has the change.' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    const first = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'continue' }).returning().get()
+    await startFollowup(first.id)
+    expect(agent.messages.at(-1)).toMatch(/^Hand-over from the previous conversation in this session, read it before acting:\n\nGoal: recolor the pill/)
+    expect(agent.messages.at(-1)).toContain('continue')
+
+    const second = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'and again' }).returning().get()
+    await startFollowup(second.id)
+    expect(agent.messages.at(-1)).not.toContain('Hand-over')
+  })
+})
+
+describe('follow-up attachments', () => {
+  it('names the staged sandbox paths in the prompt', async () => {
+    const { run } = objectFollowup('dashboard')
+    const followup = db.insert(schema.followups).values({
+      sessionId: run.sessionId,
+      runId: run.id,
+      prompt: 'use the screenshot',
+      attachments: [{ name: 'shot.png', size: 2048, type: 'image/png' }],
+    }).returning().get()
+    await startFollowup(followup.id)
+    expect(agent.messages.at(-1)).toContain('use the screenshot')
+    expect(agent.messages.at(-1)).toContain(`/tmp/knecht-attachments/${followup.id}/shot.png (image/png, 2 KB)`)
+  })
+})
+
 describe('follow-up replies on the thread', () => {
   it('posts the agent reply on the object for mentions', async () => {
     const { followup } = objectFollowup('mention')

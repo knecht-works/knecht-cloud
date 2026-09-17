@@ -1,5 +1,5 @@
 import { Readable, Writable } from 'node:stream'
-import { client, methods, ndJsonStream, PROTOCOL_VERSION, type ClientConnection, type PermissionOption, type SessionUpdate, type StopReason, type ToolCallUpdate, type ToolKind } from '@agentclientprotocol/sdk'
+import { client, methods, ndJsonStream, PROTOCOL_VERSION, type ClientConnection, type PermissionOption, type SessionConfigOption, type SessionUpdate, type StopReason, type ToolCallStatus, type ToolCallUpdate, type ToolKind } from '@agentclientprotocol/sdk'
 import type { SandboxProcess } from './sandbox-process'
 
 export interface AgentTurn {
@@ -14,17 +14,40 @@ export interface AgentSession {
   close: () => Promise<void>
 }
 
+export interface TranscriptItem {
+  key: string
+  type: 'message' | 'tool' | 'usage' | 'notice' | 'divider'
+  text: string
+  kind?: ToolKind | null
+  status?: ToolCallStatus | null
+  input?: unknown
+  output?: string | null
+  diff?: { path: string, oldText: string | null, newText: string } | null
+  locations?: string[] | null
+  cost?: number | null
+  tokens?: { used: number, size: number } | null
+}
+
+// Receives every item again whenever it changes (a message grows, a tool call finishes).
+export interface TranscriptSink {
+  item: (item: TranscriptItem) => void
+  end: () => void
+}
+
 interface OpenAgentOptions {
   process: SandboxProcess
   cwd: string
-  log: (text: string) => void
+  sink: TranscriptSink
   signal: AbortSignal
   /** Resume this agent session; falls back to a new one when the agent no longer knows it. */
   sessionId?: string | null
+  /** Provider-qualified model the turn must run on; a resumed session otherwise keeps its last one. */
+  model?: string | null
 }
 
 const CANCEL_GRACE_MS = 10_000
 const STDERR_TAIL = 4 * 1024
+const OUTPUT_CAP = 4 * 1024
 
 const KIND_LABEL: Record<ToolKind, string> = {
   read: 'read',
@@ -41,7 +64,7 @@ const KIND_LABEL: Record<ToolKind, string> = {
 
 // One agent process, one ACP session; the turn's last message is the reply callers get back.
 export async function openAgent(opts: OpenAgentOptions): Promise<AgentSession> {
-  const { process: proc, log } = opts
+  const { process: proc, sink } = opts
   let stderr = ''
   proc.stderr.on('data', (chunk: Buffer) => {
     stderr = (stderr + chunk.toString()).slice(-STDERR_TAIL)
@@ -91,19 +114,31 @@ export async function openAgent(opts: OpenAgentOptions): Promise<AgentSession> {
       clientInfo: { name: 'knecht', version: '1' },
       clientCapabilities: {},
     }))
+    let configOptions: SessionConfigOption[] | null | undefined
     if (opts.sessionId) {
       try {
-        await untilExit(agent.request(methods.agent.session.load, { sessionId: opts.sessionId, cwd: opts.cwd, mcpServers: [] }))
+        const resumed = await untilExit(agent.request(methods.agent.session.load, { sessionId: opts.sessionId, cwd: opts.cwd, mcpServers: [] }))
         sessionId = opts.sessionId
         loaded = true
+        configOptions = resumed.configOptions
       }
       catch (e) {
-        log(`\nCould not resume the agent session, starting a new one: ${(e as Error).message}\n`)
+        sink.item(notice(`Could not resume the agent session, starting a new one: ${(e as Error).message}`))
       }
     }
     if (!loaded) {
       const created = await untilExit(agent.request(methods.agent.session.new, { cwd: opts.cwd, mcpServers: [] }))
       sessionId = created.sessionId
+      configOptions = created.configOptions
+    }
+    const modelOption = configOptions?.find(o => o.id === 'model')
+    if (opts.model && modelOption && modelOption.type === 'select' && modelOption.currentValue !== opts.model) {
+      try {
+        await untilExit(agent.request(methods.agent.session.setConfigOption, { sessionId: sessionId!, configId: modelOption.id, value: opts.model }))
+      }
+      catch (e) {
+        sink.item(notice(`Could not switch this turn to ${opts.model}, it runs on ${modelOption.currentValue}: ${(e as Error).message}`))
+      }
     }
   }
   catch (e) {
@@ -115,7 +150,7 @@ export async function openAgent(opts: OpenAgentOptions): Promise<AgentSession> {
     sessionId: sessionId!,
     loaded,
     async prompt(text) {
-      turn = new Turn(sessionId, log)
+      turn = new Turn(sessionId, sink)
       const onAbort = () => {
         void agent.notify(methods.agent.session.cancel, { sessionId })
       }
@@ -126,7 +161,7 @@ export async function openAgent(opts: OpenAgentOptions): Promise<AgentSession> {
           agent.request(methods.agent.session.prompt, { sessionId, prompt: [{ type: 'text', text }] }),
           killAfterCancel(opts.signal, proc),
         ]))
-        turn.finish()
+        sink.end()
         if (response.stopReason === 'cancelled' || opts.signal.aborted) throw new Error('Cancelled')
         return { text: turn.reply(), stopReason: response.stopReason }
       }
@@ -136,6 +171,51 @@ export async function openAgent(opts: OpenAgentOptions): Promise<AgentSession> {
       }
     },
     close,
+  }
+}
+
+let noticeCounter = 0
+
+export function notice(text: string): TranscriptItem {
+  return { key: `notice:${++noticeCounter}`, type: 'notice', text }
+}
+
+// The log form of a transcript: message text streamed, one line per finished tool call.
+export function logSink(log: (text: string) => void): TranscriptSink {
+  const written = new Map<string, number>()
+  let atLineStart = true
+  const write = (text: string) => {
+    if (!text) return
+    log(text)
+    atLineStart = text.endsWith('\n')
+  }
+  const line = (text: string) => write(`${atLineStart ? '' : '\n'}${text}\n`)
+  return {
+    item(item) {
+      switch (item.type) {
+        case 'message': {
+          const done = written.get(item.key) ?? 0
+          write(item.text.slice(done))
+          written.set(item.key, item.text.length)
+          return
+        }
+        // Logged once finished: a shell call's title is only the command after its input arrived.
+        case 'tool': {
+          if (written.has(item.key) || (item.status !== 'completed' && item.status !== 'failed')) return
+          written.set(item.key, 1)
+          line(`${item.status === 'failed' ? 'failed ' : ''}${KIND_LABEL[item.kind ?? 'other']}: ${item.text}`)
+          return
+        }
+        case 'notice':
+          line(item.text)
+          return
+        default:
+      }
+    },
+    end() {
+      if (!atLineStart) write('\n')
+      written.clear()
+    },
   }
 }
 
@@ -158,6 +238,24 @@ function toolLabel(tool: ToolCallUpdate): string {
   return path && !title.includes(path) ? `${title} ${path}` : title
 }
 
+// opencode reports a shell call's stdout as rawOutput.output, wrapped in metadata nobody wants to read.
+function toolOutput(tool: ToolCallUpdate): string | null {
+  const raw = tool.rawOutput as { output?: unknown } | string | null | undefined
+  const content = (tool.content ?? [])
+    .map(c => c.type === 'content' && c.content.type === 'text' ? c.content.text : '')
+    .filter(Boolean)
+    .join('\n')
+  const text = content
+    || (typeof raw === 'string' ? raw : typeof raw?.output === 'string' ? raw.output : raw != null ? JSON.stringify(raw, null, 2) : '')
+  if (!text) return null
+  return text.length > OUTPUT_CAP ? `${text.slice(0, OUTPUT_CAP)}\n… [${text.length - OUTPUT_CAP} more characters not kept]` : text
+}
+
+function toolDiff(tool: ToolCallUpdate): TranscriptItem['diff'] {
+  const diff = tool.content?.find(c => c.type === 'diff')
+  return diff && diff.type === 'diff' ? { path: diff.path, oldText: diff.oldText ?? null, newText: diff.newText } : null
+}
+
 function withoutNulls<T extends object>(update: T): Partial<T> {
   return Object.fromEntries(Object.entries(update).filter(([, v]) => v != null)) as Partial<T>
 }
@@ -169,57 +267,60 @@ function allowOption(options: PermissionOption[]): PermissionOption {
 }
 
 class Turn {
-  private messages: string[] = ['']
+  private messages: { key: string, text: string }[] = []
   private messageId: string | null | undefined
-  private atLineStart = true
   private tools = new Map<string, ToolCallUpdate>()
+  private messageCount = 0
 
-  constructor(readonly sessionId: string, private readonly log: (text: string) => void) {}
+  constructor(readonly sessionId: string, private readonly sink: TranscriptSink) {}
 
   apply(update: SessionUpdate): void {
     switch (update.sessionUpdate) {
       case 'agent_message_chunk': {
         if (update.content.type !== 'text') return
-        if (update.messageId !== this.messageId) {
+        if (update.messageId !== this.messageId || !this.messages.length) {
           this.messageId = update.messageId
-          if (this.messages.at(-1)) this.messages.push('')
+          this.messages.push({ key: `message:${++this.messageCount}`, text: '' })
         }
-        this.messages[this.messages.length - 1] += update.content.text
-        this.write(update.content.text)
+        const message = this.messages.at(-1)!
+        message.text += update.content.text
+        this.sink.item({ key: message.key, type: 'message', text: message.text })
         return
       }
-      // Logged once finished: a shell call's title is only the command after its input arrived.
       case 'tool_call':
       case 'tool_call_update': {
         const known = this.tools.get(update.toolCallId) ?? { toolCallId: update.toolCallId }
         const merged: ToolCallUpdate = { ...known, ...withoutNulls(update), toolCallId: update.toolCallId }
         this.tools.set(update.toolCallId, merged)
-        if (merged.status === 'completed' || merged.status === 'failed') {
-          this.tools.delete(update.toolCallId)
-          this.line(`${merged.status === 'failed' ? 'failed ' : ''}${KIND_LABEL[merged.kind ?? 'other']}: ${toolLabel(merged)}`)
-        }
+        this.sink.item({
+          key: `tool:${update.toolCallId}`,
+          type: 'tool',
+          text: toolLabel(merged),
+          kind: merged.kind ?? 'other',
+          status: merged.status ?? 'pending',
+          input: merged.rawInput,
+          output: toolOutput(merged),
+          diff: toolDiff(merged),
+          locations: merged.locations?.map(l => l.path) ?? null,
+        })
+        return
+      }
+      case 'usage_update': {
+        this.sink.item({
+          key: 'usage',
+          type: 'usage',
+          text: '',
+          tokens: { used: update.used, size: update.size },
+          cost: update.cost?.amount ?? null,
+        })
         return
       }
       default:
     }
   }
 
-  finish(): void {
-    if (!this.atLineStart) this.write('\n')
-  }
-
   reply(): string {
-    const last = [...this.messages].reverse().find(m => m.trim())
-    return (last ?? '').trim()
-  }
-
-  private line(text: string): void {
-    this.write(`${this.atLineStart ? '' : '\n'}${text}\n`)
-  }
-
-  private write(text: string): void {
-    if (!text) return
-    this.log(text)
-    this.atLineStart = text.endsWith('\n')
+    const last = [...this.messages].reverse().find(m => m.text.trim())
+    return (last?.text ?? '').trim()
   }
 }

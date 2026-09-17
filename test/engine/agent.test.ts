@@ -30,6 +30,10 @@ const { encrypt } = await import('../../server/utils/crypto')
 
 updateSettings({ aiProvider: 'anthropic', aiModel: 'claude-sonnet-4-5', aiKeyEnc: encrypt('sk-test') })
 
+function itemsOf(followupId: number) {
+  return db.select().from(schema.agentItems).where(eq(schema.agentItems.followupId, followupId)).orderBy(schema.agentItems.seq).all()
+}
+
 async function runAi(step: Partial<Extract<Step, { type: 'ai' }>>) {
   const project = makeProject()
   const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'do the thing', ...step }])
@@ -97,10 +101,96 @@ describe('follow-ups over ACP', () => {
     expect(session().agentSessionId).toMatch(/^ses_stub_/)
 
     db.update(schema.sessions).set({ agentSessionId: 'ses_stub_known' }).where(eq(schema.sessions.id, sessionId)).run()
-    await startFollowup(followup('second LOADED').id)
-    const steps = getSteps(run.id).filter(s => s.origin === 'followup')
-    expect(steps.at(-1)!.outputs).toEqual({ text: 'Hello from stub (loaded)' })
+    const second = followup('second LOADED')
+    await startFollowup(second.id)
+    expect(itemsOf(second.id).filter(i => i.type === 'message').at(-1)!.text).toBe('Hello from stub (loaded)')
     expect(session().agentSessionId).toBe('ses_stub_known')
+    // The chat has its own transcript: nothing of it lands in the run log or as a step row.
+    expect(getSteps(run.id).filter(s => s.origin === 'followup')).toHaveLength(0)
+    expect(getRun(run.id).log).not.toContain('Hello from stub (loaded)')
+  })
+
+  it('switches a resumed session to the turn\'s model override', async () => {
+    const { run } = await runAi({})
+    db.update(schema.sessions).set({ agentSessionId: 'ses_stub_known' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    const plain = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'WHICH_MODEL' }).returning().get()
+    await startFollowup(plain.id)
+    expect(itemsOf(plain.id).find(i => i.type === 'message')!.text).toBe('model: anthropic/claude-sonnet-4-5')
+
+    const override = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'WHICH_MODEL', model: 'claude-opus-4-6' }).returning().get()
+    await startFollowup(override.id)
+    expect(itemsOf(override.id).find(i => i.type === 'message')!.text).toBe('model: anthropic/claude-opus-4-6')
+  })
+
+  it('stores the turn as transcript items: messages, tool calls with capped output, usage', async () => {
+    const { run } = await runAi({})
+    const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'hello' }).returning().get()
+    await startFollowup(followup.id)
+    const items = itemsOf(followup.id)
+    expect(items.map(i => [i.type, i.text])).toEqual([
+      ['tool', 'Read AGENTS.md'],
+      ['message', 'Thinking about it.'],
+      ['tool', 'npm test'],
+      ['message', 'Hello from stub (fresh)'],
+      ['usage', ''],
+    ])
+    expect(items[0]).toMatchObject({ kind: 'read', status: 'completed', output: 'secret file contents', sessionId: run.sessionId })
+    expect(items[2]).toMatchObject({ kind: 'execute', status: 'completed', diff: { path: 'package.json', oldText: 'a', newText: 'b' } })
+    expect(items[4]).toMatchObject({ tokens: { used: 1200, size: 200000 }, cost: 0.05 })
+    expect(items.map(i => i.seq)).toEqual([0, 1, 2, 3, 4])
+  })
+
+  it('pushes every item to the session stream as it is written', async () => {
+    const { onLive } = await import('../../server/utils/live')
+    const { run } = await runAi({})
+    const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'hello' }).returning().get()
+    const seen: string[] = []
+    const off = onLive(run.sessionId, (e) => {
+      if (e.type === 'item') seen.push(`${e.item.type}:${e.item.text}`)
+      else if (e.type === 'followup') seen.push(`followup:${e.followup.status}`)
+    })
+    await startFollowup(followup.id)
+    off()
+    expect(seen[0]).toBe('followup:running')
+    expect(seen.at(-1)).toBe('followup:success')
+    expect(seen).toContain('message:Hello from ')
+    expect(seen).toContain('message:Hello from stub (fresh)')
+  })
+
+  it('/compact summarizes silently and seeds the next turn\'s fresh session with it', async () => {
+    const { run } = await runAi({})
+    const session = () => db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
+    db.update(schema.sessions).set({ agentSessionId: 'ses_stub_known' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    const compact = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: '/compact' }).returning().get()
+    await startFollowup(compact.id)
+    expect(itemsOf(compact.id).map(i => i.type)).toEqual(['divider'])
+    expect(session().agentSessionId).toBeNull()
+    expect(session().agentHandover).toBe('Hello from stub (fresh)')
+    expect(db.select().from(schema.followups).where(eq(schema.followups.id, compact.id)).get()!.status).toBe('success')
+
+    const next = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'go on' }).returning().get()
+    await startFollowup(next.id)
+    expect(session().agentSessionId).toMatch(/^ses_stub_\d+$/)
+    expect(session().agentHandover).toBeNull()
+  })
+
+  it('continues the seq of a follow-up when a sink is reopened for it', async () => {
+    const { transcriptSink } = await import('../../server/utils/agent-items')
+    const { notice } = await import('../../server/daemon/agent')
+    const { run } = await runAi({})
+    const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'hello' }).returning().get()
+    await startFollowup(followup.id)
+    transcriptSink(run.sessionId, followup.id).item(notice('posted late'))
+    expect(itemsOf(followup.id).at(-1)).toMatchObject({ type: 'notice', text: 'posted late', seq: 5 })
+  })
+
+  it('caps a tool output at 4 KB', async () => {
+    const { run } = await runAi({})
+    const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'BIG_OUTPUT' }).returning().get()
+    await startFollowup(followup.id)
+    const tool = itemsOf(followup.id).find(i => i.text === 'cat big.log')!
+    expect(tool.output!.length).toBeLessThan(4200)
+    expect(tool.output).toContain('more characters not kept')
   })
 
   it('starts a new chat session when the agent no longer knows the stored one', async () => {
@@ -110,6 +200,6 @@ describe('follow-ups over ACP', () => {
     await startFollowup(followup.id)
     const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
     expect(session.agentSessionId).toMatch(/^ses_stub_/)
-    expect(getRun(run.id).log).toContain('Could not resume the agent session')
+    expect(itemsOf(followup.id)[0]).toMatchObject({ type: 'notice', text: expect.stringContaining('Could not resume the agent session') })
   })
 })
