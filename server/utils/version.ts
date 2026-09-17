@@ -1,3 +1,5 @@
+import semver from 'semver'
+
 export const RELEASE_TAG_RE = /^v\d+\.\d+\.\d+$/
 
 const REPO = 'knecht-works/knecht-cloud'
@@ -51,16 +53,8 @@ export async function listReleases(): Promise<Release[]> {
   return releasesCache.value
 }
 
-const CURRENT_TAG_RE = /^v(\d+)\.(\d+)\.(\d+)(-.+)?$/
-
 export function isNewerVersion(candidate: string, current: string): boolean {
   if (!RELEASE_TAG_RE.test(candidate)) return false
-  const cur = current.match(CURRENT_TAG_RE)
-  if (!cur) return false
-  const a = candidate.slice(1).split('.').map(Number)
-  const b = [Number(cur[1]), Number(cur[2]), Number(cur[3])]
-  for (let i = 0; i < 3; i++) {
-    if (a[i]! !== b[i]!) return a[i]! > b[i]!
-  }
-  return Boolean(cur[4])
+  const cur = semver.valid(current)
+  return cur !== null && semver.gt(candidate, cur)
 }

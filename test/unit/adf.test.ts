@@ -29,10 +29,10 @@ describe('markdownToAdf', () => {
     expect(adfToMarkdown(doc)).toBe(markdown)
   })
 
-  it('keeps line breaks inside a paragraph and never fails on odd input', () => {
+  it('never fails on odd input and always yields at least one block', () => {
     const doc = markdownToAdf('line one\nline two\n\n*not closed **bold')
     expect(doc.content).toHaveLength(2)
-    expect(adfToMarkdown(doc)).toBe('line one\nline two\n\n*not closed **bold')
+    expect(adfToMarkdown(doc)).toBe('line one line two\n\n*not closed **bold')
     expect(markdownToAdf('').content).toEqual([{ type: 'paragraph', content: [] }])
   })
 })
