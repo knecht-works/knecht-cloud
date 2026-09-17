@@ -64,7 +64,7 @@ watch(form, () => {
     </template>
     <p class="mb-5 text-2sm leading-relaxed text-muted">
       To free up the server, every run's preview steps down a ladder when nobody uses it:
-      <span class="k-mono text-xs text-toned">live → stopped → archived → deleted</span>.
+      <span class="k-code">live → stopped → archived → deleted</span>.
     </p>
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
       <div

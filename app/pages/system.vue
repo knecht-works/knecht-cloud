@@ -50,7 +50,7 @@ async function runGc() {
         <UButton
           icon="i-lucide-trash-2"
           color="neutral"
-          variant="subtle"
+          variant="outline"
           label="Run cleanup now"
           :loading="runningGc"
           class="flex-none"

@@ -55,7 +55,7 @@ watch(sshTarget, () => {
         address to build the copy-pasteable SSH command. The web terminal and the IDE
         work without it.
         <template v-if="settings?.sshTargetDefault">
-          Leave it empty to use <span class="k-mono text-xs text-toned">{{ settings.sshTargetDefault }}</span>.
+          Leave it empty to use <span class="k-code">{{ settings.sshTargetDefault }}</span>.
         </template>
       </p>
       <UInput

@@ -27,7 +27,7 @@ watch(autoUpdateCron, () => {
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <p class="max-w-2xl text-2sm leading-relaxed text-muted">
         Installs new releases on this schedule (cron, server time), only while
-        no run is active. For example <span class="k-mono text-xs text-toned">0 3 * * *</span>
+        no run is active. For example <span class="k-code">0 3 * * *</span>
         updates nightly at 03:00. Leave it empty to update only via the button on the
         <NuxtLink
           to="/system"

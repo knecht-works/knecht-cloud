@@ -221,18 +221,16 @@ html {
   @apply w-full overflow-hidden rounded-md bg-default ring ring-inset ring-accented transition-colors focus-within:ring-2 focus-within:ring-primary;
 }
 
-/* Inline code in helper text (a command, a file name, an env var): a mono
-   chip that stays readable inside dimmed prose. */
-@layer base {
-  code {
-    font-family: var(--font-mono);
-    font-size: 0.92em;
-    color: var(--text-muted);
-    background: var(--surface-glass);
-    border: 1px solid var(--border-muted);
-    border-radius: 4px;
-    padding: 0.05em 0.35em;
-  }
+/* Inline mono chip inside text (a command, a file name, an env var, a value
+   to copy): stays readable inside dimmed prose. No font size: it follows the
+   surrounding text. */
+@utility k-code {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: var(--surface-glass);
+  border: 1px solid var(--border-muted);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
 }
 
 /* Scrollable area without a visible scrollbar (log viewports: the content
