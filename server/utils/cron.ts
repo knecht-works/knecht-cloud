@@ -1,67 +1,12 @@
-interface CronSpec {
-  minute: Set<number>
-  hour: Set<number>
-  dom: Set<number>
-  month: Set<number>
-  dow: Set<number>
-  domRestricted: boolean
-  dowRestricted: boolean
-}
+import { Cron } from 'croner'
 
-function parseField(field: string, min: number, max: number): Set<number> {
-  const out = new Set<number>()
-  for (const part of field.split(',')) {
-    const [rangePart, stepPart] = part.split('/')
-    const step = stepPart === undefined ? 1 : Number(stepPart)
-    if (!Number.isInteger(step) || step < 1) throw new Error(`Invalid step in "${part}"`)
-
-    let lo: number
-    let hi: number
-    if (rangePart === '*') {
-      lo = min
-      hi = max
-    }
-    else if (rangePart!.includes('-')) {
-      const [a, b] = rangePart!.split('-').map(Number)
-      lo = a!
-      hi = b!
-    }
-    else {
-      lo = Number(rangePart)
-      hi = stepPart === undefined ? lo : max
-    }
-
-    if (!Number.isInteger(lo) || !Number.isInteger(hi) || lo < min || hi > max || lo > hi) {
-      throw new Error(`Field value out of range in "${part}"`)
-    }
-    for (let v = lo; v <= hi; v += step) out.add(v)
-  }
-  return out
-}
-
-function parseCron(expr: string): CronSpec {
-  const fields = expr.trim().split(/\s+/)
-  if (fields.length !== 5) throw new Error('Cron must have exactly 5 fields')
-  const [minute, hour, dom, month, dowField] = fields as [string, string, string, string, string]
-
-  const dow = parseField(dowField, 0, 7)
-  // Cron allows 7 for Sunday; JS Date.getDay() uses 0. Normalize.
-  if (dow.delete(7)) dow.add(0)
-
-  return {
-    minute: parseField(minute, 0, 59),
-    hour: parseField(hour, 0, 23),
-    dom: parseField(dom, 1, 31),
-    month: parseField(month, 1, 12),
-    dow,
-    domRestricted: dom !== '*',
-    dowRestricted: dowField !== '*',
-  }
+function pattern(expr: string): Cron {
+  return new Cron(expr, { mode: '5-part', sloppyRanges: true })
 }
 
 export function isValidCron(expr: string): boolean {
   try {
-    parseCron(expr)
+    pattern(expr)
     return true
   }
   catch {
@@ -69,28 +14,6 @@ export function isValidCron(expr: string): boolean {
   }
 }
 
-function matches(spec: CronSpec, t: Date): boolean {
-  if (!spec.minute.has(t.getMinutes())) return false
-  if (!spec.hour.has(t.getHours())) return false
-  if (!spec.month.has(t.getMonth() + 1)) return false
-
-  const domOk = spec.dom.has(t.getDate())
-  const dowOk = spec.dow.has(t.getDay())
-  // POSIX: when both day fields are restricted, a match on either is enough.
-  if (spec.domRestricted && spec.dowRestricted) return domOk || dowOk
-  if (spec.domRestricted) return domOk
-  if (spec.dowRestricted) return dowOk
-  return true
-}
-
 export function nextRun(expr: string, from: Date = new Date()): Date | null {
-  const spec = parseCron(expr)
-  const t = new Date(from.getTime())
-  t.setSeconds(0, 0)
-  t.setMinutes(t.getMinutes() + 1)
-  for (let i = 0; i < 400 * 24 * 60; i++) {
-    if (matches(spec, t)) return t
-    t.setMinutes(t.getMinutes() + 1)
-  }
-  return null
+  return pattern(expr).nextRun(from)
 }

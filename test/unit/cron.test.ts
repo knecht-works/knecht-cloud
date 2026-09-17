@@ -9,6 +9,9 @@ describe('isValidCron', () => {
     ['0 6 * * 1-5', true],
     ['0 0 1,15 * *', true],
     ['5/10 * * * *', true],
+    ['5-59/10 * * * *', true],
+    ['0 6 * * MON-FRI', true],
+    ['* * * * * *', false],
     ['61 * * * *', false],
     ['* * * *', false],
     ['*/0 * * * *', false],
@@ -43,5 +46,12 @@ describe('nextRun', () => {
 
   it('returns null when nothing ever matches', () => {
     expect(nextRun('0 0 30 2 *', at(2026, 7, 14, 0, 0))).toBeNull()
+  })
+})
+
+describe('numeric prefix stepping', () => {
+  it('reads 5/10 as 5-59/10 like Vixie cron', () => {
+    expect(nextRun('5/10 * * * *', at(2026, 7, 14, 10, 7))).toEqual(at(2026, 7, 14, 10, 15))
+    expect(nextRun('5/10 * * * *', at(2026, 7, 14, 10, 56))).toEqual(at(2026, 7, 14, 11, 5))
   })
 })
