@@ -105,14 +105,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Announce stable releases in Discord via a channel webhook (the URL is
-      # the DISCORD_RELEASE_WEBHOOK repo secret). Pre-releases stay quiet, like
-      # the `latest` tag above. The plain-text line above the embed is what
+      # Announce minor and major releases in Discord via a channel webhook (the
+      # URL is the DISCORD_RELEASE_WEBHOOK repo secret). Patches and
+      # pre-releases stay quiet. The plain-text line above the embed is what
       # push notifications show; the embed carries the same notes as the
       # Release with emoji h3 group headings (Discord renders markdown), capped
       # under Discord's 4096-char description limit.
       - name: Announce the release on Discord
-        if: ${{ !contains(github.ref_name, '-') }}
+        if: ${{ endsWith(github.ref_name, '.0') }}
         env:
           WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
         run: |
