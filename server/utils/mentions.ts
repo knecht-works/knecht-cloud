@@ -5,6 +5,7 @@ import type { Integration, WebhookComment } from '../integrations'
 import { getWorkflowRow } from './entities'
 import { emptyInputs } from './inputs'
 import { resolveSession, sessionHasActiveWork, type SessionObject } from './sessions'
+import { emitFollowup } from './transcript'
 
 export async function handleMention(integration: Integration, project: Project, comment: WebhookComment): Promise<string> {
   if (comment.fromSelf) return 'ignored (comment by Knecht itself)'
@@ -52,13 +53,14 @@ function queueMentionRun(project: Project, session: Session, prompt: string, req
     trigger: 'mention',
     branch: session.branch ?? project.defaultBranch,
   }).returning({ id: schema.runs.id }).get().id
-  db.insert(schema.followups).values({
+  const followup = db.insert(schema.followups).values({
     sessionId: session.id,
     runId,
     prompt,
     requestedBy,
     origin: 'mention',
-  }).run()
+  }).returning({ id: schema.followups.id }).get()
+  emitFollowup(followup.id)
   return runId
 }
 

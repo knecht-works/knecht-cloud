@@ -1,17 +1,22 @@
-import { and, eq, inArray, max } from 'drizzle-orm'
+import { join } from 'node:path'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Followup, Project, Run, Session } from '../db/schema'
-import { oneLine, runFollowupPrompt } from '../workflows/actions/ai'
+import { compactAgentSession, handoverPreamble, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
 import { getProject, getRun, getSessionRow } from '../utils/entities'
 import { getIntegration } from '../integrations'
 import { sessionCheckoutDir } from '../utils/storage'
 import { agentRepliedSince, describeObject, sessionObject, withSessionLinks } from '../utils/sessions'
+import { transcriptSink } from '../utils/agent-items'
+import { emitFollowup } from '../utils/transcript'
+import { notice } from './agent'
 import { currentBranch } from './git'
-import { appendLog, runLogBytes } from './runner'
 import { copyIntoSandbox, spawnInSandbox, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
 import { ensureEnvUp, reviveEnv } from './envs'
+import { COMPACT_COMMAND } from '../../shared/utils/followup'
+import { followupAttachmentsDir, SANDBOX_ATTACHMENTS_DIR, sandboxAttachmentPath } from '../utils/attachments'
 
 const controllers = new Map<number, AbortController>()
 
@@ -42,6 +47,7 @@ export async function startFollowup(followupId: number): Promise<void> {
       .where(and(eq(schema.followups.id, followupId), eq(schema.followups.status, 'queued')))
       .run()
     if (!claimed.changes) return
+    emitFollowup(followupId)
 
     const followup = db.select().from(schema.followups).where(eq(schema.followups.id, followupId)).get()
     const session = followup && getSessionRow(followup.sessionId)
@@ -71,7 +77,6 @@ export async function startFollowup(followupId: number): Promise<void> {
     }
     catch (e) {
       const cancelled = controller.signal.aborted
-      appendLog(run.id, cancelled ? `\n✗ Follow-up cancelled\n` : `\n✗ Follow-up failed: ${(e as Error).message}\n`)
       finishFollowup(followupId, 'failed', cancelled ? 'Cancelled' : (e as Error).message)
       if (mirrorsRun) finishMentionRun(run.id, cancelled ? 'cancelled' : 'failed')
       if (!cancelled) {
@@ -88,34 +93,12 @@ export async function startFollowup(followupId: number): Promise<void> {
 }
 
 async function execFollowup(followup: Followup, session: Session, run: Run, project: Project, controller: AbortController): Promise<string> {
-  // Offset before the banner, so the banner lands in this follow-up's log segment.
-  const logStart = runLogBytes(run.id)
-  appendLog(run.id, `\n▶ ${followup.origin === 'mention' ? 'Mention' : 'Follow-up'}${followup.requestedBy ? ` (by ${followup.requestedBy})` : ''}: ${oneLine(followup.prompt, 160)}\n`)
-
   await reviveEnv(session.id)
 
-  const nextIndex = db
-    .select({ value: max(schema.runSteps.stepIndex) })
-    .from(schema.runSteps)
-    .where(eq(schema.runSteps.runId, run.id))
-    .get()
-  const row = db.insert(schema.runSteps).values({
-    runId: run.id,
-    stepIndex: (nextIndex?.value ?? -1) + 1,
-    stepId: `followup-${followup.id}`,
-    type: 'ai',
-    origin: 'followup',
-    params: { prompt: followup.prompt },
-    logStart,
-    startedAt: new Date(),
-  }).returning({ id: schema.runSteps.id }).get()
-
-  const log = (text: string) => appendLog(run.id, text)
-  const finalizeRow = (patch: { status: 'success' | 'failed' | 'cancelled', outputs?: Record<string, unknown>, error?: string }) => {
-    db.update(schema.runSteps)
-      .set({ ...patch, finishedAt: new Date() })
-      .where(eq(schema.runSteps.id, row.id))
-      .run()
+  // A follow-up has no log segment: everything it produces is a transcript item.
+  const sink = transcriptSink(session.id, followup.id)
+  const log = (text: string) => {
+    if (text.trim()) sink.item(notice(text.trim()))
   }
 
   const rt: ActionRuntime = {
@@ -129,23 +112,20 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
     sandbox: {
       projectDir: WEB_PROJECT_DIR,
       ensureUp: () => ensureEnvUp(session.id),
-      stream: (command, opts) => streamInSandbox(session.id, command, log, opts?.env, controller.signal),
+      stream: (command, opts) => streamInSandbox(session.id, command, () => {}, opts?.env, controller.signal),
       spawn: (command, opts) => spawnInSandbox(session.id, command, opts?.env),
       copyIn: (hostPath, sandboxPath) => copyIntoSandbox(session.id, hostPath, sandboxPath),
     },
   }
 
-  try {
-    const reply = await runFollowupPrompt(rt, followupMessage(followup, session))
-    await syncSessionBranch(session.id, run.id, rt)
-    finalizeRow({ status: 'success', outputs: { text: reply.slice(0, 8 * 1024) } })
-    log(`\n✓ Follow-up done\n`)
-    return reply
+  if (followup.prompt === COMPACT_COMMAND) return compactAgentSession(rt, sink, followup.model)
+  if (followup.attachments.length) await stageAttachments(rt, followup)
+  const reply = await runFollowupPrompt(rt, followupMessage(followup, session), sink, followup.model)
+  if (session.agentHandover) {
+    db.update(schema.sessions).set({ agentHandover: null }).where(eq(schema.sessions.id, session.id)).run()
   }
-  catch (e) {
-    finalizeRow(controller.signal.aborted ? { status: 'cancelled' } : { status: 'failed', error: (e as Error).message })
-    throw e
-  }
+  await syncSessionBranch(session.id, run.id, rt)
+  return reply
 }
 
 async function postMentionReply(followup: Followup, session: Session, project: Project, text: string): Promise<void> {
@@ -156,7 +136,16 @@ async function postMentionReply(followup: Followup, session: Session, project: P
     await getIntegration(object.integration).capabilities.comment(project, object, withSessionLinks(text, session.id))
   }
   catch (e) {
-    appendLog(followup.runId, `\nCould not post the reply on the thread: ${(e as Error).message}\n`)
+    transcriptSink(session.id, followup.id).item(notice(`Could not post the reply on the thread: ${(e as Error).message}`))
+  }
+}
+
+// docker cp needs the target directory; ensureUp ran already, so the container is there.
+async function stageAttachments(rt: ActionRuntime, followup: Followup): Promise<void> {
+  await rt.sandbox.ensureUp()
+  await rt.sandbox.stream(['mkdir', '-p', `${SANDBOX_ATTACHMENTS_DIR}/${followup.id}`])
+  for (const a of followup.attachments) {
+    await rt.sandbox.copyIn(join(followupAttachmentsDir(followup.id), a.name), sandboxAttachmentPath(followup.id, a.name))
   }
 }
 
@@ -166,7 +155,11 @@ function followupMessage(followup: Followup, session: Session): string {
   const object = followup.origin === 'mention' ? sessionObject(session) : null
   // A mention rarely repeats the ticket; the state stays out of the prompt and is read on demand.
   const thread = object ? `This session belongs to ${describeObject(object)}; run \`knecht-object\` for its current state, comments included.\n\n` : ''
-  return `${thread}A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}\n\n${publish}`
+  const attached = followup.attachments.length
+    ? `\n\nThe user attached these files; they are in the sandbox, read them as needed:\n${followup.attachments.map(a => `- ${sandboxAttachmentPath(followup.id, a.name)} (${a.type || 'unknown type'}, ${Math.max(1, Math.round(a.size / 1024))} KB)`).join('\n')}`
+    : ''
+  const handover = session.agentHandover ? handoverPreamble(session.agentHandover) : ''
+  return `${handover}${thread}A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}${attached}\n\n${publish}`
 }
 
 async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRuntime): Promise<void> {
@@ -199,7 +192,9 @@ export function cancelFollowupWork(sessionId: number, runId?: number): number {
       runId === undefined ? eq(schema.followups.sessionId, sessionId) : eq(schema.followups.runId, runId),
       inArray(schema.followups.status, ['queued', 'running']),
     ))
-    .run()
+    .returning({ id: schema.followups.id })
+    .all()
+  for (const { id } of flipped) emitFollowup(id)
   db.update(schema.runs)
     .set({ status: 'cancelled', finishedAt: new Date() })
     .where(and(
@@ -209,7 +204,7 @@ export function cancelFollowupWork(sessionId: number, runId?: number): number {
     ))
     .run()
   cancelFollowup(sessionId)
-  return flipped.changes
+  return flipped.length
 }
 
 function finishFollowup(id: number, status: 'success' | 'failed', error?: string): void {
@@ -217,4 +212,5 @@ function finishFollowup(id: number, status: 'success' | 'failed', error?: string
     .set({ status, error: error ?? null, finishedAt: new Date() })
     .where(eq(schema.followups.id, id))
     .run()
+  emitFollowup(id)
 }

@@ -8,6 +8,7 @@ const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0001_step_id_slugs', run: stepIdSlugs },
   { name: '0002_bare_ai_step_models', run: bareAiStepModels },
   { name: '0003_cancelled_step_rows', run: cancelledStepRows },
+  { name: '0004_followup_reply_items', run: followupReplyItems },
 ]
 
 export function runDataMigrations(): void {
@@ -55,6 +56,20 @@ function stepIdSlugs(): void {
     if (changed) {
       db.update(schema.workflows).set({ steps }).where(eq(schema.workflows.name, row.name)).run()
     }
+  }
+}
+
+function followupReplyItems(): void {
+  const followups = new Map(db.select({ id: schema.followups.id, sessionId: schema.followups.sessionId }).from(schema.followups).all().map(f => [f.id, f]))
+  const steps = db.select({ stepId: schema.runSteps.stepId, outputs: schema.runSteps.outputs })
+    .from(schema.runSteps)
+    .where(eq(schema.runSteps.origin, 'followup'))
+    .all()
+  for (const step of steps) {
+    const followup = followups.get(Number(step.stepId.replace('followup-', '')))
+    const text = step.outputs?.text
+    if (!followup || typeof text !== 'string' || !text.trim()) continue
+    db.insert(schema.agentItems).values({ sessionId: followup.sessionId, followupId: followup.id, seq: 0, type: 'message', text }).run()
   }
 }
 

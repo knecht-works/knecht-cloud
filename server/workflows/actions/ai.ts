@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../../db'
-import { openAgent, type AgentSession } from '../../daemon/agent'
+import { logSink, openAgent, type AgentSession, type TranscriptSink } from '../../daemon/agent'
 import { getSessionRow } from '../../utils/entities'
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '../../../shared/utils/workflow'
 import { type AiProviderId, MODEL_NAME_RE, stripLegacyModelPrefix } from '../../../shared/utils/ai'
@@ -51,7 +51,7 @@ export const aiAction = defineAction({
     await writeAgentConfig(rt, step.system ?? '', bareModel)
 
     // A workflow step never inherits a conversation: every step is its own agent session.
-    const agent = await startAgent(rt, env, null)
+    const agent = await startAgent(rt, env, null, logSink(rt.log))
     try {
       if (!step.output) {
         const { text } = await agent.prompt(step.prompt)
@@ -68,13 +68,14 @@ export const aiAction = defineAction({
   },
 })
 
-function startAgent(rt: ActionRuntime, env: Record<string, string>, sessionId: string | null): Promise<AgentSession> {
+function startAgent(rt: ActionRuntime, env: Record<string, string>, sessionId: string | null, sink: TranscriptSink, model?: string): Promise<AgentSession> {
   return openAgent({
     process: rt.sandbox.spawn(['opencode', 'acp'], { env }),
     cwd: rt.sandbox.projectDir,
-    log: rt.log,
+    sink,
     signal: rt.signal,
     sessionId,
+    model,
   })
 }
 
@@ -109,16 +110,14 @@ async function resolveAgentEnv(
 }
 
 // The chat is one agent session per Knecht session: resumed when the agent still has it.
-export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Promise<string> {
-  const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId)
-  rt.log(`agent: ${model}\n`)
+export async function runFollowupPrompt(rt: ActionRuntime, prompt: string, sink: TranscriptSink, model?: string | null): Promise<string> {
+  const { model: modelRef, bareModel, env } = await resolveAgentEnv(rt.sessionId, model ?? undefined)
   await rt.sandbox.ensureUp()
   await writeAgentConfig(rt, null, bareModel)
-  const agent = await startAgent(rt, env, getSessionRow(rt.sessionId)?.agentSessionId ?? null)
+  // The config only seeds new sessions; a resumed one is switched explicitly.
+  const agent = await startAgent(rt, env, getSessionRow(rt.sessionId)?.agentSessionId ?? null, sink, modelRef)
   try {
-    if (!agent.loaded) {
-      db.update(schema.sessions).set({ agentSessionId: agent.sessionId }).where(eq(schema.sessions.id, rt.sessionId)).run()
-    }
+    rememberAgentSession(rt.sessionId, agent)
     const { text } = await agent.prompt(prompt)
     if (!text) throw new Error('the agent produced no output')
     return text
@@ -127,6 +126,43 @@ export async function runFollowupPrompt(rt: ActionRuntime, prompt: string): Prom
     await agent.close()
     await persistAgentMemory(rt.project.id, rt.checkoutDir, rt.log)
   }
+}
+
+const HANDOVER_PROMPT = 'This conversation is being handed over to a fresh session that knows nothing about it. Write the hand-over as plain markdown: the goal, what you did and where in the repository, the current state of the working tree and branch, open points and anything the next session must not repeat. No preamble, no questions.'
+
+const SILENT_SINK: TranscriptSink = { item() {}, end() {} }
+
+// The summary is never shown: it is stored on the session and opens the next turn's fresh agent session.
+export async function compactAgentSession(rt: ActionRuntime, sink: TranscriptSink, model?: string | null): Promise<string> {
+  const { bareModel, env } = await resolveAgentEnv(rt.sessionId, model ?? undefined)
+  await rt.sandbox.ensureUp()
+  await writeAgentConfig(rt, null, bareModel)
+  const current = getSessionRow(rt.sessionId)?.agentSessionId ?? null
+  let summary = ''
+  if (current) {
+    const agent = await startAgent(rt, env, current, SILENT_SINK)
+    try {
+      if (agent.loaded) summary = (await agent.prompt(HANDOVER_PROMPT)).text.trim()
+    }
+    finally {
+      await agent.close()
+    }
+  }
+  db.update(schema.sessions)
+    .set({ agentSessionId: null, agentHandover: summary || null })
+    .where(eq(schema.sessions.id, rt.sessionId))
+    .run()
+  sink.item({ key: 'divider', type: 'divider', text: summary ? 'Context compacted. The next message starts a fresh session with the hand-over.' : 'Context compacted. The next message starts a fresh session.' })
+  return summary
+}
+
+export function handoverPreamble(summary: string): string {
+  return `Hand-over from the previous conversation in this session, read it before acting:\n\n${summary}\n\n---\n\n`
+}
+
+function rememberAgentSession(sessionId: number, agent: AgentSession): void {
+  if (agent.loaded) return
+  db.update(schema.sessions).set({ agentSessionId: agent.sessionId }).where(eq(schema.sessions.id, sessionId)).run()
 }
 
 async function runWithOutput(
