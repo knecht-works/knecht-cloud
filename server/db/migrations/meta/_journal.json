@@ -309,6 +309,13 @@
       "when": 1789714881886,
       "tag": "0043_drop-push-triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1789717863849,
+      "tag": "0044_drop-manual-triggers",
+      "breakpoints": true
     }
   ]
 }

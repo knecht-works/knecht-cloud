@@ -51,7 +51,7 @@ describe('deleteProject', () => {
     const otherRun = makeRun(other, [], { status: 'success' })
 
     const workflow = db.insert(schema.workflows).values({ name: 'wf', steps: [] }).returning().get()
-    const trigger = db.insert(schema.triggers).values({ source: 'manual', workflowId: workflow.id, projectIds: [project.id, other.id] }).returning().get()
+    const trigger = db.insert(schema.triggers).values({ source: 'schedule', cron: '0 9 * * *', workflowId: workflow.id, projectIds: [project.id, other.id] }).returning().get()
 
     const dirs = [
       makeDir('dumps', String(project.id)),

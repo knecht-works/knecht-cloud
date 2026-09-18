@@ -26,7 +26,6 @@ type Source = TriggerSource
 const SOURCES: { key: Source, label: string, icon: string, hint: string }[] = [
   { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock', hint: 'Run on a cron schedule' },
   ...INTEGRATION_IDS.map(id => ({ key: id, ...integrationUi(id) })),
-  { key: 'manual', label: 'Manual', icon: 'i-lucide-play', hint: 'Run on demand only' },
 ]
 
 const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
@@ -67,7 +66,7 @@ watch(source, () => {
 const canCreate = computed(() =>
   !!workflowId.value
   && projectIds.value.length > 0
-  && (source.value === 'manual' || valid.value),
+  && valid.value,
 )
 
 function body(): Record<string, unknown> {
@@ -137,7 +136,7 @@ watch(open, (isOpen) => {
       <div class="space-y-5">
         <div>
           <span class="k-label">Source</span>
-          <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div class="mt-2 grid grid-cols-3 gap-2">
             <button
               v-for="src in SOURCES"
               :key="src.key"

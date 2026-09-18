@@ -31,12 +31,6 @@ const schedule: TriggerSourceDef = {
   },
 }
 
-const manual: TriggerSourceDef = {
-  source: 'manual',
-  configSchema: z.object({}),
-  eventLabel: () => 'Run on demand',
-}
-
 function validateLinkedProjects(integration: Integration, projectIds: number[]): string | null {
   const link = integration.link
   if (!link) return null
@@ -51,7 +45,6 @@ function validateLinkedProjects(integration: Integration, projectIds: number[]):
 
 export const TRIGGER_SOURCE_DEFS: readonly TriggerSourceDef[] = [
   schedule,
-  manual,
   ...INTEGRATIONS.map((i): TriggerSourceDef => ({
     source: i.id,
     configSchema: i.trigger.configSchema,

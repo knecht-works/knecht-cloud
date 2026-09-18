@@ -56,12 +56,35 @@ export function useWorkflowTestRun<P extends TestProject>(
     return Object.keys(filled).length ? filled : undefined
   }
 
+  const mockKey = () => `knecht.test-inputs.${workflowId()}`
+  function restoreInputs() {
+    for (const key of Object.keys(mockInputs)) mockInputs[key] = ''
+    if (!workflowId()) return
+    try {
+      Object.assign(mockInputs, JSON.parse(localStorage.getItem(mockKey()) ?? '{}'))
+    }
+    catch {
+      // Storage blocked or stale: the fields start empty.
+    }
+  }
+  function rememberInputs() {
+    try {
+      const filled = filledInputs()
+      if (filled) localStorage.setItem(mockKey(), JSON.stringify(filled))
+      else localStorage.removeItem(mockKey())
+    }
+    catch {
+      // Storage blocked: the inputs last for this view only.
+    }
+  }
+
   async function start() {
     const id = workflowId()
     if (!project.value || !id) return
     starting.value = true
     try {
       await opts?.beforeStart?.()
+      rememberInputs()
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
         body: { projectId: project.value.id, workflowId: id, branch: testBranch.value, inputs: filledInputs() },
@@ -108,6 +131,7 @@ export function useWorkflowTestRun<P extends TestProject>(
   watch(workflowId, () => {
     detach()
     reattach()
+    if (import.meta.client) restoreInputs()
   }, { immediate: true })
 
   watch(() => activeRun.value?.status, (status) => {
@@ -157,6 +181,7 @@ export function useWorkflowTestRun<P extends TestProject>(
     detach()
     try {
       await opts?.beforeStart?.()
+      rememberInputs()
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
         body: { projectId, workflowId: id, inputs: filledInputs() },

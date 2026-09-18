@@ -3,7 +3,7 @@
 export const INTEGRATION_IDS = ['github', 'jira'] as const
 export type IntegrationId = typeof INTEGRATION_IDS[number]
 
-export const TRIGGER_SOURCES = ['schedule', 'manual', ...INTEGRATION_IDS] as const
+export const TRIGGER_SOURCES = ['schedule', ...INTEGRATION_IDS] as const
 export type TriggerSource = typeof TRIGGER_SOURCES[number]
 
 export const OBJECT_KINDS = ['issue', 'pull_request'] as const
