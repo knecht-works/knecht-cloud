@@ -58,8 +58,8 @@ export interface Integration {
   }
 
   // Integrations whose events come from a container that must be mapped to
-  // a project first (a Jira project). Their triggers fire for exactly one
-  // linked project; GitHub needs none because the repository is the project.
+  // a project first (a Jira project). Their triggers only take linked
+  // projects; GitHub needs none because the repository is the project.
   link?: {
     label: string
     listTargets(): Promise<LinkTarget[]>
@@ -69,7 +69,7 @@ export interface Integration {
     verify(raw: string, headers: WebhookHeaders): boolean
     // null: the delivery belongs to no project of this instance.
     parse(raw: string, headers: WebhookHeaders): Promise<WebhookDelivery | null>
-    match(trigger: Trigger, delivery: WebhookDelivery): TriggerMatch | null
+    match(trigger: Trigger, delivery: WebhookDelivery): TriggerMatch | null | Promise<TriggerMatch | null>
     // For integrations whose admin UI shows no delivery log.
     record?(result: DeliveryRecord): void
   }

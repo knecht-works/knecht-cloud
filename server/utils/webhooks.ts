@@ -52,7 +52,7 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
       .all()
     for (const trigger of candidates) {
       if (!trigger.projectIds.includes(project.id)) continue
-      const match = integration.webhook.match(trigger, delivery)
+      const match = await integration.webhook.match(trigger, delivery)
       if (!match) continue
       runIds.push(...fireTrigger(trigger, {
         projectIds: [project.id],
