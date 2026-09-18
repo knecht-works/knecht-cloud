@@ -100,11 +100,6 @@ watch([event, label, status, issueType, looksValid], () => {
           class="mt-2 w-full"
         />
       </div>
-
-      <p class="text-2xs text-dimmed">
-        Jira sends ticket events to the webhook from Settings → Integrations; a matching ticket starts
-        the workflow with the ticket as inputs and keeps its session for replies and follow-ups.
-      </p>
     </template>
   </div>
 </template>
