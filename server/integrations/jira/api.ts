@@ -64,6 +64,23 @@ export async function listJiraStatuses(projectKey: string): Promise<string[]> {
   return [...names]
 }
 
+const statusCategories = new Map<string, string>()
+
+// A status never changes its category, so one lookup per status id serves every later transition.
+export async function getJiraStatusCategory(statusId: string): Promise<string | null> {
+  const cached = statusCategories.get(statusId)
+  if (cached) return cached
+  try {
+    const res = await jiraFetch<{ statusCategory?: { key?: string } }>(`/status/${encodeURIComponent(statusId)}`)
+    const key = res.statusCategory?.key ?? null
+    if (key) statusCategories.set(statusId, key)
+    return key
+  }
+  catch {
+    return null
+  }
+}
+
 async function boardStatusIds(projectKey: string): Promise<string[] | null> {
   try {
     const boards = await jiraFetch<{ values?: { id?: number }[] }>(

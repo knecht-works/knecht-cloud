@@ -40,10 +40,12 @@ const manual: TriggerSourceDef = {
 function validateLinkedProjects(integration: Integration, projectIds: number[]): string | null {
   const link = integration.link
   if (!link) return null
-  if (projectIds.length !== 1) return `A ${integration.name} trigger fires for exactly one project`
-  const project = getProject(projectIds[0]!)
-  if (!project) return 'Unknown project'
-  if (!projectLinks(project.id)[integration.id]) return `Link ${project.fullName} to a ${link.label} first (project settings)`
+  if (projectIds.length === 0) return `A ${integration.name} trigger needs at least one project`
+  for (const id of projectIds) {
+    const project = getProject(id)
+    if (!project) return 'Unknown project'
+    if (!projectLinks(project.id)[integration.id]) return `Link ${project.fullName} to a ${link.label} first (project settings)`
+  }
   return null
 }
 

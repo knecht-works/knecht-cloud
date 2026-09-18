@@ -8,18 +8,21 @@ import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
-import { addJiraComment, getJiraComment, getJiraIssueContext, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
+import { addJiraComment, getJiraComment, getJiraIssueContext, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
 import { jiraCredentials, recordJiraDelivery } from './credentials'
 
 export const jiraTriggerConfigSchema = z.object({
   event: z.enum(['created', 'labeled', 'transitioned', 'assigned']),
   label: z.string().trim().min(1).optional(),
   status: z.string().trim().min(1).optional(),
+  statusCategory: z.enum(['new', 'indeterminate', 'done']).optional(),
   issueType: z.string().trim().min(1).optional(),
 }).refine(c => c.event !== 'labeled' || !!c.label, 'A label is required to trigger on "labeled"')
-  .refine(c => c.event !== 'transitioned' || !!c.status, 'A status is required to trigger on "transitioned"')
+  .refine(c => c.event !== 'transitioned' || !!c.status || !!c.statusCategory, 'A status or status category is required to trigger on "transitioned"')
 
 export type JiraTriggerConfig = z.infer<typeof jiraTriggerConfigSchema>
+
+export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
 
 export function jiraEventLabel(c: JiraTriggerConfig): string {
   const condition = c.event === 'created'
@@ -27,7 +30,7 @@ export function jiraEventLabel(c: JiraTriggerConfig): string {
     : c.event === 'labeled'
       ? `label "${c.label}"`
       : c.event === 'transitioned'
-        ? `status "${c.status}"`
+        ? c.statusCategory ? `any "${JIRA_STATUS_CATEGORIES[c.statusCategory]}" status` : `status "${c.status}"`
         : 'assigned to Knecht'
   return `On ${condition}${c.issueType ? ` · ${c.issueType}` : ''}`
 }
@@ -101,7 +104,16 @@ function labelsOf(value: string | null | undefined): Set<string> {
   return new Set((value ?? '').split(/\s+/).filter(Boolean))
 }
 
-export function matchJiraEvent(c: JiraTriggerConfig, payload: JiraPayload): TriggerMatch | null {
+// A status change stays inside its category (In Progress to In Review) more often than
+// it crosses one; only the crossing counts. The changelog carries status ids, not categories.
+async function enteredCategory(c: JiraTriggerConfig, payload: JiraPayload): Promise<boolean> {
+  const status = change(payload, 'status')
+  if (!status || payload.issue?.fields?.status?.statusCategory?.key !== c.statusCategory) return false
+  const from = status.from ? await getJiraStatusCategory(status.from) : null
+  return from !== c.statusCategory
+}
+
+export async function matchJiraEvent(c: JiraTriggerConfig, payload: JiraPayload): Promise<TriggerMatch | null> {
   const name = payload.webhookEvent ?? ''
   const object = jiraObject(payload)
   if (!object) return null
@@ -114,7 +126,7 @@ export function matchJiraEvent(c: JiraTriggerConfig, payload: JiraPayload): Trig
     const fields = payload.issue?.fields
     matched = c.event === 'created'
       || (c.event === 'labeled' && (fields?.labels ?? []).includes(c.label!))
-      || (c.event === 'transitioned' && fields?.status?.name === c.status)
+      || (c.event === 'transitioned' && (c.statusCategory ? fields?.status?.statusCategory?.key === c.statusCategory : fields?.status?.name === c.status))
       || (c.event === 'assigned' && !!accountId && fields?.assignee?.accountId === accountId)
   }
   else if (name === 'jira:issue_updated') {
@@ -123,7 +135,7 @@ export function matchJiraEvent(c: JiraTriggerConfig, payload: JiraPayload): Trig
       matched = !!labels && labelsOf(labels.toString).has(c.label!) && !labelsOf(labels.fromString).has(c.label!)
     }
     else if (c.event === 'transitioned') {
-      matched = change(payload, 'status')?.toString === c.status
+      matched = c.statusCategory ? await enteredCategory(c, payload) : change(payload, 'status')?.toString === c.status
     }
     else if (c.event === 'assigned') {
       matched = !!accountId && change(payload, 'assignee')?.to === accountId

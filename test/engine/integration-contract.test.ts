@@ -99,7 +99,7 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
       projectIds: [project.id],
       config: fixture.triggerConfig,
     }).returning().get()
-    const match = integration.webhook.match(trigger, delivery)
+    const match = await integration.webhook.match(trigger, delivery)
     expect(match).not.toBeNull()
     expect(Object.keys(match!.inputs).sort()).toEqual([...INPUT_KEYS].sort())
     expect(Object.values(match!.inputs).every(v => typeof v === 'string')).toBe(true)

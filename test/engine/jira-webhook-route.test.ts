@@ -6,6 +6,7 @@ import { getSessionRow, makeProject } from '../helpers/db'
 
 const api = vi.hoisted(() => ({
   comments: [] as { key: string, body: unknown }[],
+  statusCategories: {} as Record<string, string>,
   fetched: {
     id: '77',
     body: null as unknown,
@@ -15,6 +16,7 @@ const api = vi.hoisted(() => ({
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
   getJiraComment: async () => api.fetched,
+  getJiraStatusCategory: async (id: string) => api.statusCategories[id] ?? null,
   addJiraComment: async (key: string, body: unknown) => {
     api.comments.push({ key, body })
     return { url: `https://acme.atlassian.net/browse/${key}` }
@@ -182,6 +184,22 @@ describe('jira webhook route', () => {
     expect(runsOf(trigger.id)).toHaveLength(0)
     await deliver(updated(project, [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }]))
     expect(runsOf(trigger.id)).toHaveLength(1)
+  })
+
+  it('fires on a transition into the configured status category, whatever the status is called', async () => {
+    const project = makeJiraProject()
+    const trigger = makeJiraTrigger(project.id, { event: 'transitioned', statusCategory: 'done' })
+    api.statusCategories = { 1: 'new', 2: 'indeterminate', 3: 'done', 4: 'done' }
+
+    await deliver(updated(project, [{ field: 'status', from: '1', to: '2', fromString: 'To Do', toString: 'In Progress' }], { status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } } }))
+    expect(runsOf(trigger.id)).toHaveLength(0)
+    await deliver(updated(project, [{ field: 'status', from: '2', to: '4', fromString: 'In Progress', toString: 'Released' }], { status: { name: 'Released', statusCategory: { key: 'done' } } }))
+    expect(runsOf(trigger.id)).toHaveLength(1)
+    await deliver(updated(project, [{ field: 'status', from: '4', to: '3', fromString: 'Released', toString: 'Done' }], { status: { name: 'Done', statusCategory: { key: 'done' } } }))
+    expect(runsOf(trigger.id)).toHaveLength(1)
+
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project, { status: { name: 'Closed', statusCategory: { key: 'done' } } }) })
+    expect(runsOf(trigger.id)).toHaveLength(2)
   })
 
   it('fires when the ticket is assigned to the connection account', async () => {

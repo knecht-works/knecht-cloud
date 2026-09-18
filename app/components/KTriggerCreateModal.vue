@@ -45,22 +45,18 @@ const linkKeyOf = (p: { links: Partial<Record<string, string>> }) => (integratio
 const triggerForm = computed(() =>
   source.value === 'schedule' ? KTriggerFormSchedule : integration.value ? integrationUi(integration.value.id).triggerForm : null)
 
-// A linked integration's trigger fires for exactly one project, and only a linked one qualifies.
+// A linked integration's trigger only takes projects that are linked.
 const projectItems = computed(() =>
   (projects.value ?? [])
     .filter(p => !linked.value || linkKeyOf(p))
     .map(p => ({ label: linked.value ? `${p.fullName} · ${linkKeyOf(p)}` : p.fullName, value: p.id })),
 )
-const singleProject = computed({
-  get: () => projectIds.value[0],
-  set: (value: number | undefined) => {
-    projectIds.value = value === undefined ? [] : [value]
-  },
-})
-const selectedLinkKey = computed(() => {
-  const project = (projects.value ?? []).find(p => p.id === projectIds.value[0])
-  return project ? linkKeyOf(project) : null
-})
+const selectedLinkKeys = computed(() =>
+  (projects.value ?? [])
+    .filter(p => projectIds.value.includes(p.id))
+    .map(linkKeyOf)
+    .filter((key): key is string => !!key),
+)
 
 // Sync: the edit preload sets the source first and the config right after.
 watch(source, () => {
@@ -135,7 +131,7 @@ watch(open, (isOpen) => {
     :description="editing
       ? 'Change how and when this workflow runs automatically.'
       : 'Fire this workflow automatically.'"
-    :ui="{ content: 'sm:max-w-xl' }"
+    :ui="{ content: 'sm:max-w-3xl' }"
   >
     <template #body>
       <div class="space-y-5">
@@ -167,18 +163,8 @@ watch(open, (isOpen) => {
         </div>
 
         <div>
-          <span class="k-label">{{ linked ? 'Project' : 'Projects' }}</span>
+          <span class="k-label">Projects</span>
           <USelectMenu
-            v-if="linked"
-            v-model="singleProject"
-            value-key="value"
-            :items="projectItems"
-            placeholder="Select a linked project…"
-            icon="i-lucide-box"
-            class="mt-2 w-full"
-          />
-          <USelectMenu
-            v-else
             v-model="projectIds"
             value-key="value"
             multiple
@@ -189,18 +175,18 @@ watch(open, (isOpen) => {
           />
           <p class="mt-2 text-2xs text-dimmed">
             {{ linked
-              ? `Only projects linked to a ${integration?.link?.label} (project settings) are listed; the trigger watches that ${integration?.link?.label}.`
+              ? `Only projects linked to a ${integration?.link?.label} (project settings) are listed. Fires the workflow once per selected project.`
               : 'Fires the workflow once per selected project.' }}
           </p>
         </div>
 
-        <div class="min-h-52">
+        <div class="min-h-72">
           <component
             :is="triggerForm"
             v-if="triggerForm"
             v-model:config="config"
             v-model:valid="valid"
-            v-bind="linked ? { linkKey: selectedLinkKey } : {}"
+            v-bind="linked ? { linkKeys: selectedLinkKeys } : {}"
           />
         </div>
 
