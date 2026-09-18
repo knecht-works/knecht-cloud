@@ -6,7 +6,7 @@ import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig, TriggerFormDef } from '../../../shared/utils/trigger-form'
-import { passesList, triggerEvent } from '../trigger-config'
+import { matchesAny, passesList, triggerEvent } from '../trigger-config'
 import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
 import { addJiraComment, getJiraComment, getJiraIssueContext, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
@@ -160,8 +160,8 @@ export async function matchJiraEvent(c: TriggerConfig, payload: JiraPayload): Pr
   const object = jiraObject(payload)
   if (!object) return null
   const fields = payload.issue?.fields
-  if (!passesList(c, 'issueType', types => types.includes(fields?.issuetype?.name ?? ''))) return null
-  if (!passesList(c, 'label', wanted => wanted.some(label => (fields?.labels ?? []).includes(label)))) return null
+  if (!passesList(c, 'issueType', types => matchesAny(types, [fields?.issuetype?.name ?? '']))) return null
+  if (!passesList(c, 'label', wanted => matchesAny(wanted, fields?.labels ?? []))) return null
 
   const accountId = jiraCredentials()?.accountId
   const matched = name === 'jira:issue_created'

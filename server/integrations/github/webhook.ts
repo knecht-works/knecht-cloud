@@ -1,7 +1,7 @@
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../../shared/utils/trigger-form'
-import { passesList, triggerEvent } from '../trigger-config'
+import { matchesAny, passesList, triggerEvent } from '../trigger-config'
 import type { TriggerMatch } from '../types'
 
 const LABEL_FILTER: TriggerFilterDef = { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'bug, enhancement' }
@@ -21,7 +21,7 @@ export const githubTriggerForm: TriggerFormDef = [
       { type: 'labeled', label: 'Label added', summary: 'label "{value}"', value: { input: 'text', placeholder: 'Label name, e.g. knecht' } },
     ],
     filters: [
-      { key: 'base', label: 'Base branch is', summary: 'base {value}', input: 'list', placeholder: 'main, staging' },
+      { key: 'base', label: 'Base branch matches', summary: 'base {value}', input: 'list', placeholder: 'main, releases/*' },
       { key: 'head', label: 'Head branch matches', summary: 'head {value}', input: 'list', placeholder: 'renovate/*' },
       ...AUTHOR_FILTERS,
       LABEL_FILTER,
@@ -90,16 +90,12 @@ function subjectInputs(event: string, subject: GithubSubject | undefined): Trigg
 
 const sameLogin = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
-function globMatches(pattern: string, value: string): boolean {
-  return new RegExp(`^${pattern.split('*').map(RegExp.escape).join('.*')}$`).test(value)
-}
-
 function subjectPasses(c: TriggerConfig, subject: GithubSubject | undefined): boolean {
   const author = subject?.user?.login ?? ''
-  const labels = (subject?.labels ?? []).map(l => l.name)
-  return passesList(c, 'author', allowed => allowed.some(login => sameLogin(login, author)))
-    && passesList(c, 'authorNot', denied => !denied.some(login => sameLogin(login, author)))
-    && passesList(c, 'label', wanted => wanted.some(label => labels.includes(label)))
+  const labels = (subject?.labels ?? []).map(l => l.name ?? '')
+  return passesList(c, 'author', allowed => matchesAny(allowed, [author], 'i'))
+    && passesList(c, 'authorNot', denied => !matchesAny(denied, [author], 'i'))
+    && passesList(c, 'label', wanted => matchesAny(wanted, labels))
 }
 
 function labelFires(c: TriggerConfig, payload: GithubPayload): boolean {
@@ -132,9 +128,9 @@ export function matchGithubEvent(c: TriggerConfig, event: string, payload: Githu
     const pr = payload.pull_request
     if (!pullRequestFires(c, payload) || !subjectPasses(c, pr)) return null
     if (!passesList(c, 'draft', ([state]) => (state === 'draft') === !!pr?.draft)) return null
-    if (!passesList(c, 'base', allowed => allowed.includes(pr?.base?.ref ?? ''))) return null
+    if (!passesList(c, 'base', allowed => matchesAny(allowed, [pr?.base?.ref ?? '']))) return null
     const head = pr?.head?.ref ?? ''
-    if (!passesList(c, 'head', patterns => patterns.some(pattern => globMatches(pattern, head)))) return null
+    if (!passesList(c, 'head', patterns => matchesAny(patterns, [head]))) return null
     return {
       // The filters are about the pull request; the run checks out its head.
       branch: head || null,
