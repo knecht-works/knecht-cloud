@@ -172,14 +172,16 @@ html {
   background-color: oklch(1 0 0 / 0.28);
 }
 
-/* One global focus outline for keyboard navigation. Text fields are
-   excluded: browsers let :focus-visible match them even on mouse
-   click, so they signal focus with their inset ring instead.
-   [tabindex="-1"] skips programmatically focused containers (modal
-   panels, menu items) that highlight themselves differently. */
-:focus-visible:not([tabindex="-1"], input, textarea) {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+*,
+::before,
+::after {
+  @apply outline-primary;
+}
+
+*:focus-visible,
+*:has(> a:focus-visible) {
+  --tw-ring-color: var(--ui-primary);
+  outline-width: 0;
 }
 
 /* ============================================================
