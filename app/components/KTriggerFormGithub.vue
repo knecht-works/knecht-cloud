@@ -95,9 +95,5 @@ watch([githubEvent, branchFilter, issueOpened, issueLabeled, issueLabel], () => 
           : 'Pick at least one issue event.' }}
       </p>
     </div>
-
-    <p class="text-2xs text-dimmed">
-      Events arrive via the GitHub App webhook (see Settings); no per-repo setup needed.
-    </p>
   </div>
 </template>
