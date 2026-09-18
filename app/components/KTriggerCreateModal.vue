@@ -135,7 +135,7 @@ watch(open, (isOpen) => {
     :description="editing
       ? 'Change how and when this workflow runs automatically.'
       : 'Fire this workflow automatically.'"
-    :ui="{ content: 'sm:max-w-lg' }"
+    :ui="{ content: 'sm:max-w-xl' }"
   >
     <template #body>
       <div class="space-y-5">
@@ -194,13 +194,15 @@ watch(open, (isOpen) => {
           </p>
         </div>
 
-        <component
-          :is="triggerForm"
-          v-if="triggerForm"
-          v-model:config="config"
-          v-model:valid="valid"
-          v-bind="linked ? { linkKey: selectedLinkKey } : {}"
-        />
+        <div class="min-h-52">
+          <component
+            :is="triggerForm"
+            v-if="triggerForm"
+            v-model:config="config"
+            v-model:valid="valid"
+            v-bind="linked ? { linkKey: selectedLinkKey } : {}"
+          />
+        </div>
 
         <div class="flex justify-end gap-2 pt-1">
           <UButton
