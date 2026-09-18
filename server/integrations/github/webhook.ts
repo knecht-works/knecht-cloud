@@ -1,34 +1,57 @@
-import { z } from 'zod'
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
+import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../../shared/utils/trigger-form'
+import { passesList, triggerEvent } from '../trigger-config'
 import type { TriggerMatch } from '../types'
 
-export const githubTriggerConfigSchema = z.object({
-  event: z.enum(['pull_request', 'issues']).default('pull_request'),
-  branches: z.array(z.string().min(1)).default([]),
-  issueActions: z.array(z.enum(['opened', 'labeled'])).min(1).default(['opened']),
-  issueLabel: z.string().min(1).nullable().default(null),
-}).refine(
-  c => !(c.event === 'issues' && c.issueActions.includes('labeled') && !c.issueLabel),
-  'A label is required to trigger on "labeled"',
-)
+const LABEL_FILTER: TriggerFilterDef = { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'bug, enhancement' }
+const AUTHOR_FILTERS: TriggerFilterDef[] = [
+  { key: 'author', label: 'Author is', summary: 'by {value}', input: 'list', placeholder: 'octocat, renovate[bot]' },
+  { key: 'authorNot', label: 'Author is not', summary: 'not by {value}', input: 'list', placeholder: 'renovate[bot], dependabot[bot]' },
+]
 
-export type GithubTriggerConfig = z.infer<typeof githubTriggerConfigSchema>
-
-export function githubEventLabel(c: GithubTriggerConfig): string {
-  if (c.event === 'issues') {
-    const parts = c.issueActions.map(a => (a === 'labeled' ? `label "${c.issueLabel ?? '?'}"` : a))
-    return `On issues · ${parts.join(', ')}`
-  }
-  if (!c.branches.length) return `On ${c.event}`
-  return `On ${c.event} · base ${c.branches.join(', ')}`
-}
+export const githubTriggerForm: TriggerFormDef = [
+  {
+    kind: 'pull_request',
+    label: 'Pull request',
+    events: [
+      { type: 'opened', label: 'Opened', summary: 'opened', default: true },
+      { type: 'ready_for_review', label: 'Ready for review', summary: 'ready for review' },
+      { type: 'pushed', label: 'New commits pushed', summary: 'pushed', hint: 'Starts a run on every push to the pull request, force pushes included.' },
+      { type: 'labeled', label: 'Label added', summary: 'label "{value}"', value: { input: 'text', placeholder: 'Label name, e.g. knecht' } },
+    ],
+    filters: [
+      { key: 'base', label: 'Base branch is', summary: 'base {value}', input: 'list', placeholder: 'main, staging' },
+      { key: 'head', label: 'Head branch matches', summary: 'head {value}', input: 'list', placeholder: 'renovate/*' },
+      ...AUTHOR_FILTERS,
+      LABEL_FILTER,
+      {
+        key: 'draft',
+        label: 'Draft state is',
+        summary: '{value}',
+        input: 'select',
+        options: [{ label: 'Not a draft', value: 'ready', summary: 'no drafts' }, { label: 'Draft', value: 'draft', summary: 'drafts only' }],
+      },
+    ],
+  },
+  {
+    kind: 'issue',
+    label: 'Issues',
+    events: [
+      { type: 'opened', label: 'Opened', summary: 'opened', default: true },
+      { type: 'labeled', label: 'Label added', summary: 'label "{value}"', value: { input: 'text', placeholder: 'Label name, e.g. knecht' } },
+      { type: 'assigned', label: 'Assigned to', summary: 'assigned to {value}', value: { input: 'text', placeholder: 'octocat' } },
+    ],
+    filters: [...AUTHOR_FILTERS, LABEL_FILTER],
+  },
+]
 
 export interface GithubPayload {
   action?: string
   repository?: { id?: number, full_name?: string }
   sender?: { login?: string }
   pull_request?: GithubSubject & {
+    draft?: boolean
     head?: { ref?: string }
     base?: { ref?: string }
   }
@@ -37,6 +60,7 @@ export interface GithubPayload {
   }
   comment?: { id?: number, body?: string, user?: { login?: string, type?: string } }
   label?: { name?: string }
+  assignee?: { login?: string }
 }
 
 export interface GithubSubject {
@@ -64,32 +88,63 @@ function subjectInputs(event: string, subject: GithubSubject | undefined): Trigg
   }
 }
 
-const PR_ACTIONS = new Set(['opened', 'reopened', 'synchronize'])
+const sameLogin = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
-function branchMatches(filter: string[], branch: string): boolean {
-  return filter.length === 0 || filter.includes(branch)
+function globMatches(pattern: string, value: string): boolean {
+  return new RegExp(`^${pattern.split('*').map(RegExp.escape).join('.*')}$`).test(value)
 }
 
-export function matchGithubEvent(c: GithubTriggerConfig, event: string, payload: GithubPayload): TriggerMatch | null {
-  if (event !== c.event) return null
+function subjectPasses(c: TriggerConfig, subject: GithubSubject | undefined): boolean {
+  const author = subject?.user?.login ?? ''
+  const labels = (subject?.labels ?? []).map(l => l.name)
+  return passesList(c, 'author', allowed => allowed.some(login => sameLogin(login, author)))
+    && passesList(c, 'authorNot', denied => !denied.some(login => sameLogin(login, author)))
+    && passesList(c, 'label', wanted => wanted.some(label => labels.includes(label)))
+}
 
-  if (event === 'pull_request') {
-    if (!PR_ACTIONS.has(payload.action ?? '')) return null
-    const base = payload.pull_request?.base?.ref ?? ''
-    if (!branchMatches(c.branches, base)) return null
-    // The branch filter is about the base; the run checks out the head.
-    const head = payload.pull_request?.head?.ref ?? ''
+function labelFires(c: TriggerConfig, payload: GithubPayload): boolean {
+  const label = triggerEvent(c, 'labeled')?.value
+  return !!label && label === payload.label?.name
+}
+
+function pullRequestFires(c: TriggerConfig, payload: GithubPayload): boolean {
+  const action = payload.action ?? ''
+  if (action === 'opened' || action === 'reopened') return !!triggerEvent(c, 'opened')
+  if (action === 'ready_for_review') return !!triggerEvent(c, 'ready_for_review')
+  if (action === 'synchronize') return !!triggerEvent(c, 'pushed')
+  if (action === 'labeled') return labelFires(c, payload)
+  return false
+}
+
+function issueFires(c: TriggerConfig, payload: GithubPayload): boolean {
+  const action = payload.action ?? ''
+  if (action === 'opened') return !!triggerEvent(c, 'opened')
+  if (action === 'labeled') return labelFires(c, payload)
+  if (action === 'assigned') {
+    const login = triggerEvent(c, 'assigned')?.value
+    return !!login && sameLogin(login, payload.assignee?.login ?? '')
+  }
+  return false
+}
+
+export function matchGithubEvent(c: TriggerConfig, event: string, payload: GithubPayload): TriggerMatch | null {
+  if (event === 'pull_request' && c.kind === 'pull_request') {
+    const pr = payload.pull_request
+    if (!pullRequestFires(c, payload) || !subjectPasses(c, pr)) return null
+    if (!passesList(c, 'draft', ([state]) => (state === 'draft') === !!pr?.draft)) return null
+    if (!passesList(c, 'base', allowed => allowed.includes(pr?.base?.ref ?? ''))) return null
+    const head = pr?.head?.ref ?? ''
+    if (!passesList(c, 'head', patterns => patterns.some(pattern => globMatches(pattern, head)))) return null
     return {
+      // The filters are about the pull request; the run checks out its head.
       branch: head || null,
-      inputs: subjectInputs(event, payload.pull_request),
-      object: githubObject('pull_request', payload.pull_request),
+      inputs: subjectInputs(event, pr),
+      object: githubObject('pull_request', pr),
     }
   }
 
-  if (event === 'issues') {
-    const action = payload.action ?? ''
-    if (!c.issueActions.includes(action as (typeof c.issueActions)[number])) return null
-    if (action === 'labeled' && (!c.issueLabel || payload.label?.name !== c.issueLabel)) return null
+  if (event === 'issues' && c.kind === 'issue') {
+    if (!issueFires(c, payload) || !subjectPasses(c, payload.issue)) return null
     return {
       branch: null,
       inputs: subjectInputs(event, payload.issue),

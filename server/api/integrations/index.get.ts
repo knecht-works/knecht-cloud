@@ -5,4 +5,5 @@ export default defineEventHandler(() => INTEGRATIONS.map(i => ({
   name: i.name,
   configured: i.isConfigured(),
   link: i.link ? { label: i.link.label } : null,
+  triggerForm: i.trigger.form,
 })))

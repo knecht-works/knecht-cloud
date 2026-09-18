@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { INTEGRATION_IDS, type TriggerSource } from '#shared/utils/integrations'
-import KTriggerFormSchedule from '~/components/KTriggerFormSchedule.vue'
 
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
@@ -23,8 +22,8 @@ const toast = useToast()
 const toastError = useToastError()
 
 type Source = TriggerSource
-const SOURCES: { key: Source, label: string, icon: string, hint: string }[] = [
-  { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock', hint: 'Run on a cron schedule' },
+const SOURCES: { key: Source, label: string, icon: string }[] = [
+  { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock' },
   ...INTEGRATION_IDS.map(id => ({ key: id, ...integrationUi(id) })),
 ]
 
@@ -37,12 +36,11 @@ const projectIds = ref<number[]>([])
 const config = ref<Record<string, unknown>>({})
 const valid = ref(false)
 const creating = ref(false)
+const attempted = ref(false)
 
 const integration = computed(() => integrations.value.find(i => i.id === source.value) ?? null)
 const linked = computed(() => !!integration.value?.link)
 const linkKeyOf = (p: { links: Partial<Record<string, string>> }) => (integration.value ? p.links[integration.value.id] : undefined) ?? null
-const triggerForm = computed(() =>
-  source.value === 'schedule' ? KTriggerFormSchedule : integration.value ? integrationUi(integration.value.id).triggerForm : null)
 
 // A linked integration's trigger only takes projects that are linked.
 const projectItems = computed(() =>
@@ -61,13 +59,10 @@ const selectedLinkKeys = computed(() =>
 watch(source, () => {
   config.value = {}
   valid.value = false
+  attempted.value = false
 }, { flush: 'sync' })
 
-const canCreate = computed(() =>
-  !!workflowId.value
-  && projectIds.value.length > 0
-  && valid.value,
-)
+const canCreate = computed(() => !!workflowId.value && projectIds.value.length > 0)
 
 function body(): Record<string, unknown> {
   const base: Record<string, unknown> = { source: source.value, projectIds: projectIds.value }
@@ -77,7 +72,8 @@ function body(): Record<string, unknown> {
 }
 
 async function create() {
-  if (!canCreate.value) return
+  attempted.value = true
+  if (!canCreate.value || !valid.value) return
   creating.value = true
   try {
     if (props.trigger) {
@@ -120,6 +116,7 @@ watch(open, (isOpen) => {
   workflowId.value = undefined
   projectIds.value = []
   config.value = {}
+  attempted.value = false
 })
 </script>
 
@@ -133,63 +130,81 @@ watch(open, (isOpen) => {
     :ui="{ content: 'sm:max-w-3xl' }"
   >
     <template #body>
-      <div class="space-y-5">
-        <div>
-          <span class="k-label">Source</span>
-          <div class="mt-2 grid grid-cols-3 gap-2">
-            <button
-              v-for="src in SOURCES"
-              :key="src.key"
-              type="button"
-              class="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border px-2 py-3 text-center transition-colors"
-              :class="source === src.key
-                ? 'border-(--primary-border) bg-(--lime-950)'
-                : 'border-muted bg-(--surface-muted) hover:border-default'"
-              @click="source = src.key"
+      <div class="flex flex-col gap-4 min-h-120">
+        <div class="space-y-4 h-full flex-1">
+          <div>
+            <span class="k-label">Source</span>
+            <div class="mt-2 grid grid-cols-3 gap-2">
+              <button
+                v-for="src in SOURCES"
+                :key="src.key"
+                type="button"
+                class="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border px-2 py-2.5 text-center transition-colors"
+                :class="source === src.key
+                  ? 'border-(--primary-border) bg-(--lime-950)'
+                  : 'border-muted bg-(--surface-muted) hover:border-default'"
+                @click="source = src.key"
+              >
+                <UIcon
+                  :name="src.icon"
+                  class="size-5"
+                  :class="source === src.key ? 'text-primary' : 'text-dimmed'"
+                />
+                <span
+                  class="text-xs font-medium"
+                  :class="source === src.key ? 'text-highlighted' : 'text-muted'"
+                >{{ src.label }}</span>
+              </button>
+            </div>
+          </div>
+          <div>
+            <span class="k-label">Projects</span>
+            <USelectMenu
+              v-model="projectIds"
+              value-key="value"
+              multiple
+              :items="projectItems"
+              placeholder="Select projects…"
+              icon="i-lucide-box"
+              class="mt-2 w-full"
+            />
+            <p
+              v-if="linked"
+              class="mt-1 text-2xs text-dimmed"
             >
-              <UIcon
-                :name="src.icon"
-                class="size-5"
-                :class="source === src.key ? 'text-primary' : 'text-dimmed'"
-              />
-              <span
-                class="text-xs font-medium"
-                :class="source === src.key ? 'text-highlighted' : 'text-muted'"
-              >{{ src.label }}</span>
-              <span class="text-3xs leading-snug text-dimmed">{{ src.hint }}</span>
-            </button>
+              Only projects linked to a {{ integration?.link?.label }} (project settings) are listed.
+            </p>
+          </div>
+
+          <div>
+            <KTriggerFormSchedule
+              v-if="source === 'schedule'"
+              v-model:config="config"
+              v-model:valid="valid"
+            />
+            <p
+              v-else-if="integration && !integration.configured"
+              class="rounded-md border border-muted bg-(--surface-muted) px-3 py-2.5 text-2xs leading-normal text-muted"
+            >
+              {{ integration.name }} is not connected yet. Connect it in
+              <NuxtLink
+                to="/settings/integrations"
+                class="text-toned underline underline-offset-2"
+              >Settings → Integrations</NuxtLink>
+              first.
+            </p>
+            <KTriggerForm
+              v-else-if="integration"
+              :key="source"
+              v-model:config="config"
+              v-model:valid="valid"
+              :form="integration.triggerForm"
+              :show-issues="attempted"
+              :link-keys="selectedLinkKeys"
+            />
           </div>
         </div>
-
-        <div>
-          <span class="k-label">Projects</span>
-          <USelectMenu
-            v-model="projectIds"
-            value-key="value"
-            multiple
-            :items="projectItems"
-            placeholder="Select projects…"
-            icon="i-lucide-box"
-            class="mt-2 w-full"
-          />
-          <p class="mt-2 text-2xs text-dimmed">
-            {{ linked
-              ? `Only projects linked to a ${integration?.link?.label} (project settings) are listed. Fires the workflow once per selected project.`
-              : 'Fires the workflow once per selected project.' }}
-          </p>
-        </div>
-
-        <div class="min-h-72">
-          <component
-            :is="triggerForm"
-            v-if="triggerForm"
-            v-model:config="config"
-            v-model:valid="valid"
-            v-bind="linked ? { linkKeys: selectedLinkKeys } : {}"
-          />
-        </div>
-
-        <div class="flex justify-end gap-2 pt-1">
+        <div class="flex justify-end gap-2">
           <UButton
             color="neutral"
             variant="outline"

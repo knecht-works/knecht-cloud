@@ -1,4 +1,3 @@
-import { z } from 'zod'
 import { runWorkspacePath } from '../../../shared/utils/routes'
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import { tryParseJson } from '../../utils/json'
@@ -6,34 +5,46 @@ import { dashboardOrigin } from '../../utils/origin'
 import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
+import type { TriggerConfig, TriggerFormDef } from '../../../shared/utils/trigger-form'
+import { passesList, triggerEvent } from '../trigger-config'
 import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
 import { addJiraComment, getJiraComment, getJiraIssueContext, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
 import { jiraCredentials, recordJiraDelivery } from './credentials'
 
-export const jiraTriggerConfigSchema = z.object({
-  event: z.enum(['created', 'labeled', 'transitioned', 'assigned']),
-  label: z.string().trim().min(1).optional(),
-  status: z.string().trim().min(1).optional(),
-  statusCategory: z.enum(['new', 'indeterminate', 'done']).optional(),
-  issueType: z.string().trim().min(1).optional(),
-}).refine(c => c.event !== 'labeled' || !!c.label, 'A label is required to trigger on "labeled"')
-  .refine(c => c.event !== 'transitioned' || !!c.status || !!c.statusCategory, 'A status or status category is required to trigger on "transitioned"')
-
-export type JiraTriggerConfig = z.infer<typeof jiraTriggerConfigSchema>
-
 export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
 
-export function jiraEventLabel(c: JiraTriggerConfig): string {
-  const condition = c.event === 'created'
-    ? 'ticket created'
-    : c.event === 'labeled'
-      ? `label "${c.label}"`
-      : c.event === 'transitioned'
-        ? c.statusCategory ? `any "${JIRA_STATUS_CATEGORIES[c.statusCategory]}" status` : `status "${c.status}"`
-        : 'assigned to Knecht'
-  return `On ${condition}${c.issueType ? ` · ${c.issueType}` : ''}`
-}
+// A status event names either an exact status or, with this prefix, a whole category.
+const CATEGORY_PREFIX = 'category:'
+
+export const jiraTriggerForm: TriggerFormDef = [
+  {
+    kind: 'issue',
+    label: 'Ticket',
+    events: [
+      { type: 'created', label: 'Created', summary: 'ticket created' },
+      { type: 'assigned', label: 'Assigned to Knecht', summary: 'assigned to Knecht', hint: 'Fires when a ticket is assigned to the account the Jira connection uses, so "give it to Knecht" is a normal assignment in Jira.' },
+      { type: 'labeled', label: 'Label added', summary: 'label "{value}"', default: true, value: { input: 'text', placeholder: 'Label name, e.g. knecht', default: 'knecht' } },
+      {
+        type: 'status',
+        label: 'Status reached',
+        summary: 'status "{value}"',
+        value: {
+          input: 'select',
+          default: `${CATEGORY_PREFIX}done`,
+          optionsHeading: 'Category',
+          options: Object.entries(JIRA_STATUS_CATEGORIES).map(([key, label]) => ({ label: `Any ${label}`, value: `${CATEGORY_PREFIX}${key}`, summary: `any "${label}" status` })),
+          optionsUrl: '/api/jira/statuses',
+          remoteHeading: 'Exact status',
+        },
+      },
+    ],
+    filters: [
+      { key: 'issueType', label: 'Issue type is', summary: '{value}', input: 'list', placeholder: 'Bug, Task' },
+      { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'backend' },
+    ],
+  },
+]
 
 interface JiraUser {
   accountId?: string
@@ -106,41 +117,56 @@ function labelsOf(value: string | null | undefined): Set<string> {
 
 // A status change stays inside its category (In Progress to In Review) more often than
 // it crosses one; only the crossing counts. The changelog carries status ids, not categories.
-async function enteredCategory(c: JiraTriggerConfig, payload: JiraPayload): Promise<boolean> {
+async function enteredCategory(category: string, payload: JiraPayload): Promise<boolean> {
   const status = change(payload, 'status')
-  if (!status || payload.issue?.fields?.status?.statusCategory?.key !== c.statusCategory) return false
+  if (!status || payload.issue?.fields?.status?.statusCategory?.key !== category) return false
   const from = status.from ? await getJiraStatusCategory(status.from) : null
-  return from !== c.statusCategory
+  return from !== category
 }
 
-export async function matchJiraEvent(c: JiraTriggerConfig, payload: JiraPayload): Promise<TriggerMatch | null> {
+function statusTarget(c: TriggerConfig): { category?: string, status?: string } {
+  const value = triggerEvent(c, 'status')?.value
+  if (!value) return {}
+  return value.startsWith(CATEGORY_PREFIX) ? { category: value.slice(CATEGORY_PREFIX.length) } : { status: value }
+}
+
+// A ticket born with the label, in the status or assigned to Knecht has no changelog to gain them in.
+function createdFires(c: TriggerConfig, payload: JiraPayload, accountId: string | null | undefined): boolean {
+  const fields = payload.issue?.fields
+  const label = triggerEvent(c, 'labeled')?.value
+  const { category, status } = statusTarget(c)
+  return !!triggerEvent(c, 'created')
+    || (!!label && (fields?.labels ?? []).includes(label))
+    || (!!category && fields?.status?.statusCategory?.key === category)
+    || (!!status && fields?.status?.name === status)
+    || (!!triggerEvent(c, 'assigned') && !!accountId && fields?.assignee?.accountId === accountId)
+}
+
+async function updatedFires(c: TriggerConfig, payload: JiraPayload, accountId: string | null | undefined): Promise<boolean> {
+  const label = triggerEvent(c, 'labeled')?.value
+  const labels = change(payload, 'labels')
+  if (label && labels && labelsOf(labels.toString).has(label) && !labelsOf(labels.fromString).has(label)) return true
+
+  const { category, status } = statusTarget(c)
+  if (status && change(payload, 'status')?.toString === status) return true
+
+  if (triggerEvent(c, 'assigned') && !!accountId && change(payload, 'assignee')?.to === accountId) return true
+
+  return !!category && await enteredCategory(category, payload)
+}
+
+export async function matchJiraEvent(c: TriggerConfig, payload: JiraPayload): Promise<TriggerMatch | null> {
   const name = payload.webhookEvent ?? ''
   const object = jiraObject(payload)
   if (!object) return null
-  if (c.issueType && payload.issue?.fields?.issuetype?.name !== c.issueType) return null
+  const fields = payload.issue?.fields
+  if (!passesList(c, 'issueType', types => types.includes(fields?.issuetype?.name ?? ''))) return null
+  if (!passesList(c, 'label', wanted => wanted.some(label => (fields?.labels ?? []).includes(label)))) return null
 
   const accountId = jiraCredentials()?.accountId
-  let matched = false
-  if (name === 'jira:issue_created') {
-    // A ticket born with the label, in the status or assigned to Knecht has no changelog to gain them in.
-    const fields = payload.issue?.fields
-    matched = c.event === 'created'
-      || (c.event === 'labeled' && (fields?.labels ?? []).includes(c.label!))
-      || (c.event === 'transitioned' && (c.statusCategory ? fields?.status?.statusCategory?.key === c.statusCategory : fields?.status?.name === c.status))
-      || (c.event === 'assigned' && !!accountId && fields?.assignee?.accountId === accountId)
-  }
-  else if (name === 'jira:issue_updated') {
-    if (c.event === 'labeled') {
-      const labels = change(payload, 'labels')
-      matched = !!labels && labelsOf(labels.toString).has(c.label!) && !labelsOf(labels.fromString).has(c.label!)
-    }
-    else if (c.event === 'transitioned') {
-      matched = c.statusCategory ? await enteredCategory(c, payload) : change(payload, 'status')?.toString === c.status
-    }
-    else if (c.event === 'assigned') {
-      matched = !!accountId && change(payload, 'assignee')?.to === accountId
-    }
-  }
+  const matched = name === 'jira:issue_created'
+    ? createdFires(c, payload, accountId)
+    : name === 'jira:issue_updated' && await updatedFires(c, payload, accountId)
   if (!matched) return null
   return { branch: null, inputs: issueInputs(payload), object }
 }
@@ -167,10 +193,7 @@ export const jira: Integration = {
 
   isConfigured: () => !!jiraCredentials()?.webhookSecret,
 
-  trigger: {
-    configSchema: jiraTriggerConfigSchema,
-    eventLabel: config => jiraEventLabel(config as JiraTriggerConfig),
-  },
+  trigger: { form: jiraTriggerForm },
 
   link: {
     label: 'Jira project',
@@ -209,7 +232,7 @@ export const jira: Integration = {
 
     match(trigger, delivery) {
       if (!delivery.event) return null
-      return matchJiraEvent(trigger.config as JiraTriggerConfig, delivery.event.payload as JiraPayload)
+      return matchJiraEvent(trigger.config as unknown as TriggerConfig, delivery.event.payload as JiraPayload)
     },
 
     record: recordJiraDelivery,

@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { callRoute } from '../helpers/routes'
+import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
 import { getSessionRow, makeProject } from '../helpers/db'
 
 const api = vi.hoisted(() => ({
@@ -57,12 +58,12 @@ function makeJiraProject() {
   return { ...project, jiraProjectKey }
 }
 
-function makeJiraTrigger(projectId: number, config: Record<string, unknown>) {
+function makeJiraTrigger(projectId: number, on: TriggerEventConfig[], filters: TriggerConfig['filters'] = {}) {
   return db.insert(schema.triggers).values({
     source: 'jira',
     workflowId: makeWorkflow().id,
     projectIds: [projectId],
-    config,
+    config: { kind: 'issue', on, filters },
   }).returning().get()
 }
 
@@ -117,7 +118,7 @@ describe('jira webhook route', () => {
 
   it('fires on a created ticket with the ticket as inputs and object', async () => {
     const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, { event: 'created' })
+    const trigger = makeJiraTrigger(project.id, [{ type: 'created' }])
     const res = await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) })
     expect(res.json).toEqual({ ok: true, runIds: [expect.any(Number)] })
     const [run] = runsOf(trigger.id)
@@ -147,7 +148,7 @@ describe('jira webhook route', () => {
 
   it('fires on a label only when the ticket gains it', async () => {
     const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, { event: 'labeled', label: 'knecht' })
+    const trigger = makeJiraTrigger(project.id, [{ type: 'labeled', value: 'knecht' }])
 
     await deliver(updated(project, [{ field: 'labels', fromString: 'knecht', toString: 'knecht bug' }]))
     await deliver(updated(project, [{ field: 'labels', fromString: '', toString: 'other' }]))
@@ -159,9 +160,9 @@ describe('jira webhook route', () => {
 
   it('fires on a ticket created with the label, the status or the assignment already set', async () => {
     const project = makeJiraProject()
-    const labeled = makeJiraTrigger(project.id, { event: 'labeled', label: 'knecht' })
-    const transitioned = makeJiraTrigger(project.id, { event: 'transitioned', status: 'In Progress' })
-    const assigned = makeJiraTrigger(project.id, { event: 'assigned' })
+    const labeled = makeJiraTrigger(project.id, [{ type: 'labeled', value: 'knecht' }])
+    const transitioned = makeJiraTrigger(project.id, [{ type: 'status', value: 'In Progress' }])
+    const assigned = makeJiraTrigger(project.id, [{ type: 'assigned' }])
 
     await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project, { labels: ['bug'] }) })
     expect(runsOf(labeled.id)).toHaveLength(0)
@@ -179,7 +180,7 @@ describe('jira webhook route', () => {
 
   it('fires on a transition to the configured status', async () => {
     const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, { event: 'transitioned', status: 'In Progress' })
+    const trigger = makeJiraTrigger(project.id, [{ type: 'status', value: 'In Progress' }])
     await deliver(updated(project, [{ field: 'status', fromString: 'To Do', toString: 'Done' }]))
     expect(runsOf(trigger.id)).toHaveLength(0)
     await deliver(updated(project, [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }]))
@@ -188,7 +189,7 @@ describe('jira webhook route', () => {
 
   it('fires on a transition into the configured status category, whatever the status is called', async () => {
     const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, { event: 'transitioned', statusCategory: 'done' })
+    const trigger = makeJiraTrigger(project.id, [{ type: 'status', value: 'category:done' }])
     api.statusCategories = { 1: 'new', 2: 'indeterminate', 3: 'done', 4: 'done' }
 
     await deliver(updated(project, [{ field: 'status', from: '1', to: '2', fromString: 'To Do', toString: 'In Progress' }], { status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } } }))
@@ -204,7 +205,7 @@ describe('jira webhook route', () => {
 
   it('fires when the ticket is assigned to the connection account', async () => {
     const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, { event: 'assigned' })
+    const trigger = makeJiraTrigger(project.id, [{ type: 'assigned' }])
     await deliver(updated(project, [{ field: 'assignee', from: null, to: 'someone-else' }]))
     expect(runsOf(trigger.id)).toHaveLength(0)
     await deliver(updated(project, [{ field: 'assignee', from: null, to: KNECHT_ACCOUNT }], { assignee: { accountId: KNECHT_ACCOUNT, displayName: 'Knecht' } }))
@@ -214,11 +215,27 @@ describe('jira webhook route', () => {
 
   it('applies the issue type filter', async () => {
     const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, { event: 'created', issueType: 'Task' })
+    const trigger = makeJiraTrigger(project.id, [{ type: 'created' }], { issueType: ['Task'] })
     await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) })
     expect(runsOf(trigger.id)).toHaveLength(0)
     await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project, { issuetype: { name: 'Task' } }) })
     expect(runsOf(trigger.id)).toHaveLength(1)
+  })
+
+  it('fires on any of several events and only for tickets carrying the label filter', async () => {
+    const project = makeJiraProject()
+    const either = makeJiraTrigger(project.id, [{ type: 'assigned' }, { type: 'status', value: 'In Progress' }])
+    const backendOnly = makeJiraTrigger(project.id, [{ type: 'created' }], { label: ['backend'] })
+
+    await deliver(updated(project, [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }]))
+    await deliver(updated(project, [{ field: 'assignee', to: KNECHT_ACCOUNT }]))
+    await deliver(updated(project, [{ field: 'summary', toString: 'Renamed' }]))
+    expect(runsOf(either.id)).toHaveLength(2)
+
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) })
+    expect(runsOf(backendOnly.id)).toHaveLength(0)
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project, { labels: ['backend'] }) })
+    expect(runsOf(backendOnly.id)).toHaveLength(1)
   })
 
   it('mirrors done, reopened and deleted onto the session', async () => {

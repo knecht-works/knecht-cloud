@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { makeProject } from '../helpers/db'
 
 vi.mock('../../server/utils/github-app', () => ({}))
@@ -9,6 +10,8 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
 
 const { db, schema } = await import('../../server/db')
 const { INTEGRATIONS } = await import('../../server/integrations')
+const { getTriggerSource } = await import('../../server/utils/trigger-sources')
+const { defaultTriggerConfig, triggerSummary } = await import('../../shared/utils/trigger-form')
 const { INPUT_KEYS } = await import('../../server/utils/inputs')
 const { setProjectLink } = await import('../../server/utils/project-links')
 const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
@@ -26,7 +29,7 @@ interface Fixture {
   project: () => { id: number }
   body: (project: { githubId: number, jiraProjectKey: string }) => object
   unknownBody: object
-  triggerConfig: Record<string, unknown>
+  triggerConfig: TriggerConfig
 }
 
 const FIXTURES: Record<string, Fixture> = {
@@ -38,7 +41,7 @@ const FIXTURES: Record<string, Fixture> = {
     project: () => makeProject(),
     body: p => ({ action: 'opened', issue: { number: 1, title: 'T', body: 'B', html_url: 'https://x/1' }, repository: { id: p.githubId } }),
     unknownBody: { action: 'opened', repository: { id: 424242 } },
-    triggerConfig: { event: 'issues', branches: [], issueActions: ['opened'], issueLabel: null },
+    triggerConfig: { kind: 'issue', on: [{ type: 'opened' }], filters: {} },
   },
   jira: {
     configure: () => saveJiraCredentials({ siteUrl: 'https://acme.atlassian.net', email: 'k@acme.test', apiToken: 't', accountId: 'acc' }),
@@ -53,7 +56,7 @@ const FIXTURES: Record<string, Fixture> = {
     },
     body: p => ({ webhookEvent: 'jira:issue_created', issue: { key: `${p.jiraProjectKey}-1`, fields: { summary: 'T', project: { key: p.jiraProjectKey } } } }),
     unknownBody: { webhookEvent: 'jira:issue_created', issue: { key: 'X-1', fields: { project: { key: 'X' } } } },
-    triggerConfig: { event: 'created' },
+    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
   },
 }
 
@@ -97,7 +100,7 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
       source: id,
       workflowId: db.insert(schema.workflows).values({ name: `contract-${id}`, steps: [] }).returning().get().id,
       projectIds: [project.id],
-      config: fixture.triggerConfig,
+      config: { ...fixture.triggerConfig },
     }).returning().get()
     const match = await integration.webhook.match(trigger, delivery)
     expect(match).not.toBeNull()
@@ -107,9 +110,15 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
     expect(integration.objects.kinds).toContain(match!.object?.kind)
   })
 
-  it('validates its trigger config through the schema', () => {
-    expect(integration.trigger.configSchema.safeParse(fixture.triggerConfig).success).toBe(true)
-    expect(integration.trigger.eventLabel(fixture.triggerConfig)).toBeTruthy()
+  it('declares a trigger form its config validates against', () => {
+    const source = getTriggerSource(id)!
+    expect(source.configSchema.safeParse(fixture.triggerConfig).success).toBe(true)
+    expect(source.configSchema.safeParse({ ...fixture.triggerConfig, on: [] }).success).toBe(false)
+    expect(triggerSummary(integration.trigger.form, fixture.triggerConfig)).toMatch(/^On /)
+    for (const kind of integration.trigger.form) {
+      expect(integration.objects.kinds).toContain(kind.kind)
+      expect(source.configSchema.safeParse(defaultTriggerConfig(integration.trigger.form, kind.kind)).success).toBe(kind.events.some(e => e.default))
+    }
   })
 
   it('describes objects and declares callable capabilities', () => {

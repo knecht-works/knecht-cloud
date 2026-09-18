@@ -1,6 +1,6 @@
-import type { z } from 'zod'
 import type { Project, Run, Session, Trigger } from '../db/schema'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
+import type { TriggerFormDef } from '../../shared/utils/trigger-form'
 import type { TriggerInputs } from '../utils/inputs'
 import type { SessionObject } from '../utils/sessions'
 
@@ -53,8 +53,7 @@ export interface Integration {
   isConfigured(): boolean
 
   trigger: {
-    configSchema: z.ZodType<Record<string, unknown>>
-    eventLabel(config: Record<string, unknown>): string
+    form: TriggerFormDef
   }
 
   // Integrations whose events come from a container that must be mapped to
