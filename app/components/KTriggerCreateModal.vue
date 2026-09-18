@@ -46,7 +46,7 @@ const linkKeyOf = (p: { links: Partial<Record<string, string>> }) => (integratio
 const projectItems = computed(() =>
   (projects.value ?? [])
     .filter(p => !linked.value || linkKeyOf(p))
-    .map(p => ({ label: linked.value ? `${p.fullName} · ${linkKeyOf(p)}` : p.fullName, value: p.id })),
+    .map(p => ({ label: p.fullName, value: p.id })),
 )
 const selectedLinkKeys = computed(() =>
   (projects.value ?? [])
@@ -60,6 +60,8 @@ watch(source, () => {
   config.value = {}
   valid.value = false
   attempted.value = false
+  const selectable = new Set(projectItems.value.map(p => p.value))
+  projectIds.value = projectIds.value.filter(id => selectable.has(id))
 }, { flush: 'sync' })
 
 const canCreate = computed(() => !!workflowId.value && projectIds.value.length > 0)
@@ -127,35 +129,32 @@ watch(open, (isOpen) => {
     :description="editing
       ? 'Change how and when this workflow runs automatically.'
       : 'Fire this workflow automatically.'"
-    :ui="{ content: 'sm:max-w-3xl' }"
+    :ui="{ content: 'sm:max-w-2xl' }"
   >
     <template #body>
-      <div class="flex flex-col gap-4 min-h-120">
+      <div class="flex flex-col gap-4 min-h-115">
         <div class="space-y-4 h-full flex-1">
-          <div>
-            <span class="k-label">Source</span>
-            <div class="mt-2 grid grid-cols-3 gap-2">
-              <button
-                v-for="src in SOURCES"
-                :key="src.key"
-                type="button"
-                class="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border px-2 py-2.5 text-center transition-colors"
-                :class="source === src.key
-                  ? 'border-(--primary-border) bg-(--lime-950)'
-                  : 'border-muted bg-(--surface-muted) hover:border-default'"
-                @click="source = src.key"
-              >
-                <UIcon
-                  :name="src.icon"
-                  class="size-5"
-                  :class="source === src.key ? 'text-primary' : 'text-dimmed'"
-                />
-                <span
-                  class="text-xs font-medium"
-                  :class="source === src.key ? 'text-highlighted' : 'text-muted'"
-                >{{ src.label }}</span>
-              </button>
-            </div>
+          <div class="grid grid-cols-4 gap-2">
+            <button
+              v-for="src in SOURCES"
+              :key="src.key"
+              type="button"
+              class="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border p-4 text-center transition-colors"
+              :class="source === src.key
+                ? 'border-(--primary-border) bg-(--lime-950)'
+                : 'border-muted bg-(--surface-muted) hover:border-default'"
+              @click="source = src.key"
+            >
+              <UIcon
+                :name="src.icon"
+                class="size-5"
+                :class="source === src.key ? 'text-primary' : 'text-dimmed'"
+              />
+              <span
+                class="text-xs font-medium"
+                :class="source === src.key ? 'text-highlighted' : 'text-muted'"
+              >{{ src.label }}</span>
+            </button>
           </div>
           <div>
             <span class="k-label">Projects</span>
@@ -164,10 +163,27 @@ watch(open, (isOpen) => {
               value-key="value"
               multiple
               :items="projectItems"
-              placeholder="Select projects…"
               icon="i-lucide-box"
               class="mt-2 w-full"
-            />
+              :ui="{ base: 'h-auto min-h-8' }"
+            >
+              <template #default>
+                <span
+                  v-if="projectIds.length"
+                  class="flex flex-wrap gap-1"
+                >
+                  <span
+                    v-for="item in projectItems.filter(p => projectIds.includes(p.value))"
+                    :key="item.value"
+                    class="k-code text-xs"
+                  >{{ item.label }}</span>
+                </span>
+                <span
+                  v-else
+                  class="truncate text-dimmed"
+                >Select projects…</span>
+              </template>
+            </USelectMenu>
             <p
               v-if="linked"
               class="mt-1 text-2xs text-dimmed"

@@ -72,7 +72,7 @@ function remoteItems(event: TriggerEventDef): SelectItem[] {
     return [...(title && names.length ? [{ type: 'label' as const, label: title, class: heading }] : []), ...names.map(n => ({ label: n, value: n }))]
   }
   return [
-    { type: 'label', label: `${title ? `${title} · in` : 'In'} all ${props.linkKeys.length} projects`, class: heading },
+    { type: 'label', label: title ?? 'In all projects', class: heading },
     ...names.filter(n => !partial.includes(n)).map(n => ({ label: n, value: n })),
     { type: 'separator' },
     { type: 'label', label: 'Only in some', class: heading },
@@ -116,11 +116,11 @@ watch(built, () => {
 <template>
   <div class="space-y-4">
     <div>
-      <div class="flex items-end justify-between">
+      <div class="flex items-center justify-between">
         <span class="k-label">Fires when</span>
         <div
           v-if="form.length > 1"
-          class="flex gap-1.5"
+          class="flex gap-2"
         >
           <button
             v-for="k in form"
@@ -136,7 +136,7 @@ watch(built, () => {
           </button>
         </div>
       </div>
-      <div class="mt-1 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+      <div class="mt-1 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
         <div
           v-for="event in def.events"
           :key="event.type"
