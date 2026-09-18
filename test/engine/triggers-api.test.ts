@@ -74,10 +74,9 @@ describe('POST /api/triggers', () => {
     expect(res.json).toMatchObject({ statusMessage: 'A label is required to trigger on "labeled"' })
   })
 
-  it('creates a manual trigger', async () => {
+  it('refuses the removed manual source', async () => {
     const res = await post({ source: 'manual', workflowId: makeWorkflow().id, projectIds: [] })
-    expect(res.status).toBe(200)
-    expect(res.json).toMatchObject({ source: 'manual', event: 'Run on demand', endpoint: null })
+    expect(res.status).toBe(400)
   })
 
   it('creates a jira trigger only for projects linked to a Jira project', async () => {
@@ -104,7 +103,7 @@ describe('POST /api/triggers', () => {
   })
 
   it('refuses an unknown workflow', async () => {
-    const res = await post({ source: 'manual', workflowId: 999_999, projectIds: [] })
+    const res = await post({ source: 'schedule', workflowId: 999_999, projectIds: [], cron: '0 9 * * *' })
     expect(res.status).toBe(404)
   })
 })
@@ -140,7 +139,7 @@ describe('PATCH /api/triggers/:id', () => {
   })
 
   it('updates workflow and projects', async () => {
-    const created = await post({ source: 'manual', workflowId: makeWorkflow().id, projectIds: [] })
+    const created = await post({ source: 'schedule', workflowId: makeWorkflow().id, projectIds: [], cron: '0 9 * * *' })
     const id = (created.json as { id: number }).id
     const wf = makeWorkflow()
     const project = makeProject({ name: 'other' })

@@ -16,7 +16,7 @@ function makeWorkflow(overrides: Partial<typeof schema.workflows.$inferInsert> =
 }
 
 function makeTrigger(workflowId: number, projectIds: number[]) {
-  return db.insert(schema.triggers).values({ source: 'manual', workflowId, projectIds }).returning().get()
+  return db.insert(schema.triggers).values({ source: 'schedule', cron: '0 9 * * *', workflowId, projectIds }).returning().get()
 }
 
 function runsOf(workflowId: number) {
