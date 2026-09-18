@@ -40,6 +40,7 @@ export default defineNuxtConfig({
   // NUXT_SESSION_COOKIE_DOMAIN (docker-compose.yml derives it from .env).
   runtimeConfig: {
     session: {
+      maxAge: 60 * 60 * 24 * 30,
       cookie: {
         domain: process.env.KNECHT_BASE_DOMAIN || undefined,
         // http://lvh.me is NOT a secure context (unlike http://localhost), so a
