@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import type { Trigger } from '../../db/schema'
 import type { TriggerSource } from '../../../shared/utils/integrations'
+import { triggerSummary, type TriggerConfig } from '../../../shared/utils/trigger-form'
 import { INTEGRATIONS, type Integration } from '../../integrations'
+import { triggerConfigSchema } from '../../integrations/trigger-config'
 import { getProject } from '../entities'
 import { projectLinks } from '../project-links'
 
@@ -47,8 +49,8 @@ export const TRIGGER_SOURCE_DEFS: readonly TriggerSourceDef[] = [
   schedule,
   ...INTEGRATIONS.map((i): TriggerSourceDef => ({
     source: i.id,
-    configSchema: i.trigger.configSchema,
-    eventLabel: t => i.trigger.eventLabel(t.config),
+    configSchema: triggerConfigSchema(i.trigger.form),
+    eventLabel: t => triggerSummary(i.trigger.form, t.config as unknown as TriggerConfig),
     validateProjects: ids => validateLinkedProjects(i, ids),
   })),
 ]

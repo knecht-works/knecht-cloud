@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { callRoute } from '../helpers/routes'
+import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { getSessionRow, makeProject } from '../helpers/db'
 
 const comments: { issue: number, body: string }[] = []
@@ -41,26 +42,15 @@ function makeWorkflow() {
   }).returning().get()
 }
 
-interface GithubTriggerOpts {
-  event?: 'pull_request' | 'issues'
-  branches?: string[]
-  issueActions?: ('opened' | 'labeled')[]
-  issueLabel?: string | null
-  active?: boolean
-}
+const PR_OPENED_OR_PUSHED: TriggerConfig = { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], filters: {} }
 
-function makeGithubTrigger(projectIds: number[], opts: GithubTriggerOpts = {}) {
+function makeGithubTrigger(projectIds: number[], config: TriggerConfig = PR_OPENED_OR_PUSHED, active = true) {
   return db.insert(schema.triggers).values({
     source: 'github',
     workflowId: makeWorkflow().id,
     projectIds,
-    active: opts.active ?? true,
-    config: {
-      event: opts.event ?? 'pull_request',
-      branches: opts.branches ?? [],
-      issueActions: opts.issueActions ?? ['opened'],
-      issueLabel: opts.issueLabel ?? null,
-    },
+    active,
+    config: { ...config },
   }).returning().get()
 }
 
@@ -97,7 +87,7 @@ describe('github webhook route', () => {
   it('ignores push deliveries, inactive triggers and other projects', async () => {
     const project = makeProject()
     const other = makeProject()
-    const inactive = makeGithubTrigger([project.id], { active: false })
+    const inactive = makeGithubTrigger([project.id], PR_OPENED_OR_PUSHED, false)
     const elsewhere = makeGithubTrigger([other.id])
     const any = makeGithubTrigger([project.id])
     const pr = { number: 1, title: 'x', html_url: 'https://x/pull/1', head: { ref: 'feature' }, base: { ref: 'main' } }
@@ -112,7 +102,7 @@ describe('github webhook route', () => {
 
   it('fires a pull_request trigger on the base filter and checks out the head', async () => {
     const project = makeProject()
-    const trigger = makeGithubTrigger([project.id], { event: 'pull_request', branches: ['main'] })
+    const trigger = makeGithubTrigger([project.id], { ...PR_OPENED_OR_PUSHED, filters: { base: ['main'] } })
     const pr = { number: 42, title: 'Add feature', body: 'Because', html_url: 'https://x/pull/42', head: { ref: 'feat' }, base: { ref: 'main' } }
 
     await deliver('pull_request', { action: 'labeled', pull_request: pr, repository: repo(project) })
@@ -133,8 +123,8 @@ describe('github webhook route', () => {
 
   it('fires an issues trigger on opened and on the configured label only', async () => {
     const project = makeProject()
-    const opened = makeGithubTrigger([project.id], { event: 'issues' })
-    const labeled = makeGithubTrigger([project.id], { event: 'issues', issueActions: ['labeled'], issueLabel: 'knecht' })
+    const opened = makeGithubTrigger([project.id], { kind: 'issue', on: [{ type: 'opened' }], filters: {} })
+    const labeled = makeGithubTrigger([project.id], { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} })
     const issue = { number: 7, title: 'Broken', body: 'boom', html_url: 'https://x/issues/7' }
 
     await deliver('issues', { action: 'opened', issue, repository: repo(project) })

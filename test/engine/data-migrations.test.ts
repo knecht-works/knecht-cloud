@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
 import { runDataMigrations } from '../../server/db/data-migrations'
+import { getTriggerSource } from '../../server/utils/trigger-sources'
 import type { Step } from '../../shared/utils/workflow'
 import { makeProject, makeRun } from '../helpers/db'
 
@@ -75,6 +76,36 @@ describe('runDataMigrations', () => {
 
     expect(db.select().from(schema.runSteps).where(eq(schema.runSteps.id, aborted.id)).get()).toMatchObject({ status: 'cancelled', error: null })
     expect(db.select().from(schema.runSteps).where(eq(schema.runSteps.id, failed.id)).get()).toMatchObject({ status: 'failed', error: 'exit 1' })
+  })
+
+  it('reshapes github and jira trigger configs into events and filters', () => {
+    const workflowId = db.insert(schema.workflows).values({ name: 'legacy-triggers', steps: [] }).returning().get().id
+    const insert = (source: 'github' | 'jira' | 'schedule', config: Record<string, unknown>) =>
+      db.insert(schema.triggers).values({ source, workflowId, projectIds: [], config }).returning().get().id
+    const configOf = (id: number) => db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!.config
+
+    const pr = insert('github', { event: 'pull_request', branches: ['main'], issueActions: ['opened'], issueLabel: null })
+    const issues = insert('github', { event: 'issues', branches: [], issueActions: ['opened', 'labeled'], issueLabel: 'knecht' })
+    const category = insert('jira', { event: 'transitioned', statusCategory: 'done', issueType: 'Bug' })
+    const status = insert('jira', { event: 'transitioned', status: 'In Review' })
+    const assigned = insert('jira', { event: 'assigned' })
+    const current = insert('github', { kind: 'issue', on: [{ type: 'opened' }], filters: {} })
+    const schedule = insert('schedule', {})
+
+    db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, '0005_trigger_event_configs')).run()
+    runDataMigrations()
+
+    expect(configOf(pr)).toEqual({ kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], filters: { base: ['main'] } })
+    expect(configOf(issues)).toEqual({ kind: 'issue', on: [{ type: 'opened' }, { type: 'labeled', value: 'knecht' }], filters: {} })
+    expect(configOf(category)).toEqual({ kind: 'issue', on: [{ type: 'status', value: 'category:done' }], filters: { issueType: ['Bug'] } })
+    expect(configOf(status)).toEqual({ kind: 'issue', on: [{ type: 'status', value: 'In Review' }], filters: {} })
+    expect(configOf(assigned)).toEqual({ kind: 'issue', on: [{ type: 'assigned' }], filters: {} })
+    expect(configOf(current)).toEqual({ kind: 'issue', on: [{ type: 'opened' }], filters: {} })
+    expect(configOf(schedule)).toEqual({})
+    for (const id of [pr, issues, category, status, assigned]) {
+      const row = db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!
+      expect(getTriggerSource(row.source)!.configSchema.safeParse(row.config).success).toBe(true)
+    }
   })
 
   it('is a no-op on the second run', () => {

@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from './index'
 import { stripLegacyModelPrefix } from '../../shared/utils/ai'
+import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '../../shared/utils/workflow'
 
 // Append-only: entries are tracked by name, never rename or remove a released one.
@@ -9,6 +10,7 @@ const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0002_bare_ai_step_models', run: bareAiStepModels },
   { name: '0003_cancelled_step_rows', run: cancelledStepRows },
   { name: '0004_followup_reply_items', run: followupReplyItems },
+  { name: '0005_trigger_event_configs', run: triggerEventConfigs },
 ]
 
 export function runDataMigrations(): void {
@@ -78,4 +80,36 @@ function cancelledStepRows(): void {
     .set({ status: 'cancelled', error: null })
     .where(and(eq(schema.runSteps.status, 'failed'), eq(schema.runSteps.error, 'Cancelled')))
     .run()
+}
+
+interface LegacyGithubConfig { event?: string, branches?: string[], issueActions?: string[], issueLabel?: string | null }
+interface LegacyJiraConfig { event?: string, label?: string, status?: string, statusCategory?: string, issueType?: string }
+
+function fromLegacyGithub(c: LegacyGithubConfig): TriggerConfig {
+  if (c.event === 'issues') {
+    const on = (c.issueActions ?? ['opened']).map(a => (a === 'labeled' ? { type: 'labeled', value: c.issueLabel ?? '' } : { type: a }))
+    return { kind: 'issue', on, filters: {} }
+  }
+  return {
+    kind: 'pull_request',
+    on: [{ type: 'opened' }, { type: 'pushed' }],
+    filters: c.branches?.length ? { base: c.branches } : {},
+  }
+}
+
+function fromLegacyJira(c: LegacyJiraConfig): TriggerConfig {
+  const on = c.event === 'labeled'
+    ? { type: 'labeled', value: c.label ?? '' }
+    : c.event === 'transitioned'
+      ? { type: 'status', value: c.statusCategory ? `category:${c.statusCategory}` : c.status ?? '' }
+      : { type: c.event ?? 'created' }
+  return { kind: 'issue', on: [on], filters: c.issueType ? { issueType: [c.issueType] } : {} }
+}
+
+function triggerEventConfigs(): void {
+  for (const row of db.select().from(schema.triggers).all()) {
+    if (row.source === 'schedule' || Array.isArray(row.config.on)) continue
+    const config = row.source === 'github' ? fromLegacyGithub(row.config) : fromLegacyJira(row.config)
+    db.update(schema.triggers).set({ config: { ...config } }).where(eq(schema.triggers.id, row.id)).run()
+  }
 }
