@@ -292,6 +292,7 @@ async function disconnect() {
             variant="ghost"
             size="xs"
             icon="i-lucide-copy"
+            class="justify-self-end"
             aria-label="Copy webhook URL"
             @click="copy('Webhook URL', jira.webhookUrl)"
           />
