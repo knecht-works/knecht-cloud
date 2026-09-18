@@ -67,6 +67,8 @@ describe('matchGithubEvent events and filters', () => {
   it('filters on base, head pattern and draft state', () => {
     expect(fires(trigger({ filters: { base: ['main', 'staging'] } }), pr('opened', { base: { ref: 'develop' } }))).toBe(false)
     expect(fires(trigger({ filters: { base: ['main', 'staging'] } }), pr('opened', { base: { ref: 'staging' } }))).toBe(true)
+    expect(fires(trigger({ filters: { base: ['main', 'releases/*'] } }), pr('opened', { base: { ref: 'releases/v1' } }))).toBe(true)
+    expect(fires(trigger({ filters: { base: ['main', 'releases/*'] } }), pr('opened', { base: { ref: 'hotfix/releases/v1' } }))).toBe(false)
     expect(fires(trigger({ filters: { head: ['renovate/*'] } }), pr('opened', { head: { ref: 'renovate/vue-3.x' } }))).toBe(true)
     expect(fires(trigger({ filters: { head: ['renovate/*'] } }), pr('opened', { head: { ref: 'feat/renovate/x' } }))).toBe(false)
     expect(fires(trigger({ filters: { head: ['a.b'] } }), pr('opened', { head: { ref: 'aXb' } }))).toBe(false)
@@ -81,7 +83,10 @@ describe('matchGithubEvent events and filters', () => {
     expect(fires(trigger({ filters: { authorNot: bots } }), pr('opened', { user: { login: 'Renovate[bot]' } }))).toBe(false)
     expect(fires(trigger({ filters: { authorNot: bots } }), pr('opened'))).toBe(true)
     expect(fires(trigger({ filters: { author: bots } }), pr('opened'))).toBe(false)
+    expect(fires(trigger({ filters: { authorNot: ['*[bot]'] } }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
+    expect(fires(trigger({ filters: { author: ['*[bot]'] } }), pr('opened', { user: { login: 'Renovate[bot]' } }))).toBe(true)
     expect(fires(trigger({ filters: { label: ['bug', 'ui'] } }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(true)
+    expect(fires(trigger({ filters: { label: ['area/*'] } }), pr('opened', { labels: [{ name: 'area/ui' }] }))).toBe(true)
     expect(fires(trigger({ filters: { label: ['bug'], base: ['main'] } }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(false)
   })
 
