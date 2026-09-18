@@ -2,11 +2,11 @@
 const config = defineModel<Record<string, unknown>>('config', { required: true })
 const valid = defineModel<boolean>('valid', { default: false })
 
-type GithubEvent = 'push' | 'pull_request' | 'issues'
+type GithubEvent = 'pull_request' | 'issues'
 type IssueAction = 'opened' | 'labeled'
 
 const initial = config.value as { event?: GithubEvent, branches?: string[], issueActions?: IssueAction[], issueLabel?: string | null }
-const githubEvent = ref<GithubEvent>(initial.event ?? 'push')
+const githubEvent = ref<GithubEvent>(initial.event ?? 'pull_request')
 const branchFilter = ref((initial.branches ?? []).join(', '))
 const issueOpened = ref((initial.issueActions ?? ['opened']).includes('opened'))
 const issueLabeled = ref((initial.issueActions ?? []).includes('labeled'))
@@ -47,7 +47,6 @@ watch([githubEvent, branchFilter, issueOpened, issueLabeled, issueLabel], () => 
         v-model="githubEvent"
         value-key="value"
         :items="[
-          { label: 'Push', value: 'push' },
           { label: 'Pull request', value: 'pull_request' },
           { label: 'Issues', value: 'issues' },
         ]"
@@ -55,8 +54,8 @@ watch([githubEvent, branchFilter, issueOpened, issueLabeled, issueLabel], () => 
       />
     </div>
 
-    <div v-if="githubEvent !== 'issues'">
-      <span class="k-label">{{ githubEvent === 'pull_request' ? 'Base branches' : 'Branches' }}</span>
+    <div v-if="githubEvent === 'pull_request'">
+      <span class="k-label">Base branches</span>
       <UInput
         v-model="branchFilter"
         placeholder="main, staging"
@@ -64,9 +63,7 @@ watch([githubEvent, branchFilter, issueOpened, issueLabeled, issueLabel], () => 
         :ui="{ base: 'k-mono' }"
       />
       <p class="mt-2 text-2xs text-dimmed">
-        {{ githubEvent === 'pull_request'
-          ? 'Fires when a pull request targeting one of these branches is opened or pushed to. Comma-separated, empty = every branch.'
-          : 'Fires on pushes to these branches. Comma-separated, empty = every branch.' }}
+        Fires when a pull request targeting one of these branches is opened or pushed to. Comma-separated, empty = every branch.
       </p>
     </div>
 

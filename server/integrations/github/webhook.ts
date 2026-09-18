@@ -4,7 +4,7 @@ import type { SessionObject } from '../../utils/sessions'
 import type { TriggerMatch } from '../types'
 
 export const githubTriggerConfigSchema = z.object({
-  event: z.enum(['push', 'pull_request', 'issues']).default('push'),
+  event: z.enum(['pull_request', 'issues']).default('pull_request'),
   branches: z.array(z.string().min(1)).default([]),
   issueActions: z.array(z.enum(['opened', 'labeled'])).min(1).default(['opened']),
   issueLabel: z.string().min(1).nullable().default(null),
@@ -21,17 +21,11 @@ export function githubEventLabel(c: GithubTriggerConfig): string {
     return `On issues · ${parts.join(', ')}`
   }
   if (!c.branches.length) return `On ${c.event}`
-  const prefix = c.event === 'pull_request' ? 'base ' : ''
-  return `On ${c.event} · ${prefix}${c.branches.join(', ')}`
+  return `On ${c.event} · base ${c.branches.join(', ')}`
 }
 
 export interface GithubPayload {
   action?: string
-  ref?: string
-  deleted?: boolean
-  after?: string
-  head_commit?: { message?: string, url?: string } | null
-  pusher?: { name?: string }
   repository?: { id?: number, full_name?: string }
   sender?: { login?: string }
   pull_request?: GithubSubject & {
@@ -78,24 +72,6 @@ function branchMatches(filter: string[], branch: string): boolean {
 
 export function matchGithubEvent(c: GithubTriggerConfig, event: string, payload: GithubPayload): TriggerMatch | null {
   if (event !== c.event) return null
-
-  if (event === 'push') {
-    const ref = payload.ref ?? ''
-    if (payload.deleted || !ref.startsWith('refs/heads/')) return null
-    const branch = ref.slice('refs/heads/'.length)
-    if (!branchMatches(c.branches, branch)) return null
-    return {
-      branch,
-      inputs: {
-        ...emptyInputs(event),
-        identifier: payload.after?.slice(0, 7) ?? '',
-        title: payload.head_commit?.message ?? '',
-        url: payload.head_commit?.url ?? '',
-        author: payload.pusher?.name ?? '',
-      },
-      object: null,
-    }
-  }
 
   if (event === 'pull_request') {
     if (!PR_ACTIONS.has(payload.action ?? '')) return null

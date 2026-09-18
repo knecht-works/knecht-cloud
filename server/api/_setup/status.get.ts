@@ -45,7 +45,7 @@ export default defineEventHandler((event) => {
       // PR conversation comments go through the issues API too.
       issues: 'write',
     },
-    default_events: ['push', 'pull_request', 'issues', 'issue_comment'],
+    default_events: ['pull_request', 'issues', 'issue_comment'],
   }
 
   // The page picks the owner: an app can only be installed on the account

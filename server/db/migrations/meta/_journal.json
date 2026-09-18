@@ -302,6 +302,13 @@
       "when": 1789567626154,
       "tag": "0042_session-handover",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1789714881886,
+      "tag": "0043_drop-push-triggers",
+      "breakpoints": true
     }
   ]
 }
