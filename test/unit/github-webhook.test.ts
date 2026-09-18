@@ -2,19 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { githubObject, matchGithubEvent, type GithubTriggerConfig } from '../../server/integrations/github/webhook'
 
 function trigger(overrides: Partial<GithubTriggerConfig>): GithubTriggerConfig {
-  return { event: 'push', branches: [], issueActions: ['opened'], issueLabel: null, ...overrides }
+  return { event: 'pull_request', branches: [], issueActions: ['opened'], issueLabel: null, ...overrides }
 }
 
 describe('matchGithubEvent objects', () => {
-  it('a push matches with no object', () => {
-    const match = matchGithubEvent(trigger({ event: 'push' }), 'push', {
-      ref: 'refs/heads/main',
-      after: 'abcdef1234',
-      head_commit: { message: 'fix', url: 'https://x/c' },
-    })
-    expect(match).not.toBeNull()
-    expect(match!.object).toBeNull()
-    expect(match!.inputs).toEqual({ event: 'push', identifier: 'abcdef1', title: 'fix', body: '', url: 'https://x/c', status: '', assignee: '', labels: '', author: '' })
+  it('a push never matches', () => {
+    expect(matchGithubEvent(trigger({ event: 'pull_request' }), 'push', { ref: 'refs/heads/main' })).toBeNull()
   })
 
   it('a pull_request delivery carries the PR as object', () => {

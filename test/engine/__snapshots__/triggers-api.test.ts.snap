@@ -1,18 +1,18 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`POST /api/triggers > creates a github trigger with push defaults and describes it 1`] = `
+exports[`POST /api/triggers > creates a github trigger with pull_request defaults and describes it 1`] = `
 {
   "active": true,
   "config": {
     "branches": [],
-    "event": "push",
+    "event": "pull_request",
     "issueActions": [
       "opened",
     ],
     "issueLabel": null,
   },
   "endpoint": null,
-  "event": "On push",
+  "event": "On pull_request",
   "firedCount": 0,
   "id": Any<Number>,
   "lastFiredAt": null,

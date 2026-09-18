@@ -42,7 +42,7 @@ function makeWorkflow() {
 }
 
 interface GithubTriggerOpts {
-  event?: 'push' | 'pull_request' | 'issues'
+  event?: 'pull_request' | 'issues'
   branches?: string[]
   issueActions?: ('opened' | 'labeled')[]
   issueLabel?: string | null
@@ -56,7 +56,7 @@ function makeGithubTrigger(projectIds: number[], opts: GithubTriggerOpts = {}) {
     projectIds,
     active: opts.active ?? true,
     config: {
-      event: opts.event ?? 'push',
+      event: opts.event ?? 'pull_request',
       branches: opts.branches ?? [],
       issueActions: opts.issueActions ?? ['opened'],
       issueLabel: opts.issueLabel ?? null,
@@ -94,44 +94,20 @@ describe('github webhook route', () => {
     expect(res.json).toEqual({ ok: true, skipped: 'no matching project' })
   })
 
-  it('fires a push trigger with the branch and the commit as inputs', async () => {
-    const project = makeProject()
-    const trigger = makeGithubTrigger([project.id], { branches: ['main'] })
-    const res = await deliver('push', {
-      ref: 'refs/heads/main',
-      after: 'abcdef1234567',
-      head_commit: { message: 'fix: things', url: 'https://x/commit/abcdef1' },
-      repository: repo(project),
-    })
-    expect(res.json).toEqual({ ok: true, runIds: [expect.any(Number)] })
-    const [run] = runsOf(trigger.id)
-    expect(run).toMatchObject({
-      projectId: project.id,
-      triggerId: trigger.id,
-      trigger: 'github',
-      branch: 'main',
-      inputs: { event: 'push', identifier: 'abcdef1', title: 'fix: things', body: '', url: 'https://x/commit/abcdef1' },
-    })
-    expect(getSessionRow(run!.sessionId).objectKind).toBeNull()
-  })
-
-  it('ignores pushes outside the branch filter, deleted refs, inactive triggers and other projects', async () => {
+  it('ignores push deliveries, inactive triggers and other projects', async () => {
     const project = makeProject()
     const other = makeProject()
-    const filtered = makeGithubTrigger([project.id], { branches: ['main'] })
     const inactive = makeGithubTrigger([project.id], { active: false })
     const elsewhere = makeGithubTrigger([other.id])
     const any = makeGithubTrigger([project.id])
+    const pr = { number: 1, title: 'x', html_url: 'https://x/pull/1', head: { ref: 'feature' }, base: { ref: 'main' } }
 
-    await deliver('push', { ref: 'refs/heads/feature', repository: repo(project) })
-    await deliver('push', { ref: 'refs/heads/main', deleted: true, repository: repo(project) })
-    await deliver('push', { ref: 'refs/tags/v1', repository: repo(project) })
+    await deliver('push', { ref: 'refs/heads/main', repository: repo(project) })
+    await deliver('pull_request', { action: 'opened', pull_request: pr, repository: repo(project) })
 
-    expect(runsOf(filtered.id)).toHaveLength(0)
     expect(runsOf(inactive.id)).toHaveLength(0)
     expect(runsOf(elsewhere.id)).toHaveLength(0)
     expect(runsOf(any.id)).toHaveLength(1)
-    expect(runsOf(any.id)[0]!.branch).toBe('feature')
   })
 
   it('fires a pull_request trigger on the base filter and checks out the head', async () => {

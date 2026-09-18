@@ -48,7 +48,7 @@ describe('POST /api/triggers', () => {
     expect(res.json).toMatchObject({ statusMessage: 'Invalid cron expression' })
   })
 
-  it('creates a github trigger with push defaults and describes it', async () => {
+  it('creates a github trigger with pull_request defaults and describes it', async () => {
     const project = makeProject()
     const res = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [project.id] })
     expect(res.status).toBe(200)
