@@ -14,7 +14,7 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
 
   const raw = (await readRawBody(event, 'utf8')) ?? ''
   const header = (name: string) => getHeader(event, name)
-  const record = integration.webhook.record ?? (() => {})
+  const record = integration.connection?.store.recordDelivery ?? (() => {})
   if (!raw.trim()) {
     record({ ok: false, reason: 'empty-body' })
     throw createError({ statusCode: 400, statusMessage: 'Empty body' })

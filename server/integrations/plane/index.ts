@@ -8,24 +8,25 @@ import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelChangeSummary } from '../capabilities'
 import { LABEL_FILTER, matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import { addPlaneComment, getPlaneComment, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeUserName, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
-import { planeCredentials, recordPlaneDelivery } from './credentials'
+import { addPlaneComment, forgetPlaneCache, getPlaneComment, planeMyself, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeUserName, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
+import { PLANE_CONNECTION_FORM, planeConnection, planeCredentials } from './credentials'
 import { htmlMentionIds, htmlToMarkdown, markdownToHtml } from './html'
 
 export const PLANE_STATE_GROUPS = { backlog: 'Backlog', unstarted: 'Unstarted', started: 'Started', completed: 'Completed', cancelled: 'Cancelled' } as const
 
 const PLANE_TRACKER: TrackerDef = {
+  id: 'plane',
   name: 'Plane',
   noun: 'work item',
   defaultEvent: 'assigned',
-  labelValue: { input: 'select', placeholder: 'Pick a label', optionsUrl: '/api/plane/labels' },
+  labelValue: { input: 'select', placeholder: 'Pick a label', optionsUrl: '/api/integrations/plane/options/labels' },
   status: {
     event: 'state',
     groupPrefix: 'group:',
     groupHeading: 'Group',
     groups: PLANE_STATE_GROUPS,
     closedGroups: ['completed', 'cancelled'],
-    optionsUrl: '/api/plane/states',
+    options: 'states',
   },
   filters: [
     LABEL_FILTER,
@@ -170,7 +171,20 @@ export const plane: Integration = {
 
   isConfigured: () => !!planeCredentials()?.webhookSecret,
 
-  trigger: { form: planeTriggerForm },
+  trigger: {
+    form: planeTriggerForm,
+    options: {
+      labels: async identifier => (await listPlaneLabels((await planeProjectByIdentifier(identifier)).id)).map(l => l.name),
+      states: async identifier => (await listPlaneStates((await planeProjectByIdentifier(identifier)).id)).map(s => s.name),
+    },
+  },
+
+  connection: {
+    form: PLANE_CONNECTION_FORM,
+    store: planeConnection,
+    verify: ({ siteUrl, workspaceSlug, apiKey }) => planeMyself({ siteUrl: siteUrl!, workspaceSlug: workspaceSlug!, apiKey: apiKey! }),
+    onChange: forgetPlaneCache,
+  },
 
   link: {
     label: 'Plane project',
@@ -222,8 +236,6 @@ export const plane: Integration = {
       if (!delivery.event) return null
       return matchTrackerEvent(PLANE_TRACKER, trigger.config as unknown as TriggerConfig, delivery.event.payload as TrackerChange)
     },
-
-    record: recordPlaneDelivery,
   },
 
   objects: {

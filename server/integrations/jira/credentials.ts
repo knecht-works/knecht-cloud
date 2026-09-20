@@ -1,101 +1,32 @@
-import { randomBytes } from 'node:crypto'
-import { eq } from 'drizzle-orm'
-import { db } from '../../db'
-import { jiraConnection } from '../../db/schema'
-import { decrypt, encrypt } from '../../utils/crypto'
-import { dashboardOrigin } from '../../utils/origin'
-import { keyPreview } from '../../utils/settings'
-import { deliveryStatus, recordDelivery, type DeliveryStatus } from '../deliveries'
-import type { DeliveryRecord } from '../types'
+import type { ConnectionFormDef } from '../../../shared/utils/connection-form'
+import { createConnectionStore } from '../connections'
 
-export interface JiraCredentials {
-  siteUrl: string
-  email: string
-  apiToken: string
-  accountName: string | null
-  accountId: string | null
-  webhookSecret: string | null
+export const JIRA_CONNECTION_FORM: ConnectionFormDef = {
+  intro: 'Tickets start workflows and get Knecht\'s replies. Connect with an API token, ideally of a dedicated "Knecht" account, then link each project to its Jira project in the project settings.',
+  docs: { label: 'Create an API token', url: 'https://id.atlassian.com/manage-profile/security/api-tokens' },
+  fields: [
+    { key: 'siteUrl', label: 'Site URL', type: 'url', placeholder: 'https://acme.atlassian.net', mono: true, required: 'Enter your Jira site URL.', invalid: 'Must be an https:// URL, e.g. https://acme.atlassian.net.' },
+    { key: 'email', label: 'Email', type: 'email', placeholder: 'knecht@acme.com', required: 'Enter the account\'s email.', invalid: 'That doesn\'t look like an email address.' },
+    { key: 'apiToken', label: 'API token', type: 'secret', placeholder: 'ATATT…', required: 'Paste an API token.' },
+  ],
+  rejected: 'Jira rejected the connection. Check the site URL, email and API token.',
+  webhook: {
+    secret: 'minted',
+    setupUrl: '{siteUrl}/plugins/servlet/webhooks',
+    instructions: 'Create a webhook in Jira with these two values, tick "Issue created, updated, deleted" and "Comment created", and leave "Exclude body" unchecked. Then edit any ticket in a linked project.',
+    events: {
+      'jira:issue_created': 'issue created',
+      'jira:issue_updated': 'issue updated',
+      'jira:issue_deleted': 'issue deleted',
+      'comment_created': 'comment on',
+    },
+    rejectCopy: {
+      'signature': 'with a wrong secret. Paste the secret into the webhook again.',
+      'empty-body': 'without a body. Uncheck "Exclude body" in the webhook.',
+      'no-project': 'for a Jira project no project is linked to yet.',
+    },
+  },
 }
 
-export const JIRA_WEBHOOK_EVENTS = ['jira:issue_created', 'jira:issue_updated', 'jira:issue_deleted', 'comment_created'] as const
-
-export interface JiraConnectionStatus extends DeliveryStatus {
-  configured: boolean
-  siteUrl: string | null
-  email: string | null
-  accountName: string | null
-  accountId: string | null
-  apiTokenPreview: string | null
-  webhookUrl: string | null
-  webhookSecret: string | null
-  webhookEvents: readonly string[]
-}
-
-let cache: JiraCredentials | null | undefined
-
-export function jiraCredentials(): JiraCredentials | null {
-  if (cache !== undefined) return cache
-
-  const row = db.select().from(jiraConnection).where(eq(jiraConnection.id, 1)).get()
-  // A connection from before webhooks has no secret yet; minting one here keeps the row usable without a reconnect.
-  if (row && !row.webhookSecretEnc) {
-    row.webhookSecretEnc = encrypt(randomBytes(32).toString('hex'))
-    db.update(jiraConnection).set({ webhookSecretEnc: row.webhookSecretEnc }).where(eq(jiraConnection.id, 1)).run()
-  }
-  cache = row
-    ? {
-        siteUrl: row.siteUrl,
-        email: row.email,
-        apiToken: decrypt(row.apiTokenEnc),
-        accountName: row.accountName,
-        accountId: row.accountId,
-        webhookSecret: row.webhookSecretEnc ? decrypt(row.webhookSecretEnc) : null,
-      }
-    : null
-  return cache
-}
-
-export function isJiraConfigured(): boolean {
-  return jiraCredentials() !== null
-}
-
-export const recordJiraDelivery = (result: DeliveryRecord) => recordDelivery(jiraConnection, result)
-
-export function jiraConnectionStatus(): JiraConnectionStatus {
-  const creds = jiraCredentials()
-  return {
-    configured: !!creds,
-    siteUrl: creds?.siteUrl ?? null,
-    email: creds?.email ?? null,
-    accountName: creds?.accountName ?? null,
-    accountId: creds?.accountId ?? null,
-    apiTokenPreview: creds ? keyPreview(creds.apiToken) : null,
-    webhookUrl: creds ? `${dashboardOrigin()}/api/jira/webhook` : null,
-    webhookSecret: creds?.webhookSecret ?? null,
-    webhookEvents: JIRA_WEBHOOK_EVENTS,
-    ...deliveryStatus(jiraConnection),
-  }
-}
-
-export function saveJiraCredentials(creds: { siteUrl: string, email: string, apiToken: string, accountName?: string | null, accountId?: string | null }): void {
-  // The secret survives a reconnect: the admin registered it in Jira once.
-  const webhookSecret = jiraCredentials()?.webhookSecret ?? randomBytes(32).toString('hex')
-  const values = {
-    siteUrl: creds.siteUrl,
-    email: creds.email,
-    apiTokenEnc: encrypt(creds.apiToken),
-    accountName: creds.accountName ?? null,
-    accountId: creds.accountId ?? null,
-    webhookSecretEnc: encrypt(webhookSecret),
-  }
-  db.insert(jiraConnection)
-    .values({ id: 1, ...values })
-    .onConflictDoUpdate({ target: jiraConnection.id, set: values })
-    .run()
-  cache = undefined
-}
-
-export function deleteJiraConnection(): void {
-  db.delete(jiraConnection).where(eq(jiraConnection.id, 1)).run()
-  cache = undefined
-}
+export const jiraConnection = createConnectionStore<'siteUrl' | 'email' | 'apiToken'>('jira', JIRA_CONNECTION_FORM)
+export const jiraCredentials = jiraConnection.credentials

@@ -7,12 +7,13 @@ import { labelChangeSummary } from '../capabilities'
 import { LABEL_FILTER, matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
-import { addJiraComment, getJiraComment, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
-import { jiraCredentials, recordJiraDelivery } from './credentials'
+import { addJiraComment, getJiraComment, jiraMyself, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
+import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from './credentials'
 
 export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
 
 const JIRA_TRACKER: TrackerDef = {
+  id: 'jira',
   name: 'Jira',
   noun: 'ticket',
   defaultEvent: 'labeled',
@@ -23,7 +24,7 @@ const JIRA_TRACKER: TrackerDef = {
     groupHeading: 'Category',
     groups: JIRA_STATUS_CATEGORIES,
     closedGroups: ['done'],
-    optionsUrl: '/api/jira/statuses',
+    options: 'statuses',
   },
   filters: [
     { key: 'issueType', label: 'Issue type is', summary: '{value}', input: 'list', placeholder: 'Bug, Task' },
@@ -103,7 +104,16 @@ export const jira: Integration = {
 
   isConfigured: () => !!jiraCredentials()?.webhookSecret,
 
-  trigger: { form: jiraTriggerForm },
+  trigger: {
+    form: jiraTriggerForm,
+    options: { statuses: listJiraStatuses },
+  },
+
+  connection: {
+    form: JIRA_CONNECTION_FORM,
+    store: jiraConnection,
+    verify: ({ siteUrl, email, apiToken }) => jiraMyself({ siteUrl: siteUrl!, email: email!, apiToken: apiToken! }),
+  },
 
   link: {
     label: 'Jira project',
@@ -146,8 +156,6 @@ export const jira: Integration = {
       if (!delivery.event) return null
       return matchTrackerEvent(JIRA_TRACKER, trigger.config as unknown as TriggerConfig, delivery.event.payload as TrackerChange)
     },
-
-    record: recordJiraDelivery,
   },
 
   objects: {

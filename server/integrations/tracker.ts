@@ -1,6 +1,7 @@
 import { emptyInputs, type TriggerInputs } from '../utils/inputs'
 import { formatObjectContext, type ObjectContext } from '../utils/object-context'
 import type { SessionObject } from '../utils/sessions'
+import type { IntegrationId } from '../../shared/utils/integrations'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef, TriggerValueInput } from '../../shared/utils/trigger-form'
 import { matchesAny, passesList, triggerEvent } from './trigger-config'
 import type { CommentAuthor, TriggerMatch, WebhookComment, WebhookDelivery } from './types'
@@ -10,6 +11,7 @@ import type { CommentAuthor, TriggerMatch, WebhookComment, WebhookDelivery } fro
 // only maps its payloads and API answers onto the shapes below.
 
 export interface TrackerDef {
+  id: IntegrationId
   name: string
   noun: string
   defaultEvent: 'assigned' | 'labeled'
@@ -21,7 +23,8 @@ export interface TrackerDef {
     groupHeading: string
     groups: Record<string, string>
     closedGroups: readonly string[]
-    optionsUrl: string
+    // Name of the `trigger.options` list holding the exact statuses.
+    options: string
   }
   filters: TriggerFilterDef[]
 }
@@ -83,7 +86,7 @@ export function trackerTriggerForm(def: TrackerDef): TriggerFormDef {
             default: `${status.groupPrefix}${status.closedGroups[0]}`,
             optionsHeading: status.groupHeading,
             options: Object.entries(status.groups).map(([key, label]) => ({ label: `Any ${label}`, value: `${status.groupPrefix}${key}`, summary: `any "${label}" ${status.event}` })),
-            optionsUrl: status.optionsUrl,
+            optionsUrl: `/api/integrations/${def.id}/options/${status.options}`,
             remoteHeading: `Exact ${status.event}`,
           },
         },

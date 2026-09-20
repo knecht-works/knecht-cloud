@@ -25,8 +25,8 @@ const { defaultTriggerConfig, triggerSummary } = await import('../../shared/util
 const { INPUT_KEYS } = await import('../../server/utils/inputs')
 const { setProjectLink } = await import('../../server/utils/project-links')
 const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
-const { jiraCredentials, saveJiraCredentials } = await import('../../server/integrations/jira/credentials')
-const { savePlaneCredentials } = await import('../../server/integrations/plane/credentials')
+const { jiraConnection, jiraCredentials } = await import('../../server/integrations/jira/credentials')
+const { planeConnection } = await import('../../server/integrations/plane/credentials')
 
 let jiraKeys = 0
 let planeKeys = 0
@@ -58,7 +58,7 @@ const FIXTURES: Record<string, Fixture> = {
     triggerConfig: { kind: 'issue', on: [{ type: 'opened' }], filters: {} },
   },
   jira: {
-    configure: () => saveJiraCredentials({ siteUrl: 'https://acme.atlassian.net', email: 'k@acme.test', apiToken: 't', accountId: 'acc' }),
+    configure: () => jiraConnection.save({ siteUrl: 'https://acme.atlassian.net', email: 'k@acme.test', apiToken: 't' }, { accountId: 'acc' }),
     secret: () => jiraCredentials()!.webhookSecret!,
     signatureHeader: 'x-hub-signature',
     headers: {},
@@ -73,7 +73,7 @@ const FIXTURES: Record<string, Fixture> = {
     triggerConfig: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
   },
   plane: {
-    configure: () => savePlaneCredentials({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k', webhookSecret: 'plane-secret', accountId: 'acc' }),
+    configure: () => planeConnection.save({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k' }, { webhookSecret: 'plane-secret', accountId: 'acc' }),
     secret: () => 'plane-secret',
     signatureHeader: 'x-plane-signature',
     sign: (secret, raw) => createHmac('sha256', secret).update(raw).digest('hex'),
