@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { getSessionRow, makeProject } from '../helpers/db'
+import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
+import type { TriggerConfig } from '../../shared/utils/trigger-form'
 
 const KNECHT_ACCOUNT = 'knecht-account-id'
 
@@ -57,7 +58,7 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
 }))
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { db, schema } = await import('../../server/db')
+const { plane } = await import('../../server/integrations/plane')
 const { planeConnectionStatus, savePlaneCredentials } = await import('../../server/integrations/plane/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
 const { setProjectLink } = await import('../../server/utils/project-links')
@@ -65,24 +66,19 @@ const handler = (await import('../../server/api/plane/webhook.post')).default
 
 const SECRET = 'plane_wh_secret'
 
-function deliver(payload: { event: string }, secret = SECRET) {
-  const raw = JSON.stringify(payload)
-  return callRoute(handler, {
-    body: raw,
+function request(payload: { event: string }, secret = SECRET): WebhookRequest {
+  const body = JSON.stringify(payload)
+  return {
+    body,
     headers: {
       'x-plane-event': payload.event,
-      'x-plane-signature': createHmac('sha256', secret).update(raw).digest('hex'),
+      'x-plane-signature': createHmac('sha256', secret).update(body).digest('hex'),
     },
-  })
+  }
 }
 
-let n = 0
-function makeWorkflow() {
-  return db.insert(schema.workflows).values({
-    name: `plane-route-${++n}`,
-    steps: [{ type: 'bash', command: 'true', id: 'run' }],
-    publishedAt: new Date(),
-  }).returning().get()
+function deliver(payload: { event: string }) {
+  return callRoute(handler, request(payload))
 }
 
 let keyN = 0
@@ -95,17 +91,8 @@ function makePlaneProject() {
   return { ...project, identifier, planeId }
 }
 
-function makePlaneTrigger(projectId: number, config: Record<string, unknown>) {
-  return db.insert(schema.triggers).values({
-    source: 'plane',
-    workflowId: makeWorkflow().id,
-    projectIds: [projectId],
-    config,
-  }).returning().get()
-}
-
-function runsOf(triggerId: number) {
-  return db.select().from(schema.runs).where(eq(schema.runs.triggerId, triggerId)).all()
+function makePlaneTrigger(projectId: number, config: TriggerConfig) {
+  return makeTrigger('plane', [projectId], config)
 }
 
 type PlaneProject = { identifier: string, planeId: string }
@@ -132,7 +119,9 @@ function updated(project: PlaneProject, previous: Record<string, unknown>, overr
   return { event: 'workitem.updated', entity_id: `wi-${project.identifier}`, data: item(project, overrides), previous_attributes: previous }
 }
 
-function commented(project: PlaneProject, commentId: string) {
+function commented(project: PlaneProject, fetched: Omit<typeof api.fetched, 'actor'> & { actor: Record<string, string> }) {
+  const commentId = fetched.id
+  api.fetched = fetched as typeof api.fetched
   return {
     event: 'workitem.comment.created',
     entity_id: `wi-${project.identifier}`,
@@ -141,36 +130,23 @@ function commented(project: PlaneProject, commentId: string) {
   }
 }
 
-describe('plane webhook route, unconfigured', () => {
-  it('answers 404 until Plane is connected', async () => {
-    const res = await deliver({ event: 'workitem.created' }, 'anything')
-    expect(res.status).toBe(404)
-  })
-})
+const ANN = { id: 'user-1', first_name: 'Ann', last_name: 'Example' }
 
-describe('plane webhook route', () => {
-  beforeAll(() => {
-    savePlaneCredentials({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k', webhookSecret: SECRET, accountName: 'Knecht', accountId: KNECHT_ACCOUNT })
-  })
-
-  it('rejects a bad signature', async () => {
-    const res = await deliver({ event: 'workitem.created' }, 'wrong')
-    expect(res.status).toBe(401)
-  })
-
-  it('skips work items of Plane projects no project is linked to', async () => {
+describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string }>({
+  integration: plane,
+  handler,
+  configure: () => savePlaneCredentials({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k', webhookSecret: SECRET, accountName: 'Knecht', accountId: KNECHT_ACCOUNT }),
+  request,
+  makeProject: makePlaneProject,
+  unknownProject: () => {
     api.projects.push({ id: 'pp-NOPE', identifier: 'NOPE', name: 'Unlinked' })
-    const res = await deliver(created({ identifier: 'NOPE', planeId: 'pp-NOPE' }))
-    expect(res.json).toEqual({ ok: true, skipped: 'no matching project' })
-  })
-
-  it('fires on a created work item with the work item as inputs and object', async () => {
-    const project = makePlaneProject()
-    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'created' }], filters: {} })
-    const res = await deliver(created(project))
-    expect(res.json).toEqual({ ok: true, runIds: [expect.any(Number)] })
-    const [run] = runsOf(trigger.id)
-    expect(run).toMatchObject({
+    return created({ identifier: 'NOPE', planeId: 'pp-NOPE' })
+  },
+  object: project => ({ integration: 'plane', kind: 'issue', key: `${project.identifier}-12` }),
+  created: {
+    config: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
+    delivery: project => created(project),
+    run: project => ({
       trigger: 'plane',
       branch: 'main',
       inputs: {
@@ -184,29 +160,44 @@ describe('plane webhook route', () => {
         labels: 'knecht, bug',
         author: 'Ann Example',
       },
-    })
-    expect(getSessionRow(run!.sessionId)).toMatchObject({
+    }),
+    session: project => ({
       objectIntegration: 'plane',
       objectKind: 'issue',
       objectKey: `${project.identifier}-12`,
       objectTitle: 'Login broken',
       objectUrl: `https://app.plane.so/acme/browse/${project.identifier}-12/`,
-    })
-  })
+    }),
+  },
+  labeled: {
+    config: { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} },
+    notGained: project => [
+      updated(project, { label_ids: ['l-knecht'] }, { label_ids: ['l-knecht', 'l-bug'] }),
+      updated(project, { label_ids: [] }, { label_ids: ['l-bug'] }),
+      updated(project, { name: 'old' }, { label_ids: ['l-knecht'] }),
+    ],
+    gained: project => updated(project, { label_ids: ['l-bug'] }, { label_ids: ['l-bug', 'l-knecht'] }),
+  },
+  closed: project => updated(project, { state_id: 's-todo' }, { state_id: 's-done' }),
+  reopened: project => updated(project, { state_id: 's-done' }, { state_id: 's-todo' }),
+  comment: {
+    mention: project => commented(project, {
+      id: '77',
+      comment_html: `<p><mention-component entity_identifier="${KNECHT_ACCOUNT}" entity_name="user_mention" label="Knecht"></mention-component> please fix the login</p>`,
+      actor: ANN,
+      created_at: '2026-01-01T00:00:00Z',
+    }),
+    fromSelf: project => commented(project, { id: '79', comment_html: '<p>@knecht I am Knecht</p>', actor: { id: KNECHT_ACCOUNT, display_name: 'Knecht' }, created_at: '' }),
+    withoutMention: project => commented(project, { id: '80', comment_html: '<p>just chatting</p>', actor: ANN, created_at: '' }),
+    replyCount: project => api.comments.filter(c => c.projectId === project.planeId && c.workItemId === `wi-${project.identifier}`).length,
+  },
+  recorded: {
+    status: planeConnectionStatus,
+    createdSummary: project => `workitem.created ${project.identifier}-12`,
+  },
+})
 
-  it('fires on a label only when the work item gains it', async () => {
-    const project = makePlaneProject()
-    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} })
-
-    await deliver(updated(project, { label_ids: ['l-knecht'] }, { label_ids: ['l-knecht', 'l-bug'] }))
-    await deliver(updated(project, { label_ids: [] }, { label_ids: ['l-bug'] }))
-    await deliver(updated(project, { name: 'old' }, { label_ids: ['l-knecht'] }))
-    expect(runsOf(trigger.id)).toHaveLength(0)
-
-    await deliver(updated(project, { label_ids: ['l-bug'] }, { label_ids: ['l-bug', 'l-knecht'] }))
-    expect(runsOf(trigger.id)).toHaveLength(1)
-  })
-
+describe('plane webhook route, vendor specifics', () => {
   it('fires on a work item created with the label, the state or the assignment already set', async () => {
     const project = makePlaneProject()
     const labeled = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} })
@@ -272,16 +263,9 @@ describe('plane webhook route', () => {
     expect(run!.inputs).toMatchObject({ assignee: 'Ann Example, Knecht' })
   })
 
-  it('mirrors completed, reopened, archived and deleted onto the session', async () => {
+  it('closes the session of an archived or deleted work item', async () => {
     const project = makePlaneProject()
-    const key = `${project.identifier}-12`
-    const session = resolveSession(project, { integration: 'plane', kind: 'issue', key }, null)
-
-    await deliver(updated(project, { state_id: 's-todo' }, { state_id: 's-done' }))
-    expect(getSessionRow(session.id).status).toBe('closed')
-
-    await deliver(updated(project, { state_id: 's-done' }, { state_id: 's-todo' }))
-    expect(getSessionRow(session.id).status).toBe('open')
+    const session = resolveSession(project, { integration: 'plane', kind: 'issue', key: `${project.identifier}-12` }, null)
 
     await deliver({ event: 'workitem.archived', entity_id: `wi-${project.identifier}`, data: item(project), previous_attributes: {} })
     expect(getSessionRow(session.id).status).toBe('closed')
@@ -293,51 +277,9 @@ describe('plane webhook route', () => {
     expect(getSessionRow(session.id).status).toBe('closed')
   })
 
-  it('turns a comment mentioning the connection account into a follow-up, finding the project by the work item', async () => {
-    const project = makePlaneProject()
-    api.fetched = {
-      id: '77',
-      comment_html: `<p><mention-component entity_identifier="${KNECHT_ACCOUNT}" entity_name="user_mention" label="Knecht"></mention-component> please fix the login</p>`,
-      actor: { id: 'user-1', first_name: 'Ann', last_name: 'Example' },
-      created_at: '2026-01-01T00:00:00Z',
-    }
-    const res = await deliver(commented(project, '77'))
-    expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
-    expect(api.comments.at(-1)).toMatchObject({ projectId: project.planeId, workItemId: `wi-${project.identifier}` })
-    const session = resolveSession(project, { integration: 'plane', kind: 'issue', key: `${project.identifier}-12` }, null)
-    expect(getSessionRow(session.id).objectIntegration).toBe('plane')
-  })
-
   it('accepts the plain @knecht text as a mention', async () => {
     const project = makePlaneProject()
-    api.fetched = { id: '78', comment_html: '<p>@knecht have a look</p>', actor: { id: 'user-2', display_name: 'Bob' }, created_at: '' }
-    const res = await deliver(commented(project, '78'))
+    const res = await deliver(commented(project, { id: '78', comment_html: '<p>@knecht have a look</p>', actor: { id: 'user-2', display_name: 'Bob' }, created_at: '' }))
     expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
-  })
-
-  it('remembers the last accepted and the last rejected delivery for the settings page', async () => {
-    const project = makePlaneProject()
-    await deliver(created(project))
-    expect(planeConnectionStatus().lastDelivery).toMatchObject({ summary: `workitem.created ${project.identifier}-12`, at: expect.any(Number) })
-
-    await deliver(created(project), 'wrong')
-    expect(planeConnectionStatus().lastRejected).toMatchObject({ reason: 'signature', at: expect.any(Number) })
-
-    await callRoute(handler, { body: '', headers: { 'x-plane-signature': '00' } })
-    expect(planeConnectionStatus().lastRejected?.reason).toBe('empty-body')
-
-    await deliver(created({ identifier: 'NOPE', planeId: 'pp-NOPE' }))
-    expect(planeConnectionStatus().lastRejected?.reason).toBe('no-project')
-    expect(planeConnectionStatus().lastDelivery?.summary).toBe(`workitem.created ${project.identifier}-12`)
-  })
-
-  it('ignores comments by the connection account and comments without a mention', async () => {
-    const project = makePlaneProject()
-    api.fetched = { id: '79', comment_html: '<p>@knecht I am Knecht</p>', actor: { id: KNECHT_ACCOUNT, display_name: 'Knecht' }, created_at: '' }
-    expect((await deliver(commented(project, '79'))).json)
-      .toMatchObject({ outcome: expect.stringContaining('Knecht itself') })
-    api.fetched = { id: '80', comment_html: '<p>just chatting</p>', actor: { id: 'user-1', first_name: 'Ann', last_name: 'Example' }, created_at: '' }
-    expect((await deliver(commented(project, '80'))).json)
-      .toMatchObject({ outcome: expect.stringContaining('no mention') })
   })
 })
