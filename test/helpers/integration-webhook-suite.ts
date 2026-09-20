@@ -50,7 +50,7 @@ export interface WebhookFixture<P extends Project, D> {
     // Replies Knecht posted on this project's object.
     replyCount(project: P): number
   }
-  // Required when the integration records deliveries (`webhook.record`).
+  // Required when the integration has a connection: its deliveries are recorded for the settings page.
   recorded?: {
     status(): DeliveryStatus
     createdSummary(project: P): string
@@ -178,7 +178,7 @@ export function describeIntegrationWebhook<P extends Project, D>(fx: WebhookFixt
       expect(fx.comment.replyCount(project)).toBe(replies)
     })
 
-    it.skipIf(!fx.integration.webhook.record)('remembers the last accepted and the last rejected delivery', async () => {
+    it.skipIf(!fx.integration.connection)('remembers the last accepted and the last rejected delivery', async () => {
       const { status, createdSummary } = fx.recorded!
       const project = fx.makeProject()
       await deliver(fx.created.delivery(project))

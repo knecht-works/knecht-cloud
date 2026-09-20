@@ -1,8 +1,10 @@
 import type { Project, Trigger } from '../db/schema'
+import type { ConnectionFormDef } from '../../shared/utils/connection-form'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import type { TriggerFormDef } from '../../shared/utils/trigger-form'
 import type { TriggerInputs } from '../utils/inputs'
 import type { SessionObject } from '../utils/sessions'
+import type { ConnectionStore } from './connections'
 
 export type WebhookHeaders = (name: string) => string | undefined
 
@@ -54,6 +56,17 @@ export interface Integration {
 
   trigger: {
     form: TriggerFormDef
+    // Remote option lists of the form, by name: `/api/integrations/<id>/options/<name>?project=<link key>`.
+    options?: Record<string, (linkKey: string) => Promise<string[]>>
+  }
+
+  // Integrations an admin connects with credentials on the settings page. Their
+  // deliveries are recorded there, because these tools show no delivery log.
+  connection?: {
+    form: ConnectionFormDef
+    store: ConnectionStore
+    verify(values: Record<string, string>): Promise<{ displayName: string, accountId: string }>
+    onChange?(): void
   }
 
   // Integrations whose events come from a container that must be mapped to
@@ -69,8 +82,6 @@ export interface Integration {
     // null: the delivery belongs to no project of this instance.
     parse(raw: string, headers: WebhookHeaders): Promise<WebhookDelivery | null>
     match(trigger: Trigger, delivery: WebhookDelivery): TriggerMatch | null | Promise<TriggerMatch | null>
-    // For integrations whose admin UI shows no delivery log.
-    record?(result: DeliveryRecord): void
   }
 
   objects: {

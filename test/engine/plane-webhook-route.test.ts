@@ -59,7 +59,7 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
 const { plane } = await import('../../server/integrations/plane')
-const { planeConnectionStatus, savePlaneCredentials } = await import('../../server/integrations/plane/credentials')
+const { planeConnection } = await import('../../server/integrations/plane/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
 const { setProjectLink } = await import('../../server/utils/project-links')
 const handler = (await import('../../server/api/plane/webhook.post')).default
@@ -135,7 +135,7 @@ const ANN = { id: 'user-1', first_name: 'Ann', last_name: 'Example' }
 describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string }>({
   integration: plane,
   handler,
-  configure: () => savePlaneCredentials({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k', webhookSecret: SECRET, accountName: 'Knecht', accountId: KNECHT_ACCOUNT }),
+  configure: () => planeConnection.save({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k' }, { webhookSecret: SECRET, accountName: 'Knecht', accountId: KNECHT_ACCOUNT }),
   request,
   makeProject: makePlaneProject,
   unknownProject: () => {
@@ -192,7 +192,7 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
     replyCount: project => api.comments.filter(c => c.projectId === project.planeId && c.workItemId === `wi-${project.identifier}`).length,
   },
   recorded: {
-    status: planeConnectionStatus,
+    status: planeConnection.status,
     createdSummary: project => `workitem.created ${project.identifier}-12`,
   },
 })

@@ -1,17 +1,11 @@
-export interface WebhookConnection {
-  configured: boolean
-  accountName: string | null
-  webhookUrl: string | null
-  webhookSecret: string | null
-  lastDelivery: { at: number, summary: string } | null
-  lastRejected: { at: number, reason: 'signature' | 'empty-body' | 'no-project' } | null
-}
+import type { ConnectionStatus } from '#shared/utils/connection-form'
+import type { IntegrationId } from '#shared/utils/integrations'
 
-export function useIntegrationConnection<T extends WebhookConnection>(path: string, name: string) {
+export function useIntegrationConnection(id: IntegrationId, name: string) {
   const toast = useToast()
-  const connection = ref<T>() as Ref<T | undefined>
-  // Nitro's typed $fetch cannot resolve a generic response type, hence the cast.
-  const request = (method: 'GET' | 'POST' | 'DELETE', body?: Record<string, string>) => $fetch(path, { method, body }) as Promise<T>
+  const connection = ref<ConnectionStatus>()
+  const path = `/api/integrations/${id}`
+  const request = (method: 'GET' | 'POST' | 'DELETE', body?: Record<string, string>) => $fetch<ConnectionStatus>(`${path}/connection`, { method, body })
   const refresh = async () => {
     connection.value = await request('GET')
   }
@@ -63,5 +57,9 @@ export function useIntegrationConnection<T extends WebhookConnection>(path: stri
     }
   }
 
-  return { connection, error, connecting, disconnecting, connect, disconnect }
+  async function saveSecret(webhookSecret: string) {
+    connection.value = await $fetch<ConnectionStatus>(`${path}/webhook-secret`, { method: 'POST', body: { webhookSecret } })
+  }
+
+  return { connection, error, connecting, disconnecting, connect, disconnect, saveSecret }
 }

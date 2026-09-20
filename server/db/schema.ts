@@ -408,16 +408,16 @@ export const githubApp = sqliteTable('github_app', {
 export type GithubAppRow = typeof githubApp.$inferSelect
 export type NewGithubAppRow = typeof githubApp.$inferInsert
 
-export const jiraConnection = sqliteTable('jira_connection', {
-  id: integer('id').primaryKey(),
+export const integrationConnections = sqliteTable('integration_connections', {
+  integration: text('integration', { enum: INTEGRATION_IDS }).primaryKey(),
 
-  siteUrl: text('site_url').notNull(),
-  email: text('email').notNull(),
-  apiTokenEnc: text('api_token_enc').notNull(),
+  config: text('config', { mode: 'json' }).$type<Record<string, string>>().notNull(),
+  // Field key to ciphertext: every secret is encrypted on its own.
+  secretsEnc: text('secrets_enc', { mode: 'json' }).$type<Record<string, string>>().notNull(),
   accountName: text('account_name'),
   accountId: text('account_id'),
   webhookSecretEnc: text('webhook_secret_enc'),
-  // Jira shows no delivery log, so the settings page reports what arrived here.
+  // These tools show no delivery log, so the settings page reports what arrived here.
   lastDeliveryAt: integer('last_delivery_at', { mode: 'timestamp' }),
   lastDeliverySummary: text('last_delivery_summary'),
   lastRejectedAt: integer('last_rejected_at', { mode: 'timestamp' }),
@@ -427,30 +427,6 @@ export const jiraConnection = sqliteTable('jira_connection', {
     .notNull()
     .default(sql`(unixepoch())`),
 })
-
-export type JiraConnectionRow = typeof jiraConnection.$inferSelect
-
-export const planeConnection = sqliteTable('plane_connection', {
-  id: integer('id').primaryKey(),
-
-  siteUrl: text('site_url').notNull(),
-  workspaceSlug: text('workspace_slug').notNull(),
-  apiKeyEnc: text('api_key_enc').notNull(),
-  accountName: text('account_name'),
-  accountId: text('account_id'),
-  // Plane mints the secret when the webhook is created there; the admin pastes it here.
-  webhookSecretEnc: text('webhook_secret_enc'),
-  lastDeliveryAt: integer('last_delivery_at', { mode: 'timestamp' }),
-  lastDeliverySummary: text('last_delivery_summary'),
-  lastRejectedAt: integer('last_rejected_at', { mode: 'timestamp' }),
-  lastRejectedReason: text('last_rejected_reason', { enum: ['signature', 'empty-body', 'no-project'] }),
-
-  createdAt: integer('created_at', { mode: 'timestamp' })
-    .notNull()
-    .default(sql`(unixepoch())`),
-})
-
-export type PlaneConnectionRow = typeof planeConnection.$inferSelect
 
 // GitHub logins are case-insensitive, so `login` is always stored lowercased.
 export const members = sqliteTable('members', {

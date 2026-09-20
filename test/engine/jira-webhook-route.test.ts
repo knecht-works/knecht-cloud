@@ -26,7 +26,7 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
 const { jira } = await import('../../server/integrations/jira')
-const { jiraConnectionStatus, jiraCredentials, saveJiraCredentials } = await import('../../server/integrations/jira/credentials')
+const { jiraConnection, jiraCredentials } = await import('../../server/integrations/jira/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
 const { setProjectLink } = await import('../../server/utils/project-links')
 const handler = (await import('../../server/api/jira/webhook.post')).default
@@ -86,7 +86,7 @@ function commented(project: JiraProject, fetched: typeof api.fetched) {
 describeIntegrationWebhook<JiraProject, object>({
   integration: jira,
   handler,
-  configure: () => saveJiraCredentials({ siteUrl: 'https://acme.atlassian.net', email: 'knecht@acme.test', apiToken: 't', accountName: 'Knecht', accountId: KNECHT_ACCOUNT }),
+  configure: () => jiraConnection.save({ siteUrl: 'https://acme.atlassian.net', email: 'knecht@acme.test', apiToken: 't' }, { accountName: 'Knecht', accountId: KNECHT_ACCOUNT }),
   request,
   makeProject: makeJiraProject,
   unknownProject: () => ({ webhookEvent: 'jira:issue_created', issue: issue({ jiraProjectKey: 'NOPE' }) }),
@@ -145,7 +145,7 @@ describeIntegrationWebhook<JiraProject, object>({
     replyCount: project => api.comments.filter(c => c.key === `${project.jiraProjectKey}-12`).length,
   },
   recorded: {
-    status: jiraConnectionStatus,
+    status: jiraConnection.status,
     createdSummary: project => `jira:issue_created ${project.jiraProjectKey}-12`,
   },
 })

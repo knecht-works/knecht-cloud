@@ -4,11 +4,12 @@ import { htmlMentionIds } from '../../server/integrations/plane/html'
 import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
 
 const DEF: TrackerDef = {
+  id: 'jira',
   name: 'Tracker',
   noun: 'ticket',
   defaultEvent: 'labeled',
   labelValue: { input: 'text' },
-  status: { event: 'status', groupPrefix: 'group:', groupHeading: 'Group', groups: { open: 'Open', done: 'Done' }, closedGroups: ['done'], optionsUrl: '/x' },
+  status: { event: 'status', groupPrefix: 'group:', groupHeading: 'Group', groups: { open: 'Open', done: 'Done' }, closedGroups: ['done'], options: 'statuses' },
   filters: [],
 }
 
@@ -138,7 +139,7 @@ describe('trackerTriggerForm', () => {
     expect(kind!.label).toBe('Ticket')
     expect(kind!.events.map(e => e.type)).toEqual(['created', 'assigned', 'labeled', 'status'])
     expect(kind!.events.find(e => e.default)?.type).toBe('labeled')
-    expect(kind!.events.at(-1)!.value).toMatchObject({ default: 'group:done', options: [{ value: 'group:open' }, { value: 'group:done' }] })
+    expect(kind!.events.at(-1)!.value).toMatchObject({ default: 'group:done', optionsUrl: '/api/integrations/jira/options/statuses', options: [{ value: 'group:open' }, { value: 'group:done' }] })
   })
 })
 

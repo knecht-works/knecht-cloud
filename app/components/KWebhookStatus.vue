@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { WebhookConnection } from '~/composables/useIntegrationConnection'
+import type { ConnectionStatus, WebhookRejectReason } from '#shared/utils/connection-form'
 
 const props = defineProps<{
   name: string
-  connection: WebhookConnection
+  connection: ConnectionStatus
   setupUrl: string
-  rejectCopy: Record<NonNullable<WebhookConnection['lastRejected']>['reason'], string>
+  rejectCopy: Record<WebhookRejectReason, string>
   eventCopy: Record<string, string>
   // Set when the tool mints the secret and the admin pastes it here; without it Knecht's own secret is shown to copy.
   saveSecret?: (secret: string) => Promise<void>
