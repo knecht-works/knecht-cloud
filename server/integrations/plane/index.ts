@@ -1,51 +1,39 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import { tryParseJson } from '../../utils/json'
 import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
-import type { TriggerConfig, TriggerFormDef } from '../../../shared/utils/trigger-form'
-import { matchesAny, passesList, triggerEvent } from '../trigger-config'
+import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelChangeSummary } from '../capabilities'
-import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
-import { addPlaneComment, getPlaneComment, getPlaneWorkItem, getPlaneWorkItemByKey, getPlaneWorkItemContext, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeUserName, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
+import { LABEL_FILTER, matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
+import type { Integration, WebhookComment, WebhookDelivery } from '../types'
+import { addPlaneComment, getPlaneComment, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeUserName, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
 import { planeCredentials, recordPlaneDelivery } from './credentials'
-import { htmlToMarkdown, markdownToHtml } from './html'
+import { htmlMentionIds, htmlToMarkdown, markdownToHtml } from './html'
 
 export const PLANE_STATE_GROUPS = { backlog: 'Backlog', unstarted: 'Unstarted', started: 'Started', completed: 'Completed', cancelled: 'Cancelled' } as const
 
-// A state event names either an exact state or, with this prefix, a whole state group.
-const GROUP_PREFIX = 'group:'
-
-export const planeTriggerForm: TriggerFormDef = [
-  {
-    kind: 'issue',
-    label: 'Work item',
-    events: [
-      { type: 'created', label: 'Created', summary: 'work item created' },
-      { type: 'assigned', label: 'Assigned to Knecht', summary: 'assigned to Knecht', default: true, hint: 'Fires when a work item is assigned to the account the Plane connection uses, so "give it to Knecht" is a normal assignment in Plane.' },
-      { type: 'labeled', label: 'Label added', summary: 'label "{value}"', value: { input: 'select', placeholder: 'Pick a label', optionsUrl: '/api/plane/labels' } },
-      {
-        type: 'state',
-        label: 'State reached',
-        summary: 'state "{value}"',
-        value: {
-          input: 'select',
-          default: `${GROUP_PREFIX}completed`,
-          optionsHeading: 'Group',
-          options: Object.entries(PLANE_STATE_GROUPS).map(([key, label]) => ({ label: `Any ${label}`, value: `${GROUP_PREFIX}${key}`, summary: `any "${label}" state` })),
-          optionsUrl: '/api/plane/states',
-          remoteHeading: 'Exact state',
-        },
-      },
-    ],
-    filters: [
-      { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'backend' },
-      { key: 'priority', label: 'Priority is', summary: '{value} priority', input: 'list', placeholder: 'urgent, high' },
-    ],
+const PLANE_TRACKER: TrackerDef = {
+  name: 'Plane',
+  noun: 'work item',
+  defaultEvent: 'assigned',
+  labelValue: { input: 'select', placeholder: 'Pick a label', optionsUrl: '/api/plane/labels' },
+  status: {
+    event: 'state',
+    groupPrefix: 'group:',
+    groupHeading: 'Group',
+    groups: PLANE_STATE_GROUPS,
+    closedGroups: ['completed', 'cancelled'],
+    optionsUrl: '/api/plane/states',
   },
-]
+  filters: [
+    LABEL_FILTER,
+    { key: 'priority', label: 'Priority is', summary: '{value} priority', input: 'list', placeholder: 'urgent, high' },
+  ],
+}
+
+export const planeTriggerForm = trackerTriggerForm(PLANE_TRACKER)
 
 // Plane serialises empty fields as the string "None" in some deliveries.
 function nil<T>(value: T | 'None' | null | undefined): T | undefined {
@@ -70,59 +58,6 @@ export interface PlanePayload {
   entity_id?: string
   data?: PlaneRecord
   previous_attributes?: PlaneRecord
-}
-
-// Everything `match` needs, resolved once in `parse`: matching is synchronous.
-export interface PlaneEvent {
-  name: string
-  data: PlaneRecord
-  previous: PlaneRecord
-  labels: PlaneLabel[]
-  states: PlaneState[]
-  inputs: TriggerInputs
-  object: SessionObject
-}
-
-const CLOSED_GROUPS = new Set(['completed', 'cancelled'])
-
-function stateMatches(c: TriggerConfig, e: PlaneEvent, stateId: string | undefined): boolean {
-  const value = triggerEvent(c, 'state')?.value
-  const state = e.states.find(s => s.id === stateId)
-  if (!value || !state) return false
-  return value.startsWith(GROUP_PREFIX) ? state.group === value.slice(GROUP_PREFIX.length) : state.name === value
-}
-
-// A work item born with the label, in the state or assigned to Knecht has no previous attributes to gain them from.
-function createdFires(c: TriggerConfig, e: PlaneEvent, labelId: string | undefined, accountId: string | null | undefined): boolean {
-  return !!triggerEvent(c, 'created')
-    || (!!labelId && (e.data.label_ids ?? []).includes(labelId))
-    || stateMatches(c, e, nil(e.data.state_id))
-    || (!!triggerEvent(c, 'assigned') && !!accountId && (e.data.assignee_ids ?? []).includes(accountId))
-}
-
-function updatedFires(c: TriggerConfig, e: PlaneEvent, labelId: string | undefined, accountId: string | null | undefined): boolean {
-  const gained = (now: string[] | undefined, before: string[] | undefined, id: string) => !!before && (now ?? []).includes(id) && !before.includes(id)
-  if (labelId && gained(e.data.label_ids, e.previous.label_ids, labelId)) return true
-  if (triggerEvent(c, 'assigned') && !!accountId && gained(e.data.assignee_ids, e.previous.assignee_ids, accountId)) return true
-  if (e.previous.state_id === undefined || !stateMatches(c, e, nil(e.data.state_id))) return false
-  // Moving between two states of one group (Todo to Ready) is not reaching the group.
-  const value = triggerEvent(c, 'state')!.value!
-  return !value.startsWith(GROUP_PREFIX) || !stateMatches(c, e, nil(e.previous.state_id))
-}
-
-export function matchPlaneEvent(c: TriggerConfig, e: PlaneEvent): TriggerMatch | null {
-  const labelNames = (e.data.label_ids ?? []).map(id => e.labels.find(l => l.id === id)?.name ?? '').filter(Boolean)
-  if (!passesList(c, 'label', wanted => matchesAny(wanted, labelNames))) return null
-  if (!passesList(c, 'priority', wanted => matchesAny(wanted, [nil(e.data.priority) ?? 'none'], 'i'))) return null
-
-  const accountId = planeCredentials()?.accountId
-  const label = triggerEvent(c, 'labeled')?.value
-  const labelId = label ? e.labels.find(l => l.name === label)?.id : undefined
-  const matched = e.name === 'workitem.created'
-    ? createdFires(c, e, labelId, accountId)
-    : e.name === 'workitem.updated' && updatedFires(c, e, labelId, accountId)
-  if (!matched) return null
-  return { branch: null, inputs: e.inputs, object: e.object }
 }
 
 function planeObject(identifier: string, sequenceId: number, title: string | undefined): SessionObject {
@@ -163,39 +98,64 @@ async function parseComment(located: Located, object: SessionObject, record: Pla
   const commentId = nil(record.comment?.id)
   if (!commentId) return undefined
   const comment = await getPlaneComment(located.planeProject.id, located.workItemId, commentId)
-  const html = comment.comment_html ?? ''
-  const body = htmlToMarkdown(html)
-  const accountId = planeCredentials()?.accountId ?? ''
-  return {
+  return trackerComment({
     id: comment.id,
     author: { id: comment.actor?.id ?? '', name: planeUserName(comment.actor) },
-    body,
-    fromSelf: !!accountId && comment.actor?.id === accountId,
-    // A Plane mention is a node carrying the user's id; the plain handle covers instances where the account is not mentionable.
-    mentionsKnecht: (!!accountId && html.includes(accountId)) || /@knecht\b/i.test(body),
+    body: htmlToMarkdown(comment.comment_html),
     object,
+    selfId: planeCredentials()?.accountId,
+    mentionedIds: htmlMentionIds(comment.comment_html),
+  })
+}
+
+interface PlaneLookups {
+  states: PlaneState[]
+  labels: PlaneLabel[]
+  members: PlaneMember[]
+}
+
+async function planeLookups(projectId: string): Promise<PlaneLookups> {
+  const [states, labels, members] = await Promise.all([listPlaneStates(projectId), listPlaneLabels(projectId), listPlaneMembers(projectId)])
+  return { states, labels, members }
+}
+
+function planeIssue(object: SessionObject, item: PlaneWorkItem, { states, labels, members }: PlaneLookups): TrackerIssue {
+  const state = states.find(s => s.id === item.state)
+  const member = (id: string | null | undefined) => members.find(m => m.id === id)?.displayName ?? ''
+  return {
+    object,
+    body: htmlToMarkdown(item.description_html),
+    status: { name: state?.name ?? '', group: state?.group ?? '' },
+    author: member(item.created_by),
+    assignees: (item.assignees ?? []).map(member).filter(Boolean),
+    labels: (item.labels ?? []).map(id => labels.find(l => l.id === id)?.name ?? '').filter(Boolean),
   }
 }
 
-async function planeInputs(located: Located, object: SessionObject, data: PlaneRecord, item: PlaneWorkItem): Promise<{ inputs: TriggerInputs, labels: PlaneLabel[], states: PlaneState[] }> {
-  const [states, labels, members] = await Promise.all([
-    listPlaneStates(located.planeProject.id),
-    listPlaneLabels(located.planeProject.id),
-    listPlaneMembers(located.planeProject.id),
-  ])
-  const name = (id: string | null | undefined) => members.find(m => m.id === id)?.displayName ?? ''
-  const inputs: TriggerInputs = {
-    ...emptyInputs('issue'),
-    identifier: object.key,
-    title: data.name ?? item.name,
-    body: htmlToMarkdown(item.description_html),
-    url: object.url ?? '',
-    status: states.find(s => s.id === nil(data.state_id ?? item.state))?.name ?? '',
-    assignee: (data.assignee_ids ?? item.assignees ?? []).map(name).filter(Boolean).join(', '),
-    labels: (data.label_ids ?? item.labels ?? []).map(id => labels.find(l => l.id === id)?.name ?? '').filter(Boolean).join(', '),
-    author: name(nil(data.created_by_id) ?? item.created_by),
+// The delivery is newer than the fetched work item wherever it carries the field.
+function deliveredItem(item: PlaneWorkItem, data: PlaneRecord): PlaneWorkItem {
+  return {
+    ...item,
+    name: data.name ?? item.name,
+    state: nil(data.state_id) ?? item.state,
+    labels: data.label_ids ?? item.labels,
+    assignees: data.assignee_ids ?? item.assignees,
+    created_by: nil(data.created_by_id) ?? item.created_by,
   }
-  return { inputs, labels, states }
+}
+
+function planeChange(created: boolean, data: PlaneRecord, previous: PlaneRecord, issue: TrackerIssue, { states, labels }: PlaneLookups): TrackerChange {
+  const accountId = planeCredentials()?.accountId
+  const gained = (now: string[] | undefined, before: string[] | undefined) => before ? (now ?? []).filter(id => !before.includes(id)) : []
+  return {
+    created,
+    issue,
+    gainedLabels: gained(data.label_ids, previous.label_ids).map(id => labels.find(l => l.id === id)?.name ?? '').filter(Boolean),
+    assignedToSelf: !!accountId && (data.assignee_ids ?? []).includes(accountId),
+    gainedSelf: !!accountId && gained(data.assignee_ids, previous.assignee_ids).includes(accountId),
+    ...(previous.state_id !== undefined ? { previousStatus: { group: states.find(s => s.id === nil(previous.state_id))?.group ?? null } } : {}),
+    filterValues: { priority: [nil(data.priority) ?? 'none'] },
+  }
 }
 
 async function locateObject(object: SessionObject): Promise<Located & { item: PlaneWorkItem }> {
@@ -249,21 +209,18 @@ export const plane: Integration = {
       }
       if (item && (name === 'workitem.created' || name === 'workitem.updated')) {
         const data = payload.data ?? {}
-        const previous = payload.previous_attributes ?? {}
-        const { inputs, labels, states } = await planeInputs(located, object, data, item)
-        if (name === 'workitem.updated' && previous.state_id !== undefined) {
-          const group = states.find(s => s.id === nil(data.state_id))?.group ?? ''
-          delivery.statusChange = { object, status: CLOSED_GROUPS.has(group) ? 'closed' : 'open' }
-        }
-        const event: PlaneEvent = { name, data, previous, labels, states, inputs, object }
-        delivery.event = { name, payload: event }
+        const lookups = await planeLookups(located.planeProject.id)
+        const issue = planeIssue(object, deliveredItem(item, data), lookups)
+        const change = planeChange(name === 'workitem.created', data, payload.previous_attributes ?? {}, issue, lookups)
+        delivery.statusChange = trackerStatusChange(PLANE_TRACKER, change)
+        delivery.event = { name, payload: change }
       }
       return delivery
     },
 
     match(trigger, delivery) {
       if (!delivery.event) return null
-      return matchPlaneEvent(trigger.config as unknown as TriggerConfig, delivery.event.payload as PlaneEvent)
+      return matchTrackerEvent(PLANE_TRACKER, trigger.config as unknown as TriggerConfig, delivery.event.payload as TrackerChange)
     },
 
     record: recordPlaneDelivery,
@@ -273,8 +230,14 @@ export const plane: Integration = {
     kinds: ['issue'],
     describe: object => `work item ${object.key}`,
     async context(_project, object) {
-      const planeProject = await planeProjectByIdentifier(object.key.replace(/-\d+$/, ''))
-      return getPlaneWorkItemContext(planeProject.id, object.key)
+      const { planeProject, item } = await locateObject(object)
+      const [lookups, comments] = await Promise.all([planeLookups(planeProject.id), listPlaneComments(planeProject.id, item.id)])
+      const issue = planeIssue(planeObject(planeProject.identifier, item.sequence_id, item.name), item, lookups)
+      return trackerContext(issue, comments.map(c => ({
+        author: planeUserName(c.actor) || 'unknown',
+        at: new Date(c.created_at || 0),
+        body: htmlToMarkdown(c.comment_html),
+      })))
     },
   },
 

@@ -1,7 +1,5 @@
 import { ofetch } from 'ofetch'
-import { formatObjectContext } from '../../utils/object-context'
 import { planeCredentials } from './credentials'
-import { htmlToMarkdown } from './html'
 
 interface PlaneAuth {
   siteUrl: string
@@ -191,31 +189,4 @@ export async function addPlaneComment(projectId: string, workItemId: string, htm
 
 export async function updatePlaneWorkItem(projectId: string, workItemId: string, patch: { labels?: string[], state?: string }): Promise<void> {
   await planeFetch(workspacePath(`/projects/${projectId}/work-items/${workItemId}/`), { method: 'PATCH', body: patch })
-}
-
-export async function getPlaneWorkItemContext(projectId: string, key: string): Promise<string> {
-  const item = await getPlaneWorkItemByKey(key)
-  const [states, labels, members, comments] = await Promise.all([
-    listPlaneStates(projectId),
-    listPlaneLabels(projectId),
-    listPlaneMembers(projectId),
-    listPlaneComments(projectId, item.id),
-  ])
-  const name = (id: string | null | undefined) => members.find(m => m.id === id)?.displayName ?? ''
-  return formatObjectContext({
-    heading: `${key}: ${item.name}`,
-    url: planeWorkItemUrl(key),
-    facts: [
-      ['State', states.find(s => s.id === item.state)?.name ?? ''],
-      ['Author', name(item.created_by)],
-      ['Assignees', (item.assignees ?? []).map(name).filter(Boolean).join(', ')],
-      ['Labels', (item.labels ?? []).map(id => labels.find(l => l.id === id)?.name ?? '').filter(Boolean).join(', ')],
-    ],
-    body: htmlToMarkdown(item.description_html),
-    comments: comments.map(c => ({
-      author: planeUserName(c.actor) || 'unknown',
-      at: new Date(c.created_at || 0),
-      body: htmlToMarkdown(c.comment_html),
-    })),
-  })
 }

@@ -23,6 +23,10 @@ export function htmlToMarkdown(html: string | null | undefined): string {
   return turndown.turndown(named).trim()
 }
 
+export function htmlMentionIds(html: string | null | undefined): string[] {
+  return [...(html ?? '').matchAll(MENTION_RE)].flatMap(([, attrs]) => [...attrs!.matchAll(/="([^"]*)"/g)].map(m => m[1]!))
+}
+
 // Raw HTML in an agent's reply is text, not markup to hand to Plane.
 const marked = new Marked({
   gfm: true,
