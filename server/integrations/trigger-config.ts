@@ -28,6 +28,11 @@ export function labelFilter(id: IntegrationId): TriggerFilterDef {
   return { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'Pick labels or type a pattern like kn*', optionsUrl: `/api/integrations/${id}/options/labels` }
 }
 
+// Matched against `filterValues.priority`; a tool without priorities on an object reports `none`.
+export function priorityFilter(): TriggerFilterDef {
+  return { key: 'priority', label: 'Priority is', summary: '{value} priority', input: 'list', placeholder: 'Pick priorities', options: ['urgent', 'high', 'medium', 'low', 'none'].map(p => ({ label: p, value: p })) }
+}
+
 export function triggerEvent(config: TriggerConfig, type: string): TriggerEventConfig | undefined {
   return config.on.find(on => on.type === type)
 }

@@ -5,7 +5,7 @@ import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelFilter } from '../trigger-config'
+import { labelFilter, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { addPlaneComment, forgetPlaneCache, getPlaneComment, planeMyself, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeUserName, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
@@ -28,7 +28,7 @@ const PLANE_TRACKER: TrackerDef = {
   },
   filters: [
     labelFilter('plane'),
-    { key: 'priority', label: 'Priority is', summary: '{value} priority', input: 'list', placeholder: 'Pick priorities', options: ['urgent', 'high', 'medium', 'low', 'none'].map(p => ({ label: p, value: p })) },
+    priorityFilter(),
   ],
 }
 
@@ -194,8 +194,7 @@ export const plane: Integration = {
   webhook: {
     verify(raw, header) {
       const secret = planeCredentials()?.webhookSecret
-      // Plane sends the bare hex digest, without GitHub's `sha256=` prefix.
-      return !!secret && verifySha256Signature(raw, secret, `sha256=${header('x-plane-signature') ?? ''}`)
+      return !!secret && verifySha256Signature(raw, secret, header('x-plane-signature') ?? '', '')
     },
 
     async parse(raw, header) {
