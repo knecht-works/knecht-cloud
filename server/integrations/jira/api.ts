@@ -1,4 +1,4 @@
-import { ofetch } from 'ofetch'
+import { createVendorCache, createVendorFetch, type VendorRequest } from '../vendor-fetch'
 import type { AdfNode } from './adf'
 import { jiraCredentials } from './credentials'
 
@@ -8,19 +8,19 @@ interface JiraAuth {
   apiToken: string
 }
 
-// ofetch instead of $fetch: the URL is an external site, not a Nitro route.
-async function jiraFetch<T>(path: string, opts: { method?: 'GET' | 'POST' | 'PUT', body?: Record<string, unknown>, auth?: JiraAuth, base?: '/rest/api/3' | '/rest/agile/1.0' } = {}): Promise<T> {
-  const creds = opts.auth ?? jiraCredentials()
-  if (!creds) throw new Error('Jira is not connected')
-  return await ofetch<T>(`${creds.siteUrl}${opts.base ?? '/rest/api/3'}${path}`, {
-    method: opts.method ?? 'GET',
-    body: opts.body,
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${creds.email}:${creds.apiToken}`).toString('base64')}`,
-      Accept: 'application/json',
-    },
-  })
+const vendorFetch = createVendorFetch<JiraAuth>({
+  name: 'Jira',
+  credentials: jiraCredentials,
+  baseUrl: auth => auth.siteUrl,
+  headers: auth => ({ Authorization: `Basic ${Buffer.from(`${auth.email}:${auth.apiToken}`).toString('base64')}` }),
+})
+
+function jiraFetch<T>(path: string, { base = '/rest/api/3', ...opts }: VendorRequest<JiraAuth> & { base?: '/rest/api/3' | '/rest/agile/1.0' } = {}): Promise<T> {
+  return vendorFetch<T>(`${base}${path}`, opts)
 }
+
+const cache = createVendorCache(Infinity)
+export const forgetJiraCache = cache.forget
 
 export async function jiraMyself(auth?: JiraAuth): Promise<{ displayName: string, accountId: string }> {
   const me = await jiraFetch<{ displayName?: string, accountId?: string }>('/myself', { auth })
@@ -63,17 +63,14 @@ export async function listJiraStatuses(projectKey: string): Promise<string[]> {
   return [...names]
 }
 
-const statusCategories = new Map<string, string>()
-
 // A status never changes its category, so one lookup per status id serves every later transition.
 export async function getJiraStatusCategory(statusId: string): Promise<string | null> {
-  const cached = statusCategories.get(statusId)
-  if (cached) return cached
   try {
-    const res = await jiraFetch<{ statusCategory?: { key?: string } }>(`/status/${encodeURIComponent(statusId)}`)
-    const key = res.statusCategory?.key ?? null
-    if (key) statusCategories.set(statusId, key)
-    return key
+    return await cache.cached(`status:${statusId}`, async () => {
+      const res = await jiraFetch<{ statusCategory?: { key?: string } }>(`/status/${encodeURIComponent(statusId)}`)
+      if (!res.statusCategory?.key) throw new Error('status without a category')
+      return res.statusCategory.key
+    })
   }
   catch {
     return null
