@@ -45,6 +45,15 @@ export const INTEGRATION_UI: Record<IntegrationId, IntegrationUi> = {
       issue: { icon: 'i-simple-icons-plane', label: 'Work item', color: 'var(--brand-plane)', prefix: '' },
     },
   },
+  linear: {
+    label: 'Linear',
+    icon: 'i-simple-icons-linear',
+    color: 'var(--brand-linear)',
+    mentionHint: { text: 'mention the Knecht account on an issue of the linked team.' },
+    objects: {
+      issue: { icon: 'i-simple-icons-linear', label: 'Issue', color: 'var(--brand-linear)', prefix: '' },
+    },
+  },
 }
 
 export function integrationUi(id: IntegrationId): IntegrationUi {

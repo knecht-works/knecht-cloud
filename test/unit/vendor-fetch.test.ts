@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createVendorCache, createVendorFetch } from '../../server/integrations/vendor-fetch'
+import { createGraphqlClient, createVendorCache, createVendorFetch } from '../../server/integrations/vendor-fetch'
 import { withServer } from '../helpers/http-server'
 
 interface Auth {
@@ -66,6 +66,52 @@ describe('createVendorFetch', () => {
       await expect(client({ origin, token: 't' })('/comments', { method: 'POST', body: { text: 'hi' } })).rejects.toThrow()
     })
     expect(calls).toBe(1)
+  })
+})
+
+describe('createGraphqlClient', () => {
+  function throttledOnce(body: string) {
+    const state = { calls: 0 }
+    return {
+      state,
+      route: (_req: unknown, res: import('node:http').ServerResponse) => {
+        if (++state.calls === 1) {
+          res.statusCode = 429
+          res.setHeader('retry-after', '0')
+          return res.end()
+        }
+        res.setHeader('content-type', 'application/json')
+        res.end(body)
+      },
+    }
+  }
+
+  it('repeats a throttled query but never a mutation', async () => {
+    const reads = throttledOnce('{"data":{"viewer":{"id":"u1"}}}')
+    await withServer({ 'POST /api/graphql': reads.route }, async (origin) => {
+      const { query } = createGraphqlClient('Tracker', client({ origin, token: 't' }))
+      expect(await query('query { viewer { id } }')).toEqual({ viewer: { id: 'u1' } })
+    })
+    expect(reads.state.calls).toBe(2)
+
+    const writes = throttledOnce('{"data":{}}')
+    await withServer({ 'POST /api/graphql': writes.route }, async (origin) => {
+      const { mutate } = createGraphqlClient('Tracker', client({ origin, token: 't' }))
+      await expect(mutate('mutation { commentCreate { success } }')).rejects.toThrow()
+    })
+    expect(writes.state.calls).toBe(1)
+  })
+
+  it('turns errors in a 200 body into a failure', async () => {
+    await withServer({
+      'POST /api/graphql': (_req, res) => {
+        res.setHeader('content-type', 'application/json')
+        res.end('{"errors":[{"message":"Entity not found"}]}')
+      },
+    }, async (origin) => {
+      const { query } = createGraphqlClient('Tracker', client({ origin, token: 't' }))
+      await expect(query('query { issue { id } }')).rejects.toThrow('Tracker: Entity not found')
+    })
   })
 })
 

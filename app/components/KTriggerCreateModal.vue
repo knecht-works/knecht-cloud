@@ -135,7 +135,7 @@ watch(open, (isOpen) => {
     <template #body>
       <div class="flex flex-col gap-4 min-h-115">
         <div class="space-y-4 h-full flex-1">
-          <div class="grid grid-cols-4 gap-2">
+          <div class="grid grid-cols-5 gap-2">
             <button
               v-for="src in SOURCES"
               :key="src.key"
