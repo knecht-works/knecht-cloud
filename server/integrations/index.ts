@@ -1,11 +1,12 @@
 import type { IntegrationId } from '../../shared/utils/integrations'
 import { github } from './github'
 import { jira } from './jira'
+import { plane } from './plane'
 import type { Integration } from './types'
 
 export type { CommentAuthor, DeliveryRecord, Integration, LinkTarget, TriggerMatch, WebhookComment, WebhookDelivery, WebhookHeaders } from './types'
 
-export const INTEGRATIONS: readonly Integration[] = [github, jira]
+export const INTEGRATIONS: readonly Integration[] = [github, jira, plane]
 
 export function getIntegration(id: IntegrationId): Integration {
   const integration = INTEGRATIONS.find(i => i.id === id)

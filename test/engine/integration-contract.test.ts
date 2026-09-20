@@ -7,6 +7,16 @@ vi.mock('../../server/utils/github-app', () => ({}))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
 }))
+const planeProjects = vi.hoisted(() => [] as { id: string, identifier: string, name: string }[])
+vi.mock('../../server/integrations/plane/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
+  listPlaneProjects: async () => planeProjects,
+  planeProjectById: async (id: string) => planeProjects.find(p => p.id === id),
+  getPlaneWorkItem: async (_projectId: string, id: string) => ({ id, sequence_id: 1, name: 'T', description_html: '<p>B</p>', state: 's1', labels: [], assignees: [], created_by: 'u1' }),
+  listPlaneStates: async () => [{ id: 's1', name: 'Todo', group: 'unstarted' }],
+  listPlaneLabels: async () => [],
+  listPlaneMembers: async () => [{ id: 'u1', displayName: 'Ann' }],
+}))
 
 const { db, schema } = await import('../../server/db')
 const { INTEGRATIONS } = await import('../../server/integrations')
@@ -16,8 +26,10 @@ const { INPUT_KEYS } = await import('../../server/utils/inputs')
 const { setProjectLink } = await import('../../server/utils/project-links')
 const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
 const { jiraCredentials, saveJiraCredentials } = await import('../../server/integrations/jira/credentials')
+const { savePlaneCredentials } = await import('../../server/integrations/plane/credentials')
 
 let jiraKeys = 0
+let planeKeys = 0
 
 // Every integration gets the same drill: a signed delivery for a project of
 // this instance, the trigger config that matches it, and a headers map.
@@ -25,9 +37,11 @@ interface Fixture {
   configure(): void
   secret(): string
   signatureHeader: string
+  // GitHub and Jira prefix the digest with `sha256=`, Plane sends the bare hex.
+  sign?: (secret: string, raw: string) => string
   headers: Record<string, string>
   project: () => { id: number }
-  body: (project: { githubId: number, jiraProjectKey: string }) => object
+  body: (project: { githubId: number, jiraProjectKey: string, planeProjectId: string }) => object
   unknownBody: object
   triggerConfig: TriggerConfig
 }
@@ -58,6 +72,24 @@ const FIXTURES: Record<string, Fixture> = {
     unknownBody: { webhookEvent: 'jira:issue_created', issue: { key: 'X-1', fields: { project: { key: 'X' } } } },
     triggerConfig: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
   },
+  plane: {
+    configure: () => savePlaneCredentials({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k', webhookSecret: 'plane-secret', accountId: 'acc' }),
+    secret: () => 'plane-secret',
+    signatureHeader: 'x-plane-signature',
+    sign: (secret, raw) => createHmac('sha256', secret).update(raw).digest('hex'),
+    headers: {},
+    project: () => {
+      const project = makeProject()
+      const identifier = `CONTRACT${++planeKeys}`
+      const planeProjectId = `pp-${identifier}`
+      planeProjects.push({ id: planeProjectId, identifier, name: identifier })
+      setProjectLink(project.id, 'plane', identifier)
+      return { ...project, planeProjectId }
+    },
+    body: p => ({ event: 'workitem.created', data: { id: 'wi-1', name: 'T', sequence_id: 1, project_id: p.planeProjectId, state_id: 's1', label_ids: [], assignee_ids: [], created_by_id: 'u1' }, previous_attributes: {} }),
+    unknownBody: { event: 'workitem.created', data: { id: 'wi-1', sequence_id: 1, project_id: 'pp-NOPE' }, previous_attributes: {} },
+    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
+  },
 }
 
 function sign(secret: string, raw: string): string {
@@ -78,7 +110,7 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
 
   it('verifies the signature over the raw body and rejects tampering', () => {
     const raw = JSON.stringify(fixture.unknownBody)
-    const signature = sign(fixture.secret(), raw)
+    const signature = (fixture.sign ?? sign)(fixture.secret(), raw)
     expect(integration.webhook.verify(raw, headers({ [fixture.signatureHeader]: signature }))).toBe(true)
     expect(integration.webhook.verify(`${raw} `, headers({ [fixture.signatureHeader]: signature }))).toBe(false)
     expect(integration.webhook.verify(raw, headers({}))).toBe(false)

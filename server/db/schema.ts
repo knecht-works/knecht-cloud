@@ -72,7 +72,7 @@ export const projects = sqliteTable('projects', {
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
 
-// Which external container of an integration (a Jira project) feeds a project.
+// Which external container of an integration (a Jira or Plane project) feeds a project.
 // An external container feeds at most one project.
 export const projectLinks = sqliteTable('project_links', {
   // PRAGMA foreign_keys is off, so the cascade is declarative; deleteProject removes links.
@@ -429,6 +429,28 @@ export const jiraConnection = sqliteTable('jira_connection', {
 })
 
 export type JiraConnectionRow = typeof jiraConnection.$inferSelect
+
+export const planeConnection = sqliteTable('plane_connection', {
+  id: integer('id').primaryKey(),
+
+  siteUrl: text('site_url').notNull(),
+  workspaceSlug: text('workspace_slug').notNull(),
+  apiKeyEnc: text('api_key_enc').notNull(),
+  accountName: text('account_name'),
+  accountId: text('account_id'),
+  // Plane mints the secret when the webhook is created there; the admin pastes it here.
+  webhookSecretEnc: text('webhook_secret_enc'),
+  lastDeliveryAt: integer('last_delivery_at', { mode: 'timestamp' }),
+  lastDeliverySummary: text('last_delivery_summary'),
+  lastRejectedAt: integer('last_rejected_at', { mode: 'timestamp' }),
+  lastRejectedReason: text('last_rejected_reason', { enum: ['signature', 'empty-body', 'no-project'] }),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+export type PlaneConnectionRow = typeof planeConnection.$inferSelect
 
 // GitHub logins are case-insensitive, so `login` is always stored lowercased.
 export const members = sqliteTable('members', {
