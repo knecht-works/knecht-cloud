@@ -12,6 +12,8 @@ export interface VendorRequest<A> {
   body?: Record<string, unknown>
   // Credentials to try before they are saved; the stored connection otherwise.
   auth?: A
+  // Safe to repeat. Defaults to GET only; a GraphQL query is a read sent as POST.
+  idempotent?: boolean
 }
 
 // A webhook delivery waits for these calls, so a tool that hangs or throttles must not hold it for long.
@@ -37,10 +39,25 @@ export function createVendorFetch<A>(def: VendorFetchDef<A>) {
       headers: { Accept: 'application/json', ...def.headers(auth) },
       timeout: TIMEOUT_MS,
       // Only reads are repeated: a repeated write could post a comment twice.
-      retry: method === 'GET' ? 2 : 0,
+      retry: (opts.idempotent ?? method === 'GET') ? 2 : 0,
       retryStatusCodes: [429, 502, 503, 504],
       retryDelay: ({ response }) => retryDelay(response),
     })
+  }
+}
+
+type VendorFetch<A> = ReturnType<typeof createVendorFetch<A>>
+
+// GraphQL reports most failures in the body of a 200, and sends reads and writes alike as POST.
+export function createGraphqlClient<A>(name: string, vendorFetch: VendorFetch<A>, path = '/graphql') {
+  async function request<T>(idempotent: boolean, query: string, variables: Record<string, unknown>, auth?: A): Promise<T> {
+    const res = await vendorFetch<{ data?: T, errors?: { message?: string }[] }>(path, { method: 'POST', body: { query, variables }, auth, idempotent })
+    if (res.errors?.length || !res.data) throw new Error(`${name}: ${res.errors?.map(e => e.message).join('; ') || 'empty response'}`)
+    return res.data
+  }
+  return {
+    query: <T>(query: string, variables: Record<string, unknown> = {}, auth?: A) => request<T>(true, query, variables, auth),
+    mutate: <T>(query: string, variables: Record<string, unknown> = {}, auth?: A) => request<T>(false, query, variables, auth),
   }
 }
 

@@ -2,7 +2,7 @@
 # Reset all user data back to a fresh state: deletes every project, workflow,
 # run and trigger, including their on-disk traces (run environments, checkouts,
 # archives, dumps, shared folders). Instance setup is KEPT: the GitHub App,
-# members, Jira and Plane connections, settings and AI key survive, so the instance does
+# members, integration connections, settings and AI key survive, so the instance does
 # not fall back into the first-run setup flow. Starter workflows are re-seeded
 # on the next boot.
 #

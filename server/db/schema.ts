@@ -72,7 +72,7 @@ export const projects = sqliteTable('projects', {
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert
 
-// Which external container of an integration (a Jira or Plane project) feeds a project.
+// Which external container of an integration (for example a Jira project) feeds a project.
 // An external container feeds at most one project.
 export const projectLinks = sqliteTable('project_links', {
   // PRAGMA foreign_keys is off, so the cascade is declarative; deleteProject removes links.

@@ -16,6 +16,10 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
   planeMyself: myself,
 }))
+vi.mock('../../server/integrations/linear/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
+  linearMyself: myself,
+}))
 
 const { INTEGRATIONS } = await import('../../server/integrations')
 const routes = {
