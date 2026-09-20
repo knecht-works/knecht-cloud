@@ -1,4 +1,4 @@
-import { ofetch } from 'ofetch'
+import { createVendorCache, createVendorFetch } from '../vendor-fetch'
 import { planeCredentials } from './credentials'
 
 interface PlaneAuth {
@@ -12,16 +12,12 @@ export function planeApiOrigin(siteUrl: string): string {
   return /^https?:\/\/app\.plane\.so$/i.test(siteUrl) ? 'https://api.plane.so' : siteUrl
 }
 
-// ofetch instead of $fetch: the URL is an external site, not a Nitro route.
-async function planeFetch<T>(path: string, opts: { method?: 'GET' | 'POST' | 'PATCH', body?: Record<string, unknown>, auth?: PlaneAuth } = {}): Promise<T> {
-  const creds = opts.auth ?? planeCredentials()
-  if (!creds) throw new Error('Plane is not connected')
-  return await ofetch<T>(`${planeApiOrigin(creds.siteUrl)}/api/v1${path}`, {
-    method: opts.method ?? 'GET',
-    body: opts.body,
-    headers: { 'X-API-Key': creds.apiKey, 'Accept': 'application/json' },
-  })
-}
+const planeFetch = createVendorFetch<PlaneAuth>({
+  name: 'Plane',
+  credentials: planeCredentials,
+  baseUrl: auth => `${planeApiOrigin(auth.siteUrl)}/api/v1`,
+  headers: auth => ({ 'X-API-Key': auth.apiKey }),
+})
 
 function workspacePath(path: string, auth?: PlaneAuth): string {
   const slug = (auth ?? planeCredentials())?.workspaceSlug ?? ''
@@ -40,22 +36,8 @@ async function listAll<T>(path: string): Promise<T[]> {
 }
 
 // Plane allows 60 requests a minute; one delivery needs several lookups that rarely change.
-const TTL_MS = 60_000
-const memo = new Map<string, { at: number, value: Promise<unknown> }>()
-function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
-  const hit = memo.get(key)
-  if (hit && Date.now() - hit.at < TTL_MS) return hit.value as Promise<T>
-  const value = load().catch((e) => {
-    memo.delete(key)
-    throw e
-  })
-  memo.set(key, { at: Date.now(), value })
-  return value
-}
-
-export function forgetPlaneCache(): void {
-  memo.clear()
-}
+const { cached, forget: forgetPlaneCache } = createVendorCache(60_000)
+export { forgetPlaneCache }
 
 export interface PlaneUser {
   id?: string

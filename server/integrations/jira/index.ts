@@ -7,7 +7,7 @@ import { labelChangeSummary } from '../capabilities'
 import { LABEL_FILTER, matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
-import { addJiraComment, getJiraComment, jiraMyself, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
+import { addJiraComment, forgetJiraCache, getJiraComment, jiraMyself, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
 import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from './credentials'
 
 export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
@@ -113,6 +113,7 @@ export const jira: Integration = {
     form: JIRA_CONNECTION_FORM,
     store: jiraConnection,
     verify: ({ siteUrl, email, apiToken }) => jiraMyself({ siteUrl: siteUrl!, email: email!, apiToken: apiToken! }),
+    onChange: forgetJiraCache,
   },
 
   link: {
