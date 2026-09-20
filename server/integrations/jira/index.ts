@@ -1,12 +1,11 @@
-import { runWorkspacePath } from '../../../shared/utils/routes'
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import { tryParseJson } from '../../utils/json'
-import { dashboardOrigin } from '../../utils/origin'
 import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig, TriggerFormDef } from '../../../shared/utils/trigger-form'
 import { matchesAny, passesList, triggerEvent } from '../trigger-config'
+import { labelChangeSummary } from '../capabilities'
 import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
 import { addJiraComment, getJiraComment, getJiraIssueContext, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
@@ -254,7 +253,7 @@ export const jira: Integration = {
 
     async label(_project, object, add, remove) {
       await updateJiraLabels(object.key, add, remove)
-      return [add.length ? `added ${add.join(', ')}` : '', remove.length ? `removed ${remove.join(', ')}` : ''].filter(Boolean).join('; ')
+      return labelChangeSummary(add, remove)
     },
 
     async setStatus(_project, object, status) {
@@ -268,14 +267,5 @@ export const jira: Integration = {
     },
   },
 
-  async onRunFinished(project, session, run, status) {
-    const key = session.objectKey
-    if (!key) return
-    if (status === 'success') {
-      if (!run.prUrl) return
-      await addJiraComment(key, markdownToAdf(`Knecht opened a pull request for this ticket: ${run.prUrl}`))
-      return
-    }
-    await addJiraComment(key, markdownToAdf(`Knecht could not finish the run for this ticket: ${dashboardOrigin()}${runWorkspacePath(project.id, run.id)}`))
-  },
+  runResult: { noun: 'ticket' },
 }

@@ -7,9 +7,11 @@ import { getWorkflow } from '../workflows'
 import { actionFor, type ActionError, type ActionRuntime, type RegisteredAction } from '../workflows/actions'
 import { createContext, evalConditions, renderStepParams, resolveLoopItems, type RunContext } from '../workflows/context'
 import { formatEnvSummary } from '../../shared/utils/env-spec'
+import { runWorkspacePath } from '../../shared/utils/routes'
 import { sessionSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
 import { getRun, getWorkflowRow } from '../utils/entities'
+import { dashboardOrigin } from '../utils/origin'
 import { describeObject, sessionObject } from '../utils/sessions'
 import { getIntegration } from '../integrations'
 import { prepareSessionCheckout } from './git'
@@ -388,11 +390,15 @@ async function notifyRunFinished(runId: number, project: Project, session: Sessi
   const run = getRun(runId)
   if (!object || !run) return
   const integration = getIntegration(object.integration)
-  if (!integration.onRunFinished) return
+  if (!integration.runResult) return
+  if (status === 'success' && !run.prUrl) return
   const workflow = run.workflowId ? getWorkflowRow(run.workflowId) : undefined
   if (workflow && !workflow.repliesEnabled) return
   try {
-    await integration.onRunFinished(project, session, run, status)
+    const { noun } = integration.runResult
+    await integration.capabilities.comment(project, object, status === 'success'
+      ? `Knecht opened a pull request for this ${noun}: ${run.prUrl}`
+      : `Knecht could not finish the run for this ${noun}: ${dashboardOrigin()}${runWorkspacePath(project.id, run.id)}`)
   }
   catch (e) {
     log(`Could not report the result on ${describeObject(object)}: ${(e as Error).message}\n`)
