@@ -17,6 +17,11 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
   listPlaneLabels: async () => [],
   listPlaneMembers: async () => [{ id: 'u1', displayName: 'Ann' }],
 }))
+vi.mock('../../server/integrations/linear/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
+  getLinearIssue: async (id: string) => ({ id, identifier: id.replace(/^li-/, ''), title: 'T', description: 'B', url: 'https://linear.app/acme/issue/x', priority: 0, state: { name: 'Todo', type: 'unstarted' }, creator: { name: 'Ann' }, assignee: null, labels: { nodes: [] } }),
+  listLinearStates: async () => [{ id: 's1', name: 'Todo', type: 'unstarted' }],
+}))
 
 const { db, schema } = await import('../../server/db')
 const { INTEGRATIONS } = await import('../../server/integrations')
@@ -27,9 +32,11 @@ const { setProjectLink } = await import('../../server/utils/project-links')
 const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
 const { jiraConnection, jiraCredentials } = await import('../../server/integrations/jira/credentials')
 const { planeConnection } = await import('../../server/integrations/plane/credentials')
+const { linearConnection } = await import('../../server/integrations/linear/credentials')
 
 let jiraKeys = 0
 let planeKeys = 0
+let linearKeys = 0
 
 // Every integration gets the same drill: a signed delivery for a project of
 // this instance, the trigger config that matches it, and a headers map.
@@ -37,11 +44,11 @@ interface Fixture {
   configure(): void
   secret(): string
   signatureHeader: string
-  // GitHub and Jira prefix the digest with `sha256=`, Plane sends the bare hex.
+  // For integrations that send the bare hex digest instead of the default `sha256=` prefix.
   sign?: (secret: string, raw: string) => string
   headers: Record<string, string>
   project: () => { id: number }
-  body: (project: { githubId: number, jiraProjectKey: string, planeProjectId: string }) => object
+  body: (project: { githubId: number, jiraProjectKey: string, planeProjectId: string, linearTeamKey: string }) => object
   unknownBody: object
   triggerConfig: TriggerConfig
 }
@@ -88,6 +95,22 @@ const FIXTURES: Record<string, Fixture> = {
     },
     body: p => ({ event: 'workitem.created', data: { id: 'wi-1', name: 'T', sequence_id: 1, project_id: p.planeProjectId, state_id: 's1', label_ids: [], assignee_ids: [], created_by_id: 'u1' }, previous_attributes: {} }),
     unknownBody: { event: 'workitem.created', data: { id: 'wi-1', sequence_id: 1, project_id: 'pp-NOPE' }, previous_attributes: {} },
+    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
+  },
+  linear: {
+    configure: () => linearConnection.save({ apiKey: 'k' }, { webhookSecret: 'linear-secret', accountId: 'acc' }),
+    secret: () => 'linear-secret',
+    signatureHeader: 'linear-signature',
+    sign: (secret, raw) => createHmac('sha256', secret).update(raw).digest('hex'),
+    headers: {},
+    project: () => {
+      const project = makeProject()
+      const linearTeamKey = `CONTRACT${++linearKeys}`
+      setProjectLink(project.id, 'linear', linearTeamKey)
+      return { ...project, linearTeamKey }
+    },
+    body: p => ({ action: 'create', type: 'Issue', data: { id: `li-${p.linearTeamKey}-1`, identifier: `${p.linearTeamKey}-1`, title: 'T' } }),
+    unknownBody: { action: 'create', type: 'Issue', data: { id: 'li-NOPE-1', identifier: 'NOPE-1' } },
     triggerConfig: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
   },
 }

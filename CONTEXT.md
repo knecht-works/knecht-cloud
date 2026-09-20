@@ -1,6 +1,6 @@
 # Knecht
 
-Knecht runs agent workflows against GitHub repositories, started by events from external tools (GitHub, Jira, Plane) or by hand, and talks back to the place the work came from.
+Knecht runs agent workflows against GitHub repositories, started by events from external tools (GitHub and issue trackers such as Jira) or by hand, and talks back to the place the work came from.
 
 ## Language
 
@@ -13,7 +13,7 @@ An ordered list of steps an agent executes. Has a draft and a published version;
 The binding of one workflow to a project plus a firing condition. Every trigger has exactly one source.
 
 **Source**:
-The mechanism that fires a trigger: schedule, manual, or an integration (github, jira, plane).
+The mechanism that fires a trigger: schedule, manual, or an integration, named by its id (`github`, `jira`). The ids are listed in `shared/utils/integrations.ts`.
 _Avoid_: Kind, trigger type
 
 **Run**:
@@ -25,7 +25,7 @@ The fixed set of values a source hands to a run about the thing that fired it: e
 ### Integrations
 
 **Integration**:
-An external tool Knecht receives events from and writes results back to (GitHub, Jira, Plane). Schedule and manual are not integrations.
+An external tool Knecht receives events from and writes results back to: GitHub, or an issue tracker such as Jira. Schedule and manual are not integrations.
 _Avoid_: Provider, trigger source (when meaning the tool rather than the mechanism)
 
 **Connection**:
@@ -33,14 +33,14 @@ The stored credentials Knecht uses to talk to one integration. One connection pe
 _Avoid_: App (for the credential record), setup
 
 **Object**:
-The external thing a session belongs to: a GitHub issue, a GitHub pull request, a Jira ticket, or a Plane work item. Identified by its integration, kind, and key.
+The external thing a session belongs to: a GitHub issue, a GitHub pull request, or the issue of a tracker under that tracker's own name for it (a Jira ticket). Identified by its integration, kind, and key.
 _Avoid_: Ticket, issue (when meaning the generic concept)
 
 **Mention**:
 A comment on an object that addresses Knecht, written by someone other than Knecht itself. A mention on a session's object creates a follow-up.
 
 **Project link**:
-The binding of a project to one external container of an integration (a Jira project, a Plane project). At most one per integration and project, and an external container links to at most one project. Triggers of a linked integration fire for exactly one linked project.
+The binding of a project to one external container of an integration (for example a Jira project). At most one per integration and project, and an external container links to at most one project. Triggers of a linked integration fire for exactly one linked project.
 
 **Capability**:
 An action an integration can perform on its objects on the agent's behalf: comment, label, set status. Not every integration has every capability.
