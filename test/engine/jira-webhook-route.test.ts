@@ -1,9 +1,9 @@
 import { createHmac } from 'node:crypto'
-import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
 import { getSessionRow, makeProject } from '../helpers/db'
+import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 
 const api = vi.hoisted(() => ({
   comments: [] as { key: string, body: unknown }[],
@@ -25,7 +25,7 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
 }))
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { db, schema } = await import('../../server/db')
+const { jira } = await import('../../server/integrations/jira')
 const { jiraConnectionStatus, jiraCredentials, saveJiraCredentials } = await import('../../server/integrations/jira/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
 const { setProjectLink } = await import('../../server/utils/project-links')
@@ -33,21 +33,13 @@ const handler = (await import('../../server/api/jira/webhook.post')).default
 
 const KNECHT_ACCOUNT = 'knecht-account-id'
 
-function deliver(payload: object, secret = jiraCredentials()?.webhookSecret ?? '') {
-  const raw = JSON.stringify(payload)
-  return callRoute(handler, {
-    body: raw,
-    headers: { 'x-hub-signature': `sha256=${createHmac('sha256', secret).update(raw).digest('hex')}` },
-  })
+function request(payload: object, secret = jiraCredentials()?.webhookSecret ?? ''): WebhookRequest {
+  const body = JSON.stringify(payload)
+  return { body, headers: { 'x-hub-signature': `sha256=${createHmac('sha256', secret).update(body).digest('hex')}` } }
 }
 
-let n = 0
-function makeWorkflow() {
-  return db.insert(schema.workflows).values({
-    name: `jira-route-${++n}`,
-    steps: [{ type: 'bash', command: 'true', id: 'run' }],
-    publishedAt: new Date(),
-  }).returning().get()
+function deliver(payload: object) {
+  return callRoute(handler, request(payload))
 }
 
 let keyN = 0
@@ -57,18 +49,10 @@ function makeJiraProject() {
   setProjectLink(project.id, 'jira', jiraProjectKey)
   return { ...project, jiraProjectKey }
 }
+type JiraProject = ReturnType<typeof makeJiraProject>
 
 function makeJiraTrigger(projectId: number, on: TriggerEventConfig[], filters: TriggerConfig['filters'] = {}) {
-  return db.insert(schema.triggers).values({
-    source: 'jira',
-    workflowId: makeWorkflow().id,
-    projectIds: [projectId],
-    config: { kind: 'issue', on, filters },
-  }).returning().get()
-}
-
-function runsOf(triggerId: number) {
-  return db.select().from(schema.runs).where(eq(schema.runs.triggerId, triggerId)).all()
+  return makeTrigger('jira', [projectId], { kind: 'issue', on, filters })
 }
 
 const doc = (text: string) => ({ type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] })
@@ -94,35 +78,23 @@ function updated(project: { jiraProjectKey: string | null }, items: object[], fi
   return { webhookEvent: 'jira:issue_updated', issue: issue(project, fields), changelog: { items } }
 }
 
-describe('jira webhook route, unconfigured', () => {
-  it('answers 404 until Jira is connected', async () => {
-    const res = await deliver({ webhookEvent: 'jira:issue_created' }, 'anything')
-    expect(res.status).toBe(404)
-  })
-})
+function commented(project: JiraProject, fetched: typeof api.fetched) {
+  api.fetched = fetched
+  return { webhookEvent: 'comment_created', issue: issue(project), comment: { id: Number(fetched.id) } }
+}
 
-describe('jira webhook route', () => {
-  beforeAll(() => {
-    saveJiraCredentials({ siteUrl: 'https://acme.atlassian.net', email: 'knecht@acme.test', apiToken: 't', accountName: 'Knecht', accountId: KNECHT_ACCOUNT })
-  })
-
-  it('rejects a bad signature', async () => {
-    const res = await deliver({ webhookEvent: 'jira:issue_created' }, 'wrong')
-    expect(res.status).toBe(401)
-  })
-
-  it('skips tickets of Jira projects no project is linked to', async () => {
-    const res = await deliver({ webhookEvent: 'jira:issue_created', issue: issue({ jiraProjectKey: 'NOPE' }) })
-    expect(res.json).toEqual({ ok: true, skipped: 'no matching project' })
-  })
-
-  it('fires on a created ticket with the ticket as inputs and object', async () => {
-    const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, [{ type: 'created' }])
-    const res = await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) })
-    expect(res.json).toEqual({ ok: true, runIds: [expect.any(Number)] })
-    const [run] = runsOf(trigger.id)
-    expect(run).toMatchObject({
+describeIntegrationWebhook<JiraProject, object>({
+  integration: jira,
+  handler,
+  configure: () => saveJiraCredentials({ siteUrl: 'https://acme.atlassian.net', email: 'knecht@acme.test', apiToken: 't', accountName: 'Knecht', accountId: KNECHT_ACCOUNT }),
+  request,
+  makeProject: makeJiraProject,
+  unknownProject: () => ({ webhookEvent: 'jira:issue_created', issue: issue({ jiraProjectKey: 'NOPE' }) }),
+  object: project => ({ integration: 'jira', kind: 'issue', key: `${project.jiraProjectKey}-12` }),
+  created: {
+    config: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
+    delivery: project => ({ webhookEvent: 'jira:issue_created', issue: issue(project) }),
+    run: project => ({
       trigger: 'jira',
       branch: 'main',
       inputs: {
@@ -136,28 +108,49 @@ describe('jira webhook route', () => {
         labels: 'knecht, bug',
         author: 'Ann Example',
       },
-    })
-    expect(getSessionRow(run!.sessionId)).toMatchObject({
+    }),
+    session: project => ({
       objectIntegration: 'jira',
       objectKind: 'issue',
       objectKey: `${project.jiraProjectKey}-12`,
       objectTitle: 'Login broken',
       objectUrl: `https://acme.atlassian.net/browse/${project.jiraProjectKey}-12`,
-    })
-  })
+    }),
+  },
+  labeled: {
+    config: { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} },
+    notGained: project => [
+      updated(project, [{ field: 'labels', fromString: 'knecht', toString: 'knecht bug' }]),
+      updated(project, [{ field: 'labels', fromString: '', toString: 'other' }]),
+    ],
+    gained: project => updated(project, [{ field: 'labels', fromString: 'bug', toString: 'bug knecht' }]),
+  },
+  closed: project => updated(project, [{ field: 'status', fromString: 'To Do', toString: 'Done' }], { status: { name: 'Done', statusCategory: { key: 'done' } } }),
+  reopened: project => updated(project, [{ field: 'status', fromString: 'Done', toString: 'To Do' }]),
+  comment: {
+    mention: project => commented(project, {
+      id: '77',
+      body: {
+        type: 'doc',
+        version: 1,
+        content: [{ type: 'paragraph', content: [
+          { type: 'mention', attrs: { id: KNECHT_ACCOUNT, text: '@Knecht' } },
+          { type: 'text', text: ' please fix the login' },
+        ] }],
+      },
+      author: { accountId: 'user-1', displayName: 'Ann Example' },
+    }),
+    fromSelf: project => commented(project, { id: '79', body: doc('@knecht I am Knecht'), author: { accountId: KNECHT_ACCOUNT, displayName: 'Knecht' } }),
+    withoutMention: project => commented(project, { id: '80', body: doc('just chatting'), author: { accountId: 'user-1', displayName: 'Ann Example' } }),
+    replyCount: project => api.comments.filter(c => c.key === `${project.jiraProjectKey}-12`).length,
+  },
+  recorded: {
+    status: jiraConnectionStatus,
+    createdSummary: project => `jira:issue_created ${project.jiraProjectKey}-12`,
+  },
+})
 
-  it('fires on a label only when the ticket gains it', async () => {
-    const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, [{ type: 'labeled', value: 'knecht' }])
-
-    await deliver(updated(project, [{ field: 'labels', fromString: 'knecht', toString: 'knecht bug' }]))
-    await deliver(updated(project, [{ field: 'labels', fromString: '', toString: 'other' }]))
-    expect(runsOf(trigger.id)).toHaveLength(0)
-
-    await deliver(updated(project, [{ field: 'labels', fromString: 'bug', toString: 'bug knecht' }]))
-    expect(runsOf(trigger.id)).toHaveLength(1)
-  })
-
+describe('jira webhook route, vendor specifics', () => {
   it('fires on a ticket created with the label, the status or the assignment already set', async () => {
     const project = makeJiraProject()
     const labeled = makeJiraTrigger(project.id, [{ type: 'labeled', value: 'knecht' }])
@@ -238,71 +231,16 @@ describe('jira webhook route', () => {
     expect(runsOf(backendOnly.id)).toHaveLength(1)
   })
 
-  it('mirrors done, reopened and deleted onto the session', async () => {
+  it('closes the session of a deleted ticket', async () => {
     const project = makeJiraProject()
-    const key = `${project.jiraProjectKey}-12`
-    const session = resolveSession(project, { integration: 'jira', kind: 'issue', key }, null)
-
-    await deliver(updated(project, [{ field: 'status', fromString: 'To Do', toString: 'Done' }], { status: { name: 'Done', statusCategory: { key: 'done' } } }))
-    expect(getSessionRow(session.id).status).toBe('closed')
-
-    await deliver(updated(project, [{ field: 'status', fromString: 'Done', toString: 'To Do' }]))
-    expect(getSessionRow(session.id).status).toBe('open')
-
+    const session = resolveSession(project, { integration: 'jira', kind: 'issue', key: `${project.jiraProjectKey}-12` }, null)
     await deliver({ webhookEvent: 'jira:issue_deleted', issue: issue(project) })
     expect(getSessionRow(session.id).status).toBe('closed')
   })
 
-  it('turns a comment mentioning the connection account into a follow-up', async () => {
-    const project = makeJiraProject()
-    api.fetched = {
-      id: '77',
-      body: {
-        type: 'doc',
-        version: 1,
-        content: [{ type: 'paragraph', content: [
-          { type: 'mention', attrs: { id: KNECHT_ACCOUNT, text: '@Knecht' } },
-          { type: 'text', text: ' please fix the login' },
-        ] }],
-      },
-      author: { accountId: 'user-1', displayName: 'Ann Example' },
-    }
-    const res = await deliver({ webhookEvent: 'comment_created', issue: issue(project), comment: { id: 77 } })
-    expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
-    expect(api.comments.at(-1)?.key).toBe(`${project.jiraProjectKey}-12`)
-    expect(getSessionRow(resolveSession(project, { integration: 'jira', kind: 'issue', key: `${project.jiraProjectKey}-12` }, null).id).objectIntegration).toBe('jira')
-  })
-
   it('accepts the plain @knecht text as a mention', async () => {
     const project = makeJiraProject()
-    api.fetched = { id: '78', body: doc('@knecht have a look'), author: { accountId: 'user-2', displayName: 'Bob' } }
-    const res = await deliver({ webhookEvent: 'comment_created', issue: issue(project), comment: { id: 78 } })
+    const res = await deliver(commented(project, { id: '78', body: doc('@knecht have a look'), author: { accountId: 'user-2', displayName: 'Bob' } }))
     expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
-  })
-
-  it('remembers the last accepted and the last rejected delivery for the settings page', async () => {
-    const project = makeJiraProject()
-    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) })
-    expect(jiraConnectionStatus().lastDelivery).toMatchObject({ summary: `jira:issue_created ${project.jiraProjectKey}-12`, at: expect.any(Number) })
-
-    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) }, 'wrong')
-    expect(jiraConnectionStatus().lastRejected).toMatchObject({ reason: 'signature', at: expect.any(Number) })
-
-    await callRoute(handler, { body: '', headers: { 'x-hub-signature': 'sha256=00' } })
-    expect(jiraConnectionStatus().lastRejected?.reason).toBe('empty-body')
-
-    await deliver({ webhookEvent: 'jira:issue_created', issue: issue({ jiraProjectKey: 'NOPE' }) })
-    expect(jiraConnectionStatus().lastRejected?.reason).toBe('no-project')
-    expect(jiraConnectionStatus().lastDelivery?.summary).toBe(`jira:issue_created ${project.jiraProjectKey}-12`)
-  })
-
-  it('ignores comments by the connection account and comments without a mention', async () => {
-    const project = makeJiraProject()
-    api.fetched = { id: '79', body: doc('@knecht I am Knecht'), author: { accountId: KNECHT_ACCOUNT, displayName: 'Knecht' } }
-    expect((await deliver({ webhookEvent: 'comment_created', issue: issue(project), comment: { id: 79 } })).json)
-      .toMatchObject({ outcome: expect.stringContaining('Knecht itself') })
-    api.fetched = { id: '80', body: doc('just chatting'), author: { accountId: 'user-1', displayName: 'Ann Example' } }
-    expect((await deliver({ webhookEvent: 'comment_created', issue: issue(project), comment: { id: 80 } })).json)
-      .toMatchObject({ outcome: expect.stringContaining('no mention') })
   })
 })
