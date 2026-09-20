@@ -159,10 +159,9 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
     }
     expect(typeof integration.capabilities.comment).toBe('function')
     expect(typeof integration.objects.context).toBe('function')
-    for (const capability of ['label', 'setStatus'] as const) {
-      const fn = integration.capabilities[capability]
-      if (fn !== undefined) expect(typeof fn).toBe('function')
-    }
+    const { labels, statuses } = integration.capabilities
+    if (labels) expect(typeof labels.apply).toBe('function')
+    if (statuses) expect(typeof statuses.targets).toBe('function')
     expect(typeof integration.mentions.allowsAuthor).toBe('function')
   })
 })

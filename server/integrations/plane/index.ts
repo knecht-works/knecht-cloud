@@ -5,8 +5,8 @@ import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelChangeSummary } from '../capabilities'
-import { LABEL_FILTER, matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
+import { labelFilter } from '../trigger-config'
+import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { addPlaneComment, forgetPlaneCache, getPlaneComment, planeMyself, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeUserName, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
 import { PLANE_CONNECTION_FORM, planeConnection, planeCredentials } from './credentials'
@@ -18,8 +18,6 @@ const PLANE_TRACKER: TrackerDef = {
   id: 'plane',
   name: 'Plane',
   noun: 'work item',
-  defaultEvent: 'assigned',
-  labelValue: { input: 'select', placeholder: 'Pick a label', optionsUrl: '/api/integrations/plane/options/labels' },
   status: {
     event: 'state',
     groupPrefix: 'group:',
@@ -29,8 +27,8 @@ const PLANE_TRACKER: TrackerDef = {
     options: 'states',
   },
   filters: [
-    LABEL_FILTER,
-    { key: 'priority', label: 'Priority is', summary: '{value} priority', input: 'list', placeholder: 'urgent, high' },
+    labelFilter('plane'),
+    { key: 'priority', label: 'Priority is', summary: '{value} priority', input: 'list', placeholder: 'Pick priorities', options: ['urgent', 'high', 'medium', 'low', 'none'].map(p => ({ label: p, value: p })) },
   ],
 }
 
@@ -159,8 +157,10 @@ function planeChange(created: boolean, data: PlaneRecord, previous: PlaneRecord,
   }
 }
 
+const planeProjectOf = (object: SessionObject) => planeProjectByIdentifier(object.key.replace(/-\d+$/, ''))
+
 async function locateObject(object: SessionObject): Promise<Located & { item: PlaneWorkItem }> {
-  const planeProject = await planeProjectByIdentifier(object.key.replace(/-\d+$/, ''))
+  const planeProject = await planeProjectOf(object)
   const item = await getPlaneWorkItemByKey(object.key)
   return { planeProject, workItemId: item.id, item }
 }
@@ -265,29 +265,26 @@ export const plane: Integration = {
       return { url: planeWorkItemUrl(object.key) }
     },
 
-    async label(_project, object, add, remove) {
-      const { planeProject, workItemId, item } = await locateObject(object)
-      const labels = await listPlaneLabels(planeProject.id)
-      const idOf = (name: string) => labels.find(l => l.name === name)?.id
-      const unknown = [...add, ...remove].filter(name => !idOf(name))
-      if (unknown.length) {
-        throw new Error(`these labels do not exist in the Plane project and Knecht never creates labels: ${unknown.join(', ')}. Existing labels: ${labels.map(l => l.name).join(', ') || '(none)'}`)
-      }
-      const removeIds = new Set(remove.map(idOf))
-      const next = [...new Set([...(item.labels ?? []), ...add.map(idOf)])].filter((id): id is string => !!id && !removeIds.has(id))
-      await updatePlaneWorkItem(planeProject.id, workItemId, { labels: next })
-      return labelChangeSummary(add, remove)
+    labels: {
+      list: async (_project, object) => (await listPlaneLabels((await planeProjectOf(object)).id)).map(l => l.name),
+      async apply(_project, object, add, remove) {
+        const { planeProject, workItemId, item } = await locateObject(object)
+        const labels = await listPlaneLabels(planeProject.id)
+        const idOf = (name: string) => labels.find(l => l.name === name)?.id
+        const removeIds = new Set(remove.map(idOf))
+        const next = [...new Set([...(item.labels ?? []), ...add.map(idOf)])].filter((id): id is string => !!id && !removeIds.has(id))
+        await updatePlaneWorkItem(planeProject.id, workItemId, { labels: next })
+      },
     },
 
-    async setStatus(_project, object, status) {
-      const { planeProject, workItemId } = await locateObject(object)
-      const states = await listPlaneStates(planeProject.id)
-      const state = states.find(s => s.name.toLowerCase() === status.trim().toLowerCase())
-      if (!state) {
-        throw new Error(`no state "${status}" in the Plane project. Available: ${states.map(s => s.name).join(', ') || '(none)'}`)
-      }
-      await updatePlaneWorkItem(planeProject.id, workItemId, { state: state.id })
-      return `moved to "${state.name}"`
+    statuses: {
+      async targets(_project, object) {
+        const { planeProject, workItemId } = await locateObject(object)
+        return (await listPlaneStates(planeProject.id)).map(state => ({
+          name: state.name,
+          apply: () => updatePlaneWorkItem(planeProject.id, workItemId, { state: state.id }),
+        }))
+      },
     },
   },
 

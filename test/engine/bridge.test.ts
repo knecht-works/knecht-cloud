@@ -37,6 +37,7 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   updateJiraLabels: async (key: string, add: string[], remove: string[]) => {
     jiraApi.labels.push({ key, add, remove })
   },
+  listJiraLabels: async () => ['backend', 'old'],
   listJiraTransitions: async () => [{ id: '11', to: 'In Progress' }, { id: '21', to: 'In Review' }],
   transitionJiraIssue: async (key: string, id: string) => {
     jiraApi.transitions.push({ key, id })
@@ -142,7 +143,7 @@ describe('agent bridge', () => {
     const { sessionId } = objectSession()
     const unknown = await call(sessionId, { op: 'label', add: ['nope'] })
     expect(unknown.status).toBe(400)
-    expect(unknown.text).toContain('do not exist in the repo')
+    expect(unknown.text).toContain('do not exist and Knecht never creates labels: nope. Existing labels: bug, help wanted')
 
     const empty = await call(sessionId, { op: 'label' })
     expect(empty.status).toBe(400)
@@ -170,12 +171,17 @@ describe('agent bridge on a Jira ticket', () => {
     expect(jiraApi.comments.at(-1)).toMatchObject({ key: 'PROJ-1', body: { type: 'doc' } })
   })
 
-  it('adds and removes labels without a registry check', async () => {
+  it('applies only labels that exist in Jira', async () => {
     const { sessionId } = ticketSession()
-    const res = await call(sessionId, { op: 'label', add: ['anything'], remove: ['old'] })
+    const invented = await call(sessionId, { op: 'label', add: ['anything'] })
+    expect(invented.status).toBe(400)
+    expect(invented.text).toContain('Knecht never creates labels: anything. Existing labels: backend, old')
+    expect(jiraApi.labels).toEqual([])
+
+    const res = await call(sessionId, { op: 'label', add: ['backend'], remove: ['old'] })
     expect(res.status).toBe(200)
-    expect(res.text).toBe('added anything; removed old on ticket PROJ-1\n')
-    expect(jiraApi.labels.at(-1)).toEqual({ key: 'PROJ-1', add: ['anything'], remove: ['old'] })
+    expect(res.text).toBe('added backend; removed old on ticket PROJ-1\n')
+    expect(jiraApi.labels.at(-1)).toEqual({ key: 'PROJ-1', add: ['backend'], remove: ['old'] })
   })
 
   it('moves the ticket through the transition whose target matches the status', async () => {

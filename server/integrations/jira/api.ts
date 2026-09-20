@@ -43,8 +43,22 @@ export async function listJiraProjects(): Promise<JiraProject[]> {
     .map(p => ({ key: p.key!, name: p.name ?? p.key! }))
 }
 
+interface JiraIssueTypeStatuses {
+  name?: string
+  statuses?: { id?: string, name?: string }[]
+}
+
+// Jira answers the statuses of a project grouped by issue type.
+function issueTypeStatuses(projectKey: string): Promise<JiraIssueTypeStatuses[]> {
+  return jiraFetch<JiraIssueTypeStatuses[]>(`/project/${encodeURIComponent(projectKey)}/statuses`)
+}
+
+export async function listJiraIssueTypes(projectKey: string): Promise<string[]> {
+  return (await issueTypeStatuses(projectKey)).map(type => type.name ?? '').filter(Boolean)
+}
+
 export async function listJiraStatuses(projectKey: string): Promise<string[]> {
-  const res = await jiraFetch<{ statuses?: { id?: string, name?: string }[] }[]>(`/project/${encodeURIComponent(projectKey)}/statuses`)
+  const res = await issueTypeStatuses(projectKey)
   const byId = new Map<string, string>()
   for (const type of res) {
     for (const s of type.statuses ?? []) {
@@ -156,6 +170,17 @@ export async function updateJiraLabels(issueKey: string, add: string[], remove: 
     method: 'PUT',
     body: { update: { labels: [...add.map(label => ({ add: label })), ...remove.map(label => ({ remove: label }))] } },
   })
+}
+
+// Jira labels are global to the site, not scoped to a project.
+export async function listJiraLabels(): Promise<string[]> {
+  const labels: string[] = []
+  let page: { values?: string[], isLast?: boolean }
+  do {
+    page = await jiraFetch<{ values?: string[], isLast?: boolean }>(`/label?maxResults=1000&startAt=${labels.length}`)
+    labels.push(...(page.values ?? []))
+  } while (page.values?.length && !page.isLast)
+  return labels
 }
 
 export interface JiraTransition {

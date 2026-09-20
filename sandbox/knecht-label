@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Add or remove labels on the session's ticket, issue or pull request. On
-# GitHub only labels that already exist in the repo can be added (Knecht never
-# invents labels); the Knecht host applies them through the integration
+# Add or remove labels on the session's ticket, issue or pull request. Only
+# labels that already exist in the tool can be used (Knecht never invents
+# labels); the Knecht host applies them through the integration
 # (server/routes/agent-bridge.post.ts). See sandbox/opencode/AGENTS.md.
 set -euo pipefail
 

@@ -74,9 +74,9 @@ thread:
   Use it when the step asks you to answer, ask back, or report on the thread;
   keep replies short and concrete, written for the person who opened it.
 - `knecht-label add <name> ...` / `knecht-label remove <name> ...` applies or
-  removes labels. On GitHub only the repository's EXISTING labels can be
-  added; you cannot create labels there, so if none fits, say so in your
-  reply instead.
+  removes labels. Only labels that already EXIST in the tool can be used; you
+  cannot create labels, and the refusal lists the existing ones. If none fits,
+  say so in your reply instead.
 - `knecht-status "<status name>"` moves the ticket to that status (for
   example `knecht-status "In Review"`); the reply lists the reachable statuses
   if the name does not match. GitHub issues have no statuses: the tool refuses.

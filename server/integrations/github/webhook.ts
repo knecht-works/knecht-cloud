@@ -1,10 +1,11 @@
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../../shared/utils/trigger-form'
-import { matchesAny, passesList, triggerEvent } from '../trigger-config'
+import { labeledEvent, labelFilter, matchesAny, passesList, triggerEvent } from '../trigger-config'
 import type { TriggerMatch } from '../types'
 
-const LABEL_FILTER: TriggerFilterDef = { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'bug, enhancement' }
+const LABEL_FILTER = labelFilter('github')
+const BRANCHES_URL = '/api/integrations/github/options/branches'
 const AUTHOR_FILTERS: TriggerFilterDef[] = [
   { key: 'author', label: 'Author is', summary: 'by {value}', input: 'list', placeholder: 'octocat, renovate[bot]' },
   { key: 'authorNot', label: 'Author is not', summary: 'not by {value}', input: 'list', placeholder: 'renovate[bot], dependabot[bot]' },
@@ -18,11 +19,11 @@ export const githubTriggerForm: TriggerFormDef = [
       { type: 'opened', label: 'Opened', summary: 'opened', default: true },
       { type: 'ready_for_review', label: 'Ready for review', summary: 'ready for review' },
       { type: 'pushed', label: 'New commits pushed', summary: 'pushed', hint: 'Starts a run on every push to the pull request, force pushes included.' },
-      { type: 'labeled', label: 'Label added', summary: 'label "{value}"', value: { input: 'text', placeholder: 'Label name, e.g. knecht' } },
+      labeledEvent('github'),
     ],
     filters: [
-      { key: 'base', label: 'Base branch matches', summary: 'base {value}', input: 'list', placeholder: 'main, releases/*' },
-      { key: 'head', label: 'Head branch matches', summary: 'head {value}', input: 'list', placeholder: 'renovate/*' },
+      { key: 'base', label: 'Base branch matches', summary: 'base {value}', input: 'list', placeholder: 'main, releases/*', optionsUrl: BRANCHES_URL },
+      { key: 'head', label: 'Head branch matches', summary: 'head {value}', input: 'list', placeholder: 'renovate/*', optionsUrl: BRANCHES_URL },
       ...AUTHOR_FILTERS,
       LABEL_FILTER,
       {
@@ -39,7 +40,7 @@ export const githubTriggerForm: TriggerFormDef = [
     label: 'Issues',
     events: [
       { type: 'opened', label: 'Opened', summary: 'opened', default: true },
-      { type: 'labeled', label: 'Label added', summary: 'label "{value}"', value: { input: 'text', placeholder: 'Label name, e.g. knecht' } },
+      labeledEvent('github'),
       { type: 'assigned', label: 'Assigned to', summary: 'assigned to {value}', value: { input: 'text', placeholder: 'octocat' } },
     ],
     filters: [...AUTHOR_FILTERS, LABEL_FILTER],

@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { triggerConfigIssues, type TriggerConfig, type TriggerEventConfig, type TriggerFormDef } from '../../shared/utils/trigger-form'
+import type { IntegrationId } from '../../shared/utils/integrations'
+import { triggerConfigIssues, type TriggerConfig, type TriggerEventConfig, type TriggerEventDef, type TriggerFilterDef, type TriggerFormDef } from '../../shared/utils/trigger-form'
 
 const shape = z.object({
   kind: z.string().min(1),
@@ -11,6 +12,20 @@ export function triggerConfigSchema(form: TriggerFormDef): z.ZodType<Record<stri
   return shape.superRefine((config, ctx) => {
     for (const issue of triggerConfigIssues(form, config)) ctx.addIssue({ code: 'custom', message: issue.message })
   })
+}
+
+// Picked from the tool's existing labels (`trigger.options.labels`): a typo would never fire.
+export function labeledEvent(id: IntegrationId): TriggerEventDef {
+  return {
+    type: 'labeled',
+    label: 'Label added',
+    summary: 'label "{value}"',
+    value: { input: 'select', placeholder: 'Pick a label', optionsUrl: `/api/integrations/${id}/options/labels` },
+  }
+}
+
+export function labelFilter(id: IntegrationId): TriggerFilterDef {
+  return { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'Pick labels or type a pattern like kn*', optionsUrl: `/api/integrations/${id}/options/labels` }
 }
 
 export function triggerEvent(config: TriggerConfig, type: string): TriggerEventConfig | undefined {

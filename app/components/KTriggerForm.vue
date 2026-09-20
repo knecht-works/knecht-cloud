@@ -35,16 +35,33 @@ load(Array.isArray(config.value.on) ? config.value as unknown as TriggerConfig :
 // null: the list could not be loaded, so nothing is known about that project.
 const remoteOptions = ref<Record<string, Record<string, string[] | null>>>({})
 const remoteEvents = computed(() => def.value.events.filter(e => e.value?.optionsUrl && checked.value[e.type]))
+const filterSource = (key: string) => `filter:${key}`
+const remoteSources = computed(() => [
+  ...remoteEvents.value.map(e => ({ id: e.type, url: e.value!.optionsUrl! })),
+  ...rows.value.flatMap((r) => {
+    const url = filterDef(r.key)?.optionsUrl
+    return url ? [{ id: filterSource(r.key), url }] : []
+  }),
+])
 
-watch([() => props.linkKeys, () => remoteEvents.value.map(e => e.type).join()], async ([keys]) => {
-  for (const event of remoteEvents.value) {
+watch([() => props.linkKeys, () => remoteSources.value.map(s => s.id).join()], async ([keys]) => {
+  for (const source of remoteSources.value) {
     const entries = await Promise.all(keys.map(async key =>
-      [key, await $fetch<string[]>(event.value!.optionsUrl!, { query: { project: key } }).catch(() => null)] as const,
+      [key, await $fetch<string[]>(source.url, { query: { project: key } }).catch(() => null)] as const,
     ))
     if (keys !== props.linkKeys) return
-    remoteOptions.value[event.type] = Object.fromEntries(entries)
+    remoteOptions.value[source.id] = Object.fromEntries(entries)
   }
 }, { immediate: true })
+
+const listValues = (text: string) => text.split(',').map(v => v.trim()).filter(Boolean)
+
+// Typed patterns are kept as items, otherwise the menu could not show them as selected.
+function filterSuggestions(row: { key: string, text: string }): string[] {
+  const fixed = (filterDef(row.key)?.options ?? []).map(o => o.value)
+  const remote = Object.values(remoteOptions.value[filterSource(row.key)] ?? {}).flatMap(list => list ?? [])
+  return [...new Set([...fixed, ...remote, ...listValues(row.text)])]
+}
 
 function projectsWith(event: TriggerEventDef, name: string): string[] {
   return props.linkKeys.filter(key => remoteOptions.value[event.type]?.[key]?.includes(name))
@@ -53,6 +70,13 @@ function projectsWith(event: TriggerEventDef, name: string): string[] {
 const heading = 'k-mono text-3xs font-normal uppercase tracking-(--tracking-label) text-dimmed'
 
 function selectItems(event: TriggerEventDef): SelectItem[] {
+  const items = listedItems(event)
+  const value = values.value[event.type]
+  // A typed value, or one the tool no longer lists, has to be an item for the menu to show it.
+  return value && !items.some(i => i.value === value) ? [...items, { label: value, value }] : items
+}
+
+function listedItems(event: TriggerEventDef): SelectItem[] {
   const fixed = event.value?.options ?? []
   if (!event.value?.optionsUrl) return fixed
   const remote = remoteItems(event)
@@ -88,7 +112,7 @@ const missing = computed(() => remoteEvents.value.flatMap((event) => {
 }))
 
 const unusedFilters = computed(() => def.value.filters.filter(f => !rows.value.some(r => r.key === f.key)))
-const newRow = (key: string) => ({ key, text: filterDef(key)?.options?.[0]?.value ?? '' })
+const newRow = (key: string) => ({ key, text: (filterDef(key)?.input === 'select' && filterDef(key)?.options?.[0]?.value) || '' })
 const filterItems = (own: string) => def.value.filters
   .filter(f => f.key === own || unusedFilters.value.includes(f))
   .map(f => ({ label: f.label, value: f.key }))
@@ -99,7 +123,7 @@ const built = computed<TriggerConfig>(() => ({
     .filter(e => checked.value[e.type])
     .map(e => (e.value ? { type: e.type, value: (values.value[e.type] ?? '').trim() } : { type: e.type })),
   filters: Object.fromEntries(rows.value.map(r =>
-    [r.key, filterDef(r.key)?.input === 'select' ? [r.text] : r.text.split(',').map(v => v.trim()).filter(Boolean)])),
+    [r.key, filterDef(r.key)?.input === 'select' ? [r.text] : listValues(r.text)])),
 }))
 const issues = computed(() => triggerConfigIssues(props.form, built.value))
 const shown = computed(() => (props.showIssues ? issues.value : []))
@@ -176,10 +200,11 @@ watch(built, () => {
                 v-model="values[event.type]"
                 value-key="value"
                 :items="selectItems(event)"
-                :disabled="!selectItems(event).length"
-                :placeholder="selectItems(event).length ? event.value.placeholder : 'Pick a project first'"
+                create-item
+                :placeholder="event.value.placeholder"
                 size="sm"
                 class="min-w-0 flex-1"
+                @create="typed => values[event.type] = typed.trim()"
               >
                 <template #item-trailing="{ item }">
                   <span
@@ -252,13 +277,17 @@ watch(built, () => {
             size="sm"
             class="flex-1"
           />
-          <UInput
+          <USelectMenu
             v-else
-            v-model="row.text"
+            :model-value="listValues(row.text)"
+            :items="filterSuggestions(row)"
+            multiple
+            create-item
             :placeholder="filterDef(row.key)?.placeholder"
             size="sm"
-            class="flex-1"
-            :ui="{ base: 'k-mono' }"
+            class="min-w-0 flex-1"
+            @update:model-value="picked => row.text = picked.join(', ')"
+            @create="pattern => row.text = [...listValues(row.text), pattern.trim()].join(', ')"
           />
           <UButton
             icon="i-lucide-x"

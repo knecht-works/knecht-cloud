@@ -3,11 +3,11 @@ import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelChangeSummary } from '../capabilities'
-import { LABEL_FILTER, matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
+import { labelFilter } from '../trigger-config'
+import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
-import { addJiraComment, forgetJiraCache, getJiraComment, jiraMyself, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
+import { addJiraComment, forgetJiraCache, getJiraComment, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
 import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from './credentials'
 
 export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
@@ -16,8 +16,6 @@ const JIRA_TRACKER: TrackerDef = {
   id: 'jira',
   name: 'Jira',
   noun: 'ticket',
-  defaultEvent: 'labeled',
-  labelValue: { input: 'text', placeholder: 'Label name, e.g. knecht', default: 'knecht' },
   status: {
     event: 'status',
     groupPrefix: 'category:',
@@ -27,8 +25,8 @@ const JIRA_TRACKER: TrackerDef = {
     options: 'statuses',
   },
   filters: [
-    { key: 'issueType', label: 'Issue type is', summary: '{value}', input: 'list', placeholder: 'Bug, Task' },
-    LABEL_FILTER,
+    { key: 'issueType', label: 'Issue type is', summary: '{value}', input: 'list', placeholder: 'Pick issue types', optionsUrl: '/api/integrations/jira/options/issueTypes' },
+    labelFilter('jira'),
   ],
 }
 
@@ -106,7 +104,7 @@ export const jira: Integration = {
 
   trigger: {
     form: jiraTriggerForm,
-    options: { statuses: listJiraStatuses },
+    options: { statuses: listJiraStatuses, labels: listJiraLabels, issueTypes: listJiraIssueTypes },
   },
 
   connection: {
@@ -180,19 +178,16 @@ export const jira: Integration = {
   capabilities: {
     comment: (_project, object, body) => addJiraComment(object.key, markdownToAdf(body)),
 
-    async label(_project, object, add, remove) {
-      await updateJiraLabels(object.key, add, remove)
-      return labelChangeSummary(add, remove)
+    labels: {
+      list: listJiraLabels,
+      apply: (_project, object, add, remove) => updateJiraLabels(object.key, add, remove),
     },
 
-    async setStatus(_project, object, status) {
-      const transitions = await listJiraTransitions(object.key)
-      const transition = transitions.find(t => t.to.toLowerCase() === status.trim().toLowerCase())
-      if (!transition) {
-        throw new Error(`no transition to "${status}" from the current status. Reachable: ${transitions.map(t => t.to).join(', ') || '(none)'}`)
-      }
-      await transitionJiraIssue(object.key, transition.id)
-      return `moved to "${transition.to}"`
+    statuses: {
+      targets: async (_project, object) => (await listJiraTransitions(object.key)).map(t => ({
+        name: t.to,
+        apply: () => transitionJiraIssue(object.key, t.id),
+      })),
     },
   },
 

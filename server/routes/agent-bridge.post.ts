@@ -8,6 +8,7 @@ import type { Session } from '../db/schema'
 import { currentBranch, pushBranch } from '../daemon/git'
 import { appendLog } from '../daemon/runner'
 import { getIntegration, type Integration } from '../integrations'
+import { applyLabels, moveToStatus } from '../integrations/capabilities'
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { getProject, getSessionRow, getWorkflowRow } from '../utils/entities'
 import { createPullRequest, getInstallationToken } from '../utils/github-app'
@@ -117,21 +118,14 @@ export default defineEventHandler(async (event) => {
       case 'label': {
         const { integration, object, label } = requireObject(session)
         requireRepliesEnabled(sessionId)
-        const add = body.add ?? []
-        const remove = body.remove ?? []
-        if (!add.length && !remove.length) throw new BridgeError('nothing to do: pass labels to add or remove')
-        const apply = integration.capabilities.label
-        if (!apply) throw new BridgeError(`labels are not supported for ${label}`)
-        const did = await viaIntegration(() => apply(project, object, add, remove))
+        const did = await viaIntegration(() => applyLabels(integration, project, object, body.add ?? [], body.remove ?? []))
         log(`\nagent-label: ${did} on ${label}\n`)
         return reply(event, 200, `${did} on ${label}`)
       }
       case 'status': {
         const { integration, object, label } = requireObject(session)
         requireRepliesEnabled(sessionId)
-        const setStatus = integration.capabilities.setStatus
-        if (!setStatus) throw new BridgeError(`setting a status is not supported for ${label}`)
-        const did = await viaIntegration(() => setStatus(project, object, body.status))
+        const did = await viaIntegration(() => moveToStatus(integration, project, object, body.status))
         log(`\nagent-status: ${did} on ${label}\n`)
         return reply(event, 200, `${did} on ${label}`)
       }

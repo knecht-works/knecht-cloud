@@ -26,7 +26,9 @@ export interface TriggerFilterDef {
   summary: string
   input: 'list' | 'select'
   placeholder?: string
+  // The choices of a select. On a list they and `optionsUrl` are suggestions: patterns like `kn*` can still be typed.
   options?: { label: string, value: string, summary?: string }[]
+  optionsUrl?: string
 }
 
 export interface TriggerKindDef {
