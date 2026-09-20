@@ -5,6 +5,7 @@ import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
 import { isMember } from '../../utils/members'
 import { verifySha256Signature } from '../../utils/signature'
+import { labelChangeSummary } from '../capabilities'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { githubObject, githubTriggerForm, matchGithubEvent, type GithubPayload } from './webhook'
@@ -117,7 +118,7 @@ export const github: Integration = {
       for (const label of remove) {
         await removeIssueLabel(project.owner, project.name, Number(object.key), label)
       }
-      return [add.length ? `added ${add.join(', ')}` : '', remove.length ? `removed ${remove.join(', ')}` : ''].filter(Boolean).join('; ')
+      return labelChangeSummary(add, remove)
     },
   },
 }

@@ -1,4 +1,4 @@
-import type { Project, Run, Session, Trigger } from '../db/schema'
+import type { Project, Trigger } from '../db/schema'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import type { TriggerFormDef } from '../../shared/utils/trigger-form'
 import type { TriggerInputs } from '../utils/inputs'
@@ -91,5 +91,7 @@ export interface Integration {
     setStatus?(project: Project, object: SessionObject, status: string): Promise<string>
   }
 
-  onRunFinished?(project: Project, session: Session, run: Run, status: 'success' | 'failed'): Promise<void>
+  // For integrations whose objects do not show the pull request themselves: the run's
+  // result is commented on the object, worded "for this <noun>".
+  runResult?: { noun: string }
 }
