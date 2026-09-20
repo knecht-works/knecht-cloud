@@ -56,8 +56,9 @@ export interface Integration {
 
   trigger: {
     form: TriggerFormDef
-    // Remote option lists of the form, by name: `/api/integrations/<id>/options/<name>?project=<link key>`.
-    options?: Record<string, (linkKey: string) => Promise<string[]>>
+    // Remote option lists of the form, by name: `/api/integrations/<id>/options/<name>?project=<key>`.
+    // The key is the project's link key, or the repository's full name where projects are not linked.
+    options?: Record<string, (projectKey: string) => Promise<string[]>>
   }
 
   // Integrations an admin connects with credentials on the settings page. Their
@@ -98,8 +99,15 @@ export interface Integration {
 
   capabilities: {
     comment(project: Project, object: SessionObject, body: string): Promise<{ url?: string }>
-    label?(project: Project, object: SessionObject, add: string[], remove: string[]): Promise<string>
-    setStatus?(project: Project, object: SessionObject, status: string): Promise<string>
+    labels?: {
+      // Knecht never creates labels: only names on this list are applied.
+      list(project: Project, object: SessionObject): Promise<string[]>
+      apply(project: Project, object: SessionObject, add: string[], remove: string[]): Promise<void>
+    }
+    statuses?: {
+      // What the object can move to right now, each with the call that moves it there.
+      targets(project: Project, object: SessionObject): Promise<{ name: string, apply(): Promise<void> }[]>
+    }
   }
 
   // For integrations whose objects do not show the pull request themselves: the run's

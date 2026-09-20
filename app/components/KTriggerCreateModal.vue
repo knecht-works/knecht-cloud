@@ -40,7 +40,8 @@ const attempted = ref(false)
 
 const integration = computed(() => integrations.value.find(i => i.id === source.value) ?? null)
 const linked = computed(() => !!integration.value?.link)
-const linkKeyOf = (p: { links: Partial<Record<string, string>> }) => (integration.value ? p.links[integration.value.id] : undefined) ?? null
+// What the integration's option lists are keyed by: the link key, or the repository where projects are not linked.
+const linkKeyOf = (p: { fullName: string, links: Partial<Record<string, string>> }) => (linked.value ? p.links[integration.value!.id] : p.fullName) ?? null
 
 // A linked integration's trigger only takes projects that are linked.
 const projectItems = computed(() =>

@@ -1,11 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { addCommentReaction, addIssueLabels, createIssueComment, getIssueContext, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
+import { addCommentReaction, addIssueLabels, createIssueComment, getIssueContext, listRepoBranches, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
 import { isMember } from '../../utils/members'
 import { verifySha256Signature } from '../../utils/signature'
-import { labelChangeSummary } from '../capabilities'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { githubObject, githubTriggerForm, matchGithubEvent, type GithubPayload } from './webhook'
@@ -18,6 +17,8 @@ function appSlug(): string | null {
   cachedSlug = db.select({ slug: schema.githubApp.slug }).from(schema.githubApp).where(eq(schema.githubApp.id, 1)).get()?.slug ?? null
   return cachedSlug
 }
+
+const repoOf = (fullName: string) => fullName.split('/') as [string, string]
 
 function mentionsKnecht(body: string): boolean {
   const handles = [MENTION_HANDLE, appSlug()].filter((h): h is string => !!h)
@@ -48,7 +49,13 @@ export const github: Integration = {
 
   isConfigured: () => !!githubAppCredentials()?.webhookSecret,
 
-  trigger: { form: githubTriggerForm },
+  trigger: {
+    form: githubTriggerForm,
+    options: {
+      labels: fullName => listRepoLabels(...repoOf(fullName)),
+      branches: fullName => listRepoBranches(...repoOf(fullName)),
+    },
+  },
 
   webhook: {
     verify(raw, header) {
@@ -104,21 +111,14 @@ export const github: Integration = {
   capabilities: {
     comment: (project, object, body) => createIssueComment(project.owner, project.name, Number(object.key), body),
 
-    async label(project, object, add, remove) {
-      if (add.length) {
-        // Only labels that already exist in the repo may be applied: Knecht
-        // never invents labels.
-        const existing = new Set(await listRepoLabels(project.owner, project.name))
-        const unknown = add.filter(l => !existing.has(l))
-        if (unknown.length) {
-          throw new Error(`these labels do not exist in the repo and Knecht never creates labels: ${unknown.join(', ')}. Existing labels: ${[...existing].join(', ') || '(none)'}`)
+    labels: {
+      list: project => listRepoLabels(project.owner, project.name),
+      async apply(project, object, add, remove) {
+        if (add.length) await addIssueLabels(project.owner, project.name, Number(object.key), add)
+        for (const label of remove) {
+          await removeIssueLabel(project.owner, project.name, Number(object.key), label)
         }
-        await addIssueLabels(project.owner, project.name, Number(object.key), add)
-      }
-      for (const label of remove) {
-        await removeIssueLabel(project.owner, project.name, Number(object.key), label)
-      }
-      return labelChangeSummary(add, remove)
+      },
     },
   },
 }

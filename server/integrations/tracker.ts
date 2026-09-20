@@ -2,8 +2,8 @@ import { emptyInputs, type TriggerInputs } from '../utils/inputs'
 import { formatObjectContext, type ObjectContext } from '../utils/object-context'
 import type { SessionObject } from '../utils/sessions'
 import type { IntegrationId } from '../../shared/utils/integrations'
-import type { TriggerConfig, TriggerFilterDef, TriggerFormDef, TriggerValueInput } from '../../shared/utils/trigger-form'
-import { matchesAny, passesList, triggerEvent } from './trigger-config'
+import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../shared/utils/trigger-form'
+import { labeledEvent, matchesAny, passesList, triggerEvent } from './trigger-config'
 import type { CommentAuthor, TriggerMatch, WebhookComment, WebhookDelivery } from './types'
 
 // Issue trackers share one set of rules: when a trigger fires, what a run gets as
@@ -14,8 +14,6 @@ export interface TrackerDef {
   id: IntegrationId
   name: string
   noun: string
-  defaultEvent: 'assigned' | 'labeled'
-  labelValue: TriggerValueInput
   status: {
     // Stored in trigger configs, so each tracker keeps its own word and prefix.
     event: string
@@ -47,11 +45,9 @@ export interface TrackerChange {
   gainedSelf: boolean
   // Set when this update changed the status; the group is null when the tracker does not tell.
   previousStatus?: { group: string | null }
-  // Values for the filters besides `label`, matched case-insensitively.
+  // Values for the filters besides `labelFilter`, matched case-insensitively.
   filterValues: Record<string, string[]>
 }
-
-export const LABEL_FILTER: TriggerFilterDef = { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'backend' }
 
 const capitalize = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
 
@@ -67,16 +63,10 @@ export function trackerTriggerForm(def: TrackerDef): TriggerFormDef {
           type: 'assigned',
           label: 'Assigned to Knecht',
           summary: 'assigned to Knecht',
-          ...(def.defaultEvent === 'assigned' ? { default: true } : {}),
+          default: true,
           hint: `Fires when a ${def.noun} is assigned to the account the ${def.name} connection uses, so "give it to Knecht" is a normal assignment in ${def.name}.`,
         },
-        {
-          type: 'labeled',
-          label: 'Label added',
-          summary: 'label "{value}"',
-          ...(def.defaultEvent === 'labeled' ? { default: true } : {}),
-          value: def.labelValue,
-        },
+        labeledEvent(def.id),
         {
           type: status.event,
           label: `${capitalize(status.event)} reached`,
