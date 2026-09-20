@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
-import type { jiraConnection } from '../db/schema'
+import type { jiraConnection, planeConnection } from '../db/schema'
 import type { DeliveryRecord } from './types'
 
 // Every connection table of an integration without a delivery log carries the same four last_* columns.
-type ConnectionTable = typeof jiraConnection
+type ConnectionTable = typeof jiraConnection | typeof planeConnection
 
 export interface DeliveryStatus {
   lastDelivery: { at: number, summary: string } | null

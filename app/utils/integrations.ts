@@ -36,6 +36,15 @@ export const INTEGRATION_UI: Record<IntegrationId, IntegrationUi> = {
       issue: { icon: 'i-simple-icons-jira', label: 'Ticket', color: 'var(--brand-jira)', prefix: '' },
     },
   },
+  plane: {
+    label: 'Plane',
+    icon: 'i-simple-icons-plane',
+    color: 'var(--brand-plane)',
+    mentionHint: { text: 'mention the Knecht account on a work item of the linked project.' },
+    objects: {
+      issue: { icon: 'i-simple-icons-plane', label: 'Work item', color: 'var(--brand-plane)', prefix: '' },
+    },
+  },
 }
 
 export function integrationUi(id: IntegrationId): IntegrationUi {
