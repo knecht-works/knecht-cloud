@@ -41,7 +41,7 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   transitionJiraIssue: async (key: string, id: string) => {
     jiraApi.transitions.push({ key, id })
   },
-  getJiraIssueContext: async (key: string) => `# ${key}: Login broken\n\nStatus: To Do`,
+  getJiraIssueFields: async () => ({ summary: 'Login broken', status: { name: 'To Do' } }),
 }))
 
 const { db, schema } = await import('../../server/db')
@@ -159,7 +159,7 @@ describe('agent bridge on a Jira ticket', () => {
     const { sessionId } = ticketSession()
     const res = await call(sessionId, { op: 'context' })
     expect(res.status).toBe(200)
-    expect(res.text).toBe('# PROJ-1: Login broken\n\nStatus: To Do\n')
+    expect(res.text).toBe('# PROJ-1: Login broken\n/browse/PROJ-1\nStatus: To Do\n\n(no description)\n')
   })
 
   it('posts the comment as ADF', async () => {

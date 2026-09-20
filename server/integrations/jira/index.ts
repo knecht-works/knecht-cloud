@@ -1,54 +1,37 @@
-import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import { tryParseJson } from '../../utils/json'
 import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
-import type { TriggerConfig, TriggerFormDef } from '../../../shared/utils/trigger-form'
-import { matchesAny, passesList, triggerEvent } from '../trigger-config'
+import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelChangeSummary } from '../capabilities'
-import type { Integration, TriggerMatch, WebhookComment, WebhookDelivery } from '../types'
-import { adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from './adf'
-import { addJiraComment, getJiraComment, getJiraIssueContext, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels } from './api'
+import { LABEL_FILTER, matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
+import type { Integration, WebhookComment, WebhookDelivery } from '../types'
+import { adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
+import { addJiraComment, getJiraComment, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
 import { jiraCredentials, recordJiraDelivery } from './credentials'
 
 export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
 
-// A status event names either an exact status or, with this prefix, a whole category.
-const CATEGORY_PREFIX = 'category:'
-
-export const jiraTriggerForm: TriggerFormDef = [
-  {
-    kind: 'issue',
-    label: 'Ticket',
-    events: [
-      { type: 'created', label: 'Created', summary: 'ticket created' },
-      { type: 'assigned', label: 'Assigned to Knecht', summary: 'assigned to Knecht', hint: 'Fires when a ticket is assigned to the account the Jira connection uses, so "give it to Knecht" is a normal assignment in Jira.' },
-      { type: 'labeled', label: 'Label added', summary: 'label "{value}"', default: true, value: { input: 'text', placeholder: 'Label name, e.g. knecht', default: 'knecht' } },
-      {
-        type: 'status',
-        label: 'Status reached',
-        summary: 'status "{value}"',
-        value: {
-          input: 'select',
-          default: `${CATEGORY_PREFIX}done`,
-          optionsHeading: 'Category',
-          options: Object.entries(JIRA_STATUS_CATEGORIES).map(([key, label]) => ({ label: `Any ${label}`, value: `${CATEGORY_PREFIX}${key}`, summary: `any "${label}" status` })),
-          optionsUrl: '/api/jira/statuses',
-          remoteHeading: 'Exact status',
-        },
-      },
-    ],
-    filters: [
-      { key: 'issueType', label: 'Issue type is', summary: '{value}', input: 'list', placeholder: 'Bug, Task' },
-      { key: 'label', label: 'Has label', summary: 'with label {value}', input: 'list', placeholder: 'backend' },
-    ],
+const JIRA_TRACKER: TrackerDef = {
+  name: 'Jira',
+  noun: 'ticket',
+  defaultEvent: 'labeled',
+  labelValue: { input: 'text', placeholder: 'Label name, e.g. knecht', default: 'knecht' },
+  status: {
+    event: 'status',
+    groupPrefix: 'category:',
+    groupHeading: 'Category',
+    groups: JIRA_STATUS_CATEGORIES,
+    closedGroups: ['done'],
+    optionsUrl: '/api/jira/statuses',
   },
-]
-
-interface JiraUser {
-  accountId?: string
-  displayName?: string
+  filters: [
+    { key: 'issueType', label: 'Issue type is', summary: '{value}', input: 'list', placeholder: 'Bug, Task' },
+    LABEL_FILTER,
+  ],
 }
+
+export const jiraTriggerForm = trackerTriggerForm(JIRA_TRACKER)
 
 interface JiraChange {
   field?: string
@@ -60,53 +43,21 @@ interface JiraChange {
 
 export interface JiraPayload {
   webhookEvent?: string
-  issue?: {
-    key?: string
-    fields?: {
-      summary?: string
-      description?: AdfNode | null
-      status?: { name?: string, statusCategory?: { key?: string } }
-      assignee?: JiraUser | null
-      reporter?: JiraUser | null
-      labels?: string[]
-      issuetype?: { name?: string }
-      project?: { key?: string }
-    }
-  }
+  issue?: { key?: string, fields?: JiraIssueFields }
   changelog?: { items?: JiraChange[] }
   comment?: { id?: string | number }
 }
 
-export function jiraObject(payload: JiraPayload): SessionObject | null {
-  const key = payload.issue?.key
-  if (!key) return null
+function jiraIssue(key: string, fields: JiraIssueFields): TrackerIssue {
   return {
-    integration: 'jira',
-    kind: 'issue',
-    key,
-    url: jiraIssueUrl(key),
-    title: payload.issue?.fields?.summary,
-  }
-}
-
-function issueInputs(payload: JiraPayload): TriggerInputs {
-  const fields = payload.issue?.fields ?? {}
-  const key = payload.issue?.key ?? ''
-  return {
-    ...emptyInputs('issue'),
-    identifier: key,
-    title: fields.summary ?? '',
+    object: { integration: 'jira', kind: 'issue', key, url: jiraIssueUrl(key), title: fields.summary },
     body: adfToMarkdown(fields.description),
-    url: key ? jiraIssueUrl(key) : '',
-    status: fields.status?.name ?? '',
-    assignee: fields.assignee?.displayName ?? '',
-    labels: (fields.labels ?? []).join(', '),
+    status: { name: fields.status?.name ?? '', group: fields.status?.statusCategory?.key ?? '' },
     author: fields.reporter?.displayName ?? '',
+    assignees: fields.assignee?.displayName ? [fields.assignee.displayName] : [],
+    labels: fields.labels ?? [],
+    facts: [['Type', fields.issuetype?.name ?? '']],
   }
-}
-
-function change(payload: JiraPayload, field: string): JiraChange | undefined {
-  return payload.changelog?.items?.find(item => item.field === field)
 }
 
 // Jira lists labels space-separated in the changelog; labels never contain spaces.
@@ -114,76 +65,36 @@ function labelsOf(value: string | null | undefined): Set<string> {
   return new Set((value ?? '').split(/\s+/).filter(Boolean))
 }
 
-// A status change stays inside its category (In Progress to In Review) more often than
-// it crosses one; only the crossing counts. The changelog carries status ids, not categories.
-async function enteredCategory(category: string, payload: JiraPayload): Promise<boolean> {
-  const status = change(payload, 'status')
-  if (!status || payload.issue?.fields?.status?.statusCategory?.key !== category) return false
-  const from = status.from ? await getJiraStatusCategory(status.from) : null
-  return from !== category
-}
-
-function statusTarget(c: TriggerConfig): { category?: string, status?: string } {
-  const value = triggerEvent(c, 'status')?.value
-  if (!value) return {}
-  return value.startsWith(CATEGORY_PREFIX) ? { category: value.slice(CATEGORY_PREFIX.length) } : { status: value }
-}
-
-// A ticket born with the label, in the status or assigned to Knecht has no changelog to gain them in.
-function createdFires(c: TriggerConfig, payload: JiraPayload, accountId: string | null | undefined): boolean {
-  const fields = payload.issue?.fields
-  const label = triggerEvent(c, 'labeled')?.value
-  const { category, status } = statusTarget(c)
-  return !!triggerEvent(c, 'created')
-    || (!!label && (fields?.labels ?? []).includes(label))
-    || (!!category && fields?.status?.statusCategory?.key === category)
-    || (!!status && fields?.status?.name === status)
-    || (!!triggerEvent(c, 'assigned') && !!accountId && fields?.assignee?.accountId === accountId)
-}
-
-async function updatedFires(c: TriggerConfig, payload: JiraPayload, accountId: string | null | undefined): Promise<boolean> {
-  const label = triggerEvent(c, 'labeled')?.value
-  const labels = change(payload, 'labels')
-  if (label && labels && labelsOf(labels.toString).has(label) && !labelsOf(labels.fromString).has(label)) return true
-
-  const { category, status } = statusTarget(c)
-  if (status && change(payload, 'status')?.toString === status) return true
-
-  if (triggerEvent(c, 'assigned') && !!accountId && change(payload, 'assignee')?.to === accountId) return true
-
-  return !!category && await enteredCategory(category, payload)
-}
-
-export async function matchJiraEvent(c: TriggerConfig, payload: JiraPayload): Promise<TriggerMatch | null> {
-  const name = payload.webhookEvent ?? ''
-  const object = jiraObject(payload)
-  if (!object) return null
-  const fields = payload.issue?.fields
-  if (!passesList(c, 'issueType', types => matchesAny(types, [fields?.issuetype?.name ?? '']))) return null
-  if (!passesList(c, 'label', wanted => matchesAny(wanted, fields?.labels ?? []))) return null
-
+async function jiraChange(payload: JiraPayload, issue: TrackerIssue): Promise<TrackerChange> {
+  const fields = payload.issue?.fields ?? {}
+  const item = (field: string) => payload.changelog?.items?.find(i => i.field === field)
   const accountId = jiraCredentials()?.accountId
-  const matched = name === 'jira:issue_created'
-    ? createdFires(c, payload, accountId)
-    : name === 'jira:issue_updated' && await updatedFires(c, payload, accountId)
-  if (!matched) return null
-  return { branch: null, inputs: issueInputs(payload), object }
+  const status = item('status')
+  const before = labelsOf(item('labels')?.fromString)
+  return {
+    created: payload.webhookEvent === 'jira:issue_created',
+    issue: status?.toString ? { ...issue, status: { ...issue.status, name: status.toString } } : issue,
+    gainedLabels: [...labelsOf(item('labels')?.toString)].filter(label => !before.has(label)),
+    assignedToSelf: !!accountId && fields.assignee?.accountId === accountId,
+    gainedSelf: !!accountId && item('assignee')?.to === accountId,
+    // The changelog carries status ids, not categories.
+    ...(status ? { previousStatus: { group: status.from ? await getJiraStatusCategory(status.from) : null } } : {}),
+    filterValues: { issueType: [fields.issuetype?.name ?? ''] },
+  }
 }
 
 async function parseComment(object: SessionObject, payload: JiraPayload): Promise<WebhookComment | undefined> {
   const id = payload.comment?.id
   if (id === undefined || id === null) return undefined
   const comment = await getJiraComment(object.key, String(id))
-  const body = adfToMarkdown(comment.body)
-  const accountId = jiraCredentials()?.accountId ?? ''
-  return {
+  return trackerComment({
     id: comment.id,
     author: { id: comment.author.accountId, name: comment.author.displayName },
-    body,
-    fromSelf: !!accountId && comment.author.accountId === accountId,
-    mentionsKnecht: (!!accountId && adfMentionIds(comment.body).includes(accountId)) || /@knecht\b/i.test(body),
+    body: adfToMarkdown(comment.body),
     object,
-  }
+    selfId: jiraCredentials()?.accountId,
+    mentionedIds: adfMentionIds(comment.body),
+  })
 }
 
 export const jira: Integration = {
@@ -207,11 +118,13 @@ export const jira: Integration = {
 
     async parse(raw, _header) {
       const payload = (tryParseJson(raw) ?? {}) as JiraPayload
+      const key = payload.issue?.key
       const projectKey = payload.issue?.fields?.project?.key
       const project = projectKey ? linkedProject('jira', projectKey) : undefined
-      const object = jiraObject(payload)
-      if (!project || !object) return null
+      if (!project || !key) return null
 
+      const issue = jiraIssue(key, payload.issue?.fields ?? {})
+      const { object } = issue
       const name = payload.webhookEvent ?? ''
       const delivery: WebhookDelivery = { project, summary: `${name} ${object.key}` }
       if (name === 'comment_created') {
@@ -221,17 +134,17 @@ export const jira: Integration = {
       if (name === 'jira:issue_deleted') {
         delivery.statusChange = { object, status: 'closed' }
       }
-      else if (name === 'jira:issue_updated' && change(payload, 'status')) {
-        const done = payload.issue?.fields?.status?.statusCategory?.key === 'done'
-        delivery.statusChange = { object, status: done ? 'closed' : 'open' }
+      else if (name === 'jira:issue_created' || name === 'jira:issue_updated') {
+        const change = await jiraChange(payload, issue)
+        delivery.statusChange = trackerStatusChange(JIRA_TRACKER, change)
+        delivery.event = { name, payload: change }
       }
-      delivery.event = { name, payload }
       return delivery
     },
 
     match(trigger, delivery) {
       if (!delivery.event) return null
-      return matchJiraEvent(trigger.config as unknown as TriggerConfig, delivery.event.payload as JiraPayload)
+      return matchTrackerEvent(JIRA_TRACKER, trigger.config as unknown as TriggerConfig, delivery.event.payload as TrackerChange)
     },
 
     record: recordJiraDelivery,
@@ -240,7 +153,14 @@ export const jira: Integration = {
   objects: {
     kinds: ['issue'],
     describe: object => `ticket ${object.key}`,
-    context: (_project, object) => getJiraIssueContext(object.key),
+    async context(_project, object) {
+      const fields = await getJiraIssueFields(object.key)
+      return trackerContext(jiraIssue(object.key, fields), (fields.comment?.comments ?? []).map(c => ({
+        author: c.author?.displayName ?? 'unknown',
+        at: new Date(c.created ?? 0),
+        body: adfToMarkdown(c.body),
+      })))
+    },
   },
 
   mentions: {
