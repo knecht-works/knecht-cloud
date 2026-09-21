@@ -16,6 +16,7 @@ web_environment:
   - PRIMARY_SITE_URL=http://7.preview.knecht.test
   - X=1
   - KNECHT_PREVIEW_URL=http://7.preview.knecht.test
+  - KNECHT_INTERNAL_URL=http://localhost
   - KNECHT_URL_ALPHA=http://alpha--7.preview.knecht.test
   - DDEV_PRIMARY_URL=http://7.preview.knecht.test
   - DDEV_PRIMARY_URL_WITHOUT_PORT=http://7.preview.knecht.test
@@ -171,6 +172,7 @@ web_extra_daemons:
     directory: /var/www/html
 web_environment:
   - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
+  - KNECHT_INTERNAL_URL=http://localhost:3000
   - KNECHT_DEV_SERVER_URL=http://42.preview.knecht.test
   - DDEV_PRIMARY_URL=http://42.preview.knecht.test
   - DDEV_PRIMARY_URL_WITHOUT_PORT=http://42.preview.knecht.test
