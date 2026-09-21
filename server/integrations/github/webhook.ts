@@ -94,8 +94,8 @@ const sameLogin = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 function subjectPasses(c: TriggerConfig, subject: GithubSubject | undefined): boolean {
   const author = subject?.user?.login ?? ''
   const labels = (subject?.labels ?? []).map(l => l.name ?? '')
-  return passesList(c, 'author', allowed => matchesAny(allowed, [author], 'i'))
-    && passesList(c, 'authorNot', denied => !matchesAny(denied, [author], 'i'))
+  return passesList(c, 'author', allowed => matchesAny(allowed, [author]))
+    && passesList(c, 'authorNot', denied => !matchesAny(denied, [author]))
     && passesList(c, 'label', wanted => matchesAny(wanted, labels))
 }
 

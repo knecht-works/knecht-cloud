@@ -80,11 +80,11 @@ describe('matchGithubEvent events and filters', () => {
 
   it('filters on author and labels, every filter has to hold', () => {
     const bots = ['renovate[bot]', 'dependabot[bot]']
-    expect(fires(trigger({ filters: { authorNot: bots } }), pr('opened', { user: { login: 'Renovate[bot]' } }))).toBe(false)
+    expect(fires(trigger({ filters: { authorNot: bots } }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
     expect(fires(trigger({ filters: { authorNot: bots } }), pr('opened'))).toBe(true)
     expect(fires(trigger({ filters: { author: bots } }), pr('opened'))).toBe(false)
     expect(fires(trigger({ filters: { authorNot: ['*[bot]'] } }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
-    expect(fires(trigger({ filters: { author: ['*[bot]'] } }), pr('opened', { user: { login: 'Renovate[bot]' } }))).toBe(true)
+    expect(fires(trigger({ filters: { author: ['*[bot]'] } }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(true)
     expect(fires(trigger({ filters: { label: ['bug', 'ui'] } }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(true)
     expect(fires(trigger({ filters: { label: ['area/*'] } }), pr('opened', { labels: [{ name: 'area/ui' }] }))).toBe(true)
     expect(fires(trigger({ filters: { label: ['bug'], base: ['main'] } }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(false)

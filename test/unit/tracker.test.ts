@@ -79,7 +79,7 @@ describe('matchTrackerEvent', () => {
 
   it('holds back what the label and the extra filters exclude', () => {
     const created = (filters: TriggerConfig['filters']) => config([{ type: 'created' }], filters)
-    const born = change({ created: true, filterValues: { priority: ['High'] } })
+    const born = change({ created: true, filterValues: { priority: ['high'] } })
     expect(fires(created({ label: ['b*'] }), born)).toBe(true)
     expect(fires(created({ label: ['Bug'] }), born)).toBe(false)
     expect(fires(created({ priority: ['urgent', 'high'] }), born)).toBe(true)

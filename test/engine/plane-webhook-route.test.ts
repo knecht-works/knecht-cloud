@@ -248,8 +248,9 @@ describe('plane webhook route, vendor specifics', () => {
     await deliver(created(project, { label_ids: ['l-bug'], priority: 'high' }))
     await deliver(created(project, { priority: 'low' }))
     await deliver(created(project))
-    expect(runsOf(trigger.id)).toHaveLength(0)
     await deliver(created(project, { priority: 'High' }))
+    expect(runsOf(trigger.id)).toHaveLength(0)
+    await deliver(created(project, { priority: 'high' }))
     expect(runsOf(trigger.id)).toHaveLength(1)
   })
 

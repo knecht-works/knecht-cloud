@@ -42,7 +42,7 @@ export function passesList(config: TriggerConfig, key: string, test: (allowed: s
   return !allowed || test(allowed)
 }
 
-export function matchesAny(patterns: string[], values: string[], flags = ''): boolean {
-  const regexes = patterns.map(pattern => new RegExp(`^${pattern.split('*').map(RegExp.escape).join('.*')}$`, flags))
+export function matchesAny(patterns: string[], values: string[]): boolean {
+  const regexes = patterns.map(pattern => new RegExp(`^${pattern.split('*').map(RegExp.escape).join('.*')}$`))
   return regexes.some(regex => values.some(value => regex.test(value)))
 }
