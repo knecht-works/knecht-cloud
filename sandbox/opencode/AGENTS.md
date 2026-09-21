@@ -13,6 +13,10 @@ may add its own on top of them.
   `ddev npm`, `ddev craft`, `ddev artisan`, `ddev drush`, and the project's own
   commands from `.ddev/commands/web`. `ddev describe` shows the preview URLs and
   the database. Starting, stopping and importing databases are handled by Knecht.
+- To look at the running site yourself (curl, a headless browser, a link
+  check), request `$KNECHT_INTERNAL_URL`, the site as served inside this
+  container. `KNECHT_PREVIEW_URL` is the address for people: it needs a
+  dashboard login and is not reachable from here, so never fetch it.
 
 ## Project memory
 

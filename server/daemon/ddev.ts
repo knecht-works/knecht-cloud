@@ -130,7 +130,7 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
     ? envUrlTranslator(env.hosts.value, sessionId)
     : (v: string) => v
   const hasPreview = env.source === 'ddev' || devServer !== null
-  const session = hasPreview ? sessionEnv(sessionId, env.hosts.value, devServer !== null) : {}
+  const session = hasPreview ? sessionEnv(sessionId, env.hosts.value, devServer?.port ?? null) : {}
   Object.assign(session, ddevUrlEnv(env.hosts.value, session.KNECHT_PREVIEW_URL, translate), { XDEBUG_MODE: 'off' })
   const known = new Map(Object.entries(session))
   const environment: string[] = []
