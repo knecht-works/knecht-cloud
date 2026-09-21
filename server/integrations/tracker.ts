@@ -45,7 +45,7 @@ export interface TrackerChange {
   gainedSelf: boolean
   // Set when this update changed the status; the group is null when the tracker does not tell.
   previousStatus?: { group: string | null }
-  // Values for the filters besides `labelFilter`, matched case-insensitively.
+  // Values for the filters besides `labelFilter`.
   filterValues: Record<string, string[]>
 }
 
@@ -90,7 +90,7 @@ export function matchTrackerEvent(def: TrackerDef, c: TriggerConfig, change: Tra
   const { issue } = change
   if (!passesList(c, 'label', wanted => matchesAny(wanted, issue.labels))) return null
   for (const [key, values] of Object.entries(change.filterValues)) {
-    if (!passesList(c, key, wanted => matchesAny(wanted, values, 'i'))) return null
+    if (!passesList(c, key, wanted => matchesAny(wanted, values))) return null
   }
 
   const label = triggerEvent(c, 'labeled')?.value
