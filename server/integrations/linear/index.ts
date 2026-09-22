@@ -2,7 +2,7 @@ import { tryParseJson } from '../../utils/json'
 import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelFilter, priorityFilter } from '../trigger-config'
+import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookDelivery } from '../types'
 import { addLinearComment, forgetLinearCache, getLinearComment, getLinearIssue, linearMyself, listLinearComments, listLinearLabels, listLinearStates, listLinearTeams, updateLinearIssue, type LinearIssue, type LinearState } from './api'
@@ -42,6 +42,7 @@ export interface LinearRecord {
   stateId?: string
   assigneeId?: string | null
   labelIds?: string[]
+  updatedAt?: string
   archivedAt?: string | null
   trashed?: boolean | null
 }
@@ -82,6 +83,7 @@ function linearChange(payload: LinearPayload, fetched: LinearIssue, states: Line
     gainedSelf: assignedToSelf && 'assigneeId' in previous,
     ...(previous.stateId ? { previousStatus: { group: states.find(s => s.id === previous.stateId)?.type ?? null } } : {}),
     filterValues: { priority: [LINEAR_PRIORITIES[fetched.priority ?? 0] ?? 'none'] },
+    version: objectVersion(payload.data?.updatedAt),
   }
 }
 

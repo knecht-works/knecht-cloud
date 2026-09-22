@@ -57,3 +57,33 @@ describe('fireTrigger publish/enabled gate', () => {
     expect(runs[0]).toMatchObject({ workflow: wf.name, workflowId: wf.id, triggerId: trigger.id })
   })
 })
+
+describe('fireTrigger object version', () => {
+  const object = { integration: 'github' as const, kind: 'issue' as const, key: '7' }
+
+  it('runs once per version of an object, and again on a new version', () => {
+    const project = makeProject()
+    const wf = makeWorkflow({ publishedAt: new Date() })
+    const trigger = makeTrigger(wf.id, [project.id])
+
+    expect(fireTrigger(trigger, { object, version: '100' })).toHaveLength(1)
+    expect(fireTrigger(trigger, { object, version: '100' })).toEqual([])
+    const after = db.select().from(schema.triggers).where(eq(schema.triggers.id, trigger.id)).get()!
+    expect(after.firedCount).toBe(1)
+    expect(fireTrigger(trigger, { object, version: '101' })).toHaveLength(1)
+    expect(runsOf(wf.id).map(r => r.objectVersion)).toEqual(['100', '101'])
+  })
+
+  it('keeps other triggers and other objects apart, and never skips without a version', () => {
+    const project = makeProject()
+    const wf = makeWorkflow({ publishedAt: new Date() })
+    const trigger = makeTrigger(wf.id, [project.id])
+    const other = makeTrigger(wf.id, [project.id])
+
+    fireTrigger(trigger, { object, version: '100' })
+    expect(fireTrigger(other, { object, version: '100' })).toHaveLength(1)
+    expect(fireTrigger(trigger, { object: { ...object, key: '8' }, version: '100' })).toHaveLength(1)
+    expect(fireTrigger(trigger, { object })).toHaveLength(1)
+    expect(fireTrigger(trigger, { object })).toHaveLength(1)
+  })
+})

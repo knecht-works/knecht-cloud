@@ -149,6 +149,7 @@ export interface JiraIssueFields {
   labels?: string[]
   issuetype?: { name?: string }
   project?: { key?: string }
+  updated?: string
   comment?: { comments?: { author?: JiraUser, created?: string, body?: AdfNode | null }[] }
 }
 

@@ -170,6 +170,8 @@ export const runs = sqliteTable('runs', {
     .references(() => triggers.id, { onDelete: 'set null' }),
   branch: text('branch'),
   prUrl: text('pr_url'),
+  // The object's update time as delivered, to the second: a trigger runs once per version of an object.
+  objectVersion: text('object_version'),
   inputs: text('inputs', { mode: 'json' }).$type<Record<string, string>>(),
   steps: text('steps', { mode: 'json' }).$type<Step[]>(),
   log: text('log').notNull().default(''),

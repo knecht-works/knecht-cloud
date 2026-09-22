@@ -42,6 +42,8 @@ export interface TriggerMatch {
   branch: string | null
   inputs: TriggerInputs
   object: SessionObject | null
+  // Null when the tool sends one delivery per action; see `objectVersion`.
+  version: string | null
 }
 
 export interface LinkTarget {

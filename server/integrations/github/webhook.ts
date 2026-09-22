@@ -1,7 +1,7 @@
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../../shared/utils/trigger-form'
-import { conditionsPass, labeledEvent, labelFilter, listedOnlyKeys, triggerEvent } from '../trigger-config'
+import { conditionsPass, labeledEvent, labelFilter, listedOnlyKeys, objectVersion, triggerEvent } from '../trigger-config'
 import type { TriggerMatch } from '../types'
 
 const LABEL_FILTER = labelFilter('github')
@@ -74,6 +74,7 @@ export interface GithubSubject {
   body?: string | null
   html_url?: string
   state?: string
+  updated_at?: string
   user?: { login?: string }
   assignees?: { login?: string }[]
   labels?: { name?: string }[]
@@ -140,6 +141,7 @@ export function matchGithubEvent(c: TriggerConfig, event: string, payload: Githu
       branch: head || null,
       inputs: subjectInputs(event, pr),
       object: githubObject('pull_request', pr),
+      version: objectVersion(pr?.updated_at),
     }
   }
 
@@ -149,6 +151,7 @@ export function matchGithubEvent(c: TriggerConfig, event: string, payload: Githu
       branch: null,
       inputs: subjectInputs(event, payload.issue),
       object: githubObject('issue', payload.issue),
+      version: objectVersion(payload.issue?.updated_at),
     }
   }
 

@@ -52,6 +52,14 @@ export function listedOnlyKeys(filters: TriggerFilterDef[]): string[] {
   return filters.filter(f => f.listedOnly).map(f => f.key)
 }
 
+// Tools report one action as several deliveries (GitHub sends opened, labeled and assigned for
+// an issue created with both), all carrying the object with the same update time. A trigger runs
+// once per version, and one second is coarse enough to take GitHub's whole-second timestamps.
+export function objectVersion(updatedAt: string | null | undefined): string | null {
+  const ms = updatedAt ? Date.parse(updatedAt) : Number.NaN
+  return Number.isNaN(ms) ? null : String(Math.floor(ms / 1000))
+}
+
 export function matchesAny(patterns: string[], values: string[]): boolean {
   const regexes = patterns.map(pattern => new RegExp(`^${pattern.split('*').map(RegExp.escape).join('.*')}$`))
   return regexes.some(regex => values.some(value => regex.test(value)))

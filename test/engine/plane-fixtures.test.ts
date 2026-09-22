@@ -78,7 +78,6 @@ beforeAll(async () => {
 })
 
 describe('plane deliveries', () => {
-  // A work item created with a label and an assignee arrives as created, updated (labels), updated (assignees).
   it('created fires once per work item and sees what it was born with', () => {
     expect(fired.created).toEqual(['created-2', 'created-3'])
     expect(fired.createdUrgent).toEqual(['created-3'])
@@ -87,12 +86,14 @@ describe('plane deliveries', () => {
     expect(fired.createdAssignedToKnecht).toEqual(['created-3'])
   })
 
-  it('assigned to Knecht fires on creation and on the assignment delivery, not on assignment to others', () => {
-    expect(fired.assigned).toEqual(['created-3', 'updated-3-assignee-knecht'])
+  // Work item 3 was created with a label and an assignee: Plane sent created, updated (labels) and
+  // updated (assignees) within 200 ms, all with the creation's updated_at, so one version.
+  it('assigned to Knecht fires once on creation, not on the updates of that creation or on assignment to others', () => {
+    expect(fired.assigned).toEqual(['created-3'])
   })
 
-  it('labeled fires on creation and on the label delivery, not on removal, and matches exactly', () => {
-    expect(fired.labeledBug).toEqual(['created-3', 'updated-3-labels-bug'])
+  it('labeled fires once on creation, not on the updates of that creation or on removal, and matches exactly', () => {
+    expect(fired.labeledBug).toEqual(['created-3'])
     expect(fired.labeledBugLowercase).toEqual([])
   })
 
@@ -112,8 +113,8 @@ describe('plane deliveries', () => {
     expect(fired.unstartedWhileUrgent).toEqual(['updated-3-state-unstarted'])
   })
 
-  it('assignment to others and label removal fire nothing', () => {
+  it('the updates of a creation, assignment to others and label removal fire nothing', () => {
     const silent = fixtures.map(f => f.name).filter(name => !Object.values(fired).some(names => names.includes(name)))
-    expect(silent).toEqual(['updated-2-assignee-samuel', 'updated-3-labels-removed'])
+    expect(silent).toEqual(['updated-2-assignee-samuel', 'updated-3-assignee-knecht', 'updated-3-labels-bug', 'updated-3-labels-removed'])
   })
 })
