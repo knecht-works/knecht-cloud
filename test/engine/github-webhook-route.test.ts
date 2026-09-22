@@ -59,6 +59,7 @@ function makeRepoProject() {
 }
 
 const ISSUE = { number: 12, title: 'Login broken', body: 'It fails on submit.', html_url: 'https://x/issues/12' }
+const FILLED = { ...ISSUE, user: { login: 'ann' }, assignees: [{ login: 'bob' }], labels: [{ name: 'bug' }] }
 
 function commented(project: Project, body: string, user: { login: string, type: string }): GithubDelivery {
   return { event: 'issue_comment', payload: { action: 'created', issue: ISSUE, comment: { id: 1, body, user }, repository: repo(project) } }
@@ -93,6 +94,18 @@ describeIntegrationWebhook<Project, GithubDelivery>({
     ],
     gained: project => ({ event: 'issues', payload: { action: 'labeled', issue: ISSUE, label: { name: 'knecht' }, repository: repo(project) } }),
   },
+  filters: [
+    {
+      config: { kind: 'issue', on: [{ type: 'opened' }], conditions: [] },
+      delivery: project => ({ event: 'issues', payload: { action: 'opened', issue: FILLED, repository: repo(project) } }),
+      values: { author: 'ann', assignee: 'bob', label: 'bug' },
+    },
+    {
+      config: { kind: 'pull_request', on: [{ type: 'opened' }], conditions: [] },
+      delivery: project => ({ event: 'pull_request', payload: { action: 'opened', pull_request: { ...FILLED, draft: true, head: { ref: 'feat' }, base: { ref: 'develop' } }, repository: repo(project) } }),
+      values: { author: 'ann', assignee: 'bob', label: 'bug', draft: 'draft', head: 'feat', base: 'develop' },
+    },
+  ],
   closed: project => ({ event: 'issues', payload: { action: 'closed', issue: ISSUE, repository: repo(project) } }),
   reopened: project => ({ event: 'issues', payload: { action: 'reopened', issue: ISSUE, repository: repo(project) } }),
   comment: {

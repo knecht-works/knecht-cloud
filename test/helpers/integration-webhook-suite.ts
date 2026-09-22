@@ -41,6 +41,12 @@ export interface WebhookFixture<P extends Project, D> {
     gained(project: P): D
     notGained(project: P): D[]
   }
+  // One delivery per trigger kind whose `values` name what it carries for every filter the form offers.
+  filters: {
+    config: TriggerConfig
+    delivery(project: P): D
+    values: Record<string, string>
+  }[]
   closed(project: P): D
   reopened(project: P): D
   comment: {
@@ -148,6 +154,24 @@ export function describeIntegrationWebhook<P extends Project, D>(fx: WebhookFixt
       expect(runsOf(trigger.id)).toHaveLength(0)
       await deliver(fx.labeled.gained(project))
       expect(runsOf(trigger.id)).toHaveLength(1)
+    })
+
+    // A filter key the matcher never fills would silently never match; every key the form
+    // offers must be found on the object, and the fixture must know all of them.
+    it('fills every filter the form offers', async () => {
+      const form = fx.integration.trigger.form
+      expect(fx.filters.map(f => f.config.kind).sort()).toEqual(form.map(k => k.kind).sort())
+      for (const { config, delivery, values } of fx.filters) {
+        const keys = form.find(k => k.kind === config.kind)!.filters.map(f => f.key)
+        expect(Object.keys(values).sort(), config.kind).toEqual([...keys].sort())
+        const project = fx.makeProject()
+        const triggers = keys.map(field => [field, makeTrigger(id, [project.id], {
+          ...config,
+          conditions: [[{ field, op: 'is', values: [values[field]!] }]],
+        })] as const)
+        await deliver(delivery(project))
+        for (const [field, trigger] of triggers) expect(runsOf(trigger.id), `${config.kind} ${field}`).toHaveLength(1)
+      }
     })
 
     it('mirrors closed and reopened onto the session', async () => {

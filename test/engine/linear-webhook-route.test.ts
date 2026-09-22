@@ -160,6 +160,11 @@ describeIntegrationWebhook<ReturnType<typeof makeLinearProject>, object>({
     ],
     gained: project => updated(project, { labelIds: ['l-bug'] }, { labelIds: ['l-bug', 'l-knecht'] }),
   },
+  filters: [{
+    config: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    delivery: project => created(project, { assigneeId: KNECHT_ACCOUNT, priority: 2 }),
+    values: { status: 'Todo', assignee: 'self', label: 'bug', priority: 'high' },
+  }],
   closed: project => updated(project, { stateId: 's-todo' }, { stateId: 's-done' }),
   reopened: project => updated(project, { stateId: 's-done' }, { stateId: 's-todo' }),
   comment: {

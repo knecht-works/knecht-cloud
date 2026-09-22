@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { and, eq } from 'drizzle-orm'
 import { createError, getHeader, readRawBody, type H3Event } from 'h3'
 import { db, schema } from '../db'
@@ -23,6 +24,8 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
     record({ ok: false, reason: 'signature' })
     throw createError({ statusCode: 401, statusMessage: 'Invalid signature' })
   }
+
+  if (process.env.KNECHT_DUMP_WEBHOOKS) dumpDelivery(integration.id, raw, header)
 
   const delivery = await integration.webhook.parse(raw, header)
   if (!delivery) {
@@ -65,4 +68,14 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
   }
 
   return { ok: true, ...(outcome ? { outcome } : {}), runIds }
+}
+
+// Dev aid: raw body plus the headers `parse` reads, so a dump can be replayed as a test fixture.
+function dumpDelivery(source: string, raw: string, header: (name: string) => string | undefined) {
+  const dir = '.data/webhooks'
+  mkdirSync(dir, { recursive: true })
+  const event = header('x-github-event') || header('x-plane-event') || 'event'
+  const headers = Object.fromEntries(['x-github-event', 'x-plane-event'].map(h => [h, header(h)]).filter(([, v]) => v))
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  writeFileSync(`${dir}/${source}-${event}-${stamp}.json`, JSON.stringify({ headers, body: JSON.parse(raw) }, null, 2))
 }
