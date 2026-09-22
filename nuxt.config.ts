@@ -84,7 +84,8 @@ export default defineNuxtConfig({
       // The dev server otherwise rejects non-localhost hosts. Allow the base
       // domain and all its subdomains (incl. <runId>.preview.<base>) so the
       // preview origins work in dev. `.example.com` matches example.com + subs.
-      allowedHosts: process.env.KNECHT_BASE_DOMAIN ? [`.${process.env.KNECHT_BASE_DOMAIN}`] : undefined,
+      // knecht-dev.knecht.works is the `npm run dev:tunnel` host that webhooks arrive on.
+      allowedHosts: ['knecht-dev.knecht.works', ...(process.env.KNECHT_BASE_DOMAIN ? [`.${process.env.KNECHT_BASE_DOMAIN}`] : [])],
       watch: {
         usePolling: !!process.env.KNECHT_DEV_POLLING,
         interval: 1000,
