@@ -94,8 +94,6 @@ function subjectInputs(event: string, subject: GithubSubject | undefined): Trigg
   }
 }
 
-const sameLogin = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
-
 function subjectFields(subject: GithubSubject | undefined): Record<string, string[]> {
   return {
     author: [subject?.user?.login ?? ''],
@@ -124,7 +122,7 @@ function issueFires(c: TriggerConfig, payload: GithubPayload): boolean {
   if (action === 'labeled') return labelFires(c, payload)
   if (action === 'assigned') {
     const login = payload.assignee?.login ?? ''
-    return !!login && !!triggerEvent(c, 'assigned')?.values?.some(l => sameLogin(l, login))
+    return !!login && !!triggerEvent(c, 'assigned')?.values?.includes(login)
   }
   return false
 }

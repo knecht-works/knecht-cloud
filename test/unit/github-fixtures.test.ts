@@ -43,9 +43,9 @@ describe('github issue deliveries', () => {
     expect(firing(issue([{ type: 'labeled', values: ['feature/api'] }]))).toEqual([])
   })
 
-  it('assigned fires on the login, whatever its case', () => {
+  it('assigned fires on the exact login', () => {
     expect(firing(issue([{ type: 'assigned', values: ['samuelreichor'] }]))).toEqual(['issues-assigned-32', 'issues-assigned-33', 'issues-assigned-36'])
-    expect(firing(issue([{ type: 'assigned', values: ['SamuelReichor'] }]))).toEqual(['issues-assigned-32', 'issues-assigned-33', 'issues-assigned-36'])
+    expect(firing(issue([{ type: 'assigned', values: ['SamuelReichor'] }]))).toEqual([])
     expect(firing(issue([{ type: 'assigned', values: ['someone-else'] }]))).toEqual([])
   })
 
