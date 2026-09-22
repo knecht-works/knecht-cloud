@@ -204,7 +204,7 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
 })
 
 describe('plane webhook route, vendor specifics', () => {
-  it('fires on a work item created with the label, the state or the assignment already set', async () => {
+  it('fires on a work item created with the label or the assignment already set, not in the state', async () => {
     const project = makePlaneProject()
     const labeled = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] })
     const transitioned = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'state', values: ['In Progress'] }], conditions: [] })
@@ -217,7 +217,7 @@ describe('plane webhook route, vendor specifics', () => {
 
     await deliver(created(project, { state_id: 's-progress', assignee_ids: [KNECHT_ACCOUNT] }))
     expect(runsOf(labeled.id)).toHaveLength(1)
-    expect(runsOf(transitioned.id)).toHaveLength(1)
+    expect(runsOf(transitioned.id)).toHaveLength(0)
     expect(runsOf(assigned.id)).toHaveLength(1)
   })
 

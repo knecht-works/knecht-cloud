@@ -60,7 +60,7 @@ describe('github deliveries through fireTrigger', () => {
   // Issue 32 got bug and enhancement in one save: two labeled deliveries, one updated_at.
   it('labels set together start one run, a label set later its own', () => {
     expect(fired.issueLabels.filter(n => n.includes('-32'))).toEqual(['issues-labeled-32-bug'])
-    expect(fired.issueAnything.filter(n => n.includes('-32'))).toEqual(['issues-assigned-32', 'issues-labeled-32-bug', 'issues-labeled-32-feature-api', 'issues-opened-32'])
+    expect(fired.issueAnything.filter(n => n.includes('-32'))).toEqual(['issues-assigned-32', 'issues-labeled-32-bug', 'issues-labeled-32-feature-api', 'issues-opened-32', 'issues-reopened-32'])
   })
 
   it('a pull request created with labels starts one run, later pushes and reviews their own', () => {

@@ -20,13 +20,13 @@ function firing(config: TriggerConfig): string[] {
 }
 
 describe('github issue deliveries', () => {
-  it('opened fires once per issue, not on reopened or the deliveries GitHub sends around it', () => {
-    expect(firing(issue([{ type: 'opened' }]))).toEqual(['issues-opened-32', 'issues-opened-33', 'issues-opened-36'])
+  it('opened fires on opened and reopened, not on the deliveries GitHub sends around them', () => {
+    expect(firing(issue([{ type: 'opened' }]))).toEqual(['issues-opened-32', 'issues-opened-33', 'issues-opened-36', 'issues-reopened-32'])
   })
 
   it('opened already carries the labels and assignees the issue was created with', () => {
     expect(firing(issue([{ type: 'opened' }], allOf({ label: ['enhancement'] })))).toEqual(['issues-opened-33', 'issues-opened-36'])
-    expect(firing(issue([{ type: 'opened' }], allOf({ assignee: ['samuelreichor'] })))).toEqual(['issues-opened-33', 'issues-opened-36'])
+    expect(firing(issue([{ type: 'opened' }], allOf({ assignee: ['samuelreichor'] })))).toEqual(['issues-opened-33', 'issues-opened-36', 'issues-reopened-32'])
   })
 
   // Issues 33 and 36 were created with labels and an assignee: GitHub sent assigned, opened and
@@ -34,7 +34,7 @@ describe('github issue deliveries', () => {
   // fireTrigger's job (test/engine/github-fixtures.test.ts).
   it('every delivery of a creation matches on its own', () => {
     expect(firing(issue([{ type: 'opened' }, { type: 'labeled', values: ['enhancement'] }])))
-      .toEqual(['issues-labeled-32-enhancement', 'issues-labeled-33-enhancement', 'issues-labeled-36-enhancement', 'issues-opened-32', 'issues-opened-33', 'issues-opened-36'])
+      .toEqual(['issues-labeled-32-enhancement', 'issues-labeled-33-enhancement', 'issues-labeled-36-enhancement', 'issues-opened-32', 'issues-opened-33', 'issues-opened-36', 'issues-reopened-32'])
   })
 
   it('labeled fires on the delivery of that exact label', () => {
@@ -50,7 +50,7 @@ describe('github issue deliveries', () => {
   })
 
   it('author and label conditions read the issue', () => {
-    expect(firing(issue([{ type: 'opened' }], allOf({ author: ['samuelreichor'] })))).toEqual(['issues-opened-32', 'issues-opened-33', 'issues-opened-36'])
+    expect(firing(issue([{ type: 'opened' }], allOf({ author: ['samuelreichor'] })))).toEqual(['issues-opened-32', 'issues-opened-33', 'issues-opened-36', 'issues-reopened-32'])
     expect(firing(issue([{ type: 'opened' }], noneOf({ author: ['samuelreichor'] })))).toEqual([])
     expect(firing(issue([{ type: 'labeled', values: ['Feature/API'] }], allOf({ label: ['bug'] })))).toEqual(['issues-labeled-32-feature-api'])
   })
@@ -114,7 +114,6 @@ describe('github deliveries no trigger fires on', () => {
       'issues-field_added-36-2',
       'issues-field_removed-33',
       'issues-field_removed-33-2',
-      'issues-reopened-32',
       'issues-typed-33',
       'issues-typed-36',
       'issues-unlabeled-32-enhancement',

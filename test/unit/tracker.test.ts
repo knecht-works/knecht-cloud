@@ -67,7 +67,7 @@ describe('matchTrackerEvent', () => {
     const status = config([{ type: 'status', values: ['Todo'] }])
     expect(fires(status, change())).toBe(false)
     expect(fires(status, change({ previousStatus: { group: 'open' } }))).toBe(true)
-    expect(fires(status, change({ created: true }))).toBe(true)
+    expect(fires(status, change({ created: true }))).toBe(false)
   })
 
   it('fires a status group only when the object enters it', () => {
