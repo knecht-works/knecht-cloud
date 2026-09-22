@@ -126,6 +126,11 @@ describeIntegrationWebhook<JiraProject, object>({
     ],
     gained: project => updated(project, [{ field: 'labels', fromString: 'bug', toString: 'bug knecht' }]),
   },
+  filters: [{
+    config: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    delivery: project => ({ webhookEvent: 'jira:issue_created', issue: issue(project, { assignee: { accountId: KNECHT_ACCOUNT } }) }),
+    values: { status: 'To Do', assignee: 'self', label: 'bug', issueType: 'Bug' },
+  }],
   closed: project => updated(project, [{ field: 'status', fromString: 'To Do', toString: 'Done' }], { status: { name: 'Done', statusCategory: { key: 'done' } } }),
   reopened: project => updated(project, [{ field: 'status', fromString: 'Done', toString: 'To Do' }]),
   comment: {

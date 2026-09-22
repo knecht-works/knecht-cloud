@@ -179,6 +179,11 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
     ],
     gained: project => updated(project, { label_ids: ['l-bug'] }, { label_ids: ['l-bug', 'l-knecht'] }),
   },
+  filters: [{
+    config: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    delivery: project => created(project, { assignee_ids: [KNECHT_ACCOUNT], priority: 'high' }),
+    values: { state: 'Todo', assignee: 'self', label: 'bug', priority: 'high' },
+  }],
   closed: project => updated(project, { state_id: 's-todo' }, { state_id: 's-done' }),
   reopened: project => updated(project, { state_id: 's-done' }, { state_id: 's-todo' }),
   comment: {
