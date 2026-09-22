@@ -92,9 +92,9 @@ describe('linear deliveries', () => {
     expect(fired.anyCanceled).toEqual(['update-CRA-1-state-canceled'])
   })
 
-  it('a status counts as reached on creation in it and again after closing', () => {
-    expect(fired.anyBacklog).toEqual(['create-CRA-2', 'update-CRA-3-state-backlog'])
-    expect(fired.todo).toEqual(['create-CRA-3', 'update-CRA-2-state-todo'])
+  it('a status is reached again after closing, not by being created in it', () => {
+    expect(fired.anyBacklog).toEqual(['update-CRA-3-state-backlog'])
+    expect(fired.todo).toEqual(['update-CRA-2-state-todo'])
   })
 
   it('conditions read the issue at the time of the event', () => {

@@ -157,7 +157,7 @@ describeIntegrationWebhook<JiraProject, object>({
 })
 
 describe('jira webhook route, vendor specifics', () => {
-  it('fires on a ticket created with the label, the status or the assignment already set', async () => {
+  it('fires on a ticket created with the label or the assignment already set, not in the status', async () => {
     const project = makeJiraProject()
     const labeled = makeJiraTrigger(project.id, [{ type: 'labeled', values: ['knecht'] }])
     const transitioned = makeJiraTrigger(project.id, [{ type: 'status', values: ['In Progress'] }])
@@ -173,7 +173,7 @@ describe('jira webhook route, vendor specifics', () => {
       assignee: { accountId: KNECHT_ACCOUNT, displayName: 'Knecht' },
     }) })
     expect(runsOf(labeled.id)).toHaveLength(1)
-    expect(runsOf(transitioned.id)).toHaveLength(1)
+    expect(runsOf(transitioned.id)).toHaveLength(0)
     expect(runsOf(assigned.id)).toHaveLength(1)
   })
 
@@ -199,7 +199,7 @@ describe('jira webhook route, vendor specifics', () => {
     expect(runsOf(trigger.id)).toHaveLength(1)
 
     await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project, { status: { name: 'Closed', statusCategory: { key: 'done' } } }) })
-    expect(runsOf(trigger.id)).toHaveLength(2)
+    expect(runsOf(trigger.id)).toHaveLength(1)
   })
 
   it('fires when the ticket is assigned to the connection account', async () => {

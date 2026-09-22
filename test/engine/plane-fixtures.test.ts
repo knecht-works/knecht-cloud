@@ -104,9 +104,9 @@ describe('plane deliveries', () => {
     expect(fired.anyCancelled).toEqual(['updated-3-state-cancelled'])
   })
 
-  it('a state counts as reached on creation in it and again after closing', () => {
-    expect(fired.anyBacklog).toEqual(['created-2', 'updated-3-state-backlog'])
-    expect(fired.anyStarted).toEqual(['created-3'])
+  it('a state is reached again after closing, not by being created in it', () => {
+    expect(fired.anyBacklog).toEqual(['updated-3-state-backlog'])
+    expect(fired.anyStarted).toEqual([])
   })
 
   it('conditions read the work item at the time of the event', () => {

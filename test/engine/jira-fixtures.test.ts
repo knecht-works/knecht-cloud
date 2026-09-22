@@ -103,8 +103,8 @@ describe('jira deliveries', () => {
   })
 
   // The reopen changelog lists the resolution change before the status change.
-  it('a status counts as reached on creation in it and again after reopening', () => {
-    expect(fired.anyToDo).toEqual(['issue_created-CC-17', 'issue_created-CC-18', 'issue_created-CC-19', 'issue_updated-CC-18-status-in-planning'])
+  it('a status is reached again after reopening, not by being created in it', () => {
+    expect(fired.anyToDo).toEqual(['issue_updated-CC-18-status-in-planning'])
   })
 
   it('conditions apply to every event of the trigger', () => {

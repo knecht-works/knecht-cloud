@@ -180,7 +180,7 @@ describeIntegrationWebhook<ReturnType<typeof makeLinearProject>, object>({
 })
 
 describe('linear webhook route, vendor specifics', () => {
-  it('fires on an issue created with the label, the status or the assignment already set', async () => {
+  it('fires on an issue created with the label or the assignment already set, not in the status', async () => {
     const project = makeLinearProject()
     const labeled = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] })
     const transitioned = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'status', values: ['In Progress'] }], conditions: [] })
@@ -193,7 +193,7 @@ describe('linear webhook route, vendor specifics', () => {
 
     await deliver(created(project, { stateId: 's-progress', assigneeId: KNECHT_ACCOUNT }))
     expect(runsOf(labeled.id)).toHaveLength(1)
-    expect(runsOf(transitioned.id)).toHaveLength(1)
+    expect(runsOf(transitioned.id)).toHaveLength(0)
     expect(runsOf(assigned.id)).toHaveLength(1)
   })
 

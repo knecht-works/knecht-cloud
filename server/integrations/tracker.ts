@@ -109,11 +109,12 @@ export function matchTrackerEvent(def: TrackerDef, c: TriggerConfig, change: Tra
   const reached = (target: string) => {
     const group = target.startsWith(def.status.groupPrefix) ? target.slice(def.status.groupPrefix.length) : undefined
     const inTarget = group === undefined ? issue.status.name === target : issue.status.group === group
-    // Moving between two statuses of one group (In Progress to In Review) is not reaching the group.
-    return inTarget && (change.created || (!!change.previousStatus && (group === undefined || change.previousStatus.group !== group)))
+    // Moving between two statuses of one group (In Progress to In Review) is not reaching the group,
+    // and neither is being created in it.
+    return inTarget && !!change.previousStatus && (group === undefined || change.previousStatus.group !== group)
   }
 
-  // An object born with the label, in the status or assigned to Knecht has nothing to gain them from.
+  // An object born with the label or assigned to Knecht has nothing to gain them from.
   const fires = (change.created && !!triggerEvent(c, 'created'))
     || labels.some(l => (change.created ? issue.labels : change.gainedLabels).includes(l))
     || (wantsSelf && (change.created ? change.assignedToSelf : change.gainedSelf))

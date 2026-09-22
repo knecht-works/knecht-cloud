@@ -120,7 +120,7 @@ function pullRequestFires(c: TriggerConfig, payload: GithubPayload): boolean {
 
 function issueFires(c: TriggerConfig, payload: GithubPayload): boolean {
   const action = payload.action ?? ''
-  if (action === 'opened') return !!triggerEvent(c, 'opened')
+  if (action === 'opened' || action === 'reopened') return !!triggerEvent(c, 'opened')
   if (action === 'labeled') return labelFires(c, payload)
   if (action === 'assigned') {
     const login = payload.assignee?.login ?? ''
