@@ -7,12 +7,16 @@ import { isGithubAppConfigured } from './github-credentials'
 import { emptyInputs, type TriggerInputs } from './inputs'
 import { resolveSession, type SessionObject } from './sessions'
 import type { TriggerSource } from '../../shared/utils/integrations'
+import type { TriggerSegment } from '../../shared/utils/trigger-form'
 import { getTriggerSource } from './trigger-sources'
 
 export interface TriggerSummary {
   id: number
   source: TriggerSource
   event: string
+  kind: string
+  events: TriggerSegment[][]
+  conditions: TriggerSegment[][][]
   workflowId: number
   workflowName: string
   projects: string[]
@@ -56,7 +60,7 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
   return rows.map(t => ({
     id: t.id,
     source: t.source,
-    event: getTriggerSource(t.source)?.eventLabel(t) ?? '',
+    ...(getTriggerSource(t.source)?.describe(t) ?? { event: '', kind: '', events: [], conditions: [] }),
     workflowId: t.workflowId,
     workflowName: workflowNames.get(t.workflowId) ?? '',
     projects: t.projectIds.map(id => names.get(id)).filter((n): n is string => !!n),

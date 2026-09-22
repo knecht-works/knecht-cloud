@@ -133,6 +133,7 @@ const editable = computed(() => !activeRun.value)
 
 const workflowTriggers = computed(() =>
   saved.value ? (allTriggers.value ?? []).filter(t => t.workflowId === saved.value!.id) : [])
+const projectChips = (names: string[]) => (names.length > 3 ? [...names.slice(0, 2), `+${names.length - 2}`] : names)
 const triggerModalOpen = ref(false)
 const editingTrigger = ref<(typeof workflowTriggers)['value'][number] | null>(null)
 
@@ -191,28 +192,15 @@ async function toggleEnabled() {
   }
 }
 
-const advancedOpen = ref(false)
-const togglingReplies = ref(false)
-async function toggleReplies() {
-  if (!saved.value || togglingReplies.value) return
-  togglingReplies.value = true
-  try {
-    await $fetch(`/api/workflows/${id.value}`, {
-      method: 'PATCH',
-      body: { repliesEnabled: !saved.value.repliesEnabled },
-    })
-    await refresh()
-  }
-  catch (e) {
-    toastError('Failed to update workflow', e)
-  }
-  finally {
-    togglingReplies.value = false
-  }
-}
-
 const confirmDelete = ref(false)
+
 const menuItems = computed(() => [
+  [{
+    label: saved.value?.enabled ? 'Pause triggers' : 'Enable triggers',
+    icon: saved.value?.enabled ? 'i-lucide-pause' : 'i-lucide-zap',
+    disabled: togglingEnabled.value,
+    onSelect: () => { void toggleEnabled() },
+  }],
   (['yaml', 'json'] as const).map(format => ({
     label: `Export ${format.toUpperCase()}`,
     icon: 'i-lucide-file-down',
@@ -582,6 +570,103 @@ const pr = computed(() => {
                 </div>
               </template>
             </UPopover>
+            <UPopover
+              v-model:open="runPickerOpen"
+              :content="{ side: 'bottom', align: 'end' }"
+            >
+              <UTooltip
+                :text="!steps.length ? 'Add a step first' : !projects?.length ? 'Connect a project first' : ''"
+                :disabled="!!steps.length && !!projects?.length"
+              >
+                <UButton
+                  color="primary"
+                  icon="i-lucide-play"
+                  trailing-icon="i-lucide-chevron-down"
+                  label="Run"
+                  :disabled="!steps.length || starting || !projects?.length"
+                />
+              </UTooltip>
+              <template #content>
+                <div class="w-72 p-3">
+                  <div class="k-label mb-1.5">
+                    Project
+                  </div>
+                  <USelectMenu
+                    v-model="project"
+                    :items="projects ?? []"
+                    placeholder="Select a project…"
+                    icon="i-lucide-folder-git-2"
+                    class="w-full"
+                  />
+
+                  <template v-if="project">
+                    <div class="k-label mb-1.5 mt-3.5">
+                      Branch
+                    </div>
+                    <USelectMenu
+                      v-model="testBranch"
+                      :items="testBranchItems"
+                      icon="i-lucide-git-branch"
+                      :search-input="{ placeholder: 'Filter branches…' }"
+                      class="w-full"
+                    />
+
+                    <button
+                      type="button"
+                      :aria-expanded="mockOpen"
+                      class="group mt-3.5 flex w-full cursor-pointer items-center gap-1.5"
+                      @click="mockOpen = !mockOpen"
+                    >
+                      <UIcon
+                        name="i-lucide-chevron-right"
+                        class="size-3.5 text-dimmed transition-transform"
+                        :class="mockOpen && 'rotate-90'"
+                      />
+                      <span class="k-label">Trigger event (mock)</span>
+                    </button>
+                    <div
+                      v-if="mockOpen"
+                      class="mt-2 space-y-2"
+                    >
+                      <template
+                        v-for="v in TRIGGER_VARS"
+                        :key="v.path"
+                      >
+                        <UTextarea
+                          v-if="v.path === 'inputs.body'"
+                          v-model="mockInputs[varPathParts(v.path)[1]]"
+                          :placeholder="v.path"
+                          :rows="2"
+                          class="w-full"
+                          :ui="{ base: 'k-mono text-xs' }"
+                        />
+                        <UInput
+                          v-else
+                          v-model="mockInputs[varPathParts(v.path)[1]]"
+                          :placeholder="v.path"
+                          class="w-full"
+                          :ui="{ base: 'k-mono text-xs' }"
+                        />
+                      </template>
+                      <p class="text-2xs leading-normal text-dimmed">
+                        Empty fields render as empty strings, exactly like a
+                        trigger that didn't send them.
+                      </p>
+                    </div>
+                  </template>
+
+                  <UButton
+                    class="mt-3.5 w-full justify-center"
+                    color="primary"
+                    icon="i-lucide-play"
+                    label="Run workflow"
+                    :loading="starting"
+                    :disabled="!project"
+                    @click="start"
+                  />
+                </div>
+              </template>
+            </UPopover>
             <UDropdownMenu
               v-if="saved"
               :items="menuItems"
@@ -684,35 +769,18 @@ const pr = computed(() => {
               class="min-w-0 flex-1 overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-panel"
             >
               <div
-                v-if="saved && workflowTriggers.length"
-                class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2.5 transition-colors"
-                :style="saved.enabled ? {} : { background: 'color-mix(in oklab, var(--accent-orange) 9%, transparent)' }"
+                v-if="saved && !saved.enabled && workflowTriggers.length"
+                class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2 text-2xs"
+                style="background: color-mix(in oklab, var(--accent-orange) 9%, transparent)"
               >
-                <div class="flex min-w-0 items-center gap-2.5">
-                  <UIcon
-                    :name="saved.enabled ? 'i-lucide-zap' : 'i-lucide-pause'"
-                    class="size-4 flex-none transition-colors"
-                    :class="saved.enabled ? 'text-dimmed' : 'text-accent-orange'"
-                  />
-                  <div class="min-w-0">
-                    <div class="text-2sm font-medium text-highlighted">
-                      Automation
-                    </div>
-                    <div
-                      class="k-mono truncate text-2xs transition-colors"
-                      :class="saved.enabled ? 'text-dimmed' : 'text-accent-orange'"
-                    >
-                      {{ saved.enabled
-                        ? (hasIncompleteEdits ? 'Triggers run the last complete version' : 'Triggers fire automatically')
-                        : 'Paused: triggers won’t fire' }}
-                    </div>
-                  </div>
-                </div>
-                <UTooltip :text="saved.enabled ? 'Pause automation' : (valid ? 'Enable automation' : 'Finish the step config first')">
+                <span class="k-mono text-accent-orange">Paused: triggers won’t fire</span>
+                <UTooltip
+                  :text="valid ? 'Enable triggers' : 'Finish the step config first'"
+                >
                   <KToggle
-                    :active="saved.enabled"
+                    :active="false"
                     :disabled="togglingEnabled"
-                    :aria-label="saved.enabled ? 'Pause automation' : 'Enable automation'"
+                    aria-label="Enable triggers"
                     @toggle="toggleEnabled"
                   />
                 </UTooltip>
@@ -721,12 +789,12 @@ const pr = computed(() => {
               <div
                 v-for="t in workflowTriggers"
                 :key="t.id"
-                class="group/row flex items-center gap-3 border-b border-muted px-3 py-2.5 transition-opacity"
+                class="flex items-start gap-3 border-b border-muted px-4 py-3.5 transition-opacity"
                 :style="{ opacity: (t.active && saved?.enabled) ? 1 : 0.45 }"
               >
                 <button
                   type="button"
-                  class="group flex min-w-0 flex-1 items-center gap-3 text-left"
+                  class="group flex min-w-0 flex-1 items-start gap-3 text-left enabled:cursor-pointer"
                   aria-label="Edit trigger"
                   :disabled="!editable"
                   @click="editTrigger(t)"
@@ -738,194 +806,98 @@ const pr = computed(() => {
                     :radius="8"
                   />
                   <span class="min-w-0 flex-1">
-                    <span class="block text-2sm text-highlighted">
-                      {{ triggerSourceMeta(t.source).label }}
+                    <span class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                      <span class="text-sm font-medium text-highlighted">
+                        {{ triggerSourceMeta(t.source).label }} {{ t.kind }}
+                      </span>
                     </span>
-                    <span class="k-mono block truncate text-2xs text-dimmed transition-colors group-hover:text-muted">
-                      {{ t.event }} · {{ t.projects.length ? t.projects.join(', ') : 'no projects' }}
+                    <span
+                      v-if="t.source === 'schedule'"
+                      class="mt-1 block text-xs text-muted"
+                    >{{ t.event }}</span>
+                    <span
+                      v-else
+                      class="mt-1 flex flex-col gap-1 text-xs text-muted"
+                    >
+                      <span class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                        <span>on</span>
+                        <template
+                          v-for="(segments, ei) in t.events"
+                          :key="ei"
+                        >
+                          <span
+                            v-if="ei > 0"
+                            class="-ml-1.5"
+                          >,</span>
+                          <KTriggerSegments :segments="segments" />
+                        </template>
+                      </span>
+                      <span
+                        v-for="(group, gi) in t.conditions"
+                        :key="gi"
+                        class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+                      >
+                        <span>{{ gi === 0 ? 'if' : 'or' }}</span>
+                        <template
+                          v-for="(segments, ci) in group"
+                          :key="ci"
+                        >
+                          <span v-if="ci > 0">and</span>
+                          <KTriggerSegments :segments="segments" />
+                        </template>
+                      </span>
                     </span>
                   </span>
                 </button>
-                <KToggle
-                  :active="t.active"
-                  :disabled="!editable"
-                  :aria-label="t.active ? 'Pause trigger' : 'Activate trigger'"
-                  @toggle="toggleTrigger(t)"
-                />
-                <UButton
-                  color="neutral"
-                  variant="ghost"
-                  size="xs"
-                  icon="i-lucide-trash-2"
-                  aria-label="Delete trigger"
-                  :disabled="!editable"
-                  class="opacity-0 transition-opacity focus-visible:opacity-100 group-hover/row:opacity-100"
-                  @click="removeTrigger(t)"
-                />
-              </div>
-
-              <div class="flex items-center gap-3 px-3 py-2.5">
-                <KStepIcon
-                  icon="i-lucide-play"
-                  color="var(--accent-violet)"
-                  :size="32"
-                  :radius="8"
-                />
-                <div class="min-w-0 flex-1">
-                  <div class="text-2sm text-highlighted">
-                    Manual
-                  </div>
-                  <div class="k-mono truncate text-2xs text-dimmed">
-                    always available · run on demand
-                  </div>
+                <div class="flex w-37.5 flex-none flex-wrap justify-end gap-1.5 pt-1.5">
+                  <span
+                    v-for="name in projectChips(t.projects)"
+                    :key="name"
+                    class="k-code whitespace-nowrap text-2xs"
+                  >{{ name }}</span>
+                  <span
+                    v-if="!t.projects.length"
+                    class="k-code whitespace-nowrap text-2xs text-(--status-orange)"
+                  >no projects</span>
                 </div>
-                <UPopover
-                  v-model:open="runPickerOpen"
-                  :content="{ side: 'bottom', align: 'end' }"
-                >
-                  <UTooltip
-                    :text="!steps.length ? 'Add a step first' : !projects?.length ? 'Connect a project first' : ''"
-                    :disabled="!!steps.length && !!projects?.length"
+                <div class="flex h-8 items-center gap-1">
+                  <KToggle
+                    :active="t.active"
+                    :disabled="!editable"
+                    :aria-label="t.active ? 'Pause trigger' : 'Activate trigger'"
+                    @toggle="toggleTrigger(t)"
+                  />
+                  <UDropdownMenu
+                    :items="[{ label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => removeTrigger(t) }]"
+                    :content="{ align: 'end' }"
                   >
                     <UButton
-                      color="primary"
+                      color="neutral"
+                      variant="ghost"
                       size="xs"
-                      icon="i-lucide-play"
-                      label="Run"
-                      :disabled="!steps.length || starting || !projects?.length"
+                      icon="i-lucide-ellipsis-vertical"
+                      aria-label="Trigger actions"
+                      :disabled="!editable"
                     />
-                  </UTooltip>
-                  <template #content>
-                    <div class="w-72 p-3">
-                      <div class="k-label mb-1.5">
-                        Project
-                      </div>
-                      <USelectMenu
-                        v-model="project"
-                        :items="projects ?? []"
-                        placeholder="Select a project…"
-                        icon="i-lucide-folder-git-2"
-                        class="w-full"
-                      />
-
-                      <template v-if="project">
-                        <div class="k-label mb-1.5 mt-3.5">
-                          Branch
-                        </div>
-                        <USelectMenu
-                          v-model="testBranch"
-                          :items="testBranchItems"
-                          icon="i-lucide-git-branch"
-                          :search-input="{ placeholder: 'Filter branches…' }"
-                          class="w-full"
-                        />
-
-                        <button
-                          type="button"
-                          :aria-expanded="mockOpen"
-                          class="group mt-3.5 flex w-full cursor-pointer items-center gap-1.5"
-                          @click="mockOpen = !mockOpen"
-                        >
-                          <UIcon
-                            name="i-lucide-chevron-right"
-                            class="size-3.5 text-dimmed transition-transform"
-                            :class="mockOpen && 'rotate-90'"
-                          />
-                          <span class="k-label">Trigger event (mock)</span>
-                        </button>
-                        <div
-                          v-if="mockOpen"
-                          class="mt-2 space-y-2"
-                        >
-                          <template
-                            v-for="v in TRIGGER_VARS"
-                            :key="v.path"
-                          >
-                            <UTextarea
-                              v-if="v.path === 'inputs.body'"
-                              v-model="mockInputs[varPathParts(v.path)[1]]"
-                              :placeholder="v.path"
-                              :rows="2"
-                              class="w-full"
-                              :ui="{ base: 'k-mono text-xs' }"
-                            />
-                            <UInput
-                              v-else
-                              v-model="mockInputs[varPathParts(v.path)[1]]"
-                              :placeholder="v.path"
-                              class="w-full"
-                              :ui="{ base: 'k-mono text-xs' }"
-                            />
-                          </template>
-                          <p class="text-2xs leading-normal text-dimmed">
-                            Empty fields render as empty strings, exactly like a
-                            trigger that didn't send them.
-                          </p>
-                        </div>
-                      </template>
-
-                      <UButton
-                        class="mt-3.5 w-full justify-center"
-                        color="primary"
-                        icon="i-lucide-play"
-                        label="Run workflow"
-                        :loading="starting"
-                        :disabled="!project"
-                        @click="start"
-                      />
-                    </div>
-                  </template>
-                </UPopover>
-              </div>
-
-              <button
-                type="button"
-                class="flex w-full cursor-pointer items-center gap-2 border-t border-muted px-3 py-2.5 text-left text-xs text-muted transition-colors hover:bg-(--surface-glass) disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="!editable"
-                @click="triggerModalOpen = true"
-              >
-                <UIcon
-                  name="i-lucide-plus"
-                  class="size-4 flex-none text-dimmed"
-                />
-                Add trigger
-              </button>
-
-              <div class="border-t border-muted px-3 py-2.5">
-                <button
-                  type="button"
-                  :aria-expanded="advancedOpen"
-                  class="group flex w-full cursor-pointer items-center gap-1.5"
-                  @click="advancedOpen = !advancedOpen"
-                >
-                  <UIcon
-                    name="i-lucide-chevron-right"
-                    class="size-3.5 text-dimmed transition-transform"
-                    :class="advancedOpen && 'rotate-90'"
-                  />
-                  <span class="k-label">Advanced</span>
-                </button>
-                <div
-                  v-if="advancedOpen && saved"
-                  class="mt-2.5 flex items-center justify-between gap-3"
-                >
-                  <div class="min-w-0">
-                    <div class="text-2sm text-highlighted">
-                      May the agent answer on the ticket, issue or PR?
-                    </div>
-                    <div class="k-mono text-2xs text-dimmed">
-                      Comments, labels and status changes on the thread this run belongs to, and the result report on a ticket.
-                    </div>
-                  </div>
-                  <KToggle
-                    :active="saved.repliesEnabled"
-                    :disabled="togglingReplies"
-                    :aria-label="saved.repliesEnabled ? 'Disable replies on the thread' : 'Enable replies on the thread'"
-                    @toggle="toggleReplies"
-                  />
+                  </UDropdownMenu>
                 </div>
               </div>
             </div>
+          </div>
+
+          <div
+            v-if="editable"
+            class="mb-3 flex gap-3.5"
+          >
+            <div class="w-7.5 flex-none" />
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-plus"
+              label="Add trigger"
+              class="w-full justify-center"
+              @click="triggerModalOpen = true"
+            />
           </div>
 
           <div
@@ -984,7 +956,7 @@ const pr = computed(() => {
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-plus"
-                label="Add step"
+                label="Add action"
                 class="w-full justify-center"
                 @click="addStep('bash')"
               />

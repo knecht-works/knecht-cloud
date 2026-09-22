@@ -123,27 +123,55 @@ export function triggerConfigIssues(form: TriggerFormDef, config: TriggerConfig)
   return issues
 }
 
-export function triggerSummary(form: TriggerFormDef, config: TriggerConfig): string {
+// A description is rendered with its values set off from the wording around them.
+export interface TriggerSegment {
+  kind: 'text' | 'value' | 'op' | 'not'
+  text: string
+}
+
+export interface TriggerDescription {
+  kind: string
+  events: TriggerSegment[][]
+  conditions: TriggerSegment[][][]
+}
+
+const text = (t: string): TriggerSegment => ({ kind: 'text', text: t })
+const value = (t: string): TriggerSegment => ({ kind: 'value', text: t })
+
+export function triggerSummary(form: TriggerFormDef, config: TriggerConfig): TriggerDescription {
   const def = form.find(k => k.kind === config.kind)
-  if (!def) return ''
-  const events = config.on.map((on) => {
+  if (!def) return { kind: '', events: [], conditions: [] }
+  const events = config.on.map((on): TriggerSegment[] => {
     const event = def.events.find(e => e.type === on.type)
-    if (!event) return on.type
+    if (!event) return [text(on.type)]
     const worded: string[] = []
     const plain: string[] = []
-    for (const value of on.values ?? []) {
-      const option = event.value?.options?.find(o => o.value === value)
+    for (const v of on.values ?? []) {
+      const option = event.value?.options?.find(o => o.value === v)
       if (option?.summary) worded.push(option.summary)
-      else plain.push(option?.label ?? `"${value}"`)
+      else plain.push(option?.label ?? v)
     }
-    return [...(plain.length || !worded.length ? [event.summary.replace('{value}', plain.join(', '))] : []), ...worded].join(', ')
+    const segments: TriggerSegment[] = []
+    if (plain.length || !worded.length) {
+      const [before = '', after = ''] = event.summary.split('{value}')
+      segments.push(text(before))
+      if (plain.length) segments.push(value(plain.join(', ')), text(after))
+    }
+    if (worded.length) segments.push(text(`${segments.length ? ', ' : ''}${worded.join(', ')}`))
+    return segments.filter(s => s.text)
   })
-  const groups = config.conditions.map(group => group.map((condition) => {
+  const conditions = config.conditions.map(group => group.map((condition): TriggerSegment[] => {
     const filter = def.filters.find(f => f.key === condition.field)
     const labels = condition.values.map(v => filter?.options?.find(o => o.value === v)?.label ?? v)
-    return `${(filter?.label ?? condition.field).toLowerCase()} ${condition.op === 'is' ? 'is' : 'is not'} ${labels.join(', ')}`
+    const field = (filter?.label ?? condition.field).toLowerCase()
+    const op: TriggerSegment = condition.op === 'is' ? { kind: 'op', text: 'is' } : { kind: 'not', text: 'is not' }
+    return [text(`${field} `), op, text(' '), value(labels.join(', '))]
   }))
-  const conditions = groups.length > 1 ? [groups.map(g => g.join(' and ')).join(' or ')] : groups[0] ?? []
-  const head = form.length > 1 ? [def.label.toLowerCase()] : []
-  return `On ${[...head, events.join(', '), ...conditions].filter(Boolean).join(' · ')}`
+  return { kind: form.length > 1 ? def.label : '', events, conditions }
+}
+
+export const segmentsText = (segments: TriggerSegment[]): string => segments.map(s => s.text).join('')
+
+export function triggerEventLabel({ kind, events }: TriggerDescription): string {
+  return `On ${[kind.toLowerCase(), events.map(segmentsText).join(', ')].filter(Boolean).join(' · ')}`
 }

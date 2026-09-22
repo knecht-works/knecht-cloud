@@ -3,6 +3,7 @@
 exports[`POST /api/triggers > creates a github trigger and describes it 1`] = `
 {
   "active": true,
+  "conditions": [],
   "config": {
     "conditions": [],
     "kind": "pull_request",
@@ -14,8 +15,17 @@ exports[`POST /api/triggers > creates a github trigger and describes it 1`] = `
   },
   "endpoint": null,
   "event": "On pull request · opened",
+  "events": [
+    [
+      {
+        "kind": "text",
+        "text": "opened",
+      },
+    ],
+  ],
   "firedCount": 0,
   "id": Any<Number>,
+  "kind": "Pull request",
   "lastFiredAt": null,
   "projectIds": [
     Any<Number>,
