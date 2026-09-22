@@ -337,6 +337,13 @@
       "when": 1789930017826,
       "tag": "0047_drop-vendor-connections",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1790078192457,
+      "tag": "0048_run-object-version",
+      "breakpoints": true
     }
   ]
 }

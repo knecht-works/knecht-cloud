@@ -5,7 +5,7 @@ import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelFilter, priorityFilter } from '../trigger-config'
+import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { addPlaneComment, forgetPlaneCache, getPlaneComment, planeMyself, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeUserName, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
@@ -49,6 +49,7 @@ export interface PlaneRecord {
   label_ids?: string[]
   assignee_ids?: string[]
   created_by_id?: string | null
+  updated_at?: string | null
   comment?: { id?: string, actor_id?: string }
 }
 
@@ -154,6 +155,7 @@ function planeChange(created: boolean, data: PlaneRecord, previous: PlaneRecord,
     gainedSelf: !!accountId && gained(data.assignee_ids, previous.assignee_ids).includes(accountId),
     ...(previous.state_id !== undefined ? { previousStatus: { group: states.find(s => s.id === nil(previous.state_id))?.group ?? null } } : {}),
     filterValues: { priority: [nil(data.priority) ?? 'none'] },
+    version: objectVersion(nil(data.updated_at)),
   }
 }
 

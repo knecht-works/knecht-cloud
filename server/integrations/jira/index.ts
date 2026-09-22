@@ -3,7 +3,7 @@ import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelFilter } from '../trigger-config'
+import { labelFilter, objectVersion } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
@@ -79,6 +79,7 @@ async function jiraChange(payload: JiraPayload, issue: TrackerIssue): Promise<Tr
     // The changelog carries status ids, not categories.
     ...(status ? { previousStatus: { group: status.from ? await getJiraStatusCategory(status.from) : null } } : {}),
     filterValues: { issueType: [fields.issuetype?.name ?? ''] },
+    version: objectVersion(fields.updated),
   }
 }
 

@@ -62,6 +62,7 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
         branch: match.branch,
         inputs: match.inputs,
         object: match.object,
+        version: match.version,
       }))
     }
     console.log(`${integration.id} webhook: ${delivery.summary} from ${project.fullName} → ${runIds.length ? `run(s) ${runIds.join(', ')}` : 'no trigger matched'}`)

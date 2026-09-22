@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Trigger } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
@@ -78,6 +78,7 @@ export interface FireOverrides {
   branch?: string | null
   inputs?: TriggerInputs
   object?: SessionObject | null
+  version?: string | null
 }
 
 export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
@@ -92,6 +93,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   const runIds: number[] = []
   for (const project of projects) {
     const session = resolveSession(project, opts.object ?? null, opts.branch ?? null)
+    if (opts.version && ranOnVersion(t.id, session.id, opts.version)) continue
     const run = db
       .insert(schema.runs)
       .values({
@@ -102,6 +104,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
         trigger: t.source,
         triggerId: t.id,
         branch: session.branch ?? opts.branch ?? project.defaultBranch,
+        objectVersion: opts.version ?? null,
         inputs: opts.inputs ?? emptyInputs(t.source),
       })
       .returning()
@@ -120,6 +123,8 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
     }
   }
 
+  if (!runIds.length) return []
+
   db.update(schema.triggers)
     .set({ lastFiredAt: new Date(), firedCount: t.firedCount + 1, updatedAt: new Date() })
     .where(eq(schema.triggers.id, t.id))
@@ -128,4 +133,12 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   dispatchRuns()
 
   return runIds
+}
+
+// One action reaches us as several deliveries of the same object version (see `objectVersion`).
+function ranOnVersion(triggerId: number, sessionId: number, version: string): boolean {
+  return !!db.select({ id: schema.runs.id })
+    .from(schema.runs)
+    .where(and(eq(schema.runs.triggerId, triggerId), eq(schema.runs.sessionId, sessionId), eq(schema.runs.objectVersion, version)))
+    .get()
 }
