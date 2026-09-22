@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
-import { addCommentReaction, addIssueLabels, createIssueComment, getIssueContext, listRepoBranches, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
+import { addCommentReaction, addIssueLabels, createIssueComment, getIssueContext, listRepoAssignees, listRepoBranches, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
 import { isMember } from '../../utils/members'
@@ -54,6 +54,7 @@ export const github: Integration = {
     options: {
       labels: fullName => listRepoLabels(...repoOf(fullName)),
       branches: fullName => listRepoBranches(...repoOf(fullName)),
+      assignees: fullName => listRepoAssignees(...repoOf(fullName)),
     },
   },
 

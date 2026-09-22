@@ -1,9 +1,10 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
-import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
+import type { TriggerEventConfig } from '../../shared/utils/trigger-form'
 import { getSessionRow, makeProject } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
+import { allOf } from '../helpers/trigger-conditions'
 
 const api = vi.hoisted(() => ({
   comments: [] as { key: string, body: unknown }[],
@@ -51,8 +52,8 @@ function makeJiraProject() {
 }
 type JiraProject = ReturnType<typeof makeJiraProject>
 
-function makeJiraTrigger(projectId: number, on: TriggerEventConfig[], filters: TriggerConfig['filters'] = {}) {
-  return makeTrigger('jira', [projectId], { kind: 'issue', on, filters })
+function makeJiraTrigger(projectId: number, on: TriggerEventConfig[], fields: Record<string, string[]> = {}) {
+  return makeTrigger('jira', [projectId], { kind: 'issue', on, conditions: allOf(fields) })
 }
 
 const doc = (text: string) => ({ type: 'doc', version: 1, content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] })
@@ -92,7 +93,7 @@ describeIntegrationWebhook<JiraProject, object>({
   unknownProject: () => ({ webhookEvent: 'jira:issue_created', issue: issue({ jiraProjectKey: 'NOPE' }) }),
   object: project => ({ integration: 'jira', kind: 'issue', key: `${project.jiraProjectKey}-12` }),
   created: {
-    config: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
+    config: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
     delivery: project => ({ webhookEvent: 'jira:issue_created', issue: issue(project) }),
     run: project => ({
       trigger: 'jira',
@@ -118,7 +119,7 @@ describeIntegrationWebhook<JiraProject, object>({
     }),
   },
   labeled: {
-    config: { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} },
+    config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] },
     notGained: project => [
       updated(project, [{ field: 'labels', fromString: 'knecht', toString: 'knecht bug' }]),
       updated(project, [{ field: 'labels', fromString: '', toString: 'other' }]),
@@ -153,8 +154,8 @@ describeIntegrationWebhook<JiraProject, object>({
 describe('jira webhook route, vendor specifics', () => {
   it('fires on a ticket created with the label, the status or the assignment already set', async () => {
     const project = makeJiraProject()
-    const labeled = makeJiraTrigger(project.id, [{ type: 'labeled', value: 'knecht' }])
-    const transitioned = makeJiraTrigger(project.id, [{ type: 'status', value: 'In Progress' }])
+    const labeled = makeJiraTrigger(project.id, [{ type: 'labeled', values: ['knecht'] }])
+    const transitioned = makeJiraTrigger(project.id, [{ type: 'status', values: ['In Progress'] }])
     const assigned = makeJiraTrigger(project.id, [{ type: 'assigned' }])
 
     await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project, { labels: ['bug'] }) })
@@ -173,7 +174,7 @@ describe('jira webhook route, vendor specifics', () => {
 
   it('fires on a transition to the configured status', async () => {
     const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, [{ type: 'status', value: 'In Progress' }])
+    const trigger = makeJiraTrigger(project.id, [{ type: 'status', values: ['In Progress'] }])
     await deliver(updated(project, [{ field: 'status', fromString: 'To Do', toString: 'Done' }]))
     expect(runsOf(trigger.id)).toHaveLength(0)
     await deliver(updated(project, [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }]))
@@ -182,7 +183,7 @@ describe('jira webhook route, vendor specifics', () => {
 
   it('fires on a transition into the configured status category, whatever the status is called', async () => {
     const project = makeJiraProject()
-    const trigger = makeJiraTrigger(project.id, [{ type: 'status', value: 'category:done' }])
+    const trigger = makeJiraTrigger(project.id, [{ type: 'status', values: ['category:done'] }])
     api.statusCategories = { 1: 'new', 2: 'indeterminate', 3: 'done', 4: 'done' }
 
     await deliver(updated(project, [{ field: 'status', from: '1', to: '2', fromString: 'To Do', toString: 'In Progress' }], { status: { name: 'In Progress', statusCategory: { key: 'indeterminate' } } }))
@@ -217,7 +218,7 @@ describe('jira webhook route, vendor specifics', () => {
 
   it('fires on any of several events and only for tickets carrying the label filter', async () => {
     const project = makeJiraProject()
-    const either = makeJiraTrigger(project.id, [{ type: 'assigned' }, { type: 'status', value: 'In Progress' }])
+    const either = makeJiraTrigger(project.id, [{ type: 'assigned' }, { type: 'status', values: ['In Progress'] }])
     const backendOnly = makeJiraTrigger(project.id, [{ type: 'created' }], { label: ['backend'] })
 
     await deliver(updated(project, [{ field: 'status', fromString: 'To Do', toString: 'In Progress' }]))

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultTriggerConfig, triggerConfigIssues, triggerSummary, type TriggerFormDef } from '../../shared/utils/trigger-form'
+import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 const FORM: TriggerFormDef = [
   {
@@ -7,12 +8,12 @@ const FORM: TriggerFormDef = [
     label: 'Card',
     events: [
       { type: 'created', label: 'Created', summary: 'created', default: true },
-      { type: 'labeled', label: 'Label added', summary: 'label "{value}"', value: { input: 'text', default: 'go' }, default: true },
-      { type: 'moved', label: 'Moved to', summary: 'moved to {value}', value: { input: 'select', options: [{ label: 'Doing', value: 'doing' }, { label: 'Done', value: 'done' }] } },
+      { type: 'labeled', label: 'Label added', summary: 'label {value}', value: { default: 'go' }, default: true },
+      { type: 'moved', label: 'Moved to', summary: 'moved to {value}', value: { options: [{ label: 'Doing', value: 'doing' }, { label: 'Done', value: 'done' }] } },
     ],
     filters: [
-      { key: 'board', label: 'Board is', summary: 'board {value}', input: 'list' },
-      { key: 'archived', label: 'Archive state is', summary: '{value}', input: 'select', options: [{ label: 'Active', value: 'no', summary: 'not archived' }, { label: 'Archived', value: 'yes' }] },
+      { key: 'board', label: 'Board' },
+      { key: 'size', label: 'Size', listedOnly: true, options: [{ label: 'S', value: 's' }, { label: 'L', value: 'l' }] },
     ],
   },
   {
@@ -21,8 +22,8 @@ const FORM: TriggerFormDef = [
     events: [{
       type: 'state',
       label: 'State reached',
-      summary: 'state "{value}"',
-      value: { input: 'select', options: [{ label: 'Done', value: 'group:done', summary: 'any "Done" state' }], optionsUrl: '/api/states' },
+      summary: 'state {value}',
+      value: { options: [{ label: 'Done', value: 'group:done', summary: 'any "Done" state' }], optionsUrl: '/api/states' },
     }],
     filters: [],
   },
@@ -31,49 +32,53 @@ const FORM: TriggerFormDef = [
 
 describe('trigger form', () => {
   it('starts a new trigger from the events marked as default', () => {
-    expect(defaultTriggerConfig(FORM)).toEqual({ kind: 'card', on: [{ type: 'created' }, { type: 'labeled', value: 'go' }], filters: {} })
-    expect(defaultTriggerConfig(FORM, 'board')).toEqual({ kind: 'board', on: [], filters: {} })
+    expect(defaultTriggerConfig(FORM)).toEqual({ kind: 'card', on: [{ type: 'created' }, { type: 'labeled', values: ['go'] }], conditions: [] })
+    expect(defaultTriggerConfig(FORM, 'board')).toEqual({ kind: 'board', on: [], conditions: [] })
   })
 
-  it('accepts a config made of declared events and filters', () => {
+  it('accepts a config made of declared events and conditions, a field more than once', () => {
     expect(triggerConfigIssues(FORM, defaultTriggerConfig(FORM))).toEqual([])
-    expect(triggerConfigIssues(FORM, { kind: 'card', on: [{ type: 'moved', value: 'done' }], filters: { board: ['ops'], archived: ['no'] } })).toEqual([])
+    expect(triggerConfigIssues(FORM, { kind: 'card', on: [{ type: 'moved', values: ['done'] }], conditions: allOf({ board: ['ops'], size: ['s'] }) })).toEqual([])
+    expect(triggerConfigIssues(FORM, { kind: 'card', on: [{ type: 'created' }], conditions: [[...allOf({ board: ['o*'] })[0]!, ...noneOf({ board: ['ops'] })[0]!]] })).toEqual([])
   })
 
   it.each([
-    [{ kind: 'lane', on: [{ type: 'created' }], filters: {} }, 'Unknown trigger kind "lane"'],
-    [{ kind: 'card', on: [], filters: {} }, 'Pick at least one event.'],
-    [{ kind: 'board', on: [{ type: 'labeled', value: 'go' }], filters: {} }, 'Unknown event "labeled"'],
-    [{ kind: 'card', on: [{ type: 'created' }, { type: 'created' }], filters: {} }, '"Created" is listed twice'],
-    [{ kind: 'card', on: [{ type: 'created', value: 'x' }], filters: {} }, '"Created" takes no value'],
-    [{ kind: 'card', on: [{ type: 'labeled', value: ' ' }], filters: {} }, '"Label added" needs a value.'],
-    [{ kind: 'card', on: [{ type: 'moved', value: 'gone' }], filters: {} }, '"gone" is not an option of "Moved to"'],
-    [{ kind: 'card', on: [{ type: 'created' }], filters: { team: ['a'] } }, 'Unknown filter "team"'],
-    [{ kind: 'card', on: [{ type: 'created' }], filters: { board: ['ops', ''] } }, 'Fill in or remove the "Board is" filter.'],
-    [{ kind: 'card', on: [{ type: 'created' }], filters: { archived: ['maybe'] } }, 'Pick an option for "Archive state is".'],
-    [{ kind: 'card', on: [{ type: 'created' }], filters: { archived: ['no', 'yes'] } }, 'Pick an option for "Archive state is".'],
+    [{ kind: 'lane', on: [{ type: 'created' }], conditions: [] }, 'Unknown trigger kind "lane"'],
+    [{ kind: 'card', on: [], conditions: [] }, 'Pick at least one event.'],
+    [{ kind: 'board', on: [{ type: 'labeled', values: ['go'] }], conditions: [] }, 'Unknown event "labeled"'],
+    [{ kind: 'card', on: [{ type: 'created' }, { type: 'created' }], conditions: [] }, '"Created" is listed twice'],
+    [{ kind: 'card', on: [{ type: 'created', values: ['x'] }], conditions: [] }, '"Created" takes no value'],
+    [{ kind: 'card', on: [{ type: 'labeled', values: [' '] }], conditions: [] }, '"Label added" needs a value.'],
+    [{ kind: 'card', on: [{ type: 'moved', values: ['gone'] }], conditions: [] }, '"gone" is not an option of "Moved to"'],
+    [{ kind: 'card', on: [{ type: 'created' }], conditions: allOf({ team: ['a'] }) }, 'Unknown condition "team"'],
+    [{ kind: 'card', on: [{ type: 'created' }], conditions: allOf({ board: ['ops', ''] }) }, 'Fill in or remove the "Board" condition.'],
+    [{ kind: 'card', on: [{ type: 'created' }], conditions: allOf({ size: ['s', 'x*'] }) }, '"x*" is not an option of "Size"'],
+    [{ kind: 'card', on: [{ type: 'created' }], conditions: [[]] }, 'Fill in or remove the empty condition group.'],
   ])('rejects %o', (config, message) => {
     expect(triggerConfigIssues(FORM, config)[0]?.message).toBe(message)
   })
 
   it('takes any value where options also load per project, and lets an option word the summary', () => {
-    expect(triggerConfigIssues(FORM, { kind: 'list', on: [{ type: 'state', value: 'In Review' }], filters: {} })).toEqual([])
-    expect(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', value: 'In Review' }], filters: {} })).toBe('On list · state "In Review"')
-    expect(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', value: 'group:done' }], filters: {} })).toBe('On list · any "Done" state')
+    expect(triggerConfigIssues(FORM, { kind: 'list', on: [{ type: 'state', values: ['In Review'] }], conditions: [] })).toEqual([])
+    expect(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', values: ['In Review'] }], conditions: [] })).toBe('On list · state "In Review"')
+    expect(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', values: ['group:done'] }], conditions: [] })).toBe('On list · any "Done" state')
   })
 
-  it('names the event or filter every issue belongs to', () => {
-    expect(triggerConfigIssues(FORM, { kind: 'card', on: [{ type: 'labeled', value: '' }, { type: 'moved' }], filters: { board: [] } })).toEqual([
+  it('names the event or condition every issue belongs to', () => {
+    expect(triggerConfigIssues(FORM, { kind: 'card', on: [{ type: 'labeled', values: [''] }, { type: 'moved' }], conditions: [...allOf({ board: ['ops'] }), ...allOf({ board: ['dev'], size: ['s'], team: ['a'] })] })).toEqual([
       { message: '"Label added" needs a value.', event: 'labeled' },
       { message: '"Moved to" needs a value.', event: 'moved' },
-      { message: 'Fill in or remove the "Board is" filter.', filter: 'board' },
+      { message: 'Unknown condition "team"', condition: [1, 2] },
     ])
-    expect(triggerConfigIssues(FORM, { kind: 'card', on: [], filters: {} })).toEqual([{ message: 'Pick at least one event.' }])
+    expect(triggerConfigIssues(FORM, { kind: 'card', on: [], conditions: [] })).toEqual([{ message: 'Pick at least one event.' }])
   })
 
-  it('summarises kind, events and filters, showing option labels', () => {
-    expect(triggerSummary(FORM, { kind: 'card', on: [{ type: 'created' }, { type: 'moved', value: 'done' }], filters: { board: ['ops', 'dev'], archived: ['no'] } }))
-      .toBe('On card · created, moved to Done · board ops, dev · not archived')
-    expect(triggerSummary([FORM[0]!], { kind: 'card', on: [{ type: 'labeled', value: 'go' }], filters: {} })).toBe('On label "go"')
+  it('summarises kind, events and conditions, showing option labels', () => {
+    const on = [{ type: 'created' }, { type: 'moved', values: ['done'] }]
+    expect(triggerSummary(FORM, { kind: 'card', on, conditions: allOf({ board: ['ops', 'dev'], size: ['s'] }) }))
+      .toBe('On card · created, moved to Done · board is ops, dev · size is S')
+    expect(triggerSummary(FORM, { kind: 'card', on, conditions: [...noneOf({ board: ['ops'] }), ...allOf({ board: ['dev'], size: ['s', 'l'] })] }))
+      .toBe('On card · created, moved to Done · board is not ops or board is dev and size is S, L')
+    expect(triggerSummary([FORM[0]!], { kind: 'card', on: [{ type: 'labeled', values: ['go'] }], conditions: [] })).toBe('On label "go"')
   })
 })

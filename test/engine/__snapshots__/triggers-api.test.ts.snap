@@ -4,7 +4,7 @@ exports[`POST /api/triggers > creates a github trigger and describes it 1`] = `
 {
   "active": true,
   "config": {
-    "filters": {},
+    "conditions": [],
     "kind": "pull_request",
     "on": [
       {

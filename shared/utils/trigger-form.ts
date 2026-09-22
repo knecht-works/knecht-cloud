@@ -2,13 +2,14 @@
 // label and the trigger dialog all derive from it; only the matcher is code.
 
 export interface TriggerValueInput {
-  input: 'text' | 'select'
   placeholder?: string
   default?: string
   options?: { label: string, value: string, summary?: string }[]
   optionsHeading?: string
   optionsUrl?: string
   remoteHeading?: string
+  // Only listed values can be picked: nothing typed, and on a filter no patterns.
+  listedOnly?: boolean
 }
 
 export interface TriggerEventDef {
@@ -23,12 +24,13 @@ export interface TriggerEventDef {
 export interface TriggerFilterDef {
   key: string
   label: string
-  summary: string
-  input: 'list' | 'select'
   placeholder?: string
-  // The choices of a select. On a list they and `optionsUrl` are suggestions: patterns like `kn*` can still be typed.
-  options?: { label: string, value: string, summary?: string }[]
+  // Without `listedOnly` the options and `optionsUrl` are suggestions: patterns like `kn*` can still be typed.
+  options?: { label: string, value: string }[]
+  optionsHeading?: string
   optionsUrl?: string
+  remoteHeading?: string
+  listedOnly?: boolean
 }
 
 export interface TriggerKindDef {
@@ -43,14 +45,23 @@ export type TriggerFormDef = TriggerKindDef[]
 
 export interface TriggerEventConfig {
   type: string
-  value?: string
+  values?: string[]
 }
 
-// Events are alternatives (any of them fires), filters all have to hold.
+export const TRIGGER_CONDITION_OPS = ['is', 'is-not'] as const
+export type TriggerConditionOp = typeof TRIGGER_CONDITION_OPS[number]
+
+export interface TriggerCondition {
+  field: string
+  op: TriggerConditionOp
+  values: string[]
+}
+
+// Events are alternatives (any of them fires). Conditions are alternative groups, and within a group all have to hold.
 export interface TriggerConfig {
   kind: string
   on: TriggerEventConfig[]
-  filters: Record<string, string[]>
+  conditions: TriggerCondition[][]
 }
 
 export function defaultTriggerConfig(form: TriggerFormDef, kind = form[0]!.kind): TriggerConfig {
@@ -59,16 +70,16 @@ export function defaultTriggerConfig(form: TriggerFormDef, kind = form[0]!.kind)
     kind: def.kind,
     on: def.events
       .filter(e => e.default)
-      .map(e => (e.value ? { type: e.type, value: e.value.default ?? e.value.options?.[0]?.value ?? '' } : { type: e.type })),
-    filters: {},
+      .map(e => (e.value ? { type: e.type, values: [e.value.default ?? e.value.options?.[0]?.value ?? ''] } : { type: e.type })),
+    conditions: [],
   }
 }
 
-// Names the event or filter an issue belongs to, so the dialog shows it under that field.
+// Names the event or condition an issue belongs to, so the dialog shows it under that field.
 export interface TriggerConfigIssue {
   message: string
   event?: string
-  filter?: string
+  condition?: [group: number, index: number]
 }
 
 export function triggerConfigIssues(form: TriggerFormDef, config: TriggerConfig): TriggerConfigIssue[] {
@@ -84,26 +95,31 @@ export function triggerConfigIssues(form: TriggerFormDef, config: TriggerConfig)
     if (!event) issue(`Unknown event "${on.type}"`)
     else if (seen.has(on.type)) issue(`"${event.label}" is listed twice`)
     else if (!event.value) {
-      if (on.value !== undefined) issue(`"${event.label}" takes no value`)
+      if (on.values !== undefined) issue(`"${event.label}" takes no value`)
     }
-    else if (!on.value?.trim()) issue(`"${event.label}" needs a value.`)
-    else if (event.value.options && !event.value.optionsUrl && !event.value.options.some(o => o.value === on.value!.trim())) {
-      issue(`"${on.value.trim()}" is not an option of "${event.label}"`)
+    else if (!on.values?.length || on.values.some(v => !v.trim())) issue(`"${event.label}" needs a value.`)
+    else if (event.value.options && !event.value.optionsUrl) {
+      const unknown = on.values.find(v => !event.value!.options!.some(o => o.value === v.trim()))
+      if (unknown) issue(`"${unknown.trim()}" is not an option of "${event.label}"`)
     }
     seen.add(on.type)
   }
 
-  for (const [key, value] of Object.entries(config.filters)) {
-    const filter = def.filters.find(f => f.key === key)
-    const issue = (message: string) => issues.push({ message, filter: key })
-    if (!filter) issue(`Unknown filter "${key}"`)
-    else if (filter.input === 'select') {
-      if (value.length !== 1 || !filter.options?.some(o => o.value === value[0])) issue(`Pick an option for "${filter.label}".`)
-    }
-    else if (!value.length || value.some(v => !v.trim())) {
-      issue(`Fill in or remove the "${filter.label}" filter.`)
-    }
-  }
+  config.conditions.forEach((group, gi) => {
+    if (!group.length) issues.push({ message: 'Fill in or remove the empty condition group.' })
+    group.forEach((condition, ci) => {
+      const filter = def.filters.find(f => f.key === condition.field)
+      const issue = (message: string) => issues.push({ message, condition: [gi, ci] })
+      if (!filter) issue(`Unknown condition "${condition.field}"`)
+      else if (!condition.values.length || condition.values.some(v => !v.trim())) {
+        issue(`Fill in or remove the "${filter.label}" condition.`)
+      }
+      else if (filter.listedOnly && filter.options && !filter.optionsUrl) {
+        const unknown = condition.values.find(v => !filter.options!.some(o => o.value === v))
+        if (unknown) issue(`"${unknown}" is not an option of "${filter.label}"`)
+      }
+    })
+  })
   return issues
 }
 
@@ -113,14 +129,21 @@ export function triggerSummary(form: TriggerFormDef, config: TriggerConfig): str
   const events = config.on.map((on) => {
     const event = def.events.find(e => e.type === on.type)
     if (!event) return on.type
-    const option = event.value?.options?.find(o => o.value === on.value)
-    return option?.summary ?? event.summary.replace('{value}', option?.label ?? on.value ?? '')
+    const worded: string[] = []
+    const plain: string[] = []
+    for (const value of on.values ?? []) {
+      const option = event.value?.options?.find(o => o.value === value)
+      if (option?.summary) worded.push(option.summary)
+      else plain.push(option?.label ?? `"${value}"`)
+    }
+    return [...(plain.length || !worded.length ? [event.summary.replace('{value}', plain.join(', '))] : []), ...worded].join(', ')
   })
-  const filters = Object.entries(config.filters).map(([key, value]) => {
-    const filter = def.filters.find(f => f.key === key)
-    const option = filter?.options?.find(o => o.value === value[0])
-    return option?.summary ?? (filter?.summary ?? key).replace('{value}', option?.label ?? value.join(', '))
-  })
+  const groups = config.conditions.map(group => group.map((condition) => {
+    const filter = def.filters.find(f => f.key === condition.field)
+    const labels = condition.values.map(v => filter?.options?.find(o => o.value === v)?.label ?? v)
+    return `${(filter?.label ?? condition.field).toLowerCase()} ${condition.op === 'is' ? 'is' : 'is not'} ${labels.join(', ')}`
+  }))
+  const conditions = groups.length > 1 ? [groups.map(g => g.join(' and ')).join(' or ')] : groups[0] ?? []
   const head = form.length > 1 ? [def.label.toLowerCase()] : []
-  return `On ${[...head, events.join(', '), ...filters].filter(Boolean).join(' · ')}`
+  return `On ${[...head, events.join(', '), ...conditions].filter(Boolean).join(' · ')}`
 }

@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from './index'
 import { stripLegacyModelPrefix } from '../../shared/utils/ai'
-import type { TriggerConfig } from '../../shared/utils/trigger-form'
+import type { TriggerCondition } from '../../shared/utils/trigger-form'
 import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '../../shared/utils/workflow'
 
 // Append-only: entries are tracked by name, never rename or remove a released one.
@@ -11,6 +11,8 @@ const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0003_cancelled_step_rows', run: cancelledStepRows },
   { name: '0004_followup_reply_items', run: followupReplyItems },
   { name: '0005_trigger_event_configs', run: triggerEventConfigs },
+  { name: '0006_trigger_conditions', run: triggerConditions },
+  { name: '0007_trigger_event_values', run: triggerEventValues },
 ]
 
 export function runDataMigrations(): void {
@@ -82,10 +84,12 @@ function cancelledStepRows(): void {
     .run()
 }
 
+interface SingleValueEvent { type: string, value?: string }
+interface FilterTriggerConfig { kind: string, on: SingleValueEvent[], filters: Record<string, string[]> }
 interface LegacyGithubConfig { event?: string, branches?: string[], issueActions?: string[], issueLabel?: string | null }
 interface LegacyJiraConfig { event?: string, label?: string, status?: string, statusCategory?: string, issueType?: string }
 
-function fromLegacyGithub(c: LegacyGithubConfig): TriggerConfig {
+function fromLegacyGithub(c: LegacyGithubConfig): FilterTriggerConfig {
   if (c.event === 'issues') {
     const on = (c.issueActions ?? ['opened']).map(a => (a === 'labeled' ? { type: 'labeled', value: c.issueLabel ?? '' } : { type: a }))
     return { kind: 'issue', on, filters: {} }
@@ -97,7 +101,7 @@ function fromLegacyGithub(c: LegacyGithubConfig): TriggerConfig {
   }
 }
 
-function fromLegacyJira(c: LegacyJiraConfig): TriggerConfig {
+function fromLegacyJira(c: LegacyJiraConfig): FilterTriggerConfig {
   const on = c.event === 'labeled'
     ? { type: 'labeled', value: c.label ?? '' }
     : c.event === 'transitioned'
@@ -111,5 +115,25 @@ function triggerEventConfigs(): void {
     if (row.source === 'schedule' || Array.isArray(row.config.on)) continue
     const config = row.source === 'github' ? fromLegacyGithub(row.config) : fromLegacyJira(row.config)
     db.update(schema.triggers).set({ config: { ...config } }).where(eq(schema.triggers.id, row.id)).run()
+  }
+}
+
+function triggerConditions(): void {
+  for (const row of db.select().from(schema.triggers).all()) {
+    if (row.source === 'schedule' || Array.isArray(row.config.conditions)) continue
+    const { filters = {}, ...config } = row.config as Partial<FilterTriggerConfig>
+    const group = Object.entries(filters).map(([key, values]): TriggerCondition => (
+      key === 'authorNot' ? { field: 'author', op: 'is-not', values } : { field: key, op: 'is', values }
+    ))
+    db.update(schema.triggers).set({ config: { ...config, conditions: group.length ? [group] : [] } }).where(eq(schema.triggers.id, row.id)).run()
+  }
+}
+
+function triggerEventValues(): void {
+  for (const row of db.select().from(schema.triggers).all()) {
+    const on = row.config.on as SingleValueEvent[] | undefined
+    if (row.source === 'schedule' || !on?.some(e => e.value !== undefined)) continue
+    const events = on.map(({ value, ...e }) => (value === undefined ? e : { ...e, values: [value] }))
+    db.update(schema.triggers).set({ config: { ...row.config, on: events } }).where(eq(schema.triggers.id, row.id)).run()
   }
 }

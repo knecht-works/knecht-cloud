@@ -3,7 +3,7 @@ import { formatObjectContext, type ObjectContext } from '../utils/object-context
 import type { SessionObject } from '../utils/sessions'
 import type { IntegrationId } from '../../shared/utils/integrations'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../shared/utils/trigger-form'
-import { labeledEvent, matchesAny, passesList, triggerEvent } from './trigger-config'
+import { conditionsPass, labeledEvent, listedOnlyKeys, triggerEvent } from './trigger-config'
 import type { CommentAuthor, TriggerMatch, WebhookComment, WebhookDelivery } from './types'
 
 // Issue trackers share one set of rules: when a trigger fires, what a run gets as
@@ -45,7 +45,7 @@ export interface TrackerChange {
   gainedSelf: boolean
   // Set when this update changed the status; the group is null when the tracker does not tell.
   previousStatus?: { group: string | null }
-  // Values for the filters besides `labelFilter`.
+  // Values for the tracker's own filters; label, status and assignment are filled in here.
   filterValues: Record<string, string[]>
 }
 
@@ -53,6 +53,13 @@ const capitalize = (word: string) => word.charAt(0).toUpperCase() + word.slice(1
 
 export function trackerTriggerForm(def: TrackerDef): TriggerFormDef {
   const { status } = def
+  const statusOptions = {
+    optionsHeading: status.groupHeading,
+    options: Object.entries(status.groups).map(([key, label]) => ({ label: `Any ${label}`, value: `${status.groupPrefix}${key}`, summary: `any "${label}" ${status.event}` })),
+    optionsUrl: `/api/integrations/${def.id}/options/${status.options}`,
+    remoteHeading: `Exact ${status.event}`,
+    listedOnly: true,
+  }
   return [
     {
       kind: 'issue',
@@ -70,42 +77,46 @@ export function trackerTriggerForm(def: TrackerDef): TriggerFormDef {
         {
           type: status.event,
           label: `${capitalize(status.event)} reached`,
-          summary: `${status.event} "{value}"`,
+          summary: `${status.event} {value}`,
           value: {
-            input: 'select',
             default: `${status.groupPrefix}${status.closedGroups[0]}`,
-            optionsHeading: status.groupHeading,
-            options: Object.entries(status.groups).map(([key, label]) => ({ label: `Any ${label}`, value: `${status.groupPrefix}${key}`, summary: `any "${label}" ${status.event}` })),
-            optionsUrl: `/api/integrations/${def.id}/options/${status.options}`,
-            remoteHeading: `Exact ${status.event}`,
+            ...statusOptions,
           },
         },
       ],
-      filters: def.filters,
+      filters: [
+        { key: status.event, label: capitalize(status.event), placeholder: `Pick a ${status.event}`, ...statusOptions },
+        { key: 'assignee', label: 'Assignee', listedOnly: true, placeholder: 'Pick an assignee', options: [{ label: 'Knecht', value: 'self' }] },
+        ...def.filters,
+      ],
     },
   ]
 }
 
 export function matchTrackerEvent(def: TrackerDef, c: TriggerConfig, change: TrackerChange): TriggerMatch | null {
   const { issue } = change
-  if (!passesList(c, 'label', wanted => matchesAny(wanted, issue.labels))) return null
-  for (const [key, values] of Object.entries(change.filterValues)) {
-    if (!passesList(c, key, wanted => matchesAny(wanted, values))) return null
+  const fields = {
+    ...change.filterValues,
+    label: issue.labels,
+    [def.status.event]: [issue.status.name, `${def.status.groupPrefix}${issue.status.group}`],
+    assignee: change.assignedToSelf ? ['self'] : [],
+  }
+  if (!conditionsPass(c, fields, listedOnlyKeys(trackerTriggerForm(def)[0]!.filters))) return null
+
+  const labels = triggerEvent(c, 'labeled')?.values ?? []
+  const wantsSelf = !!triggerEvent(c, 'assigned')
+  const reached = (target: string) => {
+    const group = target.startsWith(def.status.groupPrefix) ? target.slice(def.status.groupPrefix.length) : undefined
+    const inTarget = group === undefined ? issue.status.name === target : issue.status.group === group
+    // Moving between two statuses of one group (In Progress to In Review) is not reaching the group.
+    return inTarget && (change.created || (!!change.previousStatus && (group === undefined || change.previousStatus.group !== group)))
   }
 
-  const label = triggerEvent(c, 'labeled')?.value
-  const wantsSelf = !!triggerEvent(c, 'assigned')
-  const target = triggerEvent(c, def.status.event)?.value
-  const group = target?.startsWith(def.status.groupPrefix) ? target.slice(def.status.groupPrefix.length) : undefined
-  const inTarget = !!target && (group === undefined ? issue.status.name === target : issue.status.group === group)
-
   // An object born with the label, in the status or assigned to Knecht has nothing to gain them from.
-  const fires = change.created
-    ? !!triggerEvent(c, 'created') || (!!label && issue.labels.includes(label)) || inTarget || (wantsSelf && change.assignedToSelf)
-    : (!!label && change.gainedLabels.includes(label))
-      || (wantsSelf && change.gainedSelf)
-      // Moving between two statuses of one group (In Progress to In Review) is not reaching the group.
-      || (inTarget && !!change.previousStatus && (group === undefined || change.previousStatus.group !== group))
+  const fires = (change.created && !!triggerEvent(c, 'created'))
+    || labels.some(l => (change.created ? issue.labels : change.gainedLabels).includes(l))
+    || (wantsSelf && (change.created ? change.assignedToSelf : change.gainedSelf))
+    || (triggerEvent(c, def.status.event)?.values ?? []).some(reached)
   if (!fires) return null
   return { branch: null, inputs: trackerInputs(issue), object: issue.object }
 }

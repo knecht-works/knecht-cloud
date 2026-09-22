@@ -78,7 +78,7 @@ describe('runDataMigrations', () => {
     expect(db.select().from(schema.runSteps).where(eq(schema.runSteps.id, failed.id)).get()).toMatchObject({ status: 'failed', error: 'exit 1' })
   })
 
-  it('reshapes github and jira trigger configs into events and filters', () => {
+  it('reshapes github and jira trigger configs into events with value lists and conditions', () => {
     const workflowId = db.insert(schema.workflows).values({ name: 'legacy-triggers', steps: [] }).returning().get().id
     const insert = (source: 'github' | 'jira' | 'schedule', config: Record<string, unknown>) =>
       db.insert(schema.triggers).values({ source, workflowId, projectIds: [], config }).returning().get().id
@@ -92,20 +92,51 @@ describe('runDataMigrations', () => {
     const current = insert('github', { kind: 'issue', on: [{ type: 'opened' }], filters: {} })
     const schedule = insert('schedule', {})
 
-    db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, '0005_trigger_event_configs')).run()
+    for (const name of ['0005_trigger_event_configs', '0006_trigger_conditions', '0007_trigger_event_values']) {
+      db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, name)).run()
+    }
     runDataMigrations()
 
-    expect(configOf(pr)).toEqual({ kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], filters: { base: ['main'] } })
-    expect(configOf(issues)).toEqual({ kind: 'issue', on: [{ type: 'opened' }, { type: 'labeled', value: 'knecht' }], filters: {} })
-    expect(configOf(category)).toEqual({ kind: 'issue', on: [{ type: 'status', value: 'category:done' }], filters: { issueType: ['Bug'] } })
-    expect(configOf(status)).toEqual({ kind: 'issue', on: [{ type: 'status', value: 'In Review' }], filters: {} })
-    expect(configOf(assigned)).toEqual({ kind: 'issue', on: [{ type: 'assigned' }], filters: {} })
-    expect(configOf(current)).toEqual({ kind: 'issue', on: [{ type: 'opened' }], filters: {} })
+    expect(configOf(pr)).toEqual({ kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], conditions: [[{ field: 'base', op: 'is', values: ['main'] }]] })
+    expect(configOf(issues)).toEqual({ kind: 'issue', on: [{ type: 'opened' }, { type: 'labeled', values: ['knecht'] }], conditions: [] })
+    expect(configOf(category)).toEqual({ kind: 'issue', on: [{ type: 'status', values: ['category:done'] }], conditions: [[{ field: 'issueType', op: 'is', values: ['Bug'] }]] })
+    expect(configOf(status)).toEqual({ kind: 'issue', on: [{ type: 'status', values: ['In Review'] }], conditions: [] })
+    expect(configOf(assigned)).toEqual({ kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
+    expect(configOf(current)).toEqual({ kind: 'issue', on: [{ type: 'opened' }], conditions: [] })
     expect(configOf(schedule)).toEqual({})
     for (const id of [pr, issues, category, status, assigned]) {
       const row = db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!
       expect(getTriggerSource(row.source)!.configSchema.safeParse(row.config).success).toBe(true)
     }
+  })
+
+  it('turns trigger filters into one group of conditions, authorNot into "author is not"', () => {
+    const workflowId = db.insert(schema.workflows).values({ name: 'filter-triggers', steps: [] }).returning().get().id
+    const insert = (source: 'github' | 'schedule', config: Record<string, unknown>) =>
+      db.insert(schema.triggers).values({ source, workflowId, projectIds: [], config }).returning().get()
+    const on = [{ type: 'opened' }]
+    const filtered = insert('github', { kind: 'pull_request', on, filters: { base: ['main', 'releases/*'], authorNot: ['*[bot]'], draft: ['ready'] } })
+    const bare = insert('github', { kind: 'issue', on, filters: {} })
+    const current = insert('github', { kind: 'issue', on, conditions: [[{ field: 'label', op: 'is', values: ['bug'] }]] })
+    const schedule = insert('schedule', {})
+
+    db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, '0006_trigger_conditions')).run()
+    runDataMigrations()
+
+    const configOf = (id: number) => db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!.config
+    expect(configOf(filtered.id)).toEqual({
+      kind: 'pull_request',
+      on,
+      conditions: [[
+        { field: 'base', op: 'is', values: ['main', 'releases/*'] },
+        { field: 'author', op: 'is-not', values: ['*[bot]'] },
+        { field: 'draft', op: 'is', values: ['ready'] },
+      ]],
+    })
+    expect(configOf(bare.id)).toEqual({ kind: 'issue', on, conditions: [] })
+    expect(configOf(current.id)).toEqual(current.config)
+    expect(configOf(schedule.id)).toEqual({})
+    expect(getTriggerSource('github')!.configSchema.safeParse(configOf(filtered.id)).success).toBe(true)
   })
 
   it('is a no-op on the second run', () => {
