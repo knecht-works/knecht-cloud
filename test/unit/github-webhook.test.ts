@@ -116,7 +116,8 @@ describe('matchGithubEvent events and filters', () => {
   it('fires when an issue is assigned to the configured login', () => {
     const assigned = trigger({ kind: 'issue', on: [{ type: 'assigned', values: ['knecht-works'] }] })
     const issue = { number: 7 }
-    expect(fires(assigned, { action: 'assigned', issue, assignee: { login: 'Knecht-Works' } }, 'issues')).toBe(true)
+    expect(fires(assigned, { action: 'assigned', issue, assignee: { login: 'knecht-works' } }, 'issues')).toBe(true)
+    expect(fires(assigned, { action: 'assigned', issue, assignee: { login: 'Knecht-Works' } }, 'issues')).toBe(false)
     expect(fires(assigned, { action: 'assigned', issue, assignee: { login: 'ann' } }, 'issues')).toBe(false)
     expect(fires(assigned, { action: 'opened', issue }, 'issues')).toBe(false)
   })
