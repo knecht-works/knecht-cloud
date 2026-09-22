@@ -1,5 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import { Marked } from 'marked'
 import TurndownService from 'turndown'
+import { splitMentions } from '../tracker'
+import type { PlaneMember } from './api'
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -14,12 +17,15 @@ turndown.addRule('bareLink', {
   replacement: content => content,
 })
 
-// Plane mentions are empty custom elements, which turndown drops together with the space after them.
+// Plane mentions are empty custom elements naming only the user id, which turndown drops together with the space after them.
 const MENTION_RE = /<mention-component\b([^>]*)>\s*<\/mention-component>/gi
 
-export function htmlToMarkdown(html: string | null | undefined): string {
+export function htmlToMarkdown(html: string | null | undefined, members: PlaneMember[] = []): string {
   if (!html) return ''
-  const named = html.replace(MENTION_RE, (_, attrs: string) => `@${attrs.match(/\blabel="([^"]*)"/)?.[1] || 'user'}`)
+  const named = html.replace(MENTION_RE, (_, attrs: string) => {
+    const id = attrs.match(/\bentity_identifier="([^"]*)"/)?.[1]
+    return `@${members.find(m => m.id === id)?.displayName || 'user'}`
+  })
   return turndown.turndown(named).trim()
 }
 
@@ -36,7 +42,10 @@ const marked = new Marked({
   },
 })
 
-export function markdownToHtml(markdown: string): string {
+export function markdownToHtml(markdown: string, members: PlaneMember[] = []): string {
   // Plane's editor shows the newlines marked puts between blocks as empty paragraphs.
-  return marked.parse(markdown, { async: false }).trim().replace(/>\n+</g, '><') || '<p></p>'
+  const html = marked.parse(markdown, { async: false }).trim().replace(/>\n+</g, '><') || '<p></p>'
+  return splitMentions(html, members.map(m => ({ id: m.id, name: m.displayName })))
+    .map(part => typeof part === 'string' ? part : `<mention-component id="${randomUUID()}" entity_identifier="${part.id}" entity_name="user_mention"></mention-component>`)
+    .join('')
 }

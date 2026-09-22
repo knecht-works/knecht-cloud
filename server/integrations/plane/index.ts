@@ -8,7 +8,7 @@ import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import { addPlaneComment, forgetPlaneCache, getPlaneComment, planeMyself, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeUserName, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
+import { addPlaneComment, forgetPlaneCache, getPlaneComment, planeMyself, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
 import { PLANE_CONNECTION_FORM, planeConnection, planeCredentials } from './credentials'
 import { htmlMentionIds, htmlToMarkdown, markdownToHtml } from './html'
 
@@ -97,11 +97,11 @@ async function locate(record: PlaneRecord, workItemId: string | undefined): Prom
 async function parseComment(located: Located, object: SessionObject, record: PlaneRecord): Promise<WebhookComment | undefined> {
   const commentId = nil(record.comment?.id)
   if (!commentId) return undefined
-  const comment = await getPlaneComment(located.planeProject.id, located.workItemId, commentId)
+  const [comment, members] = await Promise.all([getPlaneComment(located.planeProject.id, located.workItemId, commentId), listPlaneMembers(located.planeProject.id)])
   return trackerComment({
     id: comment.id,
-    author: { id: comment.actor?.id ?? '', name: planeUserName(comment.actor) },
-    body: htmlToMarkdown(comment.comment_html),
+    author: { id: comment.actor ?? '', name: memberName(members, comment.actor) },
+    body: htmlToMarkdown(comment.comment_html, members),
     object,
     selfId: planeCredentials()?.accountId,
     mentionedIds: htmlMentionIds(comment.comment_html),
@@ -119,15 +119,16 @@ async function planeLookups(projectId: string): Promise<PlaneLookups> {
   return { states, labels, members }
 }
 
+const memberName = (members: PlaneMember[], id: string | null | undefined) => members.find(m => m.id === id)?.displayName ?? ''
+
 function planeIssue(object: SessionObject, item: PlaneWorkItem, { states, labels, members }: PlaneLookups): TrackerIssue {
   const state = states.find(s => s.id === item.state)
-  const member = (id: string | null | undefined) => members.find(m => m.id === id)?.displayName ?? ''
   return {
     object,
-    body: htmlToMarkdown(item.description_html),
+    body: htmlToMarkdown(item.description_html, members),
     status: { name: state?.name ?? '', group: state?.group ?? '' },
-    author: member(item.created_by),
-    assignees: (item.assignees ?? []).map(member).filter(Boolean),
+    author: memberName(members, item.created_by),
+    assignees: (item.assignees ?? []).map(id => memberName(members, id)).filter(Boolean),
     labels: (item.labels ?? []).map(id => labels.find(l => l.id === id)?.name ?? '').filter(Boolean),
   }
 }
@@ -247,9 +248,9 @@ export const plane: Integration = {
       const [lookups, comments] = await Promise.all([planeLookups(planeProject.id), listPlaneComments(planeProject.id, item.id)])
       const issue = planeIssue(planeObject(planeProject.identifier, item.sequence_id, item.name), item, lookups)
       return trackerContext(issue, comments.map(c => ({
-        author: planeUserName(c.actor) || 'unknown',
+        author: memberName(lookups.members, c.actor) || 'unknown',
         at: new Date(c.created_at || 0),
-        body: htmlToMarkdown(c.comment_html),
+        body: htmlToMarkdown(c.comment_html, lookups.members),
       })))
     },
   },
@@ -262,7 +263,7 @@ export const plane: Integration = {
   capabilities: {
     async comment(_project, object, body) {
       const { planeProject, workItemId } = await locateObject(object)
-      await addPlaneComment(planeProject.id, workItemId, markdownToHtml(body))
+      await addPlaneComment(planeProject.id, workItemId, markdownToHtml(body, await listPlaneMembers(planeProject.id)))
       return { url: planeWorkItemUrl(object.key) }
     },
 

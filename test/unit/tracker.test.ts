@@ -167,7 +167,7 @@ describe('trackerTriggerForm', () => {
 
 describe('htmlMentionIds', () => {
   it('reads ids from mention nodes only', () => {
-    const html = '<p><mention-component entity_identifier="u-1" entity_name="user_mention" label="Knecht"></mention-component> see <a href="https://x/u-2">u-2</a></p>'
+    const html = '<p><mention-component entity_identifier="u-1" entity_name="user_mention"></mention-component> see <a href="https://x/u-2">u-2</a></p>'
     expect(htmlMentionIds(html)).toContain('u-1')
     expect(htmlMentionIds(html)).not.toContain('u-2')
   })

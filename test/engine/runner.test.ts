@@ -24,6 +24,7 @@ vi.mock('../../server/utils/github-app', () => ({
 const jiraComments = vi.hoisted(() => [] as { key: string, text: string }[])
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+  getJiraIssueFields: async () => ({ reporter: { accountId: 'user-1', displayName: 'Ann Example' } }),
   addJiraComment: async (key: string, body: { content?: { content?: { text?: string, marks?: unknown }[] }[] }) => {
     jiraComments.push({ key, text: (body.content?.[0]?.content ?? []).map(n => n.text ?? '').join('') })
     return { url: 'https://x' }

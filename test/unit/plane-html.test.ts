@@ -44,9 +44,23 @@ describe('markdownToHtml', () => {
 })
 
 describe('htmlToMarkdown', () => {
-  it('turns Plane mentions and entities into text', () => {
-    const html = '<p><mention-component entity_identifier="u1" entity_name="user_mention" label="Knecht"></mention-component> fix &quot;login&quot; &amp; logout</p><p>see <a href="https://x">https://x</a></p>'
-    expect(htmlToMarkdown(html)).toBe('@Knecht fix "login" & logout\n\nsee https://x')
+  it('names Plane mentions after the project members and unescapes entities', () => {
+    const html = '<p><mention-component id="m1" entity_identifier="u1" entity_name="user_mention"></mention-component> fix &quot;login&quot; &amp; logout</p><p>see <a href="https://x">https://x</a></p>'
+    expect(htmlToMarkdown(html, [{ id: 'u1', displayName: 'Knecht' }])).toBe('@Knecht fix "login" & logout\n\nsee https://x')
+    expect(htmlToMarkdown(html)).toBe('@user fix "login" & logout\n\nsee https://x')
     expect(htmlToMarkdown(null)).toBe('')
+  })
+})
+
+describe('mentions in replies', () => {
+  const members = [{ id: 'u-ann', displayName: 'Ann Example' }, { id: 'u-annex', displayName: 'Ann' }]
+
+  it('turns @Name of a project member into a Plane mention, longest name first', () => {
+    const html = markdownToHtml('Hi @Ann Example, @Ann and @Nobody!', members)
+    expect(html).toMatch(/^<p>Hi <mention-component id="[0-9a-f-]{36}" entity_identifier="u-ann" entity_name="user_mention"><\/mention-component>, <mention-component id="[0-9a-f-]{36}" entity_identifier="u-annex" entity_name="user_mention"><\/mention-component> and @Nobody!<\/p>$/)
+  })
+
+  it('leaves a name that continues as text alone', () => {
+    expect(markdownToHtml('@Annette', members)).toBe('<p>@Annette</p>')
   })
 })

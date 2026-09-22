@@ -149,7 +149,8 @@ export async function getPlaneWorkItemByKey(key: string): Promise<PlaneWorkItem>
 export interface PlaneComment {
   id: string
   comment_html?: string | null
-  actor?: PlaneUser | null
+  // The user id only; the name comes from the project members.
+  actor?: string | null
   created_at?: string
 }
 

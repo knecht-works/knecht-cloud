@@ -1,4 +1,5 @@
 import { markdownToAdf as toAdf } from 'marklassian'
+import { splitMentions, type Person } from '../tracker'
 
 export interface AdfNode {
   type?: string
@@ -87,8 +88,21 @@ export function adfMentionIds(doc: AdfNode | null | undefined): string[] {
   return ids
 }
 
-export function markdownToAdf(markdown: string): AdfNode {
+export function markdownToAdf(markdown: string, people: Person[] = []): AdfNode {
   const doc: AdfNode = toAdf(markdown)
   if (!doc.content?.length) doc.content = [{ type: 'paragraph', content: [] }]
+  if (people.length) doc.content = withMentions(doc.content, people)
   return doc
+}
+
+function withMentions(nodes: AdfNode[], people: Person[]): AdfNode[] {
+  return nodes.flatMap((node) => {
+    if (node.type === 'codeBlock') return [node]
+    if (node.type !== 'text' || node.marks?.some(m => m.type === 'code')) {
+      return [node.content ? { ...node, content: withMentions(node.content, people) } : node]
+    }
+    return splitMentions(node.text ?? '', people).map(part => typeof part === 'string'
+      ? { ...node, text: part }
+      : { type: 'mention', attrs: { id: part.id, text: `@${part.name}` } })
+  })
 }
