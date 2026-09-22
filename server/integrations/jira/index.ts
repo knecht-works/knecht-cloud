@@ -25,7 +25,7 @@ const JIRA_TRACKER: TrackerDef = {
     options: 'statuses',
   },
   filters: [
-    { key: 'issueType', label: 'Issue type is', summary: '{value}', input: 'list', placeholder: 'Pick issue types', optionsUrl: '/api/integrations/jira/options/issueTypes' },
+    { key: 'issueType', label: 'Issue type', listedOnly: true, placeholder: 'Pick issue types', optionsUrl: '/api/integrations/jira/options/issueTypes' },
     labelFilter('jira'),
   ],
 }

@@ -4,6 +4,7 @@ import { callRoute } from '../helpers/routes'
 import { getSessionRow, makeProject } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
+import { allOf } from '../helpers/trigger-conditions'
 
 const KNECHT_ACCOUNT = 'knecht-account-id'
 
@@ -125,7 +126,7 @@ describeIntegrationWebhook<ReturnType<typeof makeLinearProject>, object>({
   unknownProject: () => created({ teamKey: 'NOPE' }),
   object: project => ({ integration: 'linear', kind: 'issue', key: `${project.teamKey}-12` }),
   created: {
-    config: { kind: 'issue', on: [{ type: 'created' }], filters: {} },
+    config: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
     delivery: project => created(project),
     run: project => ({
       trigger: 'linear',
@@ -151,7 +152,7 @@ describeIntegrationWebhook<ReturnType<typeof makeLinearProject>, object>({
     }),
   },
   labeled: {
-    config: { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} },
+    config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] },
     notGained: project => [
       updated(project, { labelIds: ['l-knecht'] }, { labelIds: ['l-knecht', 'l-bug'] }),
       updated(project, { labelIds: [] }, { labelIds: ['l-bug'] }),
@@ -176,9 +177,9 @@ describeIntegrationWebhook<ReturnType<typeof makeLinearProject>, object>({
 describe('linear webhook route, vendor specifics', () => {
   it('fires on an issue created with the label, the status or the assignment already set', async () => {
     const project = makeLinearProject()
-    const labeled = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} })
-    const transitioned = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'status', value: 'In Progress' }], filters: {} })
-    const assigned = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], filters: {} })
+    const labeled = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] })
+    const transitioned = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'status', values: ['In Progress'] }], conditions: [] })
+    const assigned = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
 
     await deliver(created(project, { labelIds: ['l-bug'] }))
     expect(runsOf(labeled.id)).toHaveLength(0)
@@ -193,7 +194,7 @@ describe('linear webhook route, vendor specifics', () => {
 
   it('fires on a transition to the configured status', async () => {
     const project = makeLinearProject()
-    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'status', value: 'In Progress' }], filters: {} })
+    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'status', values: ['In Progress'] }], conditions: [] })
     await deliver(updated(project, { stateId: 's-todo' }, { stateId: 's-done' }))
     await deliver(updated(project, { title: 'old' }, { stateId: 's-progress' }))
     expect(runsOf(trigger.id)).toHaveLength(0)
@@ -203,7 +204,7 @@ describe('linear webhook route, vendor specifics', () => {
 
   it('fires on a status category only when the issue enters it', async () => {
     const project = makeLinearProject()
-    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'status', value: 'type:started' }], filters: {} })
+    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'status', values: ['type:started'] }], conditions: [] })
     await deliver(updated(project, { stateId: 's-progress' }, { stateId: 's-review' }))
     await deliver(updated(project, { stateId: 's-todo' }, { stateId: 's-done' }))
     expect(runsOf(trigger.id)).toHaveLength(0)
@@ -213,7 +214,7 @@ describe('linear webhook route, vendor specifics', () => {
 
   it('holds back issues its label and priority filters exclude', async () => {
     const project = makeLinearProject()
-    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'created' }], filters: { label: ['kn*'], priority: ['urgent', 'high'] } })
+    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'created' }], conditions: allOf({ label: ['knecht'], priority: ['urgent', 'high'] }) })
     await deliver(created(project, { labelIds: ['l-bug'], priority: 2 }))
     await deliver(created(project, { priority: 4 }))
     await deliver(created(project))
@@ -224,7 +225,7 @@ describe('linear webhook route, vendor specifics', () => {
 
   it('fires when the issue is assigned to the connection account', async () => {
     const project = makeLinearProject()
-    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], filters: {} })
+    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
     await deliver(updated(project, { assigneeId: null }, { assigneeId: 'user-1' }))
     await deliver(updated(project, { title: 'old' }, { assigneeId: KNECHT_ACCOUNT }))
     expect(runsOf(trigger.id)).toHaveLength(0)

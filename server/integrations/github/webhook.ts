@@ -1,14 +1,22 @@
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../../shared/utils/trigger-form'
-import { labeledEvent, labelFilter, matchesAny, passesList, triggerEvent } from '../trigger-config'
+import { conditionsPass, labeledEvent, labelFilter, listedOnlyKeys, triggerEvent } from '../trigger-config'
 import type { TriggerMatch } from '../types'
 
 const LABEL_FILTER = labelFilter('github')
 const BRANCHES_URL = '/api/integrations/github/options/branches'
-const AUTHOR_FILTERS: TriggerFilterDef[] = [
-  { key: 'author', label: 'Author is', summary: 'by {value}', input: 'list', placeholder: 'octocat, renovate[bot]' },
-  { key: 'authorNot', label: 'Author is not', summary: 'not by {value}', input: 'list', placeholder: 'renovate[bot], dependabot[bot]' },
+const DRAFT_FILTER: TriggerFilterDef = {
+  key: 'draft',
+  label: 'PR state',
+  listedOnly: true,
+  placeholder: 'Pick a state',
+  options: [{ label: 'Draft', value: 'draft' }, { label: 'Ready for review', value: 'ready' }],
+}
+const ASSIGNEES_URL = '/api/integrations/github/options/assignees'
+const PEOPLE_FILTERS: TriggerFilterDef[] = [
+  { key: 'author', label: 'Author', placeholder: 'octocat, renovate[bot]', optionsUrl: ASSIGNEES_URL },
+  { key: 'assignee', label: 'Assignee', placeholder: 'octocat', optionsUrl: ASSIGNEES_URL },
 ]
 
 export const githubTriggerForm: TriggerFormDef = [
@@ -22,17 +30,11 @@ export const githubTriggerForm: TriggerFormDef = [
       labeledEvent('github'),
     ],
     filters: [
-      { key: 'base', label: 'Base branch matches', summary: 'base {value}', input: 'list', placeholder: 'main, releases/*', optionsUrl: BRANCHES_URL },
-      { key: 'head', label: 'Head branch matches', summary: 'head {value}', input: 'list', placeholder: 'renovate/*', optionsUrl: BRANCHES_URL },
-      ...AUTHOR_FILTERS,
+      { key: 'base', label: 'Base branch', placeholder: 'main, releases/*', optionsUrl: BRANCHES_URL },
+      { key: 'head', label: 'Head branch', placeholder: 'renovate/*', optionsUrl: BRANCHES_URL },
+      ...PEOPLE_FILTERS,
       LABEL_FILTER,
-      {
-        key: 'draft',
-        label: 'Draft state is',
-        summary: '{value}',
-        input: 'select',
-        options: [{ label: 'Not a draft', value: 'ready', summary: 'no drafts' }, { label: 'Draft', value: 'draft', summary: 'drafts only' }],
-      },
+      DRAFT_FILTER,
     ],
   },
   {
@@ -41,11 +43,13 @@ export const githubTriggerForm: TriggerFormDef = [
     events: [
       { type: 'opened', label: 'Opened', summary: 'opened', default: true },
       labeledEvent('github'),
-      { type: 'assigned', label: 'Assigned to', summary: 'assigned to {value}', value: { input: 'text', placeholder: 'octocat' } },
+      { type: 'assigned', label: 'Assigned to', summary: 'assigned to {value}', value: { placeholder: 'octocat', optionsUrl: ASSIGNEES_URL } },
     ],
-    filters: [...AUTHOR_FILTERS, LABEL_FILTER],
+    filters: [...PEOPLE_FILTERS, LABEL_FILTER],
   },
 ]
+
+const EXACT = listedOnlyKeys([LABEL_FILTER, DRAFT_FILTER])
 
 export interface GithubPayload {
   action?: string
@@ -91,17 +95,17 @@ function subjectInputs(event: string, subject: GithubSubject | undefined): Trigg
 
 const sameLogin = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
-function subjectPasses(c: TriggerConfig, subject: GithubSubject | undefined): boolean {
-  const author = subject?.user?.login ?? ''
-  const labels = (subject?.labels ?? []).map(l => l.name ?? '')
-  return passesList(c, 'author', allowed => matchesAny(allowed, [author]))
-    && passesList(c, 'authorNot', denied => !matchesAny(denied, [author]))
-    && passesList(c, 'label', wanted => matchesAny(wanted, labels))
+function subjectFields(subject: GithubSubject | undefined): Record<string, string[]> {
+  return {
+    author: [subject?.user?.login ?? ''],
+    assignee: (subject?.assignees ?? []).map(a => a.login ?? ''),
+    label: (subject?.labels ?? []).map(l => l.name ?? ''),
+  }
 }
 
 function labelFires(c: TriggerConfig, payload: GithubPayload): boolean {
-  const label = triggerEvent(c, 'labeled')?.value
-  return !!label && label === payload.label?.name
+  const name = payload.label?.name
+  return !!name && !!triggerEvent(c, 'labeled')?.values?.includes(name)
 }
 
 function pullRequestFires(c: TriggerConfig, payload: GithubPayload): boolean {
@@ -118,8 +122,8 @@ function issueFires(c: TriggerConfig, payload: GithubPayload): boolean {
   if (action === 'opened') return !!triggerEvent(c, 'opened')
   if (action === 'labeled') return labelFires(c, payload)
   if (action === 'assigned') {
-    const login = triggerEvent(c, 'assigned')?.value
-    return !!login && sameLogin(login, payload.assignee?.login ?? '')
+    const login = payload.assignee?.login ?? ''
+    return !!login && !!triggerEvent(c, 'assigned')?.values?.some(l => sameLogin(l, login))
   }
   return false
 }
@@ -127,13 +131,12 @@ function issueFires(c: TriggerConfig, payload: GithubPayload): boolean {
 export function matchGithubEvent(c: TriggerConfig, event: string, payload: GithubPayload): TriggerMatch | null {
   if (event === 'pull_request' && c.kind === 'pull_request') {
     const pr = payload.pull_request
-    if (!pullRequestFires(c, payload) || !subjectPasses(c, pr)) return null
-    if (!passesList(c, 'draft', ([state]) => (state === 'draft') === !!pr?.draft)) return null
-    if (!passesList(c, 'base', allowed => matchesAny(allowed, [pr?.base?.ref ?? '']))) return null
+    if (!pullRequestFires(c, payload)) return null
     const head = pr?.head?.ref ?? ''
-    if (!passesList(c, 'head', patterns => matchesAny(patterns, [head]))) return null
+    const fields = { ...subjectFields(pr), draft: [pr?.draft ? 'draft' : 'ready'], base: [pr?.base?.ref ?? ''], head: [head] }
+    if (!conditionsPass(c, fields, EXACT)) return null
     return {
-      // The filters are about the pull request; the run checks out its head.
+      // The conditions are about the pull request; the run checks out its head.
       branch: head || null,
       inputs: subjectInputs(event, pr),
       object: githubObject('pull_request', pr),
@@ -141,7 +144,7 @@ export function matchGithubEvent(c: TriggerConfig, event: string, payload: Githu
   }
 
   if (event === 'issues' && c.kind === 'issue') {
-    if (!issueFires(c, payload) || !subjectPasses(c, payload.issue)) return null
+    if (!issueFires(c, payload) || !conditionsPass(c, subjectFields(payload.issue), EXACT)) return null
     return {
       branch: null,
       inputs: subjectInputs(event, payload.issue),

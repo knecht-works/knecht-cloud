@@ -5,6 +5,7 @@ import type { Project } from '../../server/db/schema'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { getSessionRow, makeProject } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
+import { allOf } from '../helpers/trigger-conditions'
 
 const comments: { repo: string, issue: number, body: string }[] = []
 vi.mock('../../server/utils/github-app', () => ({
@@ -43,7 +44,7 @@ function deliver(event: string, payload: object) {
   return callRoute(handler, request({ event, payload }))
 }
 
-const PR_OPENED_OR_PUSHED: TriggerConfig = { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], filters: {} }
+const PR_OPENED_OR_PUSHED: TriggerConfig = { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], conditions: [] }
 
 function makeGithubTrigger(projectIds: number[], config: TriggerConfig = PR_OPENED_OR_PUSHED) {
   return makeTrigger('github', projectIds, config)
@@ -75,7 +76,7 @@ describeIntegrationWebhook<Project, GithubDelivery>({
   unknownProject: () => ({ event: 'issues', payload: { action: 'opened', issue: ISSUE, repository: { id: 999_999, full_name: 'x/y' } } }),
   object: () => ({ integration: 'github', kind: 'issue', key: '12' }),
   created: {
-    config: { kind: 'issue', on: [{ type: 'opened' }], filters: {} },
+    config: { kind: 'issue', on: [{ type: 'opened' }], conditions: [] },
     delivery: project => ({ event: 'issues', payload: { action: 'opened', issue: ISSUE, repository: repo(project) } }),
     run: () => ({
       trigger: 'github',
@@ -85,7 +86,7 @@ describeIntegrationWebhook<Project, GithubDelivery>({
     session: () => ({ objectIntegration: 'github', objectKind: 'issue', objectKey: '12', objectTitle: 'Login broken', objectUrl: 'https://x/issues/12' }),
   },
   labeled: {
-    config: { kind: 'issue', on: [{ type: 'labeled', value: 'knecht' }], filters: {} },
+    config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] },
     notGained: project => [
       { event: 'issues', payload: { action: 'opened', issue: ISSUE, repository: repo(project) } },
       { event: 'issues', payload: { action: 'labeled', issue: ISSUE, label: { name: 'other' }, repository: repo(project) } },
@@ -113,7 +114,7 @@ describe('github webhook route, vendor specifics', () => {
 
   it('fires a pull_request trigger on the base filter and checks out the head', async () => {
     const project = makeProject()
-    const trigger = makeGithubTrigger([project.id], { ...PR_OPENED_OR_PUSHED, filters: { base: ['main'] } })
+    const trigger = makeGithubTrigger([project.id], { ...PR_OPENED_OR_PUSHED, conditions: allOf({ base: ['main'] }) })
     const pr = { number: 42, title: 'Add feature', body: 'Because', html_url: 'https://x/pull/42', head: { ref: 'feat' }, base: { ref: 'main' } }
 
     await deliver('pull_request', { action: 'labeled', pull_request: pr, repository: repo(project) })

@@ -129,6 +129,12 @@ export async function listRepoLabels(owner: string, repo: string): Promise<strin
   return labels.map(l => l.name)
 }
 
+export async function listRepoAssignees(owner: string, repo: string): Promise<string[]> {
+  const octokit = await getInstallationClient(owner, repo)
+  const users = await octokit.paginate(octokit.rest.issues.listAssignees, { owner, repo, per_page: 100 })
+  return users.map(u => u.login)
+}
+
 export async function addIssueLabels(owner: string, repo: string, issueNumber: number, labels: string[]): Promise<void> {
   const octokit = await getInstallationClient(owner, repo)
   await octokit.rest.issues.addLabels({ owner, repo, issue_number: issueNumber, labels })

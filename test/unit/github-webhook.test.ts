@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { githubObject, matchGithubEvent, type GithubPayload } from '../../server/integrations/github/webhook'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
+import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 function trigger(overrides: Partial<TriggerConfig>): TriggerConfig {
-  return { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], filters: {}, ...overrides }
+  return { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], conditions: [], ...overrides }
 }
 
 function pr(action: string, overrides: GithubPayload['pull_request'] = {}, extra: GithubPayload = {}): GithubPayload {
@@ -52,11 +53,14 @@ describe('matchGithubEvent events and filters', () => {
   })
 
   it('fires on the configured pull request label only', () => {
-    const labeled = trigger({ on: [{ type: 'labeled', value: 'knecht' }] })
+    const labeled = trigger({ on: [{ type: 'labeled', values: ['knecht'] }] })
     expect(fires(labeled, pr('labeled', {}, { label: { name: 'knecht' } }))).toBe(true)
     expect(fires(labeled, pr('labeled', {}, { label: { name: 'other' } }))).toBe(false)
     expect(fires(labeled, pr('opened'))).toBe(false)
     expect(fires(trigger({}), pr('labeled'))).toBe(false)
+    const either = trigger({ on: [{ type: 'labeled', values: ['knecht', 'bug'] }] })
+    expect(fires(either, pr('labeled', {}, { label: { name: 'bug' } }))).toBe(true)
+    expect(fires(either, pr('labeled', {}, { label: { name: 'other' } }))).toBe(false)
   })
 
   it('keeps a pull request kind away from issue deliveries and the other way round', () => {
@@ -65,33 +69,52 @@ describe('matchGithubEvent events and filters', () => {
   })
 
   it('filters on base, head pattern and draft state', () => {
-    expect(fires(trigger({ filters: { base: ['main', 'staging'] } }), pr('opened', { base: { ref: 'develop' } }))).toBe(false)
-    expect(fires(trigger({ filters: { base: ['main', 'staging'] } }), pr('opened', { base: { ref: 'staging' } }))).toBe(true)
-    expect(fires(trigger({ filters: { base: ['main', 'releases/*'] } }), pr('opened', { base: { ref: 'releases/v1' } }))).toBe(true)
-    expect(fires(trigger({ filters: { base: ['main', 'releases/*'] } }), pr('opened', { base: { ref: 'hotfix/releases/v1' } }))).toBe(false)
-    expect(fires(trigger({ filters: { head: ['renovate/*'] } }), pr('opened', { head: { ref: 'renovate/vue-3.x' } }))).toBe(true)
-    expect(fires(trigger({ filters: { head: ['renovate/*'] } }), pr('opened', { head: { ref: 'feat/renovate/x' } }))).toBe(false)
-    expect(fires(trigger({ filters: { head: ['a.b'] } }), pr('opened', { head: { ref: 'aXb' } }))).toBe(false)
-    expect(fires(trigger({ filters: { draft: ['ready'] } }), pr('opened', { draft: true }))).toBe(false)
-    expect(fires(trigger({ filters: { draft: ['ready'] } }), pr('opened'))).toBe(true)
-    expect(fires(trigger({ filters: { draft: ['draft'] } }), pr('opened', { draft: true }))).toBe(true)
-    expect(fires(trigger({ filters: { draft: ['draft'] } }), pr('opened'))).toBe(false)
+    expect(fires(trigger({ conditions: allOf({ base: ['main', 'staging'] }) }), pr('opened', { base: { ref: 'develop' } }))).toBe(false)
+    expect(fires(trigger({ conditions: allOf({ base: ['main', 'staging'] }) }), pr('opened', { base: { ref: 'staging' } }))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ base: ['main', 'releases/*'] }) }), pr('opened', { base: { ref: 'releases/v1' } }))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ base: ['main', 'releases/*'] }) }), pr('opened', { base: { ref: 'hotfix/releases/v1' } }))).toBe(false)
+    expect(fires(trigger({ conditions: allOf({ head: ['renovate/*'] }) }), pr('opened', { head: { ref: 'renovate/vue-3.x' } }))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ head: ['renovate/*'] }) }), pr('opened', { head: { ref: 'feat/renovate/x' } }))).toBe(false)
+    expect(fires(trigger({ conditions: allOf({ head: ['a.b'] }) }), pr('opened', { head: { ref: 'aXb' } }))).toBe(false)
+    expect(fires(trigger({ conditions: allOf({ draft: ['ready'] }) }), pr('opened', { draft: true }))).toBe(false)
+    expect(fires(trigger({ conditions: allOf({ draft: ['ready'] }) }), pr('opened'))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ draft: ['draft'] }) }), pr('opened', { draft: true }))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ draft: ['draft'] }) }), pr('opened'))).toBe(false)
   })
 
   it('filters on author and labels, every filter has to hold', () => {
     const bots = ['renovate[bot]', 'dependabot[bot]']
-    expect(fires(trigger({ filters: { authorNot: bots } }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
-    expect(fires(trigger({ filters: { authorNot: bots } }), pr('opened'))).toBe(true)
-    expect(fires(trigger({ filters: { author: bots } }), pr('opened'))).toBe(false)
-    expect(fires(trigger({ filters: { authorNot: ['*[bot]'] } }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
-    expect(fires(trigger({ filters: { author: ['*[bot]'] } }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(true)
-    expect(fires(trigger({ filters: { label: ['bug', 'ui'] } }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(true)
-    expect(fires(trigger({ filters: { label: ['area/*'] } }), pr('opened', { labels: [{ name: 'area/ui' }] }))).toBe(true)
-    expect(fires(trigger({ filters: { label: ['bug'], base: ['main'] } }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(false)
+    expect(fires(trigger({ conditions: noneOf({ author: bots }) }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
+    expect(fires(trigger({ conditions: noneOf({ author: bots }) }), pr('opened'))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ author: bots }) }), pr('opened'))).toBe(false)
+    expect(fires(trigger({ conditions: noneOf({ author: ['*[bot]'] }) }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
+    expect(fires(trigger({ conditions: allOf({ author: ['*[bot]'] }) }), pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ label: ['bug', 'ui'] }) }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ label: ['area/*'] }) }), pr('opened', { labels: [{ name: 'area/ui' }] }))).toBe(false)
+    expect(fires(trigger({ conditions: allOf({ label: ['bug'], base: ['main'] }) }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(false)
+  })
+
+  it('takes any one group of conditions, and a field more than once in a group', () => {
+    const mainOrBots = trigger({ conditions: [...allOf({ base: ['main'], label: ['bug'] }), ...allOf({ author: ['*[bot]'] })] })
+    expect(fires(mainOrBots, pr('opened', { labels: [{ name: 'bug' }] }))).toBe(true)
+    expect(fires(mainOrBots, pr('opened', { base: { ref: 'develop' }, user: { login: 'renovate[bot]' } }))).toBe(true)
+    expect(fires(mainOrBots, pr('opened', { base: { ref: 'develop' }, labels: [{ name: 'bug' }] }))).toBe(false)
+    const botsButRenovate = trigger({ conditions: [[...allOf({ author: ['*[bot]'] })[0]!, ...noneOf({ author: ['renovate[bot]'] })[0]!]] })
+    expect(fires(botsButRenovate, pr('opened', { user: { login: 'dependabot[bot]' } }))).toBe(true)
+    expect(fires(botsButRenovate, pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
+  })
+
+  it('tells who is assigned and which labels are missing', () => {
+    const ann = { assignees: [{ login: 'ann' }, { login: 'bob' }] }
+    expect(fires(trigger({ conditions: allOf({ assignee: ['ann'] }) }), pr('opened', ann))).toBe(true)
+    expect(fires(trigger({ conditions: allOf({ assignee: ['ann'] }) }), pr('opened'))).toBe(false)
+    expect(fires(trigger({ conditions: noneOf({ assignee: ['ann'] }) }), pr('opened'))).toBe(true)
+    expect(fires(trigger({ conditions: noneOf({ label: ['wontfix'] }) }), pr('opened', { labels: [{ name: 'wontfix' }, { name: 'bug' }] }))).toBe(false)
+    expect(fires(trigger({ conditions: noneOf({ label: ['wontfix'] }) }), pr('opened', { labels: [{ name: 'bug' }] }))).toBe(true)
   })
 
   it('fires when an issue is assigned to the configured login', () => {
-    const assigned = trigger({ kind: 'issue', on: [{ type: 'assigned', value: 'knecht-works' }] })
+    const assigned = trigger({ kind: 'issue', on: [{ type: 'assigned', values: ['knecht-works'] }] })
     const issue = { number: 7 }
     expect(fires(assigned, { action: 'assigned', issue, assignee: { login: 'Knecht-Works' } }, 'issues')).toBe(true)
     expect(fires(assigned, { action: 'assigned', issue, assignee: { login: 'ann' } }, 'issues')).toBe(false)
