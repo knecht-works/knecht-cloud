@@ -24,7 +24,7 @@ const api = vi.hoisted(() => ({
   fetched: {
     id: '77',
     comment_html: '',
-    actor: { id: 'user-1', first_name: 'Ann', last_name: 'Example' },
+    actor: 'user-1',
     created_at: '2026-01-01T00:00:00Z',
   },
 }))
@@ -120,9 +120,9 @@ function updated(project: PlaneProject, previous: Record<string, unknown>, overr
   return { event: 'workitem.updated', entity_id: `wi-${project.identifier}`, data: item(project, overrides), previous_attributes: previous }
 }
 
-function commented(project: PlaneProject, fetched: Omit<typeof api.fetched, 'actor'> & { actor: Record<string, string> }) {
+function commented(project: PlaneProject, fetched: typeof api.fetched) {
   const commentId = fetched.id
-  api.fetched = fetched as typeof api.fetched
+  api.fetched = fetched
   return {
     event: 'workitem.comment.created',
     entity_id: `wi-${project.identifier}`,
@@ -130,8 +130,6 @@ function commented(project: PlaneProject, fetched: Omit<typeof api.fetched, 'act
     previous_attributes: {},
   }
 }
-
-const ANN = { id: 'user-1', first_name: 'Ann', last_name: 'Example' }
 
 describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string }>({
   integration: plane,
@@ -189,12 +187,12 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
   comment: {
     mention: project => commented(project, {
       id: '77',
-      comment_html: `<p><mention-component entity_identifier="${KNECHT_ACCOUNT}" entity_name="user_mention" label="Knecht"></mention-component> please fix the login</p>`,
-      actor: ANN,
+      comment_html: `<p><mention-component entity_identifier="${KNECHT_ACCOUNT}" entity_name="user_mention"></mention-component> please fix the login</p>`,
+      actor: 'user-1',
       created_at: '2026-01-01T00:00:00Z',
     }),
-    fromSelf: project => commented(project, { id: '79', comment_html: '<p>@knecht I am Knecht</p>', actor: { id: KNECHT_ACCOUNT, display_name: 'Knecht' }, created_at: '' }),
-    withoutMention: project => commented(project, { id: '80', comment_html: '<p>just chatting</p>', actor: ANN, created_at: '' }),
+    fromSelf: project => commented(project, { id: '79', comment_html: '<p>@knecht I am Knecht</p>', actor: KNECHT_ACCOUNT, created_at: '' }),
+    withoutMention: project => commented(project, { id: '80', comment_html: '<p>just chatting</p>', actor: 'user-1', created_at: '' }),
     replyCount: project => api.comments.filter(c => c.projectId === project.planeId && c.workItemId === `wi-${project.identifier}`).length,
   },
   recorded: {
@@ -286,7 +284,7 @@ describe('plane webhook route, vendor specifics', () => {
 
   it('accepts the plain @knecht text as a mention', async () => {
     const project = makePlaneProject()
-    const res = await deliver(commented(project, { id: '78', comment_html: '<p>@knecht have a look</p>', actor: { id: 'user-2', display_name: 'Bob' }, created_at: '' }))
+    const res = await deliver(commented(project, { id: '78', comment_html: '<p>@knecht have a look</p>', actor: 'user-2', created_at: '' }))
     expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
   })
 })

@@ -18,6 +18,7 @@ const api = vi.hoisted(() => ({
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
   getJiraComment: async () => api.fetched,
+  getJiraIssueFields: async () => ({ reporter: { accountId: 'user-1', displayName: 'Ann Example' } }),
   getJiraStatusCategory: async (id: string) => api.statusCategories[id] ?? null,
   addJiraComment: async (key: string, body: unknown) => {
     api.comments.push({ key, body })

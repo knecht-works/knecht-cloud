@@ -35,6 +35,19 @@ describe('markdownToAdf', () => {
     expect(adfToMarkdown(doc)).toBe('line one line two\n\n*not closed **bold')
     expect(markdownToAdf('').content).toEqual([{ type: 'paragraph', content: [] }])
   })
+
+  it('turns @Name of a known person into a mention node, outside code', () => {
+    const people = [{ id: 'a1', name: 'Ann Example' }, { id: 'a2', name: 'Ann' }]
+    const doc = markdownToAdf('Hi **@Ann Example** and @Ann, not @Annette or `@Ann`', people)
+    expect(doc.content![0]!.content).toEqual([
+      { type: 'text', text: 'Hi ' },
+      { type: 'mention', attrs: { id: 'a1', text: '@Ann Example' } },
+      { type: 'text', text: ' and ' },
+      { type: 'mention', attrs: { id: 'a2', text: '@Ann' } },
+      { type: 'text', text: ', not @Annette or ' },
+      { type: 'text', text: '@Ann', marks: [{ type: 'code' }] },
+    ])
+  })
 })
 
 describe('adfMentionIds', () => {

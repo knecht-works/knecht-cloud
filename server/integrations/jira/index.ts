@@ -4,7 +4,7 @@ import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion } from '../trigger-config'
-import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
+import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type Person, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
 import { addJiraComment, forgetJiraCache, getJiraComment, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
@@ -57,6 +57,12 @@ function jiraIssue(key: string, fields: JiraIssueFields): TrackerIssue {
     labels: fields.labels ?? [],
     facts: [['Type', fields.issuetype?.name ?? '']],
   }
+}
+
+// Everyone on the ticket is mentionable without a user directory lookup, which needs a permission the account may lack.
+function participants(fields: JiraIssueFields): Person[] {
+  const users = [fields.reporter, fields.assignee, ...(fields.comment?.comments ?? []).map(c => c.author)]
+  return users.flatMap(u => u?.accountId && u.displayName ? [{ id: u.accountId, name: u.displayName }] : [])
 }
 
 // Jira lists labels space-separated in the changelog; labels never contain spaces.
@@ -177,7 +183,7 @@ export const jira: Integration = {
   },
 
   capabilities: {
-    comment: (_project, object, body) => addJiraComment(object.key, markdownToAdf(body)),
+    comment: async (_project, object, body) => addJiraComment(object.key, markdownToAdf(body, participants(await getJiraIssueFields(object.key)))),
 
     labels: {
       list: listJiraLabels,
