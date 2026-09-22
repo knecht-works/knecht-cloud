@@ -114,7 +114,7 @@ const rateColor = computed(() => {
         <span
           v-for="p in projects"
           :key="p"
-          class="k-mono whitespace-nowrap rounded-md border border-muted bg-(--surface-base) px-2 py-1 text-3xs text-muted"
+          class="k-code whitespace-nowrap text-2xs"
         >{{ p }}</span>
       </div>
     </div>

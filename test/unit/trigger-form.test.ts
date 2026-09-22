@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultTriggerConfig, triggerConfigIssues, triggerSummary, type TriggerFormDef } from '../../shared/utils/trigger-form'
+import { defaultTriggerConfig, segmentsText, triggerConfigIssues, triggerEventLabel, triggerSummary, type TriggerFormDef } from '../../shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 const FORM: TriggerFormDef = [
@@ -60,8 +60,8 @@ describe('trigger form', () => {
 
   it('takes any value where options also load per project, and lets an option word the summary', () => {
     expect(triggerConfigIssues(FORM, { kind: 'list', on: [{ type: 'state', values: ['In Review'] }], conditions: [] })).toEqual([])
-    expect(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', values: ['In Review'] }], conditions: [] })).toBe('On list · state "In Review"')
-    expect(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', values: ['group:done'] }], conditions: [] })).toBe('On list · any "Done" state')
+    expect(triggerEventLabel(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', values: ['In Review'] }], conditions: [] }))).toBe('On list · state In Review')
+    expect(triggerEventLabel(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', values: ['group:done'] }], conditions: [] }))).toBe('On list · any "Done" state')
   })
 
   it('names the event or condition every issue belongs to', () => {
@@ -75,10 +75,14 @@ describe('trigger form', () => {
 
   it('summarises kind, events and conditions, showing option labels', () => {
     const on = [{ type: 'created' }, { type: 'moved', values: ['done'] }]
-    expect(triggerSummary(FORM, { kind: 'card', on, conditions: allOf({ board: ['ops', 'dev'], size: ['s'] }) }))
-      .toBe('On card · created, moved to Done · board is ops, dev · size is S')
-    expect(triggerSummary(FORM, { kind: 'card', on, conditions: [...noneOf({ board: ['ops'] }), ...allOf({ board: ['dev'], size: ['s', 'l'] })] }))
-      .toBe('On card · created, moved to Done · board is not ops or board is dev and size is S, L')
-    expect(triggerSummary([FORM[0]!], { kind: 'card', on: [{ type: 'labeled', values: ['go'] }], conditions: [] })).toBe('On label "go"')
+    const summary = triggerSummary(FORM, { kind: 'card', on, conditions: allOf({ board: ['ops', 'dev'], size: ['s'] }) })
+    expect(summary.kind).toBe('Card')
+    expect(summary.events.map(segmentsText)).toEqual(['created', 'moved to Done'])
+    expect(summary.events[1]).toEqual([{ kind: 'text', text: 'moved to ' }, { kind: 'value', text: 'Done' }])
+    expect(summary.conditions.map(g => g.map(segmentsText))).toEqual([['board is ops, dev', 'size is S']])
+    const negated = triggerSummary(FORM, { kind: 'card', on, conditions: [...noneOf({ board: ['ops'] }), ...allOf({ board: ['dev'], size: ['s', 'l'] })] }).conditions
+    expect(negated.map(g => g.map(segmentsText))).toEqual([['board is not ops'], ['board is dev', 'size is S, L']])
+    expect(negated[0]![0]!.map(s => s.kind)).toEqual(['text', 'not', 'text', 'value'])
+    expect(triggerEventLabel(triggerSummary([FORM[0]!], { kind: 'card', on: [{ type: 'labeled', values: ['go'] }], conditions: [] }))).toBe('On label go')
   })
 })

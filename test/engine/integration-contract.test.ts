@@ -26,7 +26,7 @@ vi.mock('../../server/integrations/linear/api', async importOriginal => ({
 const { db, schema } = await import('../../server/db')
 const { INTEGRATIONS } = await import('../../server/integrations')
 const { getTriggerSource } = await import('../../server/utils/trigger-sources')
-const { defaultTriggerConfig, triggerSummary } = await import('../../shared/utils/trigger-form')
+const { defaultTriggerConfig, triggerEventLabel, triggerSummary } = await import('../../shared/utils/trigger-form')
 const { INPUT_KEYS } = await import('../../server/utils/inputs')
 const { setProjectLink } = await import('../../server/utils/project-links')
 const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
@@ -169,7 +169,7 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
     const source = getTriggerSource(id)!
     expect(source.configSchema.safeParse(fixture.triggerConfig).success).toBe(true)
     expect(source.configSchema.safeParse({ ...fixture.triggerConfig, on: [] }).success).toBe(false)
-    expect(triggerSummary(integration.trigger.form, fixture.triggerConfig)).toMatch(/^On /)
+    expect(triggerEventLabel(triggerSummary(integration.trigger.form, fixture.triggerConfig))).toMatch(/^On /)
     for (const kind of integration.trigger.form) {
       expect(integration.objects.kinds).toContain(kind.kind)
       expect(source.configSchema.safeParse(defaultTriggerConfig(integration.trigger.form, kind.kind)).success).toBe(kind.events.some(e => e.default))

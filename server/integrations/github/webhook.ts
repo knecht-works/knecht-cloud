@@ -39,7 +39,7 @@ export const githubTriggerForm: TriggerFormDef = [
   },
   {
     kind: 'issue',
-    label: 'Issues',
+    label: 'Issue',
     events: [
       { type: 'opened', label: 'Opened', summary: 'opened', default: true },
       labeledEvent('github'),

@@ -55,7 +55,7 @@ export function trackerTriggerForm(def: TrackerDef): TriggerFormDef {
   const { status } = def
   const statusOptions = {
     optionsHeading: status.groupHeading,
-    options: Object.entries(status.groups).map(([key, label]) => ({ label: `Any ${label}`, value: `${status.groupPrefix}${key}`, summary: `any "${label}" ${status.event}` })),
+    options: Object.entries(status.groups).map(([key, label]) => ({ label: `Any ${label}`, value: `${status.groupPrefix}${key}`, summary: `any ${label} ${status.event}` })),
     optionsUrl: `/api/integrations/${def.id}/options/${status.options}`,
     remoteHeading: `Exact ${status.event}`,
     listedOnly: true,

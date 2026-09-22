@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { Trigger } from '../../db/schema'
 import type { TriggerSource } from '../../../shared/utils/integrations'
-import { triggerSummary, type TriggerConfig } from '../../../shared/utils/trigger-form'
+import { triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerDescription } from '../../../shared/utils/trigger-form'
 import { INTEGRATIONS, type Integration } from '../../integrations'
 import { triggerConfigSchema } from '../../integrations/trigger-config'
 import { getProject } from '../entities'
@@ -10,7 +10,7 @@ import { projectLinks } from '../project-links'
 export interface TriggerSourceDef {
   source: TriggerSource
   configSchema: z.ZodType<Record<string, unknown>>
-  eventLabel(trigger: Trigger): string
+  describe(trigger: Trigger): TriggerDescription & { event: string }
   validateProjects?(projectIds: number[]): string | null
 }
 
@@ -27,9 +27,9 @@ function relFuture(date: Date): string {
 const schedule: TriggerSourceDef = {
   source: 'schedule',
   configSchema: z.object({}),
-  eventLabel(t) {
-    if (!t.active || !t.nextFireAt) return 'Paused'
-    return `Next run ${relFuture(t.nextFireAt)}`
+  describe(t) {
+    const event = !t.active || !t.nextFireAt ? 'Paused' : `Next run ${relFuture(t.nextFireAt)}`
+    return { kind: '', events: [[{ kind: 'text', text: event }]], conditions: [], event }
   },
 }
 
@@ -50,7 +50,10 @@ export const TRIGGER_SOURCE_DEFS: readonly TriggerSourceDef[] = [
   ...INTEGRATIONS.map((i): TriggerSourceDef => ({
     source: i.id,
     configSchema: triggerConfigSchema(i.trigger.form),
-    eventLabel: t => triggerSummary(i.trigger.form, t.config as unknown as TriggerConfig),
+    describe: (t) => {
+      const description = triggerSummary(i.trigger.form, t.config as unknown as TriggerConfig)
+      return { ...description, event: triggerEventLabel(description) }
+    },
     validateProjects: ids => validateLinkedProjects(i, ids),
   })),
 ]
