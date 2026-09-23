@@ -3,7 +3,7 @@ import { db, schema } from '../../db'
 import { tryParseJson } from '../../utils/json'
 import { linkedProject } from '../../utils/project-links'
 import { verifySha256Signature } from '../../utils/signature'
-import type { SessionObject } from '../../utils/sessions'
+import { findObjectSession, sessionHasActiveWork, type SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
@@ -145,7 +145,7 @@ function deliveredItem(item: PlaneWorkItem, data: PlaneRecord): PlaneWorkItem {
   }
 }
 
-function planeChange(created: boolean, data: PlaneRecord, previous: PlaneRecord, issue: TrackerIssue, { states, labels }: PlaneLookups): TrackerChange {
+function planeChange(created: boolean, held: boolean, data: PlaneRecord, previous: PlaneRecord, issue: TrackerIssue, { states, labels }: PlaneLookups): TrackerChange {
   const accountId = planeCredentials()?.accountId
   const gained = (now: string[] | undefined, before: string[] | undefined) => before ? (now ?? []).filter(id => !before.includes(id)) : []
   return {
@@ -153,7 +153,8 @@ function planeChange(created: boolean, data: PlaneRecord, previous: PlaneRecord,
     issue,
     gainedLabels: gained(data.label_ids, previous.label_ids).map(id => labels.find(l => l.id === id)?.name ?? '').filter(Boolean),
     assignedToSelf: !!accountId && (data.assignee_ids ?? []).includes(accountId),
-    gainedSelf: !!accountId && gained(data.assignee_ids, previous.assignee_ids).includes(accountId),
+    // Plane does not name who made a change: Knecht gaining the work item while it works on it is Knecht taking it.
+    gainedSelf: !held && !!accountId && gained(data.assignee_ids, previous.assignee_ids).includes(accountId),
     ...(previous.state_id !== undefined ? { previousStatus: { group: states.find(s => s.id === nil(previous.state_id))?.group ?? null } } : {}),
     filterValues: { priority: [nil(data.priority) ?? 'none'] },
     version: objectVersion(nil(data.updated_at)),
@@ -161,6 +162,12 @@ function planeChange(created: boolean, data: PlaneRecord, previous: PlaneRecord,
 }
 
 const planeProjectOf = (object: SessionObject) => planeProjectByIdentifier(object.key.replace(/-\d+$/, ''))
+
+function requireSelf(): string {
+  const accountId = planeCredentials()?.accountId
+  if (!accountId) throw new Error('the Plane connection does not know its own account: connect Plane again')
+  return accountId
+}
 
 async function locateObject(object: SessionObject): Promise<Located & { item: PlaneWorkItem }> {
   const planeProject = await planeProjectOf(object)
@@ -227,7 +234,9 @@ export const plane: Integration = {
         const data = payload.data ?? {}
         const lookups = await planeLookups(located.planeProject.id)
         const issue = planeIssue(object, deliveredItem(item, data), lookups)
-        const change = planeChange(name === 'workitem.created', data, payload.previous_attributes ?? {}, issue, lookups)
+        const session = findObjectSession(project.id, object)
+        const held = !!session && sessionHasActiveWork(session.id)
+        const change = planeChange(name === 'workitem.created', held, data, payload.previous_attributes ?? {}, issue, lookups)
         delivery.statusChange = trackerStatusChange(PLANE_TRACKER, change)
         delivery.event = { name, payload: change }
       }
@@ -286,6 +295,40 @@ export const plane: Integration = {
           name: state.name,
           apply: () => updatePlaneWorkItem(planeProject.id, workItemId, { state: state.id }),
         }))
+      },
+    },
+
+    // A work item takes several assignees: Knecht joins them and leaves again, others keep it.
+    assignee: {
+      async take(_project, object) {
+        const self = requireSelf()
+        const { planeProject, workItemId, item } = await locateObject(object)
+        const holders = item.assignees ?? []
+        if (holders.includes(self)) return null
+        await updatePlaneWorkItem(planeProject.id, workItemId, { assignees: [...holders, self] })
+        const previous = holders[0]
+        return previous ? { id: previous, name: memberName(await listPlaneMembers(planeProject.id), previous) } : null
+      },
+      async handBack(_project, object, to) {
+        const self = requireSelf()
+        const { planeProject, workItemId, item } = await locateObject(object)
+        const members = await listPlaneMembers(planeProject.id)
+        const holders = item.assignees ?? []
+        const others = holders.filter(id => id !== self)
+        const names = others.map(id => memberName(members, id)).filter(Boolean).join(', ') || 'nobody'
+        if (!holders.includes(self)) return `left ${object.key} with ${names}`
+        if (others.length) {
+          await updatePlaneWorkItem(planeProject.id, workItemId, { assignees: others })
+          return `left ${object.key} with ${names}`
+        }
+        const creator = item.created_by && item.created_by !== self ? { id: item.created_by, name: memberName(members, item.created_by) } : null
+        for (const person of [to, creator]) {
+          if (person && await updatePlaneWorkItem(planeProject.id, workItemId, { assignees: [person.id] }).then(() => true, () => false)) {
+            return `handed ${object.key} back to ${person.name}`
+          }
+        }
+        await updatePlaneWorkItem(planeProject.id, workItemId, { assignees: [] })
+        return `left ${object.key} unassigned`
       },
     },
   },
