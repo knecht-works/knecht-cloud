@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import type { TriggerEventConfig } from '../../shared/utils/trigger-form'
-import { getSessionRow, makeProject } from '../helpers/db'
+import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import { allOf } from '../helpers/trigger-conditions'
 
@@ -26,10 +26,14 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   },
 }))
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+const stopped = vi.hoisted(() => [] as number[])
+vi.mock('../../server/daemon/envs', () => ({ stopEnv: async (id: number) => void stopped.push(id) }))
 
 const { jira } = await import('../../server/integrations/jira')
 const { jiraConnection, jiraCredentials } = await import('../../server/integrations/jira/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
+const { db, schema } = await import('../../server/db')
+const { eq } = await import('drizzle-orm')
 const { setProjectLink } = await import('../../server/utils/project-links')
 const handler = (await import('../../server/api/jira/webhook.post')).default
 
@@ -265,6 +269,23 @@ describe('jira webhook route, vendor specifics', () => {
     const session = resolveSession(project, { integration: 'jira', kind: 'issue', key: `${project.jiraProjectKey}-12` }, null)
     await deliver({ webhookEvent: 'jira:issue_deleted', issue: issue(project) })
     expect(getSessionRow(session.id).status).toBe('closed')
+  })
+
+  it('stops the environment of a closed ticket, unless a run still needs it', async () => {
+    const project = makeJiraProject()
+    const session = resolveSession(project, { integration: 'jira', kind: 'issue', key: `${project.jiraProjectKey}-12` }, null)
+    db.update(schema.sessions).set({ envState: 'up' }).where(eq(schema.sessions.id, session.id)).run()
+    const done = { status: { name: 'Done', statusCategory: { key: 'done' } } }
+    const closing = updated(project, [{ field: 'status', from: '1', fromString: 'To Do', toString: 'Done' }], done)
+
+    const run = makeRun(project, [], { sessionId: session.id, status: 'queued' })
+    await deliver(closing)
+    expect(getSessionRow(session.id).status).toBe('closed')
+    expect(stopped).toEqual([])
+
+    db.update(schema.runs).set({ status: 'success' }).where(eq(schema.runs.id, run.id)).run()
+    await deliver(closing)
+    expect(stopped).toEqual([session.id])
   })
 
   it('accepts the plain @knecht text as a mention', async () => {
