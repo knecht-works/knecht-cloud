@@ -7,7 +7,7 @@ import { labelFilter, objectVersion } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type Person, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
-import { addJiraComment, forgetJiraCache, getJiraComment, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
+import { addJiraComment, assignJiraIssue, forgetJiraCache, getJiraComment, getJiraIssuePeople, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
 import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from './credentials'
 
 export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
@@ -42,6 +42,7 @@ interface JiraChange {
 
 export interface JiraPayload {
   webhookEvent?: string
+  user?: { accountId?: string, displayName?: string }
   issue?: { key?: string, fields?: JiraIssueFields }
   changelog?: { items?: JiraChange[] }
   comment?: { id?: string | number }
@@ -74,6 +75,9 @@ async function jiraChange(payload: JiraPayload, issue: TrackerIssue): Promise<Tr
   const fields = payload.issue?.fields ?? {}
   const item = (field: string) => payload.changelog?.items?.find(i => i.field === field)
   const accountId = jiraCredentials()?.accountId
+  // Jira delivers Knecht's own writes too: taking a ticket must not fire "assigned to Knecht" again,
+  // while a label or status the agent sets may well start the next workflow.
+  const bySelf = !!accountId && payload.user?.accountId === accountId
   const status = item('status')
   const before = labelsOf(item('labels')?.fromString)
   return {
@@ -81,11 +85,12 @@ async function jiraChange(payload: JiraPayload, issue: TrackerIssue): Promise<Tr
     issue: status?.toString ? { ...issue, status: { ...issue.status, name: status.toString } } : issue,
     gainedLabels: [...labelsOf(item('labels')?.toString)].filter(label => !before.has(label)),
     assignedToSelf: !!accountId && fields.assignee?.accountId === accountId,
-    gainedSelf: !!accountId && item('assignee')?.to === accountId,
+    gainedSelf: !bySelf && !!accountId && item('assignee')?.to === accountId,
     // The changelog carries status ids, not categories.
     ...(status ? { previousStatus: { group: status.from ? await getJiraStatusCategory(status.from) : null } } : {}),
     filterValues: { issueType: [fields.issuetype?.name ?? ''] },
     version: objectVersion(fields.updated),
+    ...(payload.user?.accountId && !bySelf ? { actor: { id: payload.user.accountId, name: payload.user.displayName ?? '' } } : {}),
   }
 }
 
@@ -101,6 +106,12 @@ async function parseComment(object: SessionObject, payload: JiraPayload): Promis
     selfId: jiraCredentials()?.accountId,
     mentionedIds: adfMentionIds(comment.body),
   })
+}
+
+function requireSelf(): string {
+  const accountId = jiraCredentials()?.accountId
+  if (!accountId) throw new Error('the Jira connection does not know its own account: connect Jira again')
+  return accountId
 }
 
 export const jira: Integration = {
@@ -195,6 +206,30 @@ export const jira: Integration = {
         name: t.to,
         apply: () => transitionJiraIssue(object.key, t.id),
       })),
+    },
+
+    assignee: {
+      async take(_project, object) {
+        const self = requireSelf()
+        const { assignee } = await getJiraIssuePeople(object.key)
+        if (assignee?.accountId === self) return null
+        await assignJiraIssue(object.key, self)
+        return assignee?.accountId ? { id: assignee.accountId, name: assignee.displayName ?? '' } : null
+      },
+      async handBack(_project, object, to) {
+        const self = requireSelf()
+        const { assignee, reporter } = await getJiraIssuePeople(object.key)
+        // Somebody took the ticket from Knecht meanwhile: it is theirs.
+        if (assignee?.accountId !== self) return `left ${object.key} with ${assignee?.displayName ?? 'nobody'}`
+        const candidates = [to, reporter?.accountId && reporter.accountId !== self ? { id: reporter.accountId, name: reporter.displayName ?? '' } : null]
+        for (const person of candidates) {
+          if (person && await assignJiraIssue(object.key, person.id).then(() => true, () => false)) {
+            return `handed ${object.key} back to ${person.name}`
+          }
+        }
+        await assignJiraIssue(object.key, null)
+        return `left ${object.key} unassigned`
+      },
     },
   },
 

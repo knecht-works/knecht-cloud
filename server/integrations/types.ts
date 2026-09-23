@@ -42,6 +42,7 @@ export interface TriggerMatch {
   branch: string | null
   inputs: TriggerInputs
   object: SessionObject | null
+  actor?: CommentAuthor | null
   // Null when the tool sends one delivery per action; see `objectVersion`.
   version: string | null
 }
@@ -109,6 +110,14 @@ export interface Integration {
     statuses?: {
       // What the object can move to right now, each with the call that moves it there.
       targets(project: Project, object: SessionObject): Promise<{ name: string, apply(): Promise<void> }[]>
+    }
+    // The assignee shows whether Knecht is working on the object: taken while a session has
+    // active work, handed back to whoever gave it to Knecht once it is idle.
+    assignee?: {
+      // Answers who held the object before, when that was somebody other than Knecht.
+      take(project: Project, object: SessionObject): Promise<CommentAuthor | null>
+      // Falls back on its own when `to` is null or cannot take the object; answers what it did.
+      handBack(project: Project, object: SessionObject, to: CommentAuthor | null): Promise<string>
     }
   }
 

@@ -158,6 +158,15 @@ export async function getJiraIssueFields(issueKey: string): Promise<JiraIssueFie
   return res.fields ?? {}
 }
 
+export async function getJiraIssuePeople(issueKey: string): Promise<Pick<JiraIssueFields, 'assignee' | 'reporter'>> {
+  const res = await jiraFetch<{ fields?: JiraIssueFields }>(`/issue/${encodeURIComponent(issueKey)}?fields=assignee,reporter`)
+  return res.fields ?? {}
+}
+
+export async function assignJiraIssue(issueKey: string, accountId: string | null): Promise<void> {
+  await jiraFetch(`/issue/${encodeURIComponent(issueKey)}/assignee`, { method: 'PUT', body: { accountId } })
+}
+
 export async function addJiraComment(issueKey: string, body: AdfNode): Promise<{ url: string }> {
   const res = await jiraFetch<{ id?: string }>(`/issue/${encodeURIComponent(issueKey)}/comment`, {
     method: 'POST',

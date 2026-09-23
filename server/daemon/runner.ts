@@ -14,6 +14,7 @@ import { getRun, getWorkflowRow } from '../utils/entities'
 import { dashboardOrigin } from '../utils/origin'
 import { describeObject, sessionObject } from '../utils/sessions'
 import { getIntegration } from '../integrations'
+import { handBackObject, takeObject } from '../integrations/assignee'
 import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
 import { copyIntoSandbox, spawnInSandbox, startEnvStack, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
@@ -88,6 +89,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
   controllers.set(runId, controller)
 
   const log = (text: string) => appendLog(runId, text)
+  await takeObject(session, runId, project, log)
 
   try {
     const resume = resumePoint(runId)
@@ -152,6 +154,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     finish(runId, 'success')
     closeObjectlessSession(session.id)
     await notifyRunFinished(runId, project, session, 'success', log)
+    await handBackObject(session, runId, project, log)
   }
   catch (e) {
     const cancelled = controller.signal.aborted
@@ -159,6 +162,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     finish(runId, cancelled ? 'cancelled' : 'failed')
     closeObjectlessSession(session.id)
     if (!cancelled) await notifyRunFinished(runId, project, session, 'failed', log)
+    await handBackObject(session, runId, project, log)
   }
   finally {
     controllers.delete(runId)

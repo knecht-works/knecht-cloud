@@ -173,6 +173,8 @@ export const runs = sqliteTable('runs', {
   // The object's update time as delivered, to the second: a trigger runs once per version of an object.
   objectVersion: text('object_version'),
   inputs: text('inputs', { mode: 'json' }).$type<Record<string, string>>(),
+  // Who handed the object to Knecht for this run, in the integration's ids: Knecht hands it back to them.
+  actor: text('actor', { mode: 'json' }).$type<{ id: string, name: string }>(),
   steps: text('steps', { mode: 'json' }).$type<Step[]>(),
   log: text('log').notNull().default(''),
   startedAt: integer('started_at', { mode: 'timestamp' }),

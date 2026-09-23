@@ -48,6 +48,7 @@ export interface TrackerChange {
   // Values for the tracker's own filters; label, status and assignment are filled in here.
   filterValues: Record<string, string[]>
   version: string | null
+  actor?: Person
 }
 
 const capitalize = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
@@ -120,7 +121,7 @@ export function matchTrackerEvent(def: TrackerDef, c: TriggerConfig, change: Tra
     || (wantsSelf && (change.created ? change.assignedToSelf : change.gainedSelf))
     || (triggerEvent(c, def.status.event)?.values ?? []).some(reached)
   if (!fires) return null
-  return { branch: null, inputs: trackerInputs(issue), object: issue.object, version: change.version }
+  return { branch: null, inputs: trackerInputs(issue), object: issue.object, version: change.version, actor: change.actor ?? null }
 }
 
 export function trackerStatusChange(def: TrackerDef, change: TrackerChange): WebhookDelivery['statusChange'] {

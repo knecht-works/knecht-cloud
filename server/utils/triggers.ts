@@ -79,6 +79,7 @@ export interface FireOverrides {
   inputs?: TriggerInputs
   object?: SessionObject | null
   version?: string | null
+  actor?: { id: string, name: string } | null
 }
 
 export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
@@ -105,6 +106,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
         triggerId: t.id,
         branch: session.branch ?? opts.branch ?? project.defaultBranch,
         objectVersion: opts.version ?? null,
+        actor: opts.actor ?? null,
         inputs: opts.inputs ?? emptyInputs(t.source),
       })
       .returning()
