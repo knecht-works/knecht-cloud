@@ -1,13 +1,27 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
-import { getSessionRow, makeProject } from '../helpers/db'
+import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { allOf } from '../helpers/trigger-conditions'
+import { eq } from 'drizzle-orm'
+import { db, schema } from '../../server/db'
 
 const KNECHT_ACCOUNT = 'knecht-account-id'
 
+const api = vi.hoisted(() => ({
+  projects: [] as { id: string, identifier: string, name: string }[],
+  comments: [] as { projectId: string, workItemId: string, html: string }[],
+  assignees: new Map<string, string[]>(),
+  assigned: [] as string[][],
+  fetched: {
+    id: '77',
+    comment_html: '',
+    actor: 'user-1',
+    created_at: '2026-01-01T00:00:00Z',
+  },
+}))
 const workItem = vi.hoisted(() => (id: string) => ({
   id,
   sequence_id: 12,
@@ -15,18 +29,8 @@ const workItem = vi.hoisted(() => (id: string) => ({
   description_html: '<p>It fails on <strong>submit</strong>.</p>',
   state: 's-todo',
   labels: ['l-knecht', 'l-bug'],
-  assignees: [],
+  assignees: api.assignees.get(id) ?? [],
   created_by: 'user-1',
-}))
-const api = vi.hoisted(() => ({
-  projects: [] as { id: string, identifier: string, name: string }[],
-  comments: [] as { projectId: string, workItemId: string, html: string }[],
-  fetched: {
-    id: '77',
-    comment_html: '',
-    actor: 'user-1',
-    created_at: '2026-01-01T00:00:00Z',
-  },
 }))
 vi.mock('../../server/integrations/plane/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
@@ -51,10 +55,15 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
     { id: 's-done', name: 'Done', group: 'completed' },
   ],
   listPlaneLabels: async () => [{ id: 'l-knecht', name: 'knecht' }, { id: 'l-bug', name: 'bug' }],
-  listPlaneMembers: async () => [{ id: 'user-1', displayName: 'Ann Example' }, { id: KNECHT_ACCOUNT, displayName: 'Knecht' }],
+  listPlaneMembers: async () => [{ id: 'user-1', displayName: 'Ann Example' }, { id: 'user-2', displayName: 'Bob' }, { id: KNECHT_ACCOUNT, displayName: 'Knecht' }],
   getPlaneComment: async () => api.fetched,
   addPlaneComment: async (projectId: string, workItemId: string, html: string) => {
     api.comments.push({ projectId, workItemId, html })
+  },
+  updatePlaneWorkItem: async (_projectId: string, workItemId: string, patch: { assignees?: string[] }) => {
+    if (!patch.assignees) return
+    api.assigned.push(patch.assignees)
+    api.assignees.set(workItemId, patch.assignees)
   },
 }))
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
@@ -266,6 +275,46 @@ describe('plane webhook route, vendor specifics', () => {
     await deliver(updated(project, { assignee_ids: ['user-1'] }, { assignee_ids: ['user-1', KNECHT_ACCOUNT] }))
     const [run] = runsOf(trigger.id)
     expect(run!.inputs).toMatchObject({ assignee: 'Ann Example, Knecht' })
+  })
+
+  it('does not count Knecht taking the work item itself while it works on it', async () => {
+    const project = makePlaneProject()
+    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
+    const session = resolveSession(project, { integration: 'plane', kind: 'issue', key: `${project.identifier}-12` }, null)
+    const run = makeRun(project, [], { sessionId: session.id, status: 'running' })
+    await deliver(updated(project, { assignee_ids: [] }, { assignee_ids: [KNECHT_ACCOUNT] }))
+    expect(runsOf(trigger.id)).toHaveLength(0)
+    db.update(schema.runs).set({ status: 'success' }).where(eq(schema.runs.id, run.id)).run()
+    await deliver(updated(project, { assignee_ids: [] }, { assignee_ids: [KNECHT_ACCOUNT] }))
+    expect(runsOf(trigger.id)).toHaveLength(1)
+  })
+
+  it('joins the assignees while it works and leaves the work item with them, else hands it back', async () => {
+    const project = makePlaneProject()
+    const object = { integration: 'plane', kind: 'issue', key: `${project.identifier}-12` }
+    const id = `wi-${project.identifier}`
+    const { take, handBack } = plane.capabilities.assignee!
+
+    api.assignees.set(id, ['user-2'])
+    expect(await take(project, object)).toEqual({ id: 'user-2', name: 'Bob' })
+    expect(await take(project, object)).toBeNull()
+    expect(await handBack(project, object, { id: 'user-3', name: 'Sam' })).toBe(`left ${object.key} with Bob`)
+    expect(api.assigned).toEqual([['user-2', KNECHT_ACCOUNT], ['user-2']])
+
+    api.assigned.length = 0
+    api.assignees.set(id, [])
+    expect(await take(project, object)).toBeNull()
+    expect(await handBack(project, object, { id: 'user-3', name: 'Sam' })).toBe(`handed ${object.key} back to Sam`)
+    expect(await take(project, object)).toEqual({ id: 'user-3', name: '' })
+    api.assignees.set(id, [KNECHT_ACCOUNT])
+    expect(await handBack(project, object, null)).toBe(`handed ${object.key} back to Ann Example`)
+    expect(api.assigned).toEqual([[KNECHT_ACCOUNT], ['user-3'], ['user-3', KNECHT_ACCOUNT], ['user-1']])
+
+    // Somebody took it from Knecht meanwhile: it stays theirs.
+    api.assigned.length = 0
+    api.assignees.set(id, ['user-2'])
+    expect(await handBack(project, object, null)).toBe(`left ${object.key} with Bob`)
+    expect(api.assigned).toEqual([])
   })
 
   it('closes the session of an archived or deleted work item', async () => {

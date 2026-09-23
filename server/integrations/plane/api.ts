@@ -125,7 +125,7 @@ export function listPlaneMembers(projectId: string): Promise<PlaneMember[]> {
   })
 }
 
-// The REST shape, as Plane sends it. The webhook names the same fields state_id, label_ids and assignee_ids.
+// Labels and assignees as ids, like the webhook's label_ids and assignee_ids.
 export interface PlaneWorkItem {
   id: string
   sequence_id: number
@@ -137,13 +137,25 @@ export interface PlaneWorkItem {
   created_by?: string | null
 }
 
-export async function getPlaneWorkItem(projectId: string, workItemId: string): Promise<PlaneWorkItem> {
-  return await planeFetch<PlaneWorkItem>(workspacePath(`/projects/${projectId}/work-items/${workItemId}/`))
+type Ref = string | { id?: string }
+
+// The REST API answers labels and assignees as ids on some versions and expanded as objects on others.
+function idsOf(refs: Ref[] | undefined): string[] {
+  return (refs ?? []).map(ref => typeof ref === 'string' ? ref : ref.id ?? '').filter(Boolean)
+}
+
+async function fetchWorkItem(path: string): Promise<PlaneWorkItem> {
+  const item = await planeFetch<Omit<PlaneWorkItem, 'labels' | 'assignees'> & { labels?: Ref[], assignees?: Ref[] }>(path)
+  return { ...item, labels: idsOf(item.labels), assignees: idsOf(item.assignees) }
+}
+
+export function getPlaneWorkItem(projectId: string, workItemId: string): Promise<PlaneWorkItem> {
+  return fetchWorkItem(workspacePath(`/projects/${projectId}/work-items/${workItemId}/`))
 }
 
 // `key` is what the dashboard shows: PROJ-12.
-export async function getPlaneWorkItemByKey(key: string): Promise<PlaneWorkItem> {
-  return await planeFetch<PlaneWorkItem>(workspacePath(`/work-items/${encodeURIComponent(key)}/`))
+export function getPlaneWorkItemByKey(key: string): Promise<PlaneWorkItem> {
+  return fetchWorkItem(workspacePath(`/work-items/${encodeURIComponent(key)}/`))
 }
 
 export interface PlaneComment {
@@ -170,6 +182,6 @@ export async function addPlaneComment(projectId: string, workItemId: string, htm
   })
 }
 
-export async function updatePlaneWorkItem(projectId: string, workItemId: string, patch: { labels?: string[], state?: string }): Promise<void> {
+export async function updatePlaneWorkItem(projectId: string, workItemId: string, patch: { labels?: string[], state?: string, assignees?: string[] }): Promise<void> {
   await planeFetch(workspacePath(`/projects/${projectId}/work-items/${workItemId}/`), { method: 'PATCH', body: patch })
 }
