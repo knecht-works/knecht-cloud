@@ -9,6 +9,7 @@ const props = defineProps<{
   runId: number
   sessionId: number
   status: RunStatus
+  kind: 'workflow' | 'mention'
   envState: EnvState
 }>()
 
@@ -30,15 +31,17 @@ watch(active, (v, was) => {
 watch(() => props.status, () => refresh())
 
 const runPending = computed(() => isLiveStatus(props.status))
+// A cancelled workflow run must be retried first; a cancelled mention is just a turn that ended.
+const cancelledWorkflow = computed(() => props.status === 'cancelled' && props.kind !== 'mention')
 const canFollowup = computed(() =>
-  props.status !== 'cancelled' && (runPending.value || props.envState !== 'down'))
+  !cancelledWorkflow.value && (runPending.value || props.envState !== 'down'))
 const followupHint = computed(() => {
   if (props.envState === 'stopped') return 'The environment is stopped. Sending a message boots it again, so the first reply takes a few seconds longer.'
   if (props.envState === 'archived') return 'The environment is archived. Sending a message restores it, so the first reply takes a few minutes longer.'
   return null
 })
 const blockedHint = computed(() => {
-  if (props.status === 'cancelled') return 'This run was cancelled. Retry it to continue the conversation.'
+  if (cancelledWorkflow.value) return 'This run was cancelled. Retry it to continue the conversation.'
   return 'The environment is gone. Run the workflow again to continue the conversation.'
 })
 
