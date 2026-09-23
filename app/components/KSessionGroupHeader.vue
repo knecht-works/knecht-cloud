@@ -9,7 +9,6 @@ const props = defineProps<{
     title: string | null
     url: string | null
     closed: boolean
-    live: boolean
   }
   project?: { id: number, name: string }
 }>()

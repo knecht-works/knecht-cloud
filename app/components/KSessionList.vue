@@ -51,7 +51,7 @@ defineProps<{
         class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
       />
       <KStatusDot
-        :color="RUN_STATUS_META[r.status].dot"
+        :color="r.status === 'success' && !g.live ? 'neutral' : RUN_STATUS_META[r.status].dot"
         :pulse="RUN_STATUS_META[r.status].pulse"
         :size="6"
       />

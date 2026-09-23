@@ -78,12 +78,12 @@ export interface SessionObject {
   title: string | null
   url: string | null
   closed: boolean
-  live: boolean
 }
 
 export interface SessionGroup<T> {
   sessionId: number
   object: SessionObject | null
+  live: boolean
   runs: T[]
 }
 
@@ -107,9 +107,9 @@ export function groupRunsBySession<T extends SessionRunRow>(runs: T[]): SessionG
             title: head.objectTitle,
             url: head.objectUrl,
             closed: head.sessionStatus === 'closed',
-            live: head.envState === 'up',
           }
         : null,
+      live: head.envState === 'up',
       runs: groupRuns,
     }
   })
