@@ -43,7 +43,21 @@ export function useAutosave(save: () => Promise<void>, delayMs = 800) {
     return chain
   }
 
+  // A pending save goes out as soon as focus leaves a field or the page is
+  // about to unload: the debounce window must not swallow the last edit.
+  const flushPending = () => {
+    if (timer !== undefined) void flush()
+  }
+  if (import.meta.client) {
+    document.addEventListener('focusout', flushPending)
+    window.addEventListener('pagehide', flushPending)
+  }
+
   onScopeDispose(() => {
+    if (import.meta.client) {
+      document.removeEventListener('focusout', flushPending)
+      window.removeEventListener('pagehide', flushPending)
+    }
     void flush()
   })
 
