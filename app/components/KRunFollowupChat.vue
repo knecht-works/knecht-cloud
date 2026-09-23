@@ -346,125 +346,130 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
     <div class="flex h-[70vh] flex-col">
       <div
         v-if="visibleTurns"
-        ref="listEl"
-        class="min-h-0 flex-1 overflow-y-auto px-5 pt-3.5 pb-4"
+        class="relative min-h-0 flex-1"
       >
-        <UChatMessages
-          :messages="chatMessages"
-          :status="chatStatus"
-          should-auto-scroll
+        <div
+          ref="listEl"
+          class="h-full overflow-y-auto px-5 pt-3.5 pb-4"
         >
-          <template
-            v-for="entry in entries"
-            :key="entry.key"
+          <UChatMessages
+            :messages="chatMessages"
+            :status="chatStatus"
+            :ui="{ viewport: 'top-auto bottom-3' }"
+            should-auto-scroll
           >
-            <ChatDivider v-if="entry.kind === 'run'">
-              <KStatusDot
-                :color="RUN_STATUS_META[entry.run.status].dot"
-                :pulse="RUN_STATUS_META[entry.run.status].pulse"
-                :glow="false"
-                :size="5"
-              />
-              <NuxtLink
-                :to="{ query: { run: String(entry.run.id) } }"
-                replace
-                class="k-mono truncate transition-colors hover:text-muted"
-              >{{ entry.run.workflow }} #{{ entry.run.id }}</NuxtLink>
-              <span>· {{ RUN_STATUS_META[entry.run.status].label.toLowerCase() }} · {{ timeAgo(entry.run.createdAt) }}</span>
-            </ChatDivider>
-            <template v-else-if="entry.turn.prompt === CLEAR_COMMAND || entry.turn.prompt === COMPACT_COMMAND">
-              <KChatTranscript :turn="entry.turn" />
-            </template>
-            <template v-else>
-              <UChatMessage
-                :id="`user-${entry.turn.id}`"
-                role="user"
-                side="right"
-                variant="soft"
-                :avatar="authorAvatar(entry.turn)"
-                :parts="[{ type: 'text', text: entry.turn.prompt }]"
-                :actions="userActions(entry.turn)"
-                :ui="{ content: 'space-y-0', container: 'flex-row-reverse justify-start' }"
-              >
-                <template #content>
-                  <p class="whitespace-pre-wrap">
-                    {{ displayPrompt(entry.turn.prompt) }}
-                  </p>
-                  <div class="mt-1.5 flex items-center justify-end gap-1.5 text-3xs text-dimmed">
-                    <UIcon
-                      v-if="entry.turn.origin === 'mention'"
-                      name="i-lucide-at-sign"
-                      class="size-3"
-                    />
-                    <span class="k-mono">{{ chatTimestamp(entry.turn.createdAt) }}</span>
-                    <template v-if="entry.turn.optimistic && entry.turn.status === 'failed'">
-                      <span
-                        class="k-mono"
-                        style="color: var(--status-error)"
-                      >· not sent</span>
-                      <UButton
-                        color="neutral"
-                        variant="ghost"
-                        size="xs"
-                        icon="i-lucide-rotate-ccw"
-                        aria-label="Send again"
-                        @click="removeQueued(entry.turn); submit(recallPrompt(entry.turn.prompt))"
-                      />
-                      <UButton
-                        color="neutral"
-                        variant="ghost"
-                        size="xs"
-                        icon="i-lucide-x"
-                        aria-label="Dismiss"
-                        @click="removeQueued(entry.turn)"
-                      />
-                    </template>
-                  </div>
-                  <div
-                    v-if="entry.turn.attachments.length"
-                    class="mt-2 flex flex-wrap justify-end gap-1.5"
-                  >
-                    <a
-                      v-for="a in entry.turn.attachments"
-                      :key="a.name"
-                      :href="entry.turn.optimistic ? undefined : `/api/followups/${entry.turn.id}/attachments/${encodeURIComponent(a.name)}`"
-                      target="_blank"
-                      class="flex items-center gap-1.5 rounded-md border border-muted px-2 py-1 text-2xs text-muted"
-                      :class="entry.turn.optimistic ? '' : 'hover:text-highlighted'"
-                    >
-                      <img
-                        v-if="a.type.startsWith('image/') && !entry.turn.optimistic"
-                        :src="`/api/followups/${entry.turn.id}/attachments/${encodeURIComponent(a.name)}`"
-                        :alt="a.name"
-                        class="size-8 rounded object-cover"
-                      >
+            <template
+              v-for="entry in entries"
+              :key="entry.key"
+            >
+              <ChatDivider v-if="entry.kind === 'run'">
+                <KStatusDot
+                  :color="RUN_STATUS_META[entry.run.status].dot"
+                  :pulse="RUN_STATUS_META[entry.run.status].pulse"
+                  :glow="false"
+                  :size="5"
+                />
+                <NuxtLink
+                  :to="{ query: { run: String(entry.run.id) } }"
+                  replace
+                  class="k-mono truncate transition-colors hover:text-muted"
+                >{{ entry.run.workflow }} #{{ entry.run.id }}</NuxtLink>
+                <span>· {{ RUN_STATUS_META[entry.run.status].label.toLowerCase() }} · {{ timeAgo(entry.run.createdAt) }}</span>
+              </ChatDivider>
+              <template v-else-if="entry.turn.prompt === CLEAR_COMMAND || entry.turn.prompt === COMPACT_COMMAND">
+                <KChatTranscript :turn="entry.turn" />
+              </template>
+              <template v-else>
+                <UChatMessage
+                  :id="`user-${entry.turn.id}`"
+                  role="user"
+                  side="right"
+                  variant="soft"
+                  :avatar="authorAvatar(entry.turn)"
+                  :parts="[{ type: 'text', text: entry.turn.prompt }]"
+                  :actions="userActions(entry.turn)"
+                  :ui="{ content: 'space-y-0', container: 'flex-row-reverse justify-start' }"
+                >
+                  <template #content>
+                    <p class="whitespace-pre-wrap">
+                      {{ displayPrompt(entry.turn.prompt) }}
+                    </p>
+                    <div class="mt-1.5 flex items-center justify-end gap-1.5 text-3xs text-dimmed">
                       <UIcon
-                        v-else
-                        name="i-lucide-file"
-                        class="size-3.5"
+                        v-if="entry.turn.origin === 'mention'"
+                        name="i-lucide-at-sign"
+                        class="size-3"
                       />
-                      <span class="k-mono max-w-40 truncate">{{ a.name }}</span>
-                    </a>
-                  </div>
-                </template>
-              </UChatMessage>
-              <UChatMessage
-                v-if="showsReply(entry.turn)"
-                :id="`reply-${entry.turn.id}`"
-                role="assistant"
-                side="left"
-                variant="naked"
-                :avatar="{ src: '/mascot/knecht-avatar.svg', alt: 'Knecht' }"
-                :parts="[{ type: 'text', text: '' }]"
-                :actions="assistantActions(entry.turn)"
-              >
-                <template #content>
-                  <KChatTranscript :turn="entry.turn" />
-                </template>
-              </UChatMessage>
+                      <span class="k-mono">{{ chatTimestamp(entry.turn.createdAt) }}</span>
+                      <template v-if="entry.turn.optimistic && entry.turn.status === 'failed'">
+                        <span
+                          class="k-mono"
+                          style="color: var(--status-error)"
+                        >· not sent</span>
+                        <UButton
+                          color="neutral"
+                          variant="ghost"
+                          size="xs"
+                          icon="i-lucide-rotate-ccw"
+                          aria-label="Send again"
+                          @click="removeQueued(entry.turn); submit(recallPrompt(entry.turn.prompt))"
+                        />
+                        <UButton
+                          color="neutral"
+                          variant="ghost"
+                          size="xs"
+                          icon="i-lucide-x"
+                          aria-label="Dismiss"
+                          @click="removeQueued(entry.turn)"
+                        />
+                      </template>
+                    </div>
+                    <div
+                      v-if="entry.turn.attachments.length"
+                      class="mt-2 flex flex-wrap justify-end gap-1.5"
+                    >
+                      <a
+                        v-for="a in entry.turn.attachments"
+                        :key="a.name"
+                        :href="entry.turn.optimistic ? undefined : `/api/followups/${entry.turn.id}/attachments/${encodeURIComponent(a.name)}`"
+                        target="_blank"
+                        class="flex items-center gap-1.5 rounded-md border border-muted px-2 py-1 text-2xs text-muted"
+                        :class="entry.turn.optimistic ? '' : 'hover:text-highlighted'"
+                      >
+                        <img
+                          v-if="a.type.startsWith('image/') && !entry.turn.optimistic"
+                          :src="`/api/followups/${entry.turn.id}/attachments/${encodeURIComponent(a.name)}`"
+                          :alt="a.name"
+                          class="size-8 rounded object-cover"
+                        >
+                        <UIcon
+                          v-else
+                          name="i-lucide-file"
+                          class="size-3.5"
+                        />
+                        <span class="k-mono max-w-40 truncate">{{ a.name }}</span>
+                      </a>
+                    </div>
+                  </template>
+                </UChatMessage>
+                <UChatMessage
+                  v-if="showsReply(entry.turn)"
+                  :id="`reply-${entry.turn.id}`"
+                  role="assistant"
+                  side="left"
+                  variant="naked"
+                  :avatar="{ src: '/mascot/knecht-avatar.svg', alt: 'Knecht' }"
+                  :parts="[{ type: 'text', text: '' }]"
+                  :actions="assistantActions(entry.turn)"
+                >
+                  <template #content>
+                    <KChatTranscript :turn="entry.turn" />
+                  </template>
+                </UChatMessage>
+              </template>
             </template>
-          </template>
-        </UChatMessages>
+          </UChatMessages>
+        </div>
       </div>
       <div
         v-else
