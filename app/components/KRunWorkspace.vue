@@ -158,6 +158,7 @@ usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refresh
       :run-id="run.id"
       :session-id="run.sessionId"
       :status="run.status"
+      :kind="run.kind"
       :env-state="run.envState"
       @changed="() => { refreshWorkspace(); emit('changed') }"
     />

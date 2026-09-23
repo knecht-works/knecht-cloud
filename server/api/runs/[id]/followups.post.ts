@@ -32,7 +32,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: `Each file must be ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB or smaller` })
   }
 
-  if (run.status === 'cancelled') {
+  // A cancelled workflow run must be retried to finish its steps; a cancelled mention is just a turn that ended.
+  if (run.status === 'cancelled' && run.kind !== 'mention') {
     throw createError({ statusCode: 409, statusMessage: 'A cancelled run accepts no follow-ups. Retry it first.' })
   }
   // A queued or running run boots the environment itself; the follow-up waits behind it.

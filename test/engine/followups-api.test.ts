@@ -61,6 +61,12 @@ describe('POST /api/runs/:id/followups', () => {
     expect((await post(liveRun('cancelled').id)).status).toBe(409)
     expect((await post(liveRun('success', 'down').id)).status).toBe(409)
   })
+
+  it('accepts a follow-up on a cancelled mention run: the conversation goes on', async () => {
+    const run = liveRun('cancelled')
+    db.update(schema.runs).set({ kind: 'mention' }).where(eq(schema.runs.id, run.id)).run()
+    expect((await post(run.id)).status).toBe(200)
+  })
 })
 
 describe('chat commands and options', () => {
