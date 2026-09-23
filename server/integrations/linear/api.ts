@@ -83,7 +83,7 @@ export function listLinearLabels(teamKey: string): Promise<LinearLabel[]> {
 const ISSUE_FIELDS = `
   id identifier title description url priority
   state { name type }
-  creator { name }
+  creator { id name }
   assignee { id name }
   labels { nodes { id name } }
 `
@@ -96,7 +96,7 @@ export interface LinearIssue {
   url: string
   priority?: number | null
   state?: { name: string, type: string } | null
-  creator?: { name?: string } | null
+  creator?: { id?: string, name?: string } | null
   assignee?: { id: string, name?: string } | null
   labels?: { nodes: LinearLabel[] } | null
 }
@@ -140,6 +140,6 @@ export async function addLinearComment(issueId: string, body: string): Promise<{
   return { url: commentCreate.comment?.url }
 }
 
-export async function updateLinearIssue(id: string, input: { stateId?: string, addedLabelIds?: string[], removedLabelIds?: string[] }): Promise<void> {
+export async function updateLinearIssue(id: string, input: { stateId?: string, assigneeId?: string | null, addedLabelIds?: string[], removedLabelIds?: string[] }): Promise<void> {
   await linearMutate('mutation($id: String!, $input: IssueUpdateInput!) { issueUpdate(id: $id, input: $input) { success } }', { id, input })
 }

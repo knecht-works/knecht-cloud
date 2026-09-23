@@ -50,6 +50,7 @@ export interface LinearRecord {
 export interface LinearPayload {
   action?: string
   type?: string
+  actor?: { id?: string, name?: string }
   data?: LinearRecord
   updatedFrom?: LinearRecord
 }
@@ -74,17 +75,27 @@ function linearChange(payload: LinearPayload, fetched: LinearIssue, states: Line
   const previous = payload.updatedFrom ?? {}
   const gainedIds = previous.labelIds ? (payload.data?.labelIds ?? []).filter(id => !previous.labelIds!.includes(id)) : []
   const assignedToSelf = !!accountId && fetched.assignee?.id === accountId
+  // Linear delivers Knecht's own writes too: taking an issue must not fire "assigned to Knecht" again,
+  // while a label or status the agent sets may well start the next workflow.
+  const bySelf = !!accountId && payload.actor?.id === accountId
   return {
     created: payload.action === 'create',
     issue: linearIssue(fetched),
     gainedLabels: (fetched.labels?.nodes ?? []).filter(l => gainedIds.includes(l.id)).map(l => l.name),
     assignedToSelf,
     // `updatedFrom.assigneeId` is null when the issue was unassigned before.
-    gainedSelf: assignedToSelf && 'assigneeId' in previous,
+    gainedSelf: !bySelf && assignedToSelf && 'assigneeId' in previous,
     ...(previous.stateId ? { previousStatus: { group: states.find(s => s.id === previous.stateId)?.type ?? null } } : {}),
     filterValues: { priority: [LINEAR_PRIORITIES[fetched.priority ?? 0] ?? 'none'] },
     version: objectVersion(payload.data?.updatedAt),
+    ...(payload.actor?.id && !bySelf ? { actor: { id: payload.actor.id, name: payload.actor.name ?? '' } } : {}),
   }
+}
+
+function requireSelf(): string {
+  const accountId = linearCredentials()?.accountId
+  if (!accountId) throw new Error('the Linear connection does not know its own account: connect Linear again')
+  return accountId
 }
 
 async function parseComment(commentId: string, name: string): Promise<WebhookDelivery | null> {
@@ -202,6 +213,30 @@ export const linear: Integration = {
           name: state.name,
           apply: () => updateLinearIssue(object.key, { stateId: state.id }),
         }))
+      },
+    },
+
+    assignee: {
+      async take(_project, object) {
+        const self = requireSelf()
+        const { assignee } = await getLinearIssue(object.key)
+        if (assignee?.id === self) return null
+        await updateLinearIssue(object.key, { assigneeId: self })
+        return assignee ? { id: assignee.id, name: assignee.name ?? '' } : null
+      },
+      async handBack(_project, object, to) {
+        const self = requireSelf()
+        const { assignee, creator } = await getLinearIssue(object.key)
+        // Somebody took the issue from Knecht meanwhile: it is theirs.
+        if (assignee?.id !== self) return `left ${object.key} with ${assignee?.name ?? 'nobody'}`
+        const candidates = [to, creator?.id && creator.id !== self ? { id: creator.id, name: creator.name ?? '' } : null]
+        for (const person of candidates) {
+          if (person && await updateLinearIssue(object.key, { assigneeId: person.id }).then(() => true, () => false)) {
+            return `handed ${object.key} back to ${person.name}`
+          }
+        }
+        await updateLinearIssue(object.key, { assigneeId: null })
+        return `left ${object.key} unassigned`
       },
     },
   },

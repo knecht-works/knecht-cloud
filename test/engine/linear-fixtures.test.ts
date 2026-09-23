@@ -76,8 +76,9 @@ describe('linear deliveries', () => {
     expect(fired.createdWithBug).toEqual(['create-CRA-3'])
   })
 
-  it('assigned to Knecht fires on creation with Knecht as assignee and on a later assignment, not on unassignment or assignment to others', () => {
-    expect(fired.assigned).toEqual(['create-CRA-3', 'update-CRA-2-assignee-knecht'])
+  // Every fixture was captured as the Knecht account itself: the later assignment is Knecht taking the issue, which fires nothing.
+  it('assigned to Knecht fires on creation with Knecht as assignee, not when Knecht takes it itself, on unassignment or assignment to others', () => {
+    expect(fired.assigned).toEqual(['create-CRA-3'])
   })
 
   it('labeled fires when the label is gained, on creation or later, not when it is removed, and matches exactly', () => {
@@ -101,8 +102,8 @@ describe('linear deliveries', () => {
     expect(fired.startedWhileUrgent).toEqual(['update-CRA-3-state-in-progress'])
   })
 
-  it('priority changes, unassignment, assignment to others and label removal fire nothing', () => {
+  it('priority changes, Knecht taking the issue itself, unassignment, assignment to others and label removal fire nothing', () => {
     const silent = fixtures.map(f => f.name).filter(name => !Object.values(fired).some(names => names.includes(name)))
-    expect(silent).toEqual(['update-CRA-2-assignee-removed', 'update-CRA-2-assignee-samuel', 'update-CRA-2-labels-removed', 'update-CRA-2-priority-0', 'update-CRA-2-priority-1'])
+    expect(silent).toEqual(['update-CRA-2-assignee-knecht', 'update-CRA-2-assignee-removed', 'update-CRA-2-assignee-samuel', 'update-CRA-2-labels-removed', 'update-CRA-2-priority-0', 'update-CRA-2-priority-1'])
   })
 })

@@ -15,13 +15,14 @@ const STATES = [
   { id: 's-review', name: 'In Review', type: 'started' },
   { id: 's-done', name: 'Done', type: 'completed' },
 ]
-const USERS: Record<string, string> = { 'user-1': 'Ann Example', [KNECHT_ACCOUNT]: 'Knecht' }
+const USERS: Record<string, string> = { 'user-1': 'Ann Example', 'user-2': 'Bob', [KNECHT_ACCOUNT]: 'Knecht' }
 
 type Fetched = Record<string, unknown> & { id: string, identifier: string }
 const api = vi.hoisted(() => ({
   issues: new Map<string, Record<string, unknown>>(),
   comment: {} as Record<string, unknown>,
   replies: [] as { issueId: string, body: string }[],
+  assigned: [] as (string | null)[],
 }))
 vi.mock('../../server/integrations/linear/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
@@ -35,6 +36,11 @@ vi.mock('../../server/integrations/linear/api', async importOriginal => ({
   addLinearComment: async (issueId: string, body: string) => {
     api.replies.push({ issueId, body })
     return {}
+  },
+  updateLinearIssue: async (id: string, input: { assigneeId?: string | null }) => {
+    if (!('assigneeId' in input)) return
+    api.assigned.push(input.assigneeId ?? null)
+    api.issues.get(id)!.assignee = input.assigneeId ? { id: input.assigneeId, name: USERS[input.assigneeId] ?? input.assigneeId } : null
   },
 }))
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
@@ -89,7 +95,7 @@ function item(project: LinearProject, { stateId = 's-todo', labelIds = ['l-knech
     url: issueUrl(project),
     priority,
     state: STATES.find(s => s.id === stateId),
-    creator: { name: USERS['user-1'] },
+    creator: { id: 'user-1', name: USERS['user-1'] },
     assignee: assigneeId ? { id: assigneeId, name: USERS[assigneeId] } : null,
     labels: { nodes: labelIds.map(id => ({ id, name: LABELS[id] })) },
   }
@@ -237,6 +243,47 @@ describe('linear webhook route, vendor specifics', () => {
     await deliver(updated(project, { assigneeId: null }, { assigneeId: KNECHT_ACCOUNT }))
     const [run] = runsOf(trigger.id)
     expect(run!.inputs).toMatchObject({ assignee: 'Knecht' })
+  })
+
+  it('records who assigned the issue on the run, and does not count Knecht taking it itself', async () => {
+    const project = makeLinearProject()
+    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
+    await deliver({ ...updated(project, { assigneeId: null }, { assigneeId: KNECHT_ACCOUNT }), actor: { id: KNECHT_ACCOUNT, name: 'Knecht' } })
+    expect(runsOf(trigger.id)).toHaveLength(0)
+    await deliver({ ...updated(project, { assigneeId: null }, { assigneeId: KNECHT_ACCOUNT }), actor: { id: 'user-2', name: 'Bob' } })
+    expect(runsOf(trigger.id)[0]).toMatchObject({ actor: { id: 'user-2', name: 'Bob' } })
+  })
+
+  it('a label the agent sets itself starts the next workflow, without Knecht as the actor', async () => {
+    const project = makeLinearProject()
+    const trigger = makeLinearTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] })
+    await deliver({ ...updated(project, { labelIds: ['l-bug'] }, { labelIds: ['l-bug', 'l-knecht'] }), actor: { id: KNECHT_ACCOUNT, name: 'Knecht' } })
+    expect(runsOf(trigger.id)).toHaveLength(1)
+    expect(runsOf(trigger.id)[0]!.actor).toBeNull()
+  })
+
+  it('holds the issue while it works and hands it back to whoever gave it to Knecht, else the creator', async () => {
+    const project = makeLinearProject()
+    const object = { integration: 'linear', kind: 'issue', key: `${project.teamKey}-12` }
+    const { take, handBack } = linear.capabilities.assignee!
+
+    item(project, { assigneeId: 'user-2' })
+    expect(await take(project, object)).toEqual({ id: 'user-2', name: 'Bob' })
+    expect(await take(project, object)).toBeNull()
+    expect(await handBack(project, object, { id: 'user-3', name: 'Sam' })).toBe(`handed ${object.key} back to Sam`)
+    expect(api.assigned).toEqual([KNECHT_ACCOUNT, 'user-3'])
+
+    api.assigned.length = 0
+    item(project)
+    expect(await take(project, object)).toBeNull()
+    expect(await handBack(project, object, null)).toBe(`handed ${object.key} back to Ann Example`)
+    expect(api.assigned).toEqual([KNECHT_ACCOUNT, 'user-1'])
+
+    // Somebody took it from Knecht meanwhile: it stays theirs.
+    api.assigned.length = 0
+    item(project, { assigneeId: 'user-2' })
+    expect(await handBack(project, object, null)).toBe(`left ${object.key} with Bob`)
+    expect(api.assigned).toEqual([])
   })
 
   it('closes the session of a removed, archived or trashed issue', async () => {
