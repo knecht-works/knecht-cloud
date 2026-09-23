@@ -1,7 +1,9 @@
 import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { cancelFollowupWork } from '../../../daemon/followups'
-import { cancelRun } from '../../../daemon/runner'
+import { appendLog, cancelRun } from '../../../daemon/runner'
+import { handBackObject } from '../../../integrations/assignee'
+import { getProject, getSessionRow } from '../../../utils/entities'
 import { withRunSessionEnv } from '../../../utils/run-view'
 
 export default defineEventHandler((event) => {
@@ -22,6 +24,12 @@ export default defineEventHandler((event) => {
   }
   else {
     cancelRun(id)
+  }
+  // A run that never started hands nothing back on its own, but it may have kept the session busy.
+  if (run.status === 'queued') {
+    const session = getSessionRow(run.sessionId)
+    const project = session && getProject(session.projectId)
+    if (session && project) void handBackObject(session, id, project, text => appendLog(id, text))
   }
   return withRunSessionEnv(requireRun(id))
 })

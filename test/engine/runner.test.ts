@@ -22,9 +22,15 @@ vi.mock('../../server/utils/github-app', () => ({
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
 const jiraComments = vi.hoisted(() => [] as { key: string, text: string }[])
+const jira = vi.hoisted(() => ({ assignee: null as { accountId: string, displayName: string } | null, assigned: [] as (string | null)[] }))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
   getJiraIssueFields: async () => ({ reporter: { accountId: 'user-1', displayName: 'Ann Example' } }),
+  getJiraIssuePeople: async () => ({ assignee: jira.assignee, reporter: { accountId: 'user-1', displayName: 'Ann Example' } }),
+  assignJiraIssue: async (_key: string, accountId: string | null) => {
+    jira.assigned.push(accountId)
+    jira.assignee = accountId ? { accountId, displayName: accountId } : null
+  },
   addJiraComment: async (key: string, body: { content?: { content?: { text?: string, marks?: unknown }[] }[] }) => {
     jiraComments.push({ key, text: (body.content?.[0]?.content ?? []).map(n => n.text ?? '').join('') })
     return { url: 'https://x' }
@@ -32,6 +38,7 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
 }))
 
 const { startRun, cancelRun } = await import('../../server/daemon/runner')
+const { jiraConnection } = await import('../../server/integrations/jira/credentials')
 
 async function execute(steps: Step[], overrides: Parameters<typeof makeRun>[2] = {}) {
   const project = makeProject()
@@ -66,6 +73,59 @@ describe('runner', () => {
     jiraComments.length = 0
     await startRun(ticket({ prUrl: 'https://x/pull/5', workflowId: silent.id }).id, project)
     expect(jiraComments).toHaveLength(0)
+  })
+
+  it('holds a Jira ticket while it works and hands it back to whoever gave it to Knecht', async () => {
+    jiraConnection.save({ siteUrl: 'https://acme.atlassian.net', email: 'knecht@acme.test', apiToken: 't' }, { accountName: 'Knecht', accountId: 'knecht' })
+    const project = makeProject()
+    let n = 0
+    const ticket = (overrides: Parameters<typeof makeRun>[2]) => {
+      const run = makeRun(project, [{ type: 'bash', id: 'work', command: 'true' }], overrides)
+      db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: `PROJ-${++n}` }).where(eq(schema.sessions.id, run.sessionId)).run()
+      return run
+    }
+
+    jira.assignee = { accountId: 'user-2', displayName: 'Bob' }
+    const assigned = ticket({ actor: { id: 'user-3', name: 'Sam' } })
+    await startRun(assigned.id, project)
+    expect(jira.assigned).toEqual(['knecht', 'user-3'])
+    expect(getRun(assigned.id).log).toContain('handed PROJ-1 back to Sam')
+
+    // Started by hand: whoever held the ticket before gets it back.
+    jira.assigned.length = 0
+    jira.assignee = { accountId: 'user-2', displayName: 'Bob' }
+    await startRun(ticket({}).id, project)
+    expect(jira.assigned).toEqual(['knecht', 'user-2'])
+
+    jira.assigned.length = 0
+    jira.assignee = null
+    await startRun(ticket({}).id, project)
+    expect(jira.assigned).toEqual(['knecht', 'user-1'])
+
+    // Nothing is handed back while the session still has work queued; the queued run, started
+    // by a change the agent made itself, hands back to whoever gave Knecht the ticket.
+    jira.assigned.length = 0
+    jira.assignee = null
+    const busy = ticket({ actor: { id: 'user-3', name: 'Sam' } })
+    const next = makeRun(project, [{ type: 'bash', id: 'work', command: 'true' }], { sessionId: busy.sessionId, status: 'queued' })
+    await startRun(busy.id, project)
+    expect(jira.assigned).toEqual(['knecht'])
+    await startRun(next.id, project)
+    expect(jira.assigned).toEqual(['knecht', 'user-3'])
+    expect(getRun(next.id).log).toContain('handed PROJ-4 back to Sam')
+
+    // Somebody took it from Knecht meanwhile: it stays theirs.
+    jira.assigned.length = 0
+    jira.assignee = null
+    const taken = ticket({ actor: { id: 'user-3', name: 'Sam' } })
+    db.update(schema.runs).set({ steps: [{ type: 'bash', id: 'work', command: 'sleep 0.3' }] }).where(eq(schema.runs.id, taken.id)).run()
+    const running = startRun(taken.id, project)
+    await sleep(100)
+    jira.assignee = { accountId: 'user-2', displayName: 'Bob' }
+    await running
+    expect(jira.assigned).toEqual(['knecht'])
+    expect(getRun(taken.id).log).toContain('left PROJ-5 with Bob')
+    jiraConnection.remove()
   })
 
   it('runs a linear workflow and passes outputs between steps', async () => {

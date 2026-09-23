@@ -7,6 +7,7 @@ import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
 import { getProject, getRun, getSessionRow } from '../utils/entities'
 import { getIntegration } from '../integrations'
+import { handBackObject, takeObject } from '../integrations/assignee'
 import { sessionCheckoutDir } from '../utils/storage'
 import { agentRepliedSince, describeObject, sessionObject, withSessionLinks } from '../utils/sessions'
 import { transcriptSink } from '../utils/agent-items'
@@ -69,6 +70,8 @@ export async function startFollowup(followupId: number): Promise<void> {
 
     const controller = new AbortController()
     controllers.set(session.id, controller)
+    const log = (text: string) => transcriptSink(session.id, followupId).item(notice(text.trim()))
+    await takeObject(session, run.id, project, log)
     try {
       const reply = await execFollowup(followup, session, run, project, controller)
       finishFollowup(followupId, 'success')
@@ -86,6 +89,7 @@ export async function startFollowup(followupId: number): Promise<void> {
     finally {
       controllers.delete(session.id)
     }
+    await handBackObject(session, run.id, project, log)
   }
   catch (e) {
     finishFollowup(followupId, 'failed', (e as Error).message)

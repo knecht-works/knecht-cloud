@@ -213,6 +213,28 @@ describe('jira webhook route, vendor specifics', () => {
     expect(run!.inputs).toMatchObject({ assignee: 'Knecht' })
   })
 
+  it('records who assigned the ticket on the run, and does not count Knecht taking it itself', async () => {
+    const project = makeJiraProject()
+    const trigger = makeJiraTrigger(project.id, [{ type: 'assigned' }])
+    const assigned = { assignee: { accountId: KNECHT_ACCOUNT, displayName: 'Knecht' } }
+    await deliver({ ...updated(project, [{ field: 'assignee', from: null, to: KNECHT_ACCOUNT }], assigned), user: { accountId: KNECHT_ACCOUNT, displayName: 'Knecht' } })
+    expect(runsOf(trigger.id)).toHaveLength(0)
+    await deliver({ ...updated(project, [{ field: 'assignee', from: null, to: KNECHT_ACCOUNT }], assigned), user: { accountId: 'user-2', displayName: 'Bob' } })
+    expect(runsOf(trigger.id)[0]).toMatchObject({ actor: { id: 'user-2', name: 'Bob' } })
+  })
+
+  // A triage workflow labels the ticket and moves it, and the next workflow picks it up from there.
+  it('a label or status the agent sets itself starts the next workflow, without Knecht as the actor', async () => {
+    const project = makeJiraProject()
+    const trigger = makeJiraTrigger(project.id, [{ type: 'status', values: ['To Do'] }], { label: ['enhancement'] })
+    await deliver({
+      ...updated(project, [{ field: 'status', from: '1', fromString: 'Triage', toString: 'To Do' }], { labels: ['enhancement'], status: { name: 'To Do', statusCategory: { key: 'new' } } }),
+      user: { accountId: KNECHT_ACCOUNT, displayName: 'Knecht' },
+    })
+    expect(runsOf(trigger.id)).toHaveLength(1)
+    expect(runsOf(trigger.id)[0]!.actor).toBeNull()
+  })
+
   it('applies the issue type filter', async () => {
     const project = makeJiraProject()
     const trigger = makeJiraTrigger(project.id, [{ type: 'created' }], { issueType: ['Task'] })

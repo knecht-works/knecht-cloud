@@ -41,7 +41,13 @@ describe('matchTrackerEvent', () => {
       branch: null,
       object: change().issue.object,
       inputs: { event: 'issue', identifier: 'P-1', title: 'Login broken', body: 'It fails.', url: 'https://x/P-1', status: 'Todo', assignee: 'Bob, Knecht', labels: 'bug', author: 'Ann' },
+      actor: null,
     })
+  })
+
+  it('names who made the change, so Knecht can hand the object back to them', () => {
+    const actor = { id: 'u-7', name: 'Sam' }
+    expect(matchTrackerEvent(DEF, config([{ type: 'created' }]), change({ created: true, actor }))).toMatchObject({ actor })
   })
 
   it('fires created only on creation', () => {
