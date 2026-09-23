@@ -3,8 +3,9 @@ import { and, eq } from 'drizzle-orm'
 import { createError, getHeader, readRawBody, type H3Event } from 'h3'
 import { db, schema } from '../db'
 import type { Integration } from '../integrations'
+import { stopEnv } from '../daemon/envs'
 import { handleMention } from './mentions'
-import { syncObjectStatus } from './sessions'
+import { findObjectSession, sessionHasActiveWork, syncObjectStatus } from './sessions'
 import { fireTrigger } from './triggers'
 
 // No session gate: the integration authenticates the delivery with its signature over the raw body.
@@ -67,6 +68,14 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
       }))
     }
     console.log(`${integration.id} webhook: ${delivery.summary} from ${project.fullName} → ${runIds.length ? `run(s) ${runIds.join(', ')}` : 'no trigger matched'}`)
+  }
+
+  // After the triggers: a run the closing itself started keeps the environment.
+  if (delivery.statusChange?.status === 'closed') {
+    const session = findObjectSession(project.id, delivery.statusChange.object)
+    if (session?.envState === 'up' && !sessionHasActiveWork(session.id)) {
+      void stopEnv(session.id).catch(e => console.error(`[envs] stopping the env of closed session ${session.id} failed:`, e))
+    }
   }
 
   return { ok: true, ...(outcome ? { outcome } : {}), runIds }
