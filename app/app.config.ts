@@ -1,21 +1,10 @@
-// Focus on select triggers (buttons) is signalled by the global
-// outline rule in main.css. They would otherwise ALSO swap their
-// inset hairline to a 2px primary ring; keep the resting one.
-const keepRestingRing = {
+const pointer = {
   slots: {
-    // Same intent as the button base: pointer cursor on the trigger and
-    // on each option; disabled states still get cursor-not-allowed from
-    // the base theme's data-disabled variants.
+    // Pointer cursor on the trigger and on each option; disabled states still
+    // get cursor-not-allowed from the base theme's data-disabled variants.
     base: 'cursor-pointer',
     item: 'cursor-pointer',
   },
-  compoundVariants: [
-    {
-      color: 'primary' as const,
-      variant: 'outline' as const,
-      class: 'focus-visible:ring focus-visible:ring-accented',
-    },
-  ],
 }
 
 export default defineAppConfig({
@@ -44,19 +33,10 @@ export default defineAppConfig({
           variant: 'solid',
           class: 'shadow-sm transition-shadow hover:shadow-md',
         },
-        // Same idea as keepRestingRing: the global outline marks focus,
-        // so outline/subtle buttons keep their resting ring instead of
-        // thickening it to a 2px primary ring.
-        { color: 'primary', variant: 'outline', class: 'focus-visible:ring focus-visible:ring-primary/50' },
-        { color: 'error', variant: 'outline', class: 'focus-visible:ring focus-visible:ring-error/50' },
-        { color: 'neutral', variant: 'outline', class: 'focus-visible:ring focus-visible:ring-accented' },
-        { color: 'primary', variant: 'subtle', class: 'focus-visible:ring focus-visible:ring-primary/25' },
-        { color: 'error', variant: 'subtle', class: 'focus-visible:ring focus-visible:ring-error/25' },
-        { color: 'neutral', variant: 'subtle', class: 'focus-visible:ring focus-visible:ring-accented' },
       ],
     },
-    select: keepRestingRing,
-    selectMenu: keepRestingRing,
+    select: pointer,
+    selectMenu: pointer,
     dropdownMenu: {
       slots: {
         item: 'cursor-pointer',
