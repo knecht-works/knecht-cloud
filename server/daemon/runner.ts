@@ -12,7 +12,7 @@ import { sessionSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
 import { getRun, getWorkflowRow } from '../utils/entities'
 import { dashboardOrigin } from '../utils/origin'
-import { describeObject, sessionObject } from '../utils/sessions'
+import { agentRepliedSince, describeObject, sessionObject } from '../utils/sessions'
 import { getIntegration } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { prepareSessionCheckout } from './git'
@@ -396,6 +396,8 @@ async function notifyRunFinished(runId: number, project: Project, session: Sessi
   const integration = getIntegration(object.integration)
   if (!integration.runResult) return
   if (status === 'success' && !run.prUrl) return
+  // The agent's own reply already says what happened.
+  if (status === 'success' && agentRepliedSince(session.id, run.startedAt ?? run.createdAt)) return
   const workflow = run.workflowId ? getWorkflowRow(run.workflowId) : undefined
   if (workflow && !workflow.repliesEnabled) return
   try {

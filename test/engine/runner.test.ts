@@ -64,6 +64,16 @@ describe('runner', () => {
     await startRun(ticket({}).id, project)
     expect(jiraComments).toHaveLength(0)
 
+    // The agent replied itself during the run (knecht-reply): no second comment about the PR.
+    const { recordAgentReply } = await import('../../server/utils/sessions')
+    const replied = ticket({ prUrl: 'https://x/pull/6' })
+    db.update(schema.runs).set({ steps: [{ type: 'bash', id: 'work', command: 'sleep 0.2' }] }).where(eq(schema.runs.id, replied.id)).run()
+    const running = startRun(replied.id, project)
+    await sleep(50)
+    recordAgentReply(replied.sessionId)
+    await running
+    expect(jiraComments).toHaveLength(0)
+
     const failed = ticket({ status: 'failed' })
     await startRun(failed.id, project)
     expect(getRun(failed.id).status).toBe('failed')
