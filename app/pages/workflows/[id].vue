@@ -766,10 +766,11 @@ const pr = computed(() => {
             </div>
 
             <div
+              v-if="workflowTriggers.length"
               class="min-w-0 flex-1 overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-panel"
             >
               <div
-                v-if="saved && !saved.enabled && workflowTriggers.length"
+                v-if="saved && !saved.enabled"
                 class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2 text-2xs"
                 style="background: color-mix(in oklab, var(--accent-orange) 9%, transparent)"
               >
@@ -883,10 +884,19 @@ const pr = computed(() => {
                 </div>
               </div>
             </div>
+            <UButton
+              v-else-if="editable"
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-plus"
+              label="Add trigger"
+              class="w-full justify-center self-start"
+              @click="triggerModalOpen = true"
+            />
           </div>
 
           <div
-            v-if="editable"
+            v-if="editable && workflowTriggers.length"
             class="mb-3 flex gap-3.5"
           >
             <div class="w-7.5 flex-none" />
