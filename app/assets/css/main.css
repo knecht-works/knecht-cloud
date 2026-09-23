@@ -174,16 +174,23 @@ html {
   background-color: oklch(1 0 0 / 0.28);
 }
 
-*,
-::before,
-::after {
-  @apply outline-primary;
+/* Keyboard focus is one 2px ring in the primary color, everywhere. The theme's
+   per-component outlines are switched off and the ring is forced through
+   Tailwind's ring variables, so an inset ring stays inset and shadows stay.
+   The chat prompt draws its ring on the frame around its textarea, so the frame
+   gets it and the textarea inside does not. Menu items and panels (tabindex -1),
+   the search field of a select menu or command palette (a bare input the popover
+   frames) and the code editor's hidden textarea show focus through their container. */
+*:focus-visible,
+*:has(> a:focus-visible),
+*:has(> [data-slot="body"] > textarea:focus-visible) {
+  --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width, 0px)) var(--ui-primary);
+  outline-width: 0;
 }
 
-*:focus-visible,
-*:has(> a:focus-visible) {
-  --tw-ring-color: var(--ui-primary);
-  outline-width: 0;
+*:focus-visible:not([tabindex="-1"], .k-code-editor *, [data-slot="body"] > textarea, [data-slot="input"] > input),
+*:has(> [data-slot="body"] > textarea:focus-visible) {
+  box-shadow: var(--tw-inset-shadow, 0 0 #0000), var(--tw-inset-ring-shadow, 0 0 #0000), var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
 }
 
 /* ============================================================
