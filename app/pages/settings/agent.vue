@@ -3,14 +3,14 @@ import { AI_PROVIDERS, type AiProviderId, type LangdockRegion } from '#shared/ut
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 
 const toastError = useToastError()
-const { data: settings } = useSettings()
+const { data: settings } = await useSettings()
 
 // Reka reserves '' as the clear value, so "None" needs a sentinel.
 const NO_SUBTASK_MODEL = '__none__'
 
-const aiProvider = ref<AiProviderId>('anthropic')
-const aiRegion = ref<LangdockRegion>('eu')
-const aiModel = ref('claude-sonnet-4-5')
+const aiProvider = ref<AiProviderId>()
+const aiRegion = ref<LangdockRegion>()
+const aiModel = ref('')
 const aiSubtaskModel = ref(NO_SUBTASK_MODEL)
 const agentInstructions = ref('')
 watch(settings, (s) => {
@@ -182,7 +182,7 @@ async function removeAiKey() {
                 <UInput
                   v-model="aiKey"
                   type="password"
-                  :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'sk-…')"
+                  :placeholder="settings?.aiKeyPreview ?? (settings?.aiKeyConfigured ? 'Configured, enter a key to replace it' : 'oc_sk_…')"
                   :disabled="isPreset(settings, 'aiKey')"
                   class="flex-1"
                 />
@@ -219,7 +219,7 @@ async function removeAiKey() {
                 <UInput
                   v-if="aiModelsError"
                   v-model="aiModel"
-                  placeholder="claude-sonnet-4-5"
+                  placeholder="claude-opus-5-5"
                   :disabled="isPreset(settings, 'aiModel')"
                   :color="saveError ? 'error' : undefined"
                   :highlight="!!saveError"
@@ -233,7 +233,7 @@ async function removeAiKey() {
                   :filter-fields="['label', 'description']"
                   :loading="aiModelsStatus === 'pending'"
                   :disabled="isPreset(settings, 'aiModel')"
-                  placeholder="claude-sonnet-4-5"
+                  placeholder="claude-opus-5-5"
                   class="w-full sm:max-w-md"
                 />
               </div>

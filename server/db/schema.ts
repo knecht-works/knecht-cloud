@@ -331,13 +331,13 @@ export const settings = sqliteTable('settings', {
   archiveRetentionDays: integer('archive_retention_days').notNull().default(30),
   maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
 
-  aiProvider: text('ai_provider').notNull().default('anthropic'),
+  aiProvider: text('ai_provider').notNull().default('opencode'),
   aiRegion: text('ai_region', { enum: ['eu', 'us'] }).notNull().default('eu'),
   aiKeyEnc: text('ai_key_enc'),
   // Stored bare (no provider prefix). Both cleared on a provider switch: a stored
   // mismatch used to block saving the new provider's key.
-  aiModel: text('ai_model').default('claude-sonnet-4-5'),
-  aiSubtaskModel: text('ai_subtask_model'),
+  aiModel: text('ai_model').default('claude-opus-5-5'),
+  aiSubtaskModel: text('ai_subtask_model').default('claude-sonnet-5'),
 
   agentInstructions: text('agent_instructions').notNull().default(''),
 
