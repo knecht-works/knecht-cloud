@@ -148,7 +148,8 @@ function jumpTo(key: number | 'prelude') {
           >
             <span
               v-if="activeKey === 'prelude'"
-              class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
+              class="absolute inset-y-1 left-0 w-0.5 rounded-full"
+              :style="{ background: preludeStatusMeta.text }"
             />
             <UIcon
               name="i-lucide-container"
@@ -176,7 +177,8 @@ function jumpTo(key: number | 'prelude') {
           >
             <span
               v-if="activeKey === r.id"
-              class="absolute inset-y-1 left-0 w-0.5 rounded-full bg-primary"
+              class="absolute inset-y-1 left-0 w-0.5 rounded-full"
+              :style="{ background: r.statusMeta.text }"
             />
             <UIcon
               :name="r.icon"
@@ -218,7 +220,8 @@ function jumpTo(key: number | 'prelude') {
         >
           <span
             v-if="activeKey === seg.key"
-            class="absolute inset-y-2.5 left-0 w-0.5 rounded-full bg-primary"
+            class="absolute inset-y-2.5 left-0 w-0.5 rounded-full"
+            :style="{ background: (seg.row?.statusMeta ?? preludeStatusMeta).text }"
           />
           <KStepIcon
             :icon="seg.row?.icon ?? 'i-lucide-container'"
