@@ -127,7 +127,7 @@ usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refresh
           {{ failedStep.error }}
         </p>
         <p
-          v-else
+          v-else-if="run.kind !== 'mention'"
           class="mt-1 text-xs text-muted"
         >
           Check the log below for details.
@@ -164,7 +164,7 @@ usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refresh
     />
 
     <KPanel
-      v-if="run.kind !== 'mention' || run.log"
+      v-if="run.kind !== 'mention'"
       title="Log"
       icon="i-lucide-list-checks"
       :pad="0"
