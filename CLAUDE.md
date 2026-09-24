@@ -74,12 +74,20 @@ Never add a `Co-Authored-By: Claude` trailer (or any Claude/Anthropic attributio
 
 Format: `<type>: <subject>`, optionally scoped (`feat(builder): ...`). Types: `feat`, `fix`, `chore`, `refactor`, `test`, `docs`, `ci`. Breaking changes use `feat!:` / `fix!:`.
 
-Only `feat:` and `fix:` subjects reach the release changelog (filtered by .github/workflows/release.yml; the dashboard shows the result to users). Write them as user-facing prose describing the visible behavior change, not the implementation:
+Only `feat:` and `fix:` subjects reach the release changelog (built by scripts/changelog-preview.sh; the dashboard shows the result to users). Write them as user-facing prose describing the visible behavior change, not the implementation:
 
 - Good: `feat: Workflows can be exported and imported as YAML`
 - Bad: `feat: add serializeWorkflow and workflowDocumentSchema`
 
 Everything internal (refactors, tests, CI, dependencies) uses the other types and stays out of the changelog automatically. When a commit mixes a user-visible change with internal work, the user-visible part decides the type and subject.
+
+Each `feat:`/`fix:` commit becomes one changelog line, so:
+
+- One visible change per commit. Two unrelated changes are two commits, never one subject joined with commas.
+- Subject under 90 characters, one sentence. Details, edge cases and the reasoning go in the body; the /release skill reads bodies when it writes the notes.
+- `fix:` is for behavior that shipped in a release. A fix to something not yet released is `chore:` (or is squashed into its feature commit).
+- Copy tweaks, spacing, colors and other polish are `chore:`, not `fix:`.
+- A `feat:`/`fix:` that should stay out of the notes anyway carries a `Changelog: skip` trailer.
 
 ## 7. Comments
 

@@ -6,18 +6,27 @@ A release is a git tag. Push the tag and CI does the rest: builds the image
 for amd64 and arm64, pushes it to `ghcr.io/knecht-works/knecht-cloud`, creates
 the GitHub Release with the changelog and announces it on Discord.
 
-Only `feat:` and `fix:` commits show up in the changelog (see CLAUDE.md).
-Preview it before tagging:
+The release notes come from `scripts/changelog-preview.sh`: the curated file
+`.github/releases/vX.Y.Z.md` when it exists, otherwise the `feat:` and `fix:`
+commits since the previous release (see CLAUDE.md). Preview before tagging:
 
 ```bash
-bash scripts/changelog-preview.sh
+bash scripts/changelog-preview.sh            # commits since the last tag
+bash scripts/changelog-preview.sh '' vX.Y.Z  # exactly what tag vX.Y.Z will ship
 ```
+
+Minor and major releases get curated notes with highlights: run `/release`
+in Claude Code on the release branch, it drafts `.github/releases/vX.Y.Z.md`
+from the commits and their bodies. Patch releases ship the commit list as is,
+unless it needs a hand.
 
 ### Regular release
 
 1. Work on a branch `releases/vX.Y.Z`, open a PR against `main`, let CI pass.
-2. Merge the PR.
-3. Checkout `main` and push the tag:
+2. For a minor or major release, write the notes (`/release`) and commit them
+   on the branch.
+3. Merge the PR.
+4. Checkout `main` and push the tag:
 
 ```bash
 git checkout main && git pull

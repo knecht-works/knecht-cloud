@@ -11,16 +11,26 @@ function toggleRelease(tag: string) {
 }
 
 function changeCount(notes: string): string {
-  const n = notesLines(notes).filter(l => !l.heading).length
+  const n = notesLines(notes).filter(l => l.kind === 'item' || l.kind === 'title').length
   return n === 1 ? '1 change' : `${n} changes`
 }
 
-function notesLines(notes: string): { text: string, heading: boolean }[] {
+type NoteLine = { text: string, kind: 'heading' | 'title' | 'item' | 'text' }
+
+const LEGACY_HEADINGS: Record<string, string> = { 'Breaking:': '⚠️ Breaking changes', 'New:': '🚀 New', 'Fixed:': '🐛 Fixed' }
+
+function notesLines(notes: string): NoteLine[] {
   return notes
     .split('\n')
-    .map(line => line.trim().replace(/^[-*]\s+/, '').replaceAll('**', ''))
-    .filter(line => line && !line.startsWith('#') && !/^full changelog/i.test(line))
-    .map(line => ({ text: line, heading: /^(Breaking|New|Fixed):$/.test(line) }))
+    .map(line => line.trim().replaceAll('**', '').replaceAll('`', ''))
+    .filter(line => line && !/^full changelog/i.test(line))
+    .map((line): NoteLine => {
+      if (/^## /.test(line)) return { text: line.slice(3), kind: 'heading' }
+      if (LEGACY_HEADINGS[line]) return { text: LEGACY_HEADINGS[line], kind: 'heading' }
+      if (/^### /.test(line)) return { text: line.slice(4), kind: 'title' }
+      if (/^[-*] /.test(line)) return { text: line.slice(2), kind: 'item' }
+      return { text: line, kind: 'text' }
+    })
 }
 
 const updating = ref(false)
@@ -206,11 +216,16 @@ async function runUpdate() {
               <li
                 v-for="(line, i) in notesLines(rel.notes)"
                 :key="i"
-                class="k-mono flex gap-2 text-2xs leading-normal"
-                :class="line.heading ? 'mt-1 font-medium text-toned first:mt-0' : 'text-muted'"
+                class="flex gap-2 leading-normal"
+                :class="{
+                  'k-mono mt-1 text-2xs font-medium text-toned first:mt-0': line.kind === 'heading',
+                  'mt-1 text-xs font-medium text-highlighted': line.kind === 'title',
+                  'k-mono text-2xs text-muted': line.kind === 'item',
+                  'max-w-prose text-xs text-muted': line.kind === 'text',
+                }"
               >
                 <span
-                  v-if="!line.heading"
+                  v-if="line.kind === 'item'"
                   class="flex-none text-dimmed"
                 >·</span>
                 <span class="min-w-0 break-words">{{ line.text }}</span>
