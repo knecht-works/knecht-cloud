@@ -15,12 +15,13 @@
 # artifacts; servers always pull the merged tag. The Release matters beyond
 # ceremony: the in-app updater polls releases/latest, which only sees actual
 # Releases, not bare tags, and the dashboard renders each Release body as the
-# changelog (server/utils/version.ts listReleases). The body is generated
-# below as a plain commit-subject list since the previous release tag: this
-# repo commits straight to main, so GitHub's --generate-notes (PR-based) would
-# come up empty. Keep the body a plain "- subject" list; the dashboard renders
-# it as text, not markdown. One-time setup: the ghcr.io package must be set to
-# public visibility after the first push, or anonymous pulls on servers fail.
+# changelog (server/utils/version.ts listReleases). The body comes from
+# scripts/changelog-preview.sh: the curated .github/releases/<tag>.md when one
+# exists, else the feat/fix commits since the previous release tag (GitHub's
+# --generate-notes is PR-based and would come up empty here). The body is
+# markdown; the dashboard and Discord both render it. One-time setup: the
+# ghcr.io package must be set to public visibility after the first push, or
+# anonymous pulls on servers fail.
 name: release
 
 on:
@@ -90,9 +91,8 @@ jobs:
             "ghcr.io/knecht-works/knecht-cloud:$GITHUB_REF_NAME-amd64" \
             "ghcr.io/knecht-works/knecht-cloud:$GITHUB_REF_NAME-arm64"
 
-      # The changelog: the user-facing (feat/fix) commits since the previous
-      # release tag, grouped by scripts/changelog-preview.sh: the same script
-      # that previews the notes locally, so what you preview is what ships.
+      # The same script that previews the notes locally, so what you preview
+      # is what ships.
       - name: Build release notes from commits
         run: |
           bash scripts/changelog-preview.sh '' "$GITHUB_REF_NAME" > /tmp/notes.md
@@ -108,16 +108,15 @@ jobs:
       # Announce minor and major releases in Discord via a channel webhook (the
       # URL is the DISCORD_RELEASE_WEBHOOK repo secret). Patches and
       # pre-releases stay quiet. The plain-text line above the embed is what
-      # push notifications show; the embed carries the same notes as the
-      # Release with emoji h3 group headings (Discord renders markdown), capped
-      # under Discord's 4096-char description limit.
+      # push notifications show; the embed carries the release notes as they
+      # are, capped under Discord's 4096-char description limit.
       - name: Announce the release on Discord
         if: ${{ endsWith(github.ref_name, '.0') }}
         env:
           WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
         run: |
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
-          BODY="$(sed -E -e 's/^Breaking:$/### ⚠️ Breaking/' -e 's/^New:$/### ✨ New/' -e 's/^Fixed:$/### 🐛 Fixed/' /tmp/notes.md | head -c 3800)"
+          BODY="$(head -c 3800 /tmp/notes.md)"
           jq -n --arg content "🚀 **Knecht $GITHUB_REF_NAME** is out! Here is what changed:" --arg url "$URL" --arg body "$BODY" \
             '{content: $content, embeds: [{title: "Release notes", url: $url, description: $body, color: 12056738,
               footer: {text: "Update from the System page in your dashboard, or read the full release on GitHub."},
