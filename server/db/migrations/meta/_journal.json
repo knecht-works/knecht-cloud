@@ -351,6 +351,13 @@
       "when": 1790158823490,
       "tag": "0049_run-actor",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "6",
+      "when": 1790262075097,
+      "tag": "0050_opencode-zen-defaults",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { copyFile, mkdir } from 'node:fs/promises'
+import { copyFile, mkdir, rename } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
@@ -22,6 +22,9 @@ export default defineNitroPlugin(() => {
   void stageIde().catch(e =>
     console.error('openvscode-server staging failed:', (e as Error).message))
 })
+
+// v2 changes the config format and the ACP behaviour; bump only after testing against it.
+const OPENCODE_VERSION = '1.18.32'
 
 const GLOBAL_CONFIG: Record<string, unknown> = {
   omit_containers: ['ddev-router', 'ddev-ssh-agent'],
@@ -59,10 +62,15 @@ async function stageAgentTools(): Promise<void> {
   }
 
   const opencode = join(tools, 'opencode')
-  if (!existsSync(opencode)) {
-    await execa('bash', ['-c', 'curl -fsSL https://opencode.ai/install | bash'])
-    await copyFile(join(homedir(), '.opencode', 'bin', 'opencode'), opencode)
-    chmodSync(opencode, 0o755)
-    console.log('opencode staged into', opencode)
+  const versionFile = `${opencode}.version`
+  const staged = existsSync(opencode) && existsSync(versionFile) ? readFileSync(versionFile, 'utf8') : null
+  if (staged !== OPENCODE_VERSION) {
+    await execa('bash', ['-c', `curl -fsSL https://opencode.ai/install | bash -s -- --version ${OPENCODE_VERSION}`])
+    // A new inode instead of overwriting: running sandboxes keep their bind-mounted binary until restart.
+    await copyFile(join(homedir(), '.opencode', 'bin', 'opencode'), `${opencode}.tmp`)
+    chmodSync(`${opencode}.tmp`, 0o755)
+    await rename(`${opencode}.tmp`, opencode)
+    writeFileSync(versionFile, OPENCODE_VERSION)
+    console.log(`opencode ${OPENCODE_VERSION} staged into`, opencode)
   }
 }
