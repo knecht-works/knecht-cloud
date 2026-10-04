@@ -22,7 +22,6 @@ defineEmits<{
     <UButton
       color="primary"
       label="Reboot"
-      icon="i-lucide-power"
       :loading="reviving"
       @click="$emit('revive')"
     />
@@ -35,7 +34,6 @@ defineEmits<{
     <UButton
       color="primary"
       label="Restore"
-      icon="i-lucide-archive-restore"
       :loading="reviving"
       @click="$emit('revive')"
     />
@@ -52,7 +50,6 @@ defineEmits<{
       <UButton
         color="primary"
         label="Run again"
-        icon="i-lucide-play"
         :loading="restarting"
         :disabled="!workflowId"
         @click="$emit('runAgain')"

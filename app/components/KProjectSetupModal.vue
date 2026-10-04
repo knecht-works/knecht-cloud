@@ -228,7 +228,6 @@ watch(open, (isOpen) => {
           <UButton
             label="Connect"
             color="primary"
-            trailing-icon="i-lucide-arrow-right"
             :loading="connecting"
             :disabled="!selected"
             @click="connect"
@@ -266,7 +265,6 @@ watch(open, (isOpen) => {
           <UButton
             label="Continue"
             color="primary"
-            trailing-icon="i-lucide-arrow-right"
             :loading="savingEnv"
             @click="saveEnvAndContinue"
           />
@@ -325,7 +323,6 @@ watch(open, (isOpen) => {
             v-if="dumpName"
             label="Done"
             color="primary"
-            trailing-icon="i-lucide-arrow-right"
             @click="() => { step = 'done' }"
           />
         </div>
@@ -361,7 +358,6 @@ watch(open, (isOpen) => {
           <UButton
             v-if="hasBootWorkflow"
             color="primary"
-            icon="i-lucide-play"
             label="Boot & preview"
             :loading="booting"
             @click="bootAndPreview"
