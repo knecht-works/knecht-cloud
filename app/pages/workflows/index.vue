@@ -62,18 +62,6 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
   return { ...w, rate, avg, status, statusText, projects, trigger, triggerCount: wTriggers.length }
 }))
 
-const metrics = computed(() => {
-  const list = runs.value ?? []
-  const completed = list.filter(r => r.status === 'success' || r.status === 'failed')
-  const success = list.filter(r => r.status === 'success').length
-  return {
-    workflows: workflows.value?.length ?? 0,
-    running: list.filter(r => isLiveStatus(r.status)).length,
-    rate: completed.length ? Math.round((success / completed.length) * 100) : 0,
-    runs: list.length,
-  }
-})
-
 const importInput = ref<HTMLInputElement>()
 const importing = ref(false)
 async function importFile(e: Event) {
@@ -136,28 +124,6 @@ const filtered = computed(() =>
         />
       </template>
     </KTopBar>
-
-    <div class="mb-5.5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <KMetric
-        :value="metrics.workflows"
-        label="Workflows"
-      />
-      <KMetric
-        :value="metrics.running"
-        label="Running now"
-        accent="var(--accent-orange)"
-      />
-      <KMetric
-        :value="metrics.rate"
-        suffix="%"
-        label="Avg success rate"
-        accent="var(--primary)"
-      />
-      <KMetric
-        :value="metrics.runs"
-        label="Total runs"
-      />
-    </div>
 
     <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
       <span class="k-label">All workflows</span>

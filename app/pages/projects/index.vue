@@ -12,16 +12,6 @@ const runsByProject = computed(() => {
   return { latest, counts }
 })
 
-const metrics = computed(() => {
-  const list = runs.value ?? []
-  return {
-    projects: projects.value?.length ?? 0,
-    active: list.filter(r => isLiveStatus(r.status)).length,
-    previews: list.filter(r => r.envState === 'up').length,
-    runs: list.length,
-  }
-})
-
 const activeFw = ref<string | null>(null)
 
 const frameworks = computed(() => {
@@ -53,27 +43,6 @@ const open = ref(false)
         />
       </template>
     </KTopBar>
-
-    <div class="mb-5.5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <KMetric
-        :value="metrics.projects"
-        label="Projects"
-      />
-      <KMetric
-        :value="metrics.active"
-        label="Active runs"
-        accent="var(--accent-orange)"
-      />
-      <KMetric
-        :value="metrics.previews"
-        label="Previews online"
-        accent="var(--primary)"
-      />
-      <KMetric
-        :value="metrics.runs"
-        label="Total runs"
-      />
-    </div>
 
     <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
       <span class="k-label">Active projects</span>
