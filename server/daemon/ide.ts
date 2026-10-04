@@ -1,9 +1,11 @@
+import { createHmac } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { execa } from 'execa'
 import { resolveContainerUser, resolvePreview, webContainerName, WEB_PROJECT_DIR } from './sandbox'
+import { deriveKey } from '../utils/crypto'
 import { toolsDir } from '../utils/storage'
 
 const OPENVSCODE_VERSION = '1.109.5'
@@ -19,6 +21,20 @@ export const IDE_DEFAULT_SETTINGS = {
   'telemetry.telemetryLevel': 'off',
   'chat.disableAIFeatures': true,
   'workbench.secondarySideBar.defaultVisibility': 'hidden',
+}
+
+// Derived, not random: an IDE still running from before a Knecht restart must
+// keep accepting the token the proxy sends.
+export function ideConnectionToken(sessionId: number): string {
+  return createHmac('sha256', deriveKey('knecht-ide', 'connection-token')).update(`ide-${sessionId}`).digest('hex')
+}
+
+const IDE_TOKEN_COOKIE = 'vscode-tkn'
+
+// The server reads only the first cookie of a name, so a stale one from the browser is dropped.
+export function withIdeTokenCookie(cookieHeader: string | undefined, sessionId: number): string {
+  const kept = (cookieHeader ?? '').split(';').map(c => c.trim()).filter(c => c && !c.startsWith(`${IDE_TOKEN_COOKIE}=`))
+  return [...kept, `${IDE_TOKEN_COOKIE}=${ideConnectionToken(sessionId)}`].join('; ')
 }
 
 export function ideHostDir(): string {
@@ -97,7 +113,7 @@ export async function startRunIde(sessionId: number): Promise<void> {
     `${IDE_CONTAINER_DIR}/bin/openvscode-server`,
     '--host', '0.0.0.0',
     '--port', String(IDE_PORT),
-    '--without-connection-token',
+    '--connection-token', ideConnectionToken(sessionId),
     '--server-data-dir', `${WEB_PROJECT_DIR}/.knecht/vscode`,
     '--default-folder', WEB_PROJECT_DIR,
   ])
