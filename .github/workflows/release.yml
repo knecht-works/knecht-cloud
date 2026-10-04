@@ -113,7 +113,7 @@ jobs:
       # push notifications show; the embed carries the release notes, capped
       # under Discord's 4096-char description limit. Embeds render no inline
       # images, so image lines are dropped and the first image becomes the
-      # embed image.
+      # embed image. Headings shrink a level: Discord renders ## very large.
       - name: Announce the release on Discord
         if: ${{ endsWith(github.ref_name, '.0') || contains(github.ref_name, '-rc.') }}
         env:
@@ -122,7 +122,7 @@ jobs:
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
           IMAGE_RE='^[[:space:]]*(<img[^>]*>|!\[[^]]*\]\([^)]*\))[[:space:]]*$'
           IMAGE="$(grep -E "$IMAGE_RE" /tmp/notes.md | head -1 | sed -E 's/.*src="([^"]*)".*/\1/; s/.*\]\(([^)]*)\).*/\1/' || true)"
-          BODY="$(grep -vE "$IMAGE_RE" /tmp/notes.md | cat -s | head -c 3800)"
+          BODY="$(grep -vE "$IMAGE_RE" /tmp/notes.md | cat -s | sed -E -e 's/^### (.*)$/**\1**/' -e 's/^## /### /' | head -c 3800)"
           jq -n --arg content "🚀 **Knecht $GITHUB_REF_NAME** is out! Here is what changed:" --arg url "$URL" --arg body "$BODY" --arg image "$IMAGE" \
             '{content: $content, embeds: [{title: "Release notes", url: $url, description: $body, color: 12056738,
               footer: {text: "Update from the System page in your dashboard, or read the full release on GitHub."},
