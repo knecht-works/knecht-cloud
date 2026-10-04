@@ -1,21 +1,27 @@
 <script setup lang="ts">
 import { runWorkspacePath } from '#shared/utils/routes'
+import { computeRunStats } from '#shared/utils/run-stats'
 
 const { data: runs, refresh } = await useFetch('/api/runs', { default: () => [] })
 
 const anyLive = computed(() => (runs.value ?? []).some(r => isLiveStatus(r.status)))
 usePollWhile(() => anyLive.value, refresh)
 
-const metrics = computed(() => {
-  const list = runs.value ?? []
-  const completed = list.filter(r => r.status === 'success' || r.status === 'failed')
-  const success = list.filter(r => r.status === 'success').length
-  return {
-    total: list.length,
-    running: list.filter(r => isLiveStatus(r.status)).length,
-    rate: completed.length ? Math.round((success / completed.length) * 100) : 0,
-    liveEnvs: new Set(list.filter(r => r.envState === 'up').map(r => r.sessionId)).size,
-  }
+const { data: statsRuns } = useFetch('/api/runs/stats', { default: () => [], lazy: true, watch: [runs] })
+const stats = computed(() => computeRunStats(statsRuns.value ?? [], new Date()))
+
+function deltaColor(delta: number, higherIsBetter: boolean) {
+  return (delta > 0) === higherIsBetter ? 'var(--primary)' : 'var(--status-error)'
+}
+
+const rateDelta = computed(() => {
+  const d = stats.value.rate.delta
+  return d ? { text: `${d > 0 ? '+' : ''}${d}`, color: deltaColor(d, true) } : null
+})
+
+const durationDelta = computed(() => {
+  const d = stats.value.duration.delta
+  return d ? { text: `${d > 0 ? '+' : '-'}${formatDuration(Math.abs(d))}`, color: deltaColor(d, false) } : null
 })
 
 const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
@@ -25,27 +31,66 @@ const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
   <div>
     <KTopBar title="Sessions" />
 
-    <div class="mb-5.5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <KMetric
-        :value="metrics.total"
-        label="Runs"
-      />
-      <KMetric
-        :value="metrics.running"
-        label="Running now"
-        accent="var(--accent-orange)"
-      />
-      <KMetric
-        :value="metrics.rate"
-        suffix="%"
-        label="Avg success rate"
-        accent="var(--primary)"
-      />
-      <KMetric
-        :value="metrics.liveEnvs"
-        label="Live environments"
-        accent="var(--primary)"
-      />
+    <div class="@container relative mb-5.5">
+      <span class="k-mono absolute bottom-full right-0 mb-2 text-2xs text-dimmed">
+        Last 14 days
+      </span>
+      <div class="grid grid-cols-1 gap-4 @xl:grid-cols-2 @5xl:grid-cols-4">
+        <KMetric
+          :value="String(stats.total)"
+          label="Runs"
+        >
+          <KMiniBars :days="stats.days" />
+        </KMetric>
+        <KMetric
+          :value="stats.rate.value === null ? '–' : `${stats.rate.value}%`"
+          label="Success rate"
+          :delta="rateDelta?.text"
+          :delta-color="rateDelta?.color"
+        >
+          <KSparkline :values="stats.rate.series" />
+        </KMetric>
+        <KMetric
+          :value="stats.duration.value === null ? '–' : formatDuration(stats.duration.value)"
+          label="Median duration"
+          :delta="durationDelta?.text"
+          :delta-color="durationDelta?.color"
+        >
+          <KSparkline :values="stats.duration.series" />
+        </KMetric>
+        <KMetric
+          :value="stats.triggered === null ? '–' : `${stats.triggered}%`"
+          label="Started by trigger"
+        >
+          <svg
+            v-if="stats.triggered !== null"
+            width="44"
+            height="44"
+            viewBox="0 0 36 36"
+            aria-hidden="true"
+          >
+            <circle
+              cx="18"
+              cy="18"
+              r="14"
+              fill="none"
+              stroke="var(--surface-elevated)"
+              stroke-width="5"
+            />
+            <circle
+              cx="18"
+              cy="18"
+              r="14"
+              fill="none"
+              stroke="var(--primary)"
+              stroke-width="5"
+              pathLength="100"
+              :stroke-dasharray="`${stats.triggered} 100`"
+              transform="rotate(-90 18 18)"
+            />
+          </svg>
+        </KMetric>
+      </div>
     </div>
 
     <div
