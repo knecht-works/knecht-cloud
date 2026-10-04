@@ -45,7 +45,6 @@ const open = ref(false)
   <div>
     <KTopBar title="Projects">
       <template #actions>
-        <KAppSearch />
         <UButton
           icon="i-lucide-plus"
           label="New project"

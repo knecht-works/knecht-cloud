@@ -18,11 +18,7 @@ function isActive(to: string) {
     <KTopBar
       title="Settings"
       sub="Access, agent, integrations and advanced configuration."
-    >
-      <template #actions>
-        <KAppSearch />
-      </template>
-    </KTopBar>
+    />
 
     <div class="flex flex-col gap-5 lg:flex-row lg:gap-8">
       <nav class="flex gap-1 overflow-x-auto pb-1 lg:sticky lg:top-4 lg:w-52 lg:flex-none lg:flex-col lg:self-start lg:overflow-visible lg:pb-0">

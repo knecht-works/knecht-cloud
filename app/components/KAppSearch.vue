@@ -1,4 +1,6 @@
 <script setup lang="ts">
+defineProps<{ collapsed?: boolean }>()
+
 const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
 const { data: workflows } = useFetch('/api/workflows', { default: () => [], lazy: true })
 const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
@@ -50,22 +52,32 @@ const groups = computed(() => [
 </script>
 
 <template>
-  <UButton
-    color="neutral"
-    variant="outline"
-    class="hidden sm:flex"
-    @click="() => { open = true }"
+  <UTooltip
+    text="Search"
+    :kbds="['meta', 'k']"
+    :disabled="!collapsed"
+    :content="{ side: 'right' }"
   >
-    <UIcon
-      name="i-lucide-search"
-      class="size-4 text-dimmed"
-    />
-    Search
-    <span class="ml-4 flex items-center gap-1">
-      <UKbd value="meta" />
-      <UKbd value="k" />
-    </span>
-  </UButton>
+    <button
+      type="button"
+      aria-label="Search"
+      class="flex w-full cursor-pointer items-center gap-3 rounded-md border border-default bg-(--surface-muted) py-2 text-sm text-muted transition-colors hover:text-toned"
+      :class="collapsed ? 'justify-center px-0' : 'px-3'"
+      @click="() => { open = true }"
+    >
+      <UIcon
+        name="i-lucide-search"
+        class="size-4.5 flex-none text-dimmed"
+      />
+      <template v-if="!collapsed">
+        Search
+        <span class="ml-auto flex items-center gap-1">
+          <UKbd value="meta" />
+          <UKbd value="k" />
+        </span>
+      </template>
+    </button>
+  </UTooltip>
 
   <UModal v-model:open="open">
     <template #content>

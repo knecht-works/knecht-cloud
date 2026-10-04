@@ -77,6 +77,10 @@ const updateTarget = computed(() =>
         />
       </div>
 
+      <div class="px-3 pt-3">
+        <KAppSearch :collapsed="collapsed" />
+      </div>
+
       <nav class="flex flex-col gap-1 p-3">
         <UTooltip
           v-for="item in NAV"

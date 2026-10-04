@@ -112,7 +112,6 @@ const filtered = computed(() =>
   <div>
     <KTopBar title="Workflows">
       <template #actions>
-        <KAppSearch />
         <input
           ref="importInput"
           type="file"
