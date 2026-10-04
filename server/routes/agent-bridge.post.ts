@@ -150,8 +150,9 @@ export default defineEventHandler(async (event) => {
         if (run) {
           db.update(schema.runs).set({ branch, prUrl: pr.url }).where(eq(schema.runs.id, run.id)).run()
         }
-        log(`\nagent-git: opened PR #${pr.number}: ${pr.url}\n`)
-        return reply(event, 200, `opened PR #${pr.number}: ${pr.url}`)
+        const did = pr.existing ? 'pushed to existing' : 'opened'
+        log(`\nagent-git: ${did} PR #${pr.number}: ${pr.url}\n`)
+        return reply(event, 200, `${did} PR #${pr.number}: ${pr.url}`)
       }
     }
   }
