@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { hostname } from 'node:os'
 import { execa } from 'execa'
 import { deriveKey } from './crypto'
 
@@ -19,36 +18,14 @@ export function verifyBridgeToken(sessionId: number, provided: string): boolean 
   return expected.length === given.length && timingSafeEqual(expected, given)
 }
 
-const INGRESS_NETWORK = 'knecht-ingress'
-let cachedBase: string | null | undefined
+// Set up per session by attachBridgeHost in sandbox.ts.
+export const BRIDGE_HOST = 'knecht-bridge'
 
-export async function bridgeBaseUrl(): Promise<string | null> {
-  if (cachedBase !== undefined) return cachedBase
-  cachedBase = await resolveBase()
-  return cachedBase
+export function bridgeBaseUrl(): string {
+  return `http://${BRIDGE_HOST}:${process.env.NITRO_PORT || process.env.PORT || '3000'}`
 }
 
-async function resolveBase(): Promise<string | null> {
-  const port = process.env.NITRO_PORT || process.env.PORT || '3000'
-  try {
-    const { stdout } = await execa('docker', [
-      'inspect', '-f',
-      `{{with index .NetworkSettings.Networks "${INGRESS_NETWORK}"}}{{.IPAddress}}{{end}}`,
-      hostname(),
-    ])
-    if (stdout.trim()) return `http://${stdout.trim()}:${port}`
-  }
-  catch {
-    // Not a container: try the gateway.
-  }
-  try {
-    const { stdout } = await execa('docker', [
-      'network', 'inspect', INGRESS_NETWORK, '-f', '{{(index .IPAM.Config 0).Gateway}}',
-    ])
-    if (stdout.trim()) return `http://${stdout.trim()}:${port}`
-  }
-  catch {
-    // No ingress network yet.
-  }
-  return null
+export async function writeBridgeCredentialHelper(dir: string, sessionId: number): Promise<void> {
+  const env = `KNECHT_BRIDGE_URL=${bridgeBaseUrl()}/agent-bridge KNECHT_BRIDGE_TOKEN=${bridgeToken(sessionId)} KNECHT_RUN_ID=${sessionId}`
+  await execa('git', ['-C', dir, 'config', 'credential.helper', `!${env} knecht-git credential`])
 }

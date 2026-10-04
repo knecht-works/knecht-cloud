@@ -23,10 +23,8 @@ export function sessionEnv(sessionId: number, hosts: string[], devServerPort: nu
 }
 
 export async function bridgeEnv(sessionId: number): Promise<Record<string, string>> {
-  const base = await bridgeBaseUrl()
-  if (!base) return {}
   const env: Record<string, string> = {
-    KNECHT_BRIDGE_URL: `${base}/agent-bridge`,
+    KNECHT_BRIDGE_URL: `${bridgeBaseUrl()}/agent-bridge`,
     KNECHT_BRIDGE_TOKEN: bridgeToken(sessionId),
     KNECHT_RUN_ID: String(sessionId),
   }

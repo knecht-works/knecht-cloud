@@ -35,13 +35,8 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
-    networks:
-      knecht-ingress: {}
   db:
     mem_limit: 1g
-networks:
-  knecht-ingress:
-    external: true
 
 === .ddev/mysql/00-knecht-lowmem.cnf ===
 #ddev-silent-no-warn
@@ -89,11 +84,6 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
-    networks:
-      knecht-ingress: {}
-networks:
-  knecht-ingress:
-    external: true
 "
 `;
 
@@ -131,11 +121,6 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
-    networks:
-      knecht-ingress: {}
-networks:
-  knecht-ingress:
-    external: true
 
 === .ddev/web-build/Dockerfile.knecht ===
 RUN npm install -g bun@1.2.3
@@ -192,11 +177,6 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
-    networks:
-      knecht-ingress: {}
-networks:
-  knecht-ingress:
-    external: true
 "
 `;
 
@@ -235,10 +215,5 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
-    networks:
-      knecht-ingress: {}
-networks:
-  knecht-ingress:
-    external: true
 "
 `;
