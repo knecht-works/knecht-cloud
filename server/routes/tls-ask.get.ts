@@ -5,20 +5,19 @@
 // quota. Public by design (Caddy calls it unauthenticated); it lives outside
 // /api/ so the session gate in server/middleware/auth.ts skips it, and it
 // leaks nothing beyond whether a run id exists.
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   const domain = String(getQuery(event).domain ?? '').toLowerCase()
   const base = (process.env.KNECHT_BASE_DOMAIN || '').toLowerCase()
   if (!base || !domain) throw createError({ statusCode: 404 })
 
   if (domain === base) return 'ok'
 
-  // Only the canonical form [<label>--]<runId>.preview.<base> of an existing
-  // run qualifies; reconstruct and compare so nothing sneaks in around it.
+  // Only the canonical form [<label>--]<sessionId>.preview.<base> of an existing
+  // session qualifies; reconstruct and compare so nothing sneaks in around it.
   const ref = parsePreviewHost(domain)
-  if (!ref || !getRun(ref.sessionId)) throw createError({ statusCode: 404 })
-  // A dev origin's label is a per-session token (utils/dev-origin.ts): a
-  // guessed one must not spend the quota either.
-  if (looksLikeDevServerLabel(ref.label) && !verifyDevServerLabel(ref.sessionId, ref.label)) throw createError({ statusCode: 404 })
+  if (!ref || !getSessionRow(ref.sessionId)) throw createError({ statusCode: 404 })
   if (domain !== previewHostname(ref.sessionId, base, ref.label)) throw createError({ statusCode: 404 })
+  // Any label would do for the wildcard DNS, so each one must exist: a guessed one must not spend the quota.
+  if (ref.label && !await isPreviewLabel(ref.sessionId, ref.label)) throw createError({ statusCode: 404 })
   return 'ok'
 })
