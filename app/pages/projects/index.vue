@@ -44,18 +44,12 @@ const open = ref(false)
       </template>
     </KTopBar>
 
-    <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-      <span class="k-label">Active projects</span>
-      <KFilterPills
-        v-if="frameworks.length"
-        v-model="activeFw"
-        :items="[{ value: null, label: 'All' }, ...frameworks.map(f => ({ value: f, label: f }))]"
-      />
-      <span
-        v-else
-        class="k-mono text-2xs text-dimmed"
-      >{{ filtered.length }} of {{ projects?.length ?? 0 }}</span>
-    </div>
+    <KFilterPills
+      v-if="frameworks.length"
+      v-model="activeFw"
+      class="mb-3.5"
+      :items="[{ value: null, label: 'All' }, ...frameworks.map(f => ({ value: f, label: f }))]"
+    />
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       <KProjectCard

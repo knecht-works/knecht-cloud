@@ -125,13 +125,11 @@ const filtered = computed(() =>
       </template>
     </KTopBar>
 
-    <div class="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-      <span class="k-label">All workflows</span>
-      <KFilterPills
-        v-model="tab"
-        :items="TABS.map(t => ({ value: t.id, label: t.label }))"
-      />
-    </div>
+    <KFilterPills
+      v-model="tab"
+      class="mb-3.5"
+      :items="TABS.map(t => ({ value: t.id, label: t.label }))"
+    />
 
     <div
       v-if="!filtered.length"
