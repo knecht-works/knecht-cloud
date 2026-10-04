@@ -3,7 +3,6 @@ defineProps<{ collapsed?: boolean }>()
 
 const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
 const { data: workflows } = useFetch('/api/workflows', { default: () => [], lazy: true })
-const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 
 const open = ref(false)
 defineShortcuts({
@@ -34,17 +33,6 @@ const groups = computed(() => [
       suffix: w.description ?? undefined,
       icon: 'i-lucide-workflow',
       to: `/workflows/${w.id}`,
-      onSelect: close,
-    })),
-  },
-  {
-    id: 'triggers',
-    label: 'Triggers',
-    items: (triggers.value ?? []).map(t => ({
-      label: t.event,
-      suffix: `${triggerSourceMeta(t.source).label} · ${t.workflowName}`,
-      icon: 'i-lucide-zap',
-      to: `/workflows/${t.workflowId}`,
       onSelect: close,
     })),
   },
@@ -83,7 +71,7 @@ const groups = computed(() => [
     <template #content>
       <UCommandPalette
         :groups="groups"
-        placeholder="Search projects, workflows, triggers…"
+        placeholder="Search projects and workflows…"
         class="h-80"
         @update:open="open = $event"
       />
