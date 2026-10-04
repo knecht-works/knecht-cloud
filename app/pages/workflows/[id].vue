@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { runWorkspacePath } from '#shared/utils/routes'
 import { flattenSteps } from '#shared/utils/workflow'
 
 const route = useRoute()
@@ -406,8 +405,7 @@ const pr = computed(() => {
             @click="cancel"
           />
           <UButton
-            color="neutral"
-            variant="ghost"
+            color="primary"
             label="Run in background"
             @click="detach"
           />
@@ -417,7 +415,6 @@ const pr = computed(() => {
             v-if="pr"
             color="neutral"
             variant="outline"
-            icon="i-lucide-external-link"
             label="View PR"
             :to="pr.url"
             target="_blank"
@@ -429,35 +426,26 @@ const pr = computed(() => {
           />
         </template>
         <template v-else-if="mode === 'failed'">
-          <UButton
-            color="neutral"
-            variant="ghost"
-            label="View log"
-            @click="() => { navigateTo(runWorkspacePath(activeRun!.projectId, activeRun!.id)) }"
-          />
-          <UTooltip text="Closes the test result and opens the failed step for editing. The failed run stays on the runs page.">
+          <UTooltip text="Edit the step that failed">
             <UButton
               color="neutral"
-              variant="ghost"
-              icon="i-lucide-pencil"
+              variant="outline"
               label="Fix failed step"
               @click="backToEditing"
             />
           </UTooltip>
-          <UTooltip text="Continues this run at the failed step, keeping earlier step results. Runs the definition this test started with, without edits made since.">
+          <UTooltip text="Continue from the failed step, without your edits">
             <UButton
               color="neutral"
               variant="outline"
-              icon="i-lucide-play"
               label="Resume run"
               :loading="retrying"
               @click="retry"
             />
           </UTooltip>
-          <UTooltip text="Starts a fresh test run with the current workflow definition, picking up your edits.">
+          <UTooltip text="Start a new test with your edits">
             <UButton
               color="primary"
-              icon="i-lucide-refresh-cw"
               label="Test again"
               @click="retest"
             />
@@ -610,7 +598,6 @@ const pr = computed(() => {
                 <UButton
                   class="mt-3.5 w-full justify-center"
                   color="primary"
-                  icon="i-lucide-play"
                   label="Run workflow"
                   :loading="starting"
                   :disabled="!project"
@@ -948,7 +935,6 @@ const pr = computed(() => {
               </div>
               <UButton
                 color="primary"
-                icon="i-lucide-plus"
                 label="Add first step"
                 @click="addStep('ddev-start')"
               />

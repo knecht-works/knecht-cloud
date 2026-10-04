@@ -58,7 +58,6 @@ async function removeProject() {
           <UButton
             color="error"
             variant="outline"
-            icon="i-lucide-unplug"
             label="Disconnect"
             @click="confirmDisconnect = true"
           />

@@ -158,7 +158,6 @@ async function runUpdate() {
             <UButton
               v-if="data.version.updateAvailable"
               color="primary"
-              icon="i-lucide-arrow-up-circle"
               :loading="updating"
               @click="runUpdate()"
             >

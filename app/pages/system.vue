@@ -44,7 +44,6 @@ async function runGc() {
           automatically every hour; use the button to run it now.
         </p>
         <UButton
-          icon="i-lucide-trash-2"
           color="neutral"
           variant="outline"
           label="Run cleanup now"
