@@ -5,7 +5,7 @@ import { db, schema } from '../db'
 import { devServerIsPreview } from '../daemon/ddev'
 import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
 import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
-import { IDE_DEFAULT_SETTINGS, IDE_PORT } from '../daemon/ide'
+import { IDE_DEFAULT_SETTINGS, IDE_PORT, withIdeTokenCookie } from '../daemon/ide'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
 
@@ -55,7 +55,7 @@ export async function proxyRunIde(event: H3Event, sessionId: number): Promise<vo
   const req = event.node.req
   const res = event.node.res
   const wantsHtml = String(getRequestHeader(event, 'accept') ?? '').includes('text/html')
-  const headers = { ...req.headers }
+  const headers = { ...req.headers, cookie: withIdeTokenCookie(req.headers.cookie, sessionId) }
   if (wantsHtml) headers['accept-encoding'] = 'identity'
   await new Promise<void>((resolve, reject) => {
     const upstream = httpRequest(
