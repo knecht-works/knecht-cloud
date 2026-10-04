@@ -23,7 +23,7 @@ const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
 
 <template>
   <div>
-    <KTopBar title="Runs" />
+    <KTopBar title="Sessions" />
 
     <div class="mb-5.5 grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KMetric
@@ -68,20 +68,15 @@ const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
       </div>
     </div>
 
-    <KPanel
+    <div
       v-else
-      title="Sessions"
-      icon="i-lucide-messages-square"
-      :pad="0"
+      class="k-card overflow-hidden"
     >
-      <template #action>
-        <span class="k-mono text-2xs text-dimmed">{{ sessionGroups.length }} {{ sessionGroups.length === 1 ? 'session' : 'sessions' }}</span>
-      </template>
       <KSessionList
         :groups="sessionGroups"
         :run-to="r => runWorkspacePath(r.projectId, r.id)"
         show-project
       />
-    </KPanel>
+    </div>
   </div>
 </template>

@@ -9,7 +9,7 @@ const collapsed = useCookie<boolean>('knecht-sidebar-collapsed', { default: () =
 const NAV = [
   { label: 'Projects', icon: 'i-lucide-box', to: '/projects', match: ['/', '/projects'] },
   { label: 'Workflows', icon: 'i-lucide-workflow', to: '/workflows', match: ['/workflows'] },
-  { label: 'Runs', icon: 'i-lucide-play', to: '/runs', match: ['/runs'] },
+  { label: 'Sessions', icon: 'i-lucide-play', to: '/sessions', match: ['/sessions'] },
 ]
 
 function isActive(item: typeof NAV[number]) {

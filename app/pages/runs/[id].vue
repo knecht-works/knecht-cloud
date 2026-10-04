@@ -6,7 +6,7 @@ import { runWorkspacePath } from '#shared/utils/routes'
 const id = Number(useRoute().params.id)
 const { data: run } = await useFetch(`/api/runs/${id}`)
 await navigateTo(
-  run.value ? runWorkspacePath(run.value.projectId, id) : '/runs',
+  run.value ? runWorkspacePath(run.value.projectId, id) : '/sessions',
   { replace: true },
 )
 </script>
