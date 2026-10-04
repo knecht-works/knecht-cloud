@@ -23,7 +23,7 @@ export const createPrAction = defineAction({
     // Fresh token: the run may have outlived the 1h token from checkout.
     const token = await getInstallationToken(rt.project.owner, rt.project.name)
     await pushBranch(rt.checkoutDir, branch, token)
-    let pr: { url: string, number: number } | null
+    let pr: { url: string, number: number, existing: boolean } | null
     try {
       pr = await createPullRequest(rt.project.owner, rt.project.name, {
         title: step.title,
@@ -40,7 +40,7 @@ export const createPrAction = defineAction({
       return
     }
     db.update(schema.runs).set({ prUrl: pr.url }).where(eq(schema.runs.id, rt.runId)).run()
-    rt.log(`Opened PR #${pr.number}: ${pr.url}\n`)
+    rt.log(`${pr.existing ? 'Pushed to existing' : 'Opened'} PR #${pr.number}: ${pr.url}\n`)
     return { url: pr.url, number: pr.number }
   },
 })

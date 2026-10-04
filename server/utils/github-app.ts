@@ -159,14 +159,17 @@ export async function createPullRequest(
   owner: string,
   repo: string,
   params: { title: string, body: string, head: string, base: string },
-): Promise<{ url: string, number: number } | null> {
+): Promise<{ url: string, number: number, existing: boolean } | null> {
   const octokit = await getInstallationClient(owner, repo)
   try {
     const { data } = await octokit.rest.pulls.create({ owner, repo, ...params })
-    return { url: data.html_url, number: data.number }
+    return { url: data.html_url, number: data.number, existing: false }
   }
   catch (e) {
     if (/No commits between/i.test((e as Error).message)) return null
-    throw e
+    if (!/A pull request already exists/i.test((e as Error).message)) throw e
+    const { data } = await octokit.rest.pulls.list({ owner, repo, head: `${owner}:${params.head}`, state: 'open' })
+    if (!data[0]) throw e
+    return { url: data[0].html_url, number: data[0].number, existing: true }
   }
 }
