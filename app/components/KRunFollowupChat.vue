@@ -335,21 +335,7 @@ function onWindowKeydown(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onWindowKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
 
-const chatBox = ref<HTMLElement | null>(null)
-const chatHeight = ref<number | null>(null)
-function startResize(e: PointerEvent) {
-  const startY = e.clientY
-  const startHeight = chatBox.value!.offsetHeight
-  const move = (ev: PointerEvent) => {
-    chatHeight.value = Math.max(320, startHeight + ev.clientY - startY)
-  }
-  const stop = () => {
-    window.removeEventListener('pointermove', move)
-    window.removeEventListener('pointerup', stop)
-  }
-  window.addEventListener('pointermove', move)
-  window.addEventListener('pointerup', stop)
-}
+const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
 </script>
 
 <template>
@@ -625,12 +611,6 @@ function startResize(e: PointerEvent) {
         </div>
       </div>
     </div>
-    <div
-      class="flex h-3 cursor-row-resize touch-none items-center justify-center"
-      aria-hidden="true"
-      @pointerdown.prevent="startResize"
-    >
-      <span class="h-1 w-10 rounded-full bg-accented" />
-    </div>
+    <KResizeHandle @start="startResize" />
   </KPanel>
 </template>

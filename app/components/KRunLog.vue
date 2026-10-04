@@ -26,6 +26,7 @@ const props = defineProps<{
   runStatus: RunStatus
   runStartedAt: string | number | Date | null
   runFinishedAt: string | number | Date | null
+  resizable?: boolean
 }>()
 
 const logBytes = computed(() => new TextEncoder().encode(props.log))
@@ -80,7 +81,7 @@ const preludeStatusMeta = computed(() => {
 const preludeDuration = computed(() =>
   runDuration(props.runStartedAt, props.rows[0]?.startedAt ?? props.runFinishedAt))
 
-const container = ref<HTMLElement | null>(null)
+const { el: container, height: logHeight, startResize } = useResizableHeight(160)
 const { stick, onScroll } = useStickToBottom(container, () => props.log)
 
 const collapsed = ref(new Set<number | 'prelude'>())
@@ -136,8 +137,11 @@ function jumpTo(key: number | 'prelude') {
 </script>
 
 <template>
-  <div class="flex flex-col lg:flex-row">
-    <nav class="k-scrollbar-none order-1 max-h-40 flex-none overflow-y-auto border-b border-muted lg:order-2 lg:max-h-150 lg:w-60 lg:border-b-0 lg:border-l">
+  <div
+    class="flex flex-col lg:flex-row lg:flex-wrap"
+    :style="{ '--log-h': logHeight ? `${logHeight}px` : '37.5rem' }"
+  >
+    <nav class="k-scrollbar-none order-1 max-h-40 flex-none overflow-y-auto border-b border-muted lg:order-2 lg:max-h-(--log-h) lg:w-60 lg:border-b-0 lg:border-l">
       <ul class="py-1.5">
         <li>
           <button
@@ -204,7 +208,7 @@ function jumpTo(key: number | 'prelude') {
     <!-- `relative` so the anchors' offsetTop resolves against this container. -->
     <div
       ref="container"
-      class="k-scrollbar-none relative order-2 max-h-150 min-w-0 flex-1 overflow-y-auto lg:order-1"
+      class="k-scrollbar-none relative order-2 max-h-(--log-h) min-w-0 flex-1 overflow-y-auto lg:order-1"
       @scroll="handleScroll"
     >
       <section
@@ -277,5 +281,10 @@ function jumpTo(key: number | 'prelude') {
         …
       </p>
     </div>
+    <KResizeHandle
+      v-if="resizable"
+      class="order-3 w-full border-t border-muted"
+      @start="startResize"
+    />
   </div>
 </template>
