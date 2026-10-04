@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # The release notes, as markdown.
 #
-# Curated notes win: if .github/releases/<tag>.md exists for the target tag
-# (the /release skill writes it; an RC tag looks up its stable tag), that file
-# is the release body. Otherwise the notes are built from conventional commits
-# (CLAUDE.md §6): only feat/fix subjects make it in, oldest first, grouped
+# Curated notes win: if the release PR (branch releases/<tag>; an RC tag looks
+# up its stable tag) has a body, that body is the release notes, images
+# included. The /release skill drafts it. Otherwise the notes are built from
+# conventional commits (CLAUDE.md §6): only feat/fix subjects make it in, oldest first, grouped
 # under Breaking changes / New / Fixed with the emoji headings every reader
 # (GitHub, dashboard, Discord) shows as they are. A commit with a
 # "Changelog: skip" trailer stays out.
 #
 # The release pipeline (.github/workflows/release.yml) uses this to build the
-# actual notes. Run it locally to preview what the NEXT release will say:
+# actual notes (the PR lookup needs gh, authenticated locally or via GH_TOKEN
+# in CI). Run it locally to preview what the NEXT release will say:
 #
 #   bash scripts/changelog-preview.sh                # last tag -> HEAD
 #   bash scripts/changelog-preview.sh '' v0.3.0      # what tag v0.3.0 ships
@@ -19,10 +20,12 @@ set -euo pipefail
 
 to="${2:-HEAD}"
 
-notes_file=".github/releases/${to%%-*}.md"
-if [[ "$to" == v* && -f "$notes_file" ]]; then
-  cat "$notes_file"
-  exit 0
+if [[ "$to" == v* ]]; then
+  body="$(gh pr list --state all --head "releases/${to%%-*}" --json body -q '.[0].body // ""' | tr -d '\r')"
+  if [[ -n "$body" ]]; then
+    printf '%s\n' "$body"
+    exit 0
+  fi
 fi
 
 # Default range start: the last STABLE release tag before `to` (empty on the

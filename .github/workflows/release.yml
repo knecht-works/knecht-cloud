@@ -16,10 +16,10 @@
 # ceremony: the in-app updater polls releases/latest, which only sees actual
 # Releases, not bare tags, and the dashboard renders each Release body as the
 # changelog (server/utils/version.ts listReleases). The body comes from
-# scripts/changelog-preview.sh: the curated .github/releases/<tag>.md when one
-# exists, else the feat/fix commits since the previous release tag (GitHub's
-# --generate-notes is PR-based and would come up empty here). The body is
-# markdown; the dashboard and Discord both render it. One-time setup: the
+# scripts/changelog-preview.sh: the body of the release PR (releases/<tag>)
+# when it has one, else the feat/fix commits since the previous release tag
+# (GitHub's --generate-notes is PR-based and would come up empty here). The
+# body is markdown; the dashboard and Discord both render it. One-time setup: the
 # ghcr.io package must be set to public visibility after the first push, or
 # anonymous pulls on servers fail.
 name: release
@@ -93,10 +93,12 @@ jobs:
 
       # The same script that previews the notes locally, so what you preview
       # is what ships.
-      - name: Build release notes from commits
+      - name: Build release notes
         run: |
           bash scripts/changelog-preview.sh '' "$GITHUB_REF_NAME" > /tmp/notes.md
           echo "Notes (-> $GITHUB_REF_NAME):" && cat /tmp/notes.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - run: |
           PRERELEASE=""
@@ -108,17 +110,21 @@ jobs:
       # Announce minor and major releases in Discord via a channel webhook (the
       # URL is the DISCORD_RELEASE_WEBHOOK repo secret). Patches and
       # pre-releases stay quiet. The plain-text line above the embed is what
-      # push notifications show; the embed carries the release notes as they
-      # are, capped under Discord's 4096-char description limit.
+      # push notifications show; the embed carries the release notes, capped
+      # under Discord's 4096-char description limit. Embeds render no inline
+      # images, so image lines are dropped and the first image becomes the
+      # embed image.
       - name: Announce the release on Discord
         if: ${{ endsWith(github.ref_name, '.0') }}
         env:
           WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
         run: |
           URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${GITHUB_REF_NAME}"
-          BODY="$(head -c 3800 /tmp/notes.md)"
-          jq -n --arg content "🚀 **Knecht $GITHUB_REF_NAME** is out! Here is what changed:" --arg url "$URL" --arg body "$BODY" \
+          IMAGE_RE='^[[:space:]]*(<img[^>]*>|!\[[^]]*\]\([^)]*\))[[:space:]]*$'
+          IMAGE="$(grep -E "$IMAGE_RE" /tmp/notes.md | head -1 | sed -E 's/.*src="([^"]*)".*/\1/; s/.*\]\(([^)]*)\).*/\1/' || true)"
+          BODY="$(grep -vE "$IMAGE_RE" /tmp/notes.md | cat -s | head -c 3800)"
+          jq -n --arg content "🚀 **Knecht $GITHUB_REF_NAME** is out! Here is what changed:" --arg url "$URL" --arg body "$BODY" --arg image "$IMAGE" \
             '{content: $content, embeds: [{title: "Release notes", url: $url, description: $body, color: 12056738,
               footer: {text: "Update from the System page in your dashboard, or read the full release on GitHub."},
-              timestamp: (now | todate)}]}' \
+              timestamp: (now | todate)} + (if $image == "" then {} else {image: {url: $image}} end)]}' \
             | curl -sSf -H 'Content-Type: application/json' -d @- "$WEBHOOK"

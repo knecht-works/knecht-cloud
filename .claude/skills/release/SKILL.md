@@ -1,18 +1,20 @@
 ---
 name: release
-description: Write the curated release notes for the next Knecht release (.github/releases/vX.Y.Z.md) in the style of Nuxt release notes, with highlights, from the commits since the last stable tag. Use when the user asks for release notes, a changelog for the next version, or to prepare a release.
+description: Write the curated release notes for the next Knecht release (the body of the releases/vX.Y.Z PR) in the style of Nuxt release notes, with highlights, from the commits since the last stable tag. Use when the user asks for release notes, a changelog for the next version, or to prepare a release.
 ---
 
 # Write the release notes
 
-The release pipeline ships `.github/releases/<tag>.md` as the GitHub Release
-body when the file exists (`scripts/changelog-preview.sh`), otherwise the raw
-feat/fix commit list. This skill writes that file for minor and major
-releases. Patch releases normally ship the commit list; only write a file for
-one when the list reads badly.
+The release pipeline ships the body of the release PR (branch
+`releases/<tag>`) as the GitHub Release body when it has one
+(`scripts/changelog-preview.sh`), otherwise the raw feat/fix commit list. This
+skill writes that body for minor and major releases. Patch releases normally
+ship the commit list; only write a body for one when the list reads badly.
 
 The body is markdown. The dashboard (System page), the GitHub Release and the
-Discord announcement all render it.
+Discord announcement all render it. The user adds screenshots in the PR
+afterwards; an image sits on its own line so the dashboard and Discord can pick
+it up.
 
 ## Steps
 
@@ -29,7 +31,7 @@ Discord announcement all render it.
    Read the bodies. They carry the behavior details the notes need; the
    subjects alone do not.
 
-3. **Write `.github/releases/vX.Y.Z.md`** in this shape:
+3. **Draft the notes** in this shape:
 
    ```markdown
    ## ✨ Highlights
@@ -73,10 +75,15 @@ Discord announcement all render it.
      lines.
    - No em-dashes anywhere (CLAUDE.md §5).
 
-4. **Verify.** `bash scripts/changelog-preview.sh '' vX.Y.Z` must print the
-   file. Every feat/fix commit in the raw list is either in the notes or
+4. **Put them in the PR.** Write the draft to a temp file and set it as the
+   body of the `releases/vX.Y.Z` PR (`gh pr edit releases/vX.Y.Z --body-file`),
+   or open the PR with it (`gh pr create --base main --title vX.Y.Z
+   --body-file`). If the PR body already holds notes, ask before replacing
+   them: the user may have edited them or added images.
+
+5. **Verify.** `bash scripts/changelog-preview.sh '' vX.Y.Z` must print the
+   PR body. Every feat/fix commit in the raw list is either in the notes or
    deliberately dropped; say which were dropped and why.
 
-5. **Hand over.** Show the notes, then commit them on the release branch as
-   `docs: Release notes for vX.Y.Z`. Tagging stays with the user
-   (CONTRIBUTING.md).
+6. **Hand over.** Show the notes and the PR link. Screenshots and tagging stay
+   with the user (CONTRIBUTING.md).
