@@ -1,6 +1,7 @@
 import { hostname } from 'node:os'
 import { execa, type Options } from 'execa'
 import { toSandboxProcess, type SandboxProcess } from './sandbox-process'
+import { BRIDGE_HOST, writeBridgeCredentialHelper } from '../utils/agent-bridge'
 import { sessionSandboxName, sessionCheckoutDir } from '../utils/storage'
 
 export const WEB_PROJECT_DIR = '/var/www/html'
@@ -8,6 +9,17 @@ export const WEB_PROJECT_DIR = '/var/www/html'
 const KNECHT_STATE_DIR = `${WEB_PROJECT_DIR}/.knecht`
 
 const INGRESS_NETWORK = 'knecht-ingress'
+
+function sessionNetwork(sessionId: number): string {
+  return `ddev-${sessionSandboxName(sessionId)}_default`
+}
+
+let ownContainer: Promise<string | null> | undefined
+// Null for a host process (the dev VM), which reaches the web containers directly.
+function knechtContainer(): Promise<string | null> {
+  ownContainer ??= execa('docker', ['inspect', hostname()]).then(() => hostname(), () => null)
+  return ownContainer
+}
 
 export function webContainerName(sessionId: number): string {
   return `ddev-${sessionSandboxName(sessionId)}-web`
@@ -45,9 +57,7 @@ export async function resolveContainerUser(sessionId: number): Promise<{ uid: nu
   }
 }
 
-// The compose override references the ingress network as external, so it must exist before `ddev start`.
 export async function startEnvStack(sessionId: number): Promise<void> {
-  await ensureIngressNetwork()
   ipCache.delete(sessionId)
   await execDdev(sessionId, ['start', '-y'])
   await wireNetworks(sessionId)
@@ -78,6 +88,7 @@ export async function envStackRunning(sessionId: number): Promise<boolean> {
 // ddev's registry can lag reality; removing the labelled containers equals `ddev stop`.
 export async function stopEnvStack(sessionId: number): Promise<void> {
   ipCache.delete(sessionId)
+  await detachKnecht(sessionId)
   try {
     await execa('ddev', ['stop', sessionSandboxName(sessionId)], { env: DDEV_ENV })
   }
@@ -88,6 +99,7 @@ export async function stopEnvStack(sessionId: number): Promise<void> {
 
 export async function removeEnvStack(sessionId: number): Promise<void> {
   ipCache.delete(sessionId)
+  await detachKnecht(sessionId)
   try {
     await execa('ddev', ['delete', '--omit-snapshot', '-y', sessionSandboxName(sessionId)], { env: DDEV_ENV })
   }
@@ -187,7 +199,7 @@ export function streamInSandbox(sessionId: number, command: string[], log: (text
   return sub.then(r => ({ code: r.exitCode ?? 1, tail: chunks.join('').slice(-STREAM_TAIL_CHARS) }))
 }
 
-// By IP, not container name: works whether Knecht runs as a container or a host process.
+// By IP, not container name: a host process has no container DNS.
 const ipCache = new Map<number, string>()
 
 export async function resolvePreview(sessionId: number): Promise<string | null> {
@@ -196,7 +208,7 @@ export async function resolvePreview(sessionId: number): Promise<string | null> 
   try {
     const { stdout } = await execa('docker', [
       'inspect', '-f',
-      `{{with index .NetworkSettings.Networks "${INGRESS_NETWORK}"}}{{.IPAddress}}{{end}}`,
+      `{{with index .NetworkSettings.Networks "${sessionNetwork(sessionId)}"}}{{.IPAddress}}{{end}}`,
       webContainerName(sessionId),
     ])
     const ip = stdout.trim()
@@ -213,25 +225,33 @@ export function forgetPreview(sessionId: number): void {
   ipCache.delete(sessionId)
 }
 
-// Detaching from `ddev_default` is what keeps parallel runs from reaching each other.
+// Any network shared between runs lets them reach each other; old overrides still join knecht-ingress.
 async function wireNetworks(sessionId: number): Promise<void> {
   const name = sessionSandboxName(sessionId)
   for (const container of [webContainerName(sessionId), `ddev-${name}-db`]) {
-    await execa('docker', ['network', 'disconnect', 'ddev_default', container]).catch(() => {})
+    for (const network of ['ddev_default', INGRESS_NETWORK]) {
+      await execa('docker', ['network', 'disconnect', network, container]).catch(() => {})
+    }
   }
+  await attachBridgeHost(sessionId)
+  await writeBridgeCredentialHelper(sessionCheckoutDir(sessionId), sessionId).catch(() => {})
 }
 
-async function ensureIngressNetwork(): Promise<void> {
-  try {
-    await execa('docker', ['network', 'create', INGRESS_NETWORK])
+async function attachBridgeHost(sessionId: number): Promise<void> {
+  const network = sessionNetwork(sessionId)
+  const self = await knechtContainer()
+  if (self) {
+    await execa('docker', ['network', 'connect', '--alias', BRIDGE_HOST, network, self]).catch(() => {})
+    return
   }
-  catch {
-    // Already exists.
-  }
-  try {
-    await execa('docker', ['network', 'connect', INGRESS_NETWORK, hostname()])
-  }
-  catch {
-    // Already connected, or not a container.
-  }
+  const gateway = await execa('docker', ['network', 'inspect', network, '-f', '{{(index .IPAM.Config 0).Gateway}}']).then(r => r.stdout.trim(), () => '')
+  if (!gateway) return
+  const entry = `${gateway} ${BRIDGE_HOST}`
+  await execa('docker', ['exec', '-u', 'root', webContainerName(sessionId), 'sh', '-c', `grep -qx '${entry}' /etc/hosts || echo '${entry}' >> /etc/hosts`]).catch(() => {})
+}
+
+// An attached Knecht keeps ddev from removing the session network on stop.
+async function detachKnecht(sessionId: number): Promise<void> {
+  const self = await knechtContainer()
+  if (self) await execa('docker', ['network', 'disconnect', sessionNetwork(sessionId), self]).catch(() => {})
 }

@@ -330,14 +330,9 @@ function composeOverride({ hasDb, sharedMounts }: { hasDb: boolean, sharedMounts
       web: {
         mem_limit: WEB_MEM_LIMIT,
         pids_limit: WEB_PIDS_LIMIT,
-        // Mapping form: compose refuses to merge it with ddev's list form.
-        networks: { 'knecht-ingress': {} },
         ...(volumes.length ? { volumes } : {}),
       },
       ...(hasDb ? { db: { mem_limit: DB_MEM_LIMIT } } : {}),
-    },
-    networks: {
-      'knecht-ingress': { external: true },
     },
   }
 }

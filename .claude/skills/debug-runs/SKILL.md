@@ -57,9 +57,12 @@ the host path directly. The ai step's prompt files are
 output goes to `/tmp/knecht-ai-out-<runId>.json`. Both die with the container
 on `ddev stop`.
 
-The preview proxy targets the web container's IP on the `knecht-ingress`
-network with the project's real hostname in the Host header (the web nginx is
-a catch-all vhost).
+The preview proxy targets the web container's IP on the run's own network
+`ddev-knecht-run-<id>_default` with the project's real hostname in the Host
+header (the web nginx is a catch-all vhost). Runs share no network, so one
+run cannot reach another. Inside the web container Knecht itself is
+`knecht-bridge` (a network alias, or an /etc/hosts entry when Knecht runs as
+a host process like here in the VM).
 
 ## Layer 3: what the agent (opencode) actually did
 

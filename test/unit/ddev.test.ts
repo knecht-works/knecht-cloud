@@ -135,14 +135,14 @@ describe('writeDdevConfig', () => {
     expect((await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).changed).toBe(true)
   })
 
-  it('writes the compose override: ingress network and resource caps', async () => {
+  it('writes the compose override: no shared network, resource caps', async () => {
     const dir = checkout()
     await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
     const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
-    expect(compose.services.web.networks).toEqual({ 'knecht-ingress': {} })
+    expect(compose.services.web.networks).toBeUndefined()
+    expect(compose.networks).toBeUndefined()
     expect(compose.services.web.mem_limit).toBeDefined()
     expect(compose.services.db.mem_limit).toBeDefined()
-    expect(compose.networks['knecht-ingress']).toEqual({ external: true })
   })
 
   it('writes the low-memory db config into the mysql includedir', async () => {

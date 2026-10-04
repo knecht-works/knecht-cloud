@@ -56,8 +56,8 @@ services:
       # projects). Must survive recreates: name-based `ddev stop/delete` of
       # older runs' envs resolve against this registry.
       - ${KNECHT_DATA_DIR:-/data/knecht/data}/.ddev:/home/node/.ddev
-    # The preview proxy reaches each run's web container over the
-    # `knecht-ingress` docker network, which Knecht creates and joins at boot
+    # The preview proxy reaches each run's web container over that run's own
+    # ddev network, which Knecht joins while the env is up
     # (server/daemon/sandbox.ts). No host ingress ports are needed or
     # published here beyond the UI port above.
     restart: unless-stopped

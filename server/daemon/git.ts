@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { execa } from 'execa'
 import type { Project } from '../db/schema'
 import { KNECHT_COMPOSE_FILE, KNECHT_CONFIG_FILE } from './ddev'
-import { bridgeBaseUrl, bridgeToken } from '../utils/agent-bridge'
+import { writeBridgeCredentialHelper } from '../utils/agent-bridge'
 import { checkoutReader, repoShipsDdevConfig } from '../utils/env-detect'
 import { getBotIdentity } from '../utils/github-app'
 import { normalizeSharedFolder, sessionCheckoutDir } from '../utils/storage'
@@ -45,10 +45,7 @@ async function configureCheckout(dir: string, sessionId: number): Promise<void> 
   await git(['-C', dir, 'config', 'user.name', identity.name])
   await git(['-C', dir, 'config', 'user.email', identity.email])
   await git(['-C', dir, 'config', 'push.autoSetupRemote', 'true'])
-  const base = await bridgeBaseUrl()
-  if (!base) return
-  const env = `KNECHT_BRIDGE_URL=${base}/agent-bridge KNECHT_BRIDGE_TOKEN=${bridgeToken(sessionId)} KNECHT_RUN_ID=${sessionId}`
-  await git(['-C', dir, 'config', 'credential.helper', `!${env} knecht-git credential`])
+  await writeBridgeCredentialHelper(dir, sessionId)
 }
 
 function authFlags(token: string): string[] {

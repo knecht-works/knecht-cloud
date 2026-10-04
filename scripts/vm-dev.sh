@@ -45,7 +45,7 @@ export KNECHT_DEV_POLLING=1
 # http://<runId>.preview.lvh.me:3333). Override with KNECHT_DEV_PORT.
 #
 # PORT tells the agent bridge (server/utils/agent-bridge.ts) the real port,
-# and --host 0.0.0.0 makes the app reachable from the sandboxes via the
-# knecht-ingress gateway; Lima still only forwards localhost to the Mac.
+# and --host 0.0.0.0 makes the app reachable from the sandboxes via their
+# network's gateway; Lima still only forwards localhost to the Mac.
 export PORT="${KNECHT_DEV_PORT:-3333}"
 exec npm run dev -- --port "$PORT" --host 0.0.0.0
