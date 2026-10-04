@@ -49,7 +49,7 @@ const groups = computed(() => [
     <button
       type="button"
       aria-label="Search"
-      class="flex w-full cursor-pointer items-center gap-3 rounded-md border border-default bg-(--surface-muted) py-2 text-sm text-muted transition-colors hover:text-toned"
+      class="flex w-full cursor-pointer items-center gap-3 rounded-md border border-default bg-(--surface-inset) py-2.5 text-sm text-dimmed transition-colors hover:border-accented hover:text-muted"
       :class="collapsed ? 'justify-center px-0' : 'px-3'"
       @click="() => { open = true }"
     >
@@ -60,8 +60,14 @@ const groups = computed(() => [
       <template v-if="!collapsed">
         Search
         <span class="ml-auto flex items-center gap-1">
-          <UKbd value="meta" />
-          <UKbd value="k" />
+          <UKbd
+            value="meta"
+            size="sm"
+          />
+          <UKbd
+            value="k"
+            size="sm"
+          />
         </span>
       </template>
     </button>

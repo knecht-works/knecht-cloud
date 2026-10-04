@@ -58,12 +58,13 @@ const updateTarget = computed(() =>
       style="background: color-mix(in oklab, var(--surface-elevated) 60%, transparent); backdrop-filter: blur(12px)"
     >
       <div
-        class="flex items-center border-b border-muted pb-4.5 pt-5.5"
+        class="flex items-center border-b border-muted py-4"
         :class="collapsed ? 'justify-center px-2' : 'justify-between px-5'"
       >
         <NuxtLink
           v-if="!collapsed"
           to="/projects"
+          class="flex"
         >
           <KLogo :height="26" />
         </NuxtLink>
