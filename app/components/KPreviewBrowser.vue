@@ -54,6 +54,7 @@ function originFor(host: string | null): string {
 const homeUrl = `${originFor(null)}/`
 
 const frame = ref<HTMLIFrameElement>()
+const { el: viewport, height: viewportHeight, resizing, startResize } = useResizableHeight(240)
 const frameSrc = ref(homeUrl)
 const frameKey = ref(0)
 const currentUrl = ref(homeUrl)
@@ -278,13 +279,19 @@ const hostItems = computed(() => props.hosts.map(host => ({
       />
     </div>
 
-    <div class="relative aspect-video w-full bg-(--surface-base)">
+    <div
+      ref="viewport"
+      class="relative aspect-video min-h-60 w-full bg-(--surface-base)"
+      :style="viewportHeight ? { height: `${viewportHeight}px`, aspectRatio: 'auto' } : undefined"
+    >
+      <!-- The iframe would swallow pointermove while the handle is dragged across it. -->
       <iframe
         v-if="live"
         :key="frameKey"
         ref="frame"
         :src="frameSrc"
         class="absolute inset-0 size-full"
+        :class="{ 'pointer-events-none': resizing }"
       />
       <div
         v-else-if="busyCopy"
@@ -310,5 +317,6 @@ const hostItems = computed(() => props.hosts.map(host => ({
         <slot />
       </div>
     </div>
+    <KResizeHandle @start="startResize" />
   </div>
 </template>

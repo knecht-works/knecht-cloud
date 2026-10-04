@@ -133,6 +133,7 @@ usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refresh
         :run-status="run.status"
         :run-started-at="run.startedAt"
         :run-finished-at="run.finishedAt"
+        resizable
       />
     </KPanel>
 
