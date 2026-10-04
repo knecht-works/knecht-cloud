@@ -3,6 +3,16 @@ defineProps<{ collapsed?: boolean }>()
 
 const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
 const { data: workflows } = useFetch('/api/workflows', { default: () => [], lazy: true })
+const { data: integrations } = useFetch('/api/integrations', { default: () => [], lazy: true })
+
+const SETTINGS = [
+  { label: 'Access', suffix: 'Members, invite, owner, sign out', icon: 'i-lucide-users', to: '/settings' },
+  { label: 'Agent', suffix: 'Provider, API key, default model, subtask model', icon: 'i-lucide-sparkles', to: '/settings/agent' },
+  { label: 'Instructions', suffix: 'Agent instructions', icon: 'i-lucide-list-checks', to: '/settings/agent' },
+  { label: 'Environments', suffix: 'Live, stopped, archived, deleted, parallel runs', icon: 'i-lucide-box', to: '/settings/advanced' },
+  { label: 'Automatic updates', suffix: 'Update schedule', icon: 'i-lucide-arrow-up-circle', to: '/settings/advanced' },
+  { label: 'Remote access', suffix: 'SSH target', icon: 'i-lucide-terminal', to: '/settings/advanced' },
+]
 
 const open = ref(false)
 defineShortcuts({
@@ -35,6 +45,19 @@ const groups = computed(() => [
       to: `/workflows/${w.id}`,
       onSelect: close,
     })),
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    items: [
+      ...SETTINGS,
+      ...(integrations.value ?? []).filter(i => i.connectionForm).map(i => ({
+        label: i.name,
+        suffix: 'Integration',
+        icon: 'i-lucide-plug',
+        to: '/settings/integrations',
+      })),
+    ].map(item => ({ ...item, onSelect: close })),
   },
 ])
 </script>
@@ -77,7 +100,7 @@ const groups = computed(() => [
     <template #content>
       <UCommandPalette
         :groups="groups"
-        placeholder="Search projects and workflows…"
+        placeholder="Search projects, workflows and settings…"
         class="h-80"
         @update:open="open = $event"
       />
