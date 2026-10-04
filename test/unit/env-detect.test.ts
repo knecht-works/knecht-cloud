@@ -176,6 +176,12 @@ describe('parseDdevConfig', () => {
       .toEqual(['demo.test', 'alpha.test'])
   })
 
+  it('reads the names of the extra exposed web ports, skipping incomplete entries', () => {
+    expect(parseDdevConfig('web_extra_exposed_ports:\n  - name: vite\n    container_port: 5173\n    http_port: 5172\n  - name: broken\n')?.extraPorts)
+      .toEqual([{ name: 'vite', port: 5173 }])
+    expect(parseDdevConfig('name: demo')?.extraPorts).toEqual([])
+  })
+
   it('serves no host without a name, and is null when the YAML does not parse', () => {
     expect(parseDdevConfig('webserver_type: nginx-fpm')?.hosts).toEqual([])
     expect(parseDdevConfig('name: [')).toBeNull()

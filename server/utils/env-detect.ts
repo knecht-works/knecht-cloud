@@ -83,6 +83,7 @@ export interface DdevConfigFile {
   dbVersion: string | null
   phpVersion: string | null
   nodeVersion: string | null
+  extraPorts: { name: string, port: number }[]
 }
 
 export function parseDdevConfig(text: string): DdevConfigFile | null {
@@ -97,6 +98,7 @@ export function parseDdevConfig(text: string): DdevConfigFile | null {
     php_version?: string | number
     nodejs_version?: string | number
     database?: { type?: string, version?: string | number }
+    web_extra_exposed_ports?: { name?: string, container_port?: number }[]
   } | null
   try {
     cfg = parse(text)
@@ -123,6 +125,9 @@ export function parseDdevConfig(text: string): DdevConfigFile | null {
     dbVersion: str(cfg.database?.version),
     phpVersion: str(cfg.php_version),
     nodeVersion: str(cfg.nodejs_version),
+    extraPorts: (Array.isArray(cfg.web_extra_exposed_ports) ? cfg.web_extra_exposed_ports : [])
+      .filter(p => p?.name && Number.isInteger(p.container_port))
+      .map(p => ({ name: String(p.name), port: Number(p.container_port) })),
   }
 }
 

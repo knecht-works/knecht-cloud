@@ -58,7 +58,7 @@ export async function resolveContainerUser(sessionId: number): Promise<{ uid: nu
 }
 
 export async function startEnvStack(sessionId: number): Promise<void> {
-  ipCache.delete(sessionId)
+  forgetPreview(sessionId)
   await execDdev(sessionId, ['start', '-y'])
   await wireNetworks(sessionId)
 }
@@ -87,7 +87,7 @@ export async function envStackRunning(sessionId: number): Promise<boolean> {
 
 // ddev's registry can lag reality; removing the labelled containers equals `ddev stop`.
 export async function stopEnvStack(sessionId: number): Promise<void> {
-  ipCache.delete(sessionId)
+  forgetPreview(sessionId)
   await detachKnecht(sessionId)
   try {
     await execa('ddev', ['stop', sessionSandboxName(sessionId)], { env: DDEV_ENV })
@@ -98,7 +98,7 @@ export async function stopEnvStack(sessionId: number): Promise<void> {
 }
 
 export async function removeEnvStack(sessionId: number): Promise<void> {
-  ipCache.delete(sessionId)
+  forgetPreview(sessionId)
   await detachKnecht(sessionId)
   try {
     await execa('ddev', ['delete', '--omit-snapshot', '-y', sessionSandboxName(sessionId)], { env: DDEV_ENV })
@@ -200,20 +200,27 @@ export function streamInSandbox(sessionId: number, command: string[], log: (text
 }
 
 // By IP, not container name: a host process has no container DNS.
-const ipCache = new Map<number, string>()
+const envCache = new Map<number, { ips: Map<string, string>, exposed?: Promise<ExposedPort[]> }>()
 
-export async function resolvePreview(sessionId: number): Promise<string | null> {
-  const cached = ipCache.get(sessionId)
+function sessionCache(sessionId: number) {
+  let entry = envCache.get(sessionId)
+  if (!entry) envCache.set(sessionId, entry = { ips: new Map() })
+  return entry
+}
+
+export async function resolveContainerIp(sessionId: number, container: string): Promise<string | null> {
+  const { ips } = sessionCache(sessionId)
+  const cached = ips.get(container)
   if (cached) return cached
   try {
     const { stdout } = await execa('docker', [
       'inspect', '-f',
       `{{with index .NetworkSettings.Networks "${sessionNetwork(sessionId)}"}}{{.IPAddress}}{{end}}`,
-      webContainerName(sessionId),
+      container,
     ])
     const ip = stdout.trim()
     if (!ip) return null
-    ipCache.set(sessionId, ip)
+    ips.set(container, ip)
     return ip
   }
   catch {
@@ -221,8 +228,51 @@ export async function resolvePreview(sessionId: number): Promise<string | null> 
   }
 }
 
+export function resolvePreview(sessionId: number): Promise<string | null> {
+  return resolveContainerIp(sessionId, webContainerName(sessionId))
+}
+
 export function forgetPreview(sessionId: number): void {
-  ipCache.delete(sessionId)
+  envCache.delete(sessionId)
+}
+
+export interface ExposedPort { service: string, container: string, port: number }
+
+// The ports a container publishes through ddev's router, which Knecht replaces.
+export function exposedPorts(sessionId: number): Promise<ExposedPort[]> {
+  const entry = sessionCache(sessionId)
+  // Nothing found means the stack is not up yet: ask again next time.
+  entry.exposed ??= discoverExposedPorts(sessionId).catch(() => []).then((found) => {
+    if (!found.length) entry.exposed = undefined
+    return found
+  })
+  return entry.exposed
+}
+
+async function discoverExposedPorts(sessionId: number): Promise<ExposedPort[]> {
+  const { stdout } = await execa('docker', [
+    'ps', '--filter', `label=com.ddev.site-name=${sessionSandboxName(sessionId)}`,
+    '--format', '{{.Names}} {{.Label "com.docker.compose.service"}}',
+  ])
+  const found: ExposedPort[] = []
+  for (const line of stdout.split('\n').filter(Boolean)) {
+    const [container = '', service = ''] = line.trim().split(' ')
+    const { stdout: env } = await execa('docker', ['inspect', '-f', '{{range .Config.Env}}{{println .}}{{end}}', container])
+    found.push(...parseExposeEnv(env).map(port => ({ service, container, port })))
+  }
+  return found
+}
+
+export function parseExposeEnv(env: string): number[] {
+  const ports = new Set<number>()
+  for (const line of env.split('\n')) {
+    const match = /^HTTPS?_EXPOSE=(.*)$/.exec(line.trim())
+    for (const pair of match?.[1]?.split(',') ?? []) {
+      const port = Number(pair.split(':')[1])
+      if (Number.isInteger(port) && port > 0) ports.add(port)
+    }
+  }
+  return [...ports]
 }
 
 // Any network shared between runs lets them reach each other; old overrides still join knecht-ingress.
