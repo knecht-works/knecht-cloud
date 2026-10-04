@@ -98,9 +98,9 @@ const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: 
 const projectTriggers = computed(() =>
   (triggers.value ?? []).filter(t => t.projectIds.includes(id)))
 
-const workflowRows = computed(() => startableWorkflows.value.map((w) => {
-  const wired = projectTriggers.value.filter(t => t.workflowId === w.id)
-  return { id: w.id, name: w.name, trigger: wired[0] ?? null, more: wired.length - 1 }
+const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
+  const [trigger, ...rest] = projectTriggers.value.filter(t => t.workflowId === w.id)
+  return trigger ? [{ id: w.id, name: w.name, trigger, more: rest.length }] : []
 }))
 
 usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshRuns)
@@ -240,20 +240,29 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
           icon="i-lucide-zap"
           accent="var(--accent-violet)"
         >
-          <div class="flex flex-col gap-3">
+          <p
+            v-if="!workflowRows.length"
+            class="text-2sm text-muted"
+          >
+            No workflow is triggered by this project.
+          </p>
+          <div
+            v-else
+            class="flex flex-col gap-3"
+          >
             <div
               v-for="row in workflowRows"
               :key="row.id"
               class="flex items-center gap-3"
-              :style="{ opacity: row.trigger && !row.trigger.active ? 0.55 : 1 }"
+              :style="{ opacity: row.trigger.active ? 1 : 0.55 }"
             >
               <NuxtLink
                 :to="`/workflows/${row.id}`"
                 class="group flex min-w-0 flex-1 items-center gap-3 text-left"
               >
                 <KStepIcon
-                  :icon="row.trigger ? triggerSourceMeta(row.trigger.source).icon : 'i-lucide-workflow'"
-                  :color="row.trigger ? triggerSourceMeta(row.trigger.source).color : 'var(--text-dimmed)'"
+                  :icon="triggerSourceMeta(row.trigger.source).icon"
+                  :color="triggerSourceMeta(row.trigger.source).color"
                   :size="28"
                   :radius="7"
                 />
@@ -262,12 +271,7 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
                     {{ row.name }}
                   </span>
                   <span class="k-mono block truncate text-2xs text-dimmed">
-                    <template v-if="row.trigger">
-                      {{ row.trigger.event }} · {{ triggerSourceMeta(row.trigger.source).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
-                    </template>
-                    <template v-else>
-                      Manual only
-                    </template>
+                    {{ row.trigger.event }} · {{ triggerSourceMeta(row.trigger.source).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
                   </span>
                 </span>
               </NuxtLink>
