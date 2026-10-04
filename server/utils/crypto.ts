@@ -7,16 +7,12 @@ const ALGO = 'aes-256-gcm'
 const IV_LEN = 12
 const TAG_LEN = 16
 
+export function deriveKey(salt: string, info: string): Buffer {
+  return Buffer.from(hkdfSync('sha256', process.env.NUXT_SESSION_PASSWORD!, salt, info, 32))
+}
+
 function key(): Buffer {
-  const password = process.env.NUXT_SESSION_PASSWORD
-  if (!password || password.length < 32) {
-    throw new Error(
-      'NUXT_SESSION_PASSWORD must be set (≥ 32 chars): it seals the session cookie '
-      + 'and derives the key that encrypts stored secrets. Generate: openssl rand -base64 32.',
-    )
-  }
-  // Fixed salt: the password is per-instance already, HKDF only stretches it.
-  return Buffer.from(hkdfSync('sha256', password, 'knecht-secret-store', 'aes-256-gcm', 32))
+  return deriveKey('knecht-secret-store', 'aes-256-gcm')
 }
 
 export function encrypt(plaintext: string): string {

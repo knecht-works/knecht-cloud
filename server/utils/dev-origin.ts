@@ -1,4 +1,5 @@
-import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
+import { deriveKey } from './crypto'
 import { previewOrigin } from './origin'
 
 // Module scripts and HMR are fetched crossorigin=anonymous, so no cookie reaches
@@ -13,11 +14,7 @@ const DEV_LABEL_RE = /^dev-[0-9a-f]{32}$/
 let cachedKey: Buffer | undefined
 function devOriginKey(): Buffer {
   if (cachedKey) return cachedKey
-  const password = process.env.NUXT_SESSION_PASSWORD
-  if (!password || password.length < 32) {
-    throw new Error('NUXT_SESSION_PASSWORD must be set (≥ 32 chars) to derive the dev origin key')
-  }
-  cachedKey = Buffer.from(hkdfSync('sha256', password, 'knecht-dev-origin', 'hmac-token', 32))
+  cachedKey = deriveKey('knecht-dev-origin', 'hmac-token')
   return cachedKey
 }
 
