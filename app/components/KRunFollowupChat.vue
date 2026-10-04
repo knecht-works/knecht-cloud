@@ -334,6 +334,22 @@ function onWindowKeydown(e: KeyboardEvent) {
 }
 onMounted(() => window.addEventListener('keydown', onWindowKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
+
+const chatBox = ref<HTMLElement | null>(null)
+const chatHeight = ref<number | null>(null)
+function startResize(e: PointerEvent) {
+  const startY = e.clientY
+  const startHeight = chatBox.value!.offsetHeight
+  const move = (ev: PointerEvent) => {
+    chatHeight.value = Math.max(320, startHeight + ev.clientY - startY)
+  }
+  const stop = () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', stop)
+  }
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', stop)
+}
 </script>
 
 <template>
@@ -343,7 +359,11 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
     accent="var(--accent-orange)"
     :pad="0"
   >
-    <div class="flex h-[70vh] flex-col">
+    <div
+      ref="chatBox"
+      class="flex aspect-video min-h-80 flex-col"
+      :style="chatHeight ? { height: `${chatHeight}px`, aspectRatio: 'auto' } : undefined"
+    >
       <div
         v-if="visibleTurns"
         class="relative min-h-0 flex-1"
@@ -475,11 +495,6 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
         v-else
         class="flex flex-1 flex-col items-center justify-center gap-3 px-5 pt-3.5 pb-4 text-center"
       >
-        <img
-          src="/mascot/mascotRight.png"
-          alt="Knecht"
-          class="h-24 w-auto drop-shadow-mascot"
-        >
         <p class="max-w-80 text-2sm text-muted">
           Nothing here yet. Ask the agent to tweak the result, or type / for commands.
         </p>
@@ -609,6 +624,13 @@ onUnmounted(() => window.removeEventListener('keydown', onWindowKeydown))
           </UChatPrompt>
         </div>
       </div>
+    </div>
+    <div
+      class="flex h-3 cursor-row-resize touch-none items-center justify-center"
+      aria-hidden="true"
+      @pointerdown.prevent="startResize"
+    >
+      <span class="h-1 w-10 rounded-full bg-accented" />
     </div>
   </KPanel>
 </template>
