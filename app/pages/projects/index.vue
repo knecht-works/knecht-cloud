@@ -35,11 +35,13 @@ const open = ref(false)
   <div>
     <KTopBar title="Projects">
       <template #actions>
-        <UButton
-          label="New project"
-          color="primary"
-          @click="() => { open = true }"
-        />
+        <UTooltip text="Connect a GitHub repo">
+          <UButton
+            label="New project"
+            color="primary"
+            @click="() => { open = true }"
+          />
+        </UTooltip>
       </template>
     </KTopBar>
 
