@@ -78,12 +78,6 @@ const updateTarget = computed(() =>
       </div>
 
       <nav class="flex flex-col gap-1 p-3">
-        <div
-          v-if="!collapsed"
-          class="k-label px-3 pb-2 pt-1"
-        >
-          Navigation
-        </div>
         <UTooltip
           v-for="item in NAV"
           :key="item.to"
