@@ -32,6 +32,7 @@ const { data: services, refresh: refreshServices } = useFetch(`/api/runs/${props
   lazy: true,
   default: () => [],
 })
+watch(canTerminal, up => up && refreshServices())
 const KNOWN_SERVICES: Record<string, { label: string, icon: string }> = {
   mailpit: { label: 'Mailpit', icon: 'i-lucide-mail' },
   adminer: { label: 'Adminer', icon: 'i-lucide-database' },
@@ -104,23 +105,15 @@ async function openInVscode() {
   }
 }
 
+const tools = computed(() => canTerminal.value
+  ? services.value.map(s => ({
+      label: KNOWN_SERVICES[s.label]?.label ?? s.label,
+      icon: KNOWN_SERVICES[s.label]?.icon ?? 'i-lucide-app-window',
+      url: s.url,
+    }))
+  : [])
+
 const menuItems = computed(() => {
-  const remote = props.envState !== 'down'
-    ? [{
-        label: 'Terminal',
-        icon: 'i-lucide-square-terminal',
-        disabled: !canTerminal.value,
-        onSelect: () => emit('openTerminal'),
-      }]
-    : []
-  const tools = canTerminal.value
-    ? services.value.map(s => ({
-        label: KNOWN_SERVICES[s.label]?.label ?? s.label,
-        icon: KNOWN_SERVICES[s.label]?.icon ?? 'i-lucide-app-window',
-        to: s.url,
-        target: '_blank',
-      }))
-    : []
   const lifecycle = (props.envState === 'up' && !props.isLive
     ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', action: 'stop' as const }]
     : props.envState === 'stopped'
@@ -138,31 +131,35 @@ const menuItems = computed(() => {
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
   }]
-  return [remote, tools, lifecycle, remove].filter(group => group.length)
+  return [lifecycle, remove].filter(group => group.length)
 })
 </script>
 
 <template>
   <div>
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div class="min-w-0">
-        <div class="flex items-center gap-2.5">
-          <h2 class="k-mono text-lg font-semibold tracking-tight text-highlighted">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div class="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-2">
+        <div class="flex items-baseline gap-2.5">
+          <UTooltip :text="statusMeta.label">
+            <span
+              role="img"
+              :aria-label="statusMeta.label"
+              class="flex self-center"
+            >
+              <KStatusDot
+                :color="statusMeta.dot"
+                :pulse="statusMeta.pulse"
+                :size="8"
+              />
+            </span>
+          </UTooltip>
+          <h2 class="k-mono text-base/none font-semibold tracking-tight text-highlighted">
             Run #{{ runId }}
           </h2>
-          <KStatusDot
-            :color="statusMeta.dot"
-            :pulse="statusMeta.pulse"
-            :size="6"
-          />
-          <span
-            class="k-mono text-2xs uppercase tracking-widest"
-            :style="{ color: statusMeta.text }"
-          >{{ statusMeta.label }}</span>
         </div>
         <div
           v-if="meta.length"
-          class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2"
+          class="flex flex-wrap items-baseline gap-x-4 gap-y-2"
         >
           <component
             :is="m.href ? NuxtLink : 'span'"
@@ -170,63 +167,121 @@ const menuItems = computed(() => {
             :key="m.icon"
             :href="m.href"
             :target="m.href?.startsWith('http') ? '_blank' : undefined"
-            class="flex items-center gap-1.5 text-dimmed"
+            class="flex items-baseline gap-1.5 text-dimmed"
             :class="m.href ? 'transition-colors hover:text-muted' : ''"
           >
             <UIcon
               :name="m.icon"
-              class="size-3.5"
+              class="size-3.5 self-center"
             />
-            <span class="k-mono text-xs text-muted">{{ m.text }}</span>
+            <span class="k-mono text-xs/none text-muted">{{ m.text }}</span>
           </component>
         </div>
       </div>
       <div class="flex flex-none items-center gap-2">
-        <UButton
-          v-if="!isLive && envState !== 'down'"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-code"
-          label="Open in IDE"
-          :disabled="!canTerminal"
-          @click="openInVscode"
-        />
-        <UButton
-          v-if="prUrl"
-          color="primary"
-          icon="i-lucide-git-pull-request"
-          label="Open Pull Request"
-          :to="prUrl"
-          target="_blank"
-        />
-        <UButton
+        <UTooltip
           v-if="isLive"
-          color="error"
-          variant="outline"
-          label="Cancel run"
-          :loading="cancelling"
-          @click="cancel"
-        />
-        <UButton
+          text="Cancel run"
+        >
+          <UButton
+            color="error"
+            variant="outline"
+            icon="i-lucide-circle-stop"
+            aria-label="Cancel run"
+            size="sm"
+            class="size-8 justify-center"
+            :loading="cancelling"
+            @click="cancel"
+          />
+        </UTooltip>
+        <UTooltip
           v-else-if="status === 'cancelled' && kind !== 'mention'"
-          color="primary"
-          icon="i-lucide-play"
-          label="Retry"
-          :loading="retrying"
-          @click="retry"
-        />
-        <UDropdownMenu
-          :items="menuItems"
-          :content="{ align: 'end' }"
-          :external-icon="false"
-          @update:open="open => open && refreshServices()"
+          text="Retry"
+        >
+          <UButton
+            color="primary"
+            icon="i-lucide-rotate-ccw"
+            aria-label="Retry"
+            size="sm"
+            class="size-8 justify-center"
+            :loading="retrying"
+            @click="retry"
+          />
+        </UTooltip>
+        <UTooltip
+          v-if="prUrl"
+          text="Open Pull Request"
+        >
+          <UButton
+            color="primary"
+            icon="i-lucide-git-pull-request"
+            aria-label="Open Pull Request"
+            size="sm"
+            class="size-8 justify-center"
+            :to="prUrl"
+            target="_blank"
+          />
+        </UTooltip>
+        <UTooltip
+          v-if="!isLive && envState !== 'down'"
+          text="Open in IDE"
         >
           <UButton
             color="neutral"
-            variant="ghost"
-            icon="i-lucide-ellipsis-vertical"
-            aria-label="More actions"
+            variant="outline"
+            icon="i-lucide-code"
+            aria-label="Open in IDE"
+            size="sm"
+            class="size-8 justify-center"
+            :disabled="!canTerminal"
+            @click="openInVscode"
           />
+        </UTooltip>
+        <UTooltip
+          v-for="t in tools"
+          :key="t.url"
+          :text="t.label"
+        >
+          <UButton
+            color="neutral"
+            variant="outline"
+            :icon="t.icon"
+            :aria-label="t.label"
+            size="sm"
+            class="size-8 justify-center"
+            :to="t.url"
+            target="_blank"
+          />
+        </UTooltip>
+        <UTooltip
+          v-if="envState !== 'down'"
+          text="Terminal"
+        >
+          <UButton
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-square-terminal"
+            aria-label="Terminal"
+            size="sm"
+            class="size-8 justify-center"
+            :disabled="!canTerminal"
+            @click="emit('openTerminal')"
+          />
+        </UTooltip>
+        <UDropdownMenu
+          :items="menuItems"
+          :content="{ align: 'end' }"
+        >
+          <UTooltip text="More actions">
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-ellipsis-vertical"
+              aria-label="More actions"
+              size="sm"
+              class="size-8 justify-center"
+            />
+          </UTooltip>
         </UDropdownMenu>
       </div>
     </div>
