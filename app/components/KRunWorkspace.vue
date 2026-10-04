@@ -24,13 +24,6 @@ const previewOnline = computed(() =>
 
 const timeline = computed(() => runLogTimeline(stepRows.value ?? [], run.value?.status))
 
-// The last row with an error is the most specific one: a composite is
-// finalized after the child that failed it.
-const failedStep = computed(() => {
-  if (run.value?.status !== 'failed') return null
-  return [...timeline.value].reverse().find(s => s.error) ?? null
-})
-
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
@@ -51,8 +44,6 @@ const meta = computed(() => {
     },
   ].filter(Boolean) as { icon: string, text: string, href?: string }[]
 })
-
-const { retrying: bannerRetrying, retry: bannerRetry } = useRunRetry(id, () => refreshWorkspace())
 
 const followupActive = ref(false)
 const terminalOpen = ref(false)
@@ -105,53 +96,6 @@ usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refresh
       @started="(runId) => emit('started', runId)"
       @pending="(t) => { pending = t }"
     />
-
-    <div
-      v-if="run.status === 'failed'"
-      class="k-card flex flex-wrap items-center justify-between gap-4 p-5"
-    >
-      <div class="min-w-0 max-w-130">
-        <p class="text-2sm text-highlighted">
-          <template v-if="failedStep">
-            This run failed at "{{ failedStep.label }}" ({{ failedStep.stepId }}).
-          </template>
-          <template v-else>
-            This run failed before a step could report an error.
-          </template>
-        </p>
-        <p
-          v-if="failedStep?.error"
-          class="mt-1 text-xs"
-          style="color: var(--status-error)"
-        >
-          {{ failedStep.error }}
-        </p>
-        <p
-          v-else-if="run.kind !== 'mention'"
-          class="mt-1 text-xs text-muted"
-        >
-          Check the log below for details.
-        </p>
-      </div>
-      <div class="flex items-center gap-2">
-        <UButton
-          v-if="run.workflowId"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-workflow"
-          :label="failedStep ? 'Fix failed step' : 'Edit workflow'"
-          :to="`/workflows/${run.workflowId}${failedStep ? `?step=${encodeURIComponent(failedStep.stepId)}` : ''}`"
-        />
-        <UButton
-          v-if="run.kind !== 'mention'"
-          color="primary"
-          icon="i-lucide-play"
-          label="Retry"
-          :loading="bannerRetrying"
-          @click="bannerRetry"
-        />
-      </div>
-    </div>
 
     <KRunFollowupChat
       v-model:active="followupActive"
