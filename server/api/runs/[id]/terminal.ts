@@ -34,6 +34,11 @@ function parseTerminalUrl(url: string): { runId: number, service: string, cols: 
 
 export default defineWebSocketHandler({
   async upgrade(request) {
+    // Upgrades skip the HTTP middleware, so a preview host would otherwise reach this route too.
+    const host = request.headers.get('host') ?? ''
+    if (isPreviewHost(host) || isForeignOrigin(request.headers.get('origin'), host)) {
+      throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
+    }
     const session = await getUserSession(request)
     if (!session?.user) {
       throw createError({ statusCode: 401, statusMessage: 'Login required' })

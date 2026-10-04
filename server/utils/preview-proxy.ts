@@ -35,6 +35,12 @@ function injectBridge(html: string): string {
   return html + BRIDGE_SCRIPT
 }
 
+const DASHBOARD_COOKIE = 'nuxt-session'
+
+export function withoutDashboardCookie(header: string | undefined): string | undefined {
+  return header?.split(';').map(c => c.trim()).filter(c => c && !c.startsWith(`${DASHBOARD_COOKIE}=`)).join('; ') || undefined
+}
+
 export async function proxyRunPreview(event: H3Event, sessionId: number, label?: string): Promise<void> {
   const internal = isPreviewAuthToken(getRequestHeader(event, PREVIEW_AUTH_HEADER))
   const devOrigin = looksLikeDevServerLabel(label)
