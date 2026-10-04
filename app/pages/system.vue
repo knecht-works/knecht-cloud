@@ -27,11 +27,7 @@ async function runGc() {
     <KTopBar
       title="System"
       sub="Host daemon, sandbox runtime and running containers."
-    >
-      <template #actions>
-        <KAppSearch />
-      </template>
-    </KTopBar>
+    />
 
     <KSystemPanel />
 

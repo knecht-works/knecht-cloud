@@ -7,7 +7,7 @@ withDefaults(defineProps<{
 </script>
 
 <template>
-  <div class="mb-4.5 flex items-center justify-between gap-6">
+  <div class="mb-4.5 flex min-h-10 items-center justify-between gap-6">
     <div class="min-w-0">
       <div
         v-if="eyebrow"

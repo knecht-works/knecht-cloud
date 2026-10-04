@@ -23,11 +23,7 @@ const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
 
 <template>
   <div>
-    <KTopBar title="Runs">
-      <template #actions>
-        <KAppSearch />
-      </template>
-    </KTopBar>
+    <KTopBar title="Runs" />
 
     <div class="mb-5.5 grid grid-cols-2 gap-4 lg:grid-cols-4">
       <KMetric
