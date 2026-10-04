@@ -14,7 +14,7 @@ const model = defineModel<T>({ required: true })
       type="button"
       class="k-mono cursor-pointer rounded-full px-2.5 py-1 text-2xs transition-colors"
       :class="model === item.value
-        ? 'border border-default bg-(--surface-glass) text-muted'
+        ? 'border border-default bg-(--surface-glass) text-default'
         : 'border border-transparent text-dimmed hover:text-muted'"
       @click="model = item.value"
     >
