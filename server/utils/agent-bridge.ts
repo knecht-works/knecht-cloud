@@ -1,13 +1,10 @@
-import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { hostname } from 'node:os'
 import { execa } from 'execa'
+import { deriveKey } from './crypto'
 
 function bridgeKey(): Buffer {
-  const password = process.env.NUXT_SESSION_PASSWORD
-  if (!password || password.length < 32) {
-    throw new Error('NUXT_SESSION_PASSWORD must be set (≥ 32 chars) to derive the agent bridge key')
-  }
-  return Buffer.from(hkdfSync('sha256', password, 'knecht-agent-bridge', 'hmac-token', 32))
+  return deriveKey('knecht-agent-bridge', 'hmac-token')
 }
 
 export function bridgeToken(sessionId: number): string {
