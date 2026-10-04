@@ -223,7 +223,7 @@ html {
 /* Uppercase, wide-tracked mono section label. */
 @utility k-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--text-2xs);
   letter-spacing: var(--tracking-label);
   text-transform: uppercase;
   color: var(--text-dimmed);

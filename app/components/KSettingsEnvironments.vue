@@ -62,7 +62,7 @@ watch(form, () => {
         :error-text="saveError"
       />
     </template>
-    <p class="mb-5 text-2sm leading-relaxed text-muted">
+    <p class="mb-5 text-xs leading-relaxed text-muted">
       To free up the server, every run's preview steps down a ladder when nobody uses it:
       <span class="k-code">live → stopped → archived → deleted</span>.
     </p>
@@ -71,7 +71,7 @@ watch(form, () => {
         v-for="f in ENV_FIELDS"
         :key="f.key"
       >
-        <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">{{ f.label }}</span>
+        <span class="k-label">{{ f.label }}</span>
         <div class="mt-2 flex items-center gap-2">
           <UInput
             v-model.number="form[f.key]"
