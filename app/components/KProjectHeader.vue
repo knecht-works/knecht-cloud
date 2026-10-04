@@ -1,25 +1,17 @@
 <script setup lang="ts">
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   project: {
     id: number
     fullName: string
     defaultBranch: string
-    private: boolean
     framework?: string | null
-    frameworkVersion?: string | null
     favicon?: string | null
   }
-  activeRuns?: number
-}>(), { activeRuns: 0 })
+}>()
 
 const emit = defineEmits<{ runStarted: [runId: number] }>()
 
-const toast = useToast()
-const toastError = useToastError()
-
 const fw = computed(() => frameworkMeta(props.project.framework))
-const fwLabel = computed(() =>
-  props.project.frameworkVersion ? `${fw.value.label} ${props.project.frameworkVersion}` : fw.value.label)
 const repoName = computed(() => props.project.fullName.split('/').pop() ?? 'Project')
 
 const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
@@ -38,83 +30,22 @@ function startWorkflow(workflowId: number) {
   return start(workflowId, selectedBranch.value)
 }
 
-const confirmDisconnect = ref(false)
-const menuItems = [{
-  label: 'Disconnect project',
-  icon: 'i-lucide-trash-2',
-  color: 'error' as const,
-  onSelect: () => { confirmDisconnect.value = true },
-}]
-const disconnectDescription = computed(() => {
-  const active = props.activeRuns
-  const abort = active
-    ? ` ${active === 1 ? '1 run is' : `${active} runs are`} still active and will be cancelled.`
-    : ''
-  return `Removes ${props.project.fullName} from Knecht: all its runs, sessions and preview environments, uploaded DB dumps, shared folders and agent memory.${abort} The GitHub repo itself is not touched.`
-})
-const removing = ref(false)
-async function removeProject() {
-  removing.value = true
-  try {
-    await $fetch(`/api/projects/${props.project.id}`, { method: 'DELETE' })
-    toast.add({ title: 'Project disconnected', description: 'Its environments are being removed in the background.', color: 'success' })
-    await navigateTo('/projects')
-  }
-  catch (e) {
-    toastError('Failed to disconnect', e)
-  }
-  finally {
-    removing.value = false
-  }
-}
+const route = useRoute()
+const onSettings = computed(() => route.path.startsWith(`/projects/${props.project.id}/settings`))
 </script>
 
 <template>
   <!-- One root so a page's margin class lands on the header. -->
   <div>
-    <KPageHeader
-      icon="i-lucide-box"
-      :icon-color="fw.color"
-      :favicon="project.favicon"
-    >
-      <h1 class="k-mono truncate text-2xl font-semibold tracking-tight text-highlighted">
-        {{ repoName }}
-      </h1>
-      <template #meta>
-        <span
-          class="k-mono inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs tracking-wider"
-          :style="{ color: fw.color, borderColor: 'color-mix(in oklab, currentColor 35%, transparent)' }"
-        >{{ fwLabel }}</span>
-        <a
-          :href="`https://github.com/${project.fullName}`"
-          target="_blank"
-          rel="noopener"
-          class="flex items-center gap-1.5 text-dimmed transition-colors hover:text-muted"
-        >
-          <UIcon
-            name="i-simple-icons-github"
-            class="size-3.5"
-          />
-          <span class="k-mono text-xs text-muted">{{ project.fullName }}</span>
-        </a>
-        <UBadge
-          :color="project.private ? 'neutral' : 'primary'"
-          variant="subtle"
-          size="sm"
-        >
-          {{ project.private ? 'Private' : 'Public' }}
-        </UBadge>
-      </template>
-      <template #actions>
-        <slot name="nav" />
+    <div class="flex items-start justify-between gap-4">
+      <slot name="breadcrumb" />
+      <div class="flex flex-none items-center gap-2.5">
         <UPopover
           v-model:open="startOpen"
           :content="{ side: 'bottom', align: 'end' }"
         >
           <UButton
             color="primary"
-            icon="i-lucide-play"
-            trailing-icon="i-lucide-chevron-down"
             label="Start workflow"
             :loading="starting"
           />
@@ -168,27 +99,43 @@ async function removeProject() {
             </div>
           </template>
         </UPopover>
-        <UDropdownMenu
-          :items="menuItems"
-          :content="{ align: 'end' }"
-        >
+        <UTooltip :text="onSettings ? 'Project' : 'Settings'">
           <UButton
+            :to="onSettings ? `/projects/${project.id}` : `/projects/${project.id}/settings`"
             color="neutral"
-            variant="ghost"
-            icon="i-lucide-ellipsis-vertical"
-            aria-label="More actions"
+            variant="outline"
+            :icon="onSettings ? 'i-lucide-box' : 'i-lucide-settings'"
+            :aria-label="onSettings ? 'Back to project' : 'Project settings'"
+            class="size-10 justify-center"
           />
-        </UDropdownMenu>
-      </template>
+        </UTooltip>
+      </div>
+    </div>
+    <KPageHeader
+      icon="i-lucide-box"
+      :icon-color="fw.color"
+      :favicon="project.favicon"
+      :icon-size="40"
+    >
+      <div class="flex min-w-0 items-center gap-2.5">
+        <h1 class="k-mono truncate text-2xl font-semibold tracking-tight text-highlighted">
+          {{ repoName }}
+        </h1>
+        <UTooltip :text="project.fullName">
+          <a
+            :href="`https://github.com/${project.fullName}`"
+            target="_blank"
+            rel="noopener"
+            :aria-label="`${project.fullName} on GitHub`"
+            class="flex flex-none text-dimmed transition-colors hover:text-muted"
+          >
+            <UIcon
+              name="i-simple-icons-github"
+              class="size-4"
+            />
+          </a>
+        </UTooltip>
+      </div>
     </KPageHeader>
-
-    <KConfirmModal
-      v-model:open="confirmDisconnect"
-      title="Disconnect project"
-      :description="disconnectDescription"
-      confirm-label="Disconnect"
-      :loading="removing"
-      @confirm="removeProject"
-    />
   </div>
 </template>
