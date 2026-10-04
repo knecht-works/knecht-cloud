@@ -137,7 +137,7 @@ const menuItems = computed(() => {
 
 <template>
   <div>
-    <div class="flex flex-wrap items-end justify-between gap-3">
+    <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-2">
         <div class="flex items-baseline gap-2.5">
           <UTooltip :text="statusMeta.label">
