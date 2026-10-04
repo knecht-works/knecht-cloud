@@ -27,6 +27,16 @@ const toastError = useToastError()
 const NuxtLink = resolveComponent('NuxtLink')
 
 const canTerminal = computed(() => props.envState === 'up' && !props.busy)
+
+const { data: services, refresh: refreshServices } = useFetch(`/api/runs/${props.runId}/services`, {
+  lazy: true,
+  default: () => [],
+})
+const KNOWN_SERVICES: Record<string, { label: string, icon: string }> = {
+  mailpit: { label: 'Mailpit', icon: 'i-lucide-mail' },
+  adminer: { label: 'Adminer', icon: 'i-lucide-database' },
+  phpmyadmin: { label: 'phpMyAdmin', icon: 'i-lucide-database' },
+}
 const { retrying, retry } = useRunRetry(props.runId, () => emit('changed'))
 
 const confirmDelete = ref(false)
@@ -103,6 +113,14 @@ const menuItems = computed(() => {
         onSelect: () => emit('openTerminal'),
       }]
     : []
+  const tools = canTerminal.value
+    ? services.value.map(s => ({
+        label: KNOWN_SERVICES[s.label]?.label ?? s.label,
+        icon: KNOWN_SERVICES[s.label]?.icon ?? 'i-lucide-app-window',
+        to: s.url,
+        target: '_blank',
+      }))
+    : []
   const lifecycle = (props.envState === 'up' && !props.isLive
     ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', action: 'stop' as const }]
     : props.envState === 'stopped'
@@ -120,7 +138,7 @@ const menuItems = computed(() => {
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
   }]
-  return [remote, lifecycle, remove].filter(group => group.length)
+  return [remote, tools, lifecycle, remove].filter(group => group.length)
 })
 </script>
 
@@ -200,6 +218,8 @@ const menuItems = computed(() => {
         <UDropdownMenu
           :items="menuItems"
           :content="{ align: 'end' }"
+          :external-icon="false"
+          @update:open="open => open && refreshServices()"
         >
           <UButton
             color="neutral"

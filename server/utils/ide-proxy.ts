@@ -6,8 +6,9 @@ import { devServerIsPreview } from '../daemon/ddev'
 import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
 import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { IDE_DEFAULT_SETTINGS, IDE_PORT, withIdeTokenCookie } from '../daemon/ide'
-import { resolvePreview, forgetPreview } from '../daemon/sandbox'
+import { forgetPreview, resolveContainerIp, resolvePreview, webContainerName } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
+import { knownSessionService, type SessionService } from './session-services'
 
 // Route-based ws handlers cannot serve the workbench's arbitrary paths, so
 // wrapWebsocketResolve intercepts h3's ws route resolution instead.
@@ -18,7 +19,37 @@ function bumpPreviewSeen(sessionId: number): void {
   db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, sessionId)).run()
 }
 
-export async function proxyRunIde(event: H3Event, sessionId: number): Promise<void> {
+export function proxyRunIde(event: H3Event, sessionId: number): Promise<void> {
+  return proxyToContainer(event, sessionId, {
+    container: webContainerName(sessionId),
+    port: IDE_PORT,
+    cookie: header => withIdeTokenCookie(header, sessionId),
+    html: injectIdeDefaults,
+    notRunning: 'The IDE is not running. Open it from the run page.',
+  })
+}
+
+const DASHBOARD_COOKIE = 'nuxt-session'
+
+// A service can be the project's own code: it must never see the dashboard session.
+export function proxyRunService(event: H3Event, sessionId: number, service: SessionService): Promise<void> {
+  return proxyToContainer(event, sessionId, {
+    container: service.container,
+    port: service.port,
+    cookie: header => header?.split(';').map(c => c.trim()).filter(c => c && !c.startsWith(`${DASHBOARD_COOKIE}=`)).join('; ') || undefined,
+    notRunning: `${service.label} is not reachable in this environment.`,
+  })
+}
+
+interface ContainerTarget {
+  container: string
+  port: number
+  cookie: (header: string | undefined) => string | undefined
+  html?: (html: string) => string
+  notRunning: string
+}
+
+async function proxyToContainer(event: H3Event, sessionId: number, target: ContainerTarget): Promise<void> {
   const session = await getUserSession(event)
   // The session read must never write a session cookie (see preview-proxy.ts).
   removeResponseHeader(event, 'set-cookie')
@@ -46,7 +77,7 @@ export async function proxyRunIde(event: H3Event, sessionId: number): Promise<vo
   if (env.envState !== 'up') {
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
-  const ip = await resolvePreview(sessionId)
+  const ip = await resolveContainerIp(sessionId, target.container)
   if (!ip) throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
 
   bumpPreviewSeen(sessionId)
@@ -54,12 +85,13 @@ export async function proxyRunIde(event: H3Event, sessionId: number): Promise<vo
   const url = getRequestURL(event)
   const req = event.node.req
   const res = event.node.res
-  const wantsHtml = String(getRequestHeader(event, 'accept') ?? '').includes('text/html')
-  const headers = { ...req.headers, cookie: withIdeTokenCookie(req.headers.cookie, sessionId) }
+  const wantsHtml = !!target.html && String(getRequestHeader(event, 'accept') ?? '').includes('text/html')
+  const headers = { ...req.headers, cookie: target.cookie(req.headers.cookie) }
+  if (headers.cookie === undefined) delete headers.cookie
   if (wantsHtml) headers['accept-encoding'] = 'identity'
   await new Promise<void>((resolve, reject) => {
     const upstream = httpRequest(
-      { host: ip, port: IDE_PORT, method: req.method, path: `${url.pathname}${url.search}`, headers },
+      { host: ip, port: target.port, method: req.method, path: `${url.pathname}${url.search}`, headers },
       (up) => {
         const isHtml = /text\/html/i.test(String(up.headers['content-type'] ?? ''))
         const buffer = wantsHtml && isHtml && !up.headers['content-encoding']
@@ -78,7 +110,7 @@ export async function proxyRunIde(event: H3Event, sessionId: number): Promise<vo
         const chunks: Buffer[] = []
         up.on('data', (c: Buffer) => chunks.push(c))
         up.on('end', () => {
-          const body = Buffer.from(injectIdeDefaults(Buffer.concat(chunks).toString('utf8')), 'utf8')
+          const body = Buffer.from(target.html!(Buffer.concat(chunks).toString('utf8')), 'utf8')
           res.setHeader('content-length', String(body.byteLength))
           res.end(body)
           resolve()
@@ -93,7 +125,7 @@ export async function proxyRunIde(event: H3Event, sessionId: number): Promise<vo
     req.pipe(upstream)
   }).catch((e: NodeJS.ErrnoException) => {
     if (e?.code === 'ECONNREFUSED' || e?.code === 'EHOSTUNREACH' || e?.code === 'ETIMEDOUT') {
-      throw createError({ statusCode: 503, statusMessage: 'The IDE is not running. Open it from the run page.' })
+      throw createError({ statusCode: 503, statusMessage: target.notRunning })
     }
     throw e
   })
@@ -145,6 +177,7 @@ interface WsTarget {
   sessionId: number
   port: number
   byCapability: boolean
+  container?: string
 }
 
 function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }): WsTarget | null {
@@ -156,6 +189,8 @@ function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }
     if (!verifyDevServerLabel(ref.sessionId, ref.label)) return null
     return { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, byCapability: true }
   }
+  const service = ref.label ? knownSessionService(ref.sessionId, ref.label) : undefined
+  if (service) return { sessionId: ref.sessionId, port: service.port, byCapability: false, container: service.container }
   if (ref.label) return null
   const session = db.select({ previewHosts: schema.sessions.previewHosts, previewPort: schema.sessions.previewPort })
     .from(schema.sessions)
@@ -196,12 +231,12 @@ const pipeWsHooks = {
   async open(peer: { id: string, request?: { url?: string, headers?: unknown }, send: (data: unknown) => void, close: (code?: number, reason?: string) => void }) {
     const target = wsTarget(peer.request ?? {})
     if (target === null) return peer.close(1011, 'Environment is not running')
-    const { sessionId, port } = target
+    const { sessionId, port, container } = target
     // Register the pipe before the await: crossws does not await this hook, so
     // early frames (a reconnect after a restart) must queue instead of dropping.
     const pipe: Pipe = { backend: null, queue: [], sessionId, lastBump: 0 }
     pipes.set(peer.id, pipe)
-    const ip = await resolvePreview(sessionId)
+    const ip = await (container ? resolveContainerIp(sessionId, container) : resolvePreview(sessionId))
     if (!ip) {
       pipes.delete(peer.id)
       return peer.close(1011, 'Environment is not running')
