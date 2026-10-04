@@ -36,7 +36,6 @@ const open = ref(false)
     <KTopBar title="Projects">
       <template #actions>
         <UButton
-          icon="i-lucide-plus"
           label="New project"
           color="primary"
           @click="() => { open = true }"

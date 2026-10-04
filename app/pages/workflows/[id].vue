@@ -379,23 +379,268 @@ const pr = computed(() => {
 
 <template>
   <div>
-    <div class="mb-3.5 flex items-center gap-2 text-dimmed">
-      <NuxtLink
-        to="/workflows"
-        class="k-mono text-xs transition-colors hover:text-muted"
+    <div class="flex items-start justify-between gap-4">
+      <div class="flex min-w-0 items-center gap-2 text-dimmed">
+        <NuxtLink
+          to="/workflows"
+          class="k-mono text-xs transition-colors hover:text-muted"
+        >
+          Workflows
+        </NuxtLink>
+        <UIcon
+          name="i-lucide-chevron-right"
+          class="size-3"
+        />
+        <span class="k-mono truncate text-xs text-muted">{{ meta.name || saved?.name || '…' }}</span>
+      </div>
+      <div
+        v-if="!notFound"
+        class="flex flex-none items-center gap-2.5"
       >
-        Workflows
-      </NuxtLink>
-      <UIcon
-        name="i-lucide-chevron-right"
-        class="size-3"
-      />
-      <span class="k-mono truncate text-xs text-muted">{{ meta.name || saved?.name || '…' }}</span>
+        <template v-if="mode === 'running'">
+          <UButton
+            color="error"
+            variant="outline"
+            label="Cancel run"
+            :loading="cancelling"
+            @click="cancel"
+          />
+          <UButton
+            color="neutral"
+            variant="ghost"
+            label="Run in background"
+            @click="detach"
+          />
+        </template>
+        <template v-else-if="mode === 'success'">
+          <UButton
+            v-if="pr"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-external-link"
+            label="View PR"
+            :to="pr.url"
+            target="_blank"
+          />
+          <UButton
+            color="primary"
+            label="Close"
+            @click="detach"
+          />
+        </template>
+        <template v-else-if="mode === 'failed'">
+          <UButton
+            color="neutral"
+            variant="ghost"
+            label="View log"
+            @click="() => { navigateTo(runWorkspacePath(activeRun!.projectId, activeRun!.id)) }"
+          />
+          <UTooltip text="Closes the test result and opens the failed step for editing. The failed run stays on the runs page.">
+            <UButton
+              color="neutral"
+              variant="ghost"
+              icon="i-lucide-pencil"
+              label="Fix failed step"
+              @click="backToEditing"
+            />
+          </UTooltip>
+          <UTooltip text="Continues this run at the failed step, keeping earlier step results. Runs the definition this test started with, without edits made since.">
+            <UButton
+              color="neutral"
+              variant="outline"
+              icon="i-lucide-play"
+              label="Resume run"
+              :loading="retrying"
+              @click="retry"
+            />
+          </UTooltip>
+          <UTooltip text="Starts a fresh test run with the current workflow definition, picking up your edits.">
+            <UButton
+              color="primary"
+              icon="i-lucide-refresh-cw"
+              label="Test again"
+              @click="retest"
+            />
+          </UTooltip>
+        </template>
+        <template v-else>
+          <span
+            v-if="saveState === 'saving'"
+            class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
+          >
+            <UIcon
+              name="i-lucide-loader-circle"
+              class="size-3.5 animate-spin"
+            /> Saving…
+          </span>
+          <UTooltip
+            v-else-if="saveState === 'error'"
+            :text="saveErrorText"
+          >
+            <span class="k-mono flex items-center gap-1.5 text-2xs text-error">
+              <UIcon
+                name="i-lucide-circle-x"
+                class="size-3.5"
+              /> Not saved
+            </span>
+          </UTooltip>
+          <!-- onCloseAutoFocus prevented: refocusing the chip scrolls the header
+               back into view and cancels the jump-to-step scroll. -->
+          <UPopover
+            v-if="draftIssues.length && steps.length"
+            v-model:open="issuesOpen"
+            :content="{ align: 'end', onCloseAutoFocus: (e: Event) => e.preventDefault() }"
+          >
+            <button
+              type="button"
+              class="k-mono flex cursor-pointer items-center gap-1.5 text-2xs"
+              :class="flaggedIssues.length ? 'text-accent-orange' : 'text-dimmed'"
+            >
+              <UIcon
+                :name="flaggedIssues.length ? 'i-lucide-circle-alert' : 'i-lucide-circle-dashed'"
+                class="size-3.5"
+              /> {{ flaggedIssues.length ? `${flaggedIssues.length} ${flaggedIssues.length === 1 ? 'Issue' : 'Issues'}` : 'Incomplete' }}
+            </button>
+            <template #content>
+              <div class="w-80 p-1.5">
+                <p class="px-2 pb-1 pt-1.5 text-2xs text-dimmed">
+                  {{ flaggedIssues.length ? 'Fix these to run:' : 'Left to fill in before this runs:' }}
+                </p>
+                <button
+                  v-for="(issue, i) in draftIssues"
+                  :key="i"
+                  type="button"
+                  class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs text-toned transition-colors enabled:cursor-pointer enabled:hover:bg-(--surface-accented)"
+                  :disabled="!issue.target"
+                  @click="jumpToIssue(issue)"
+                >
+                  <UIcon
+                    :name="issue.pristine && !submitted ? 'i-lucide-circle-dashed' : 'i-lucide-circle-alert'"
+                    class="mt-0.5 size-3.5 flex-none"
+                    :class="issue.pristine && !submitted ? 'text-dimmed' : 'text-accent-orange'"
+                  />
+                  <span class="min-w-0">{{ issue.text }}</span>
+                </button>
+              </div>
+            </template>
+          </UPopover>
+          <UPopover
+            v-model:open="runPickerOpen"
+            :content="{ side: 'bottom', align: 'end' }"
+          >
+            <UTooltip
+              :text="!steps.length ? 'Add a step first' : !projects?.length ? 'Connect a project first' : ''"
+              :disabled="!!steps.length && !!projects?.length"
+            >
+              <UButton
+                color="primary"
+                label="Run workflow"
+                :disabled="!steps.length || starting || !projects?.length"
+              />
+            </UTooltip>
+            <template #content>
+              <div class="w-72 p-3">
+                <div class="k-label mb-1.5">
+                  Project
+                </div>
+                <USelectMenu
+                  v-model="project"
+                  :items="projects ?? []"
+                  placeholder="Select a project…"
+                  icon="i-lucide-folder-git-2"
+                  class="w-full"
+                />
+
+                <template v-if="project">
+                  <div class="k-label mb-1.5 mt-3.5">
+                    Branch
+                  </div>
+                  <USelectMenu
+                    v-model="testBranch"
+                    :items="testBranchItems"
+                    icon="i-lucide-git-branch"
+                    :search-input="{ placeholder: 'Filter branches…' }"
+                    class="w-full"
+                  />
+
+                  <button
+                    type="button"
+                    :aria-expanded="mockOpen"
+                    class="group mt-3.5 flex w-full cursor-pointer items-center gap-1.5"
+                    @click="mockOpen = !mockOpen"
+                  >
+                    <UIcon
+                      name="i-lucide-chevron-right"
+                      class="size-3.5 text-dimmed transition-transform"
+                      :class="mockOpen && 'rotate-90'"
+                    />
+                    <span class="k-label">Trigger event (mock)</span>
+                  </button>
+                  <div
+                    v-if="mockOpen"
+                    class="mt-2 space-y-2"
+                  >
+                    <template
+                      v-for="v in TRIGGER_VARS"
+                      :key="v.path"
+                    >
+                      <UTextarea
+                        v-if="v.path === 'inputs.body'"
+                        v-model="mockInputs[varPathParts(v.path)[1]]"
+                        :placeholder="v.path"
+                        :rows="2"
+                        class="w-full"
+                        :ui="{ base: 'k-mono text-xs' }"
+                      />
+                      <UInput
+                        v-else
+                        v-model="mockInputs[varPathParts(v.path)[1]]"
+                        :placeholder="v.path"
+                        class="w-full"
+                        :ui="{ base: 'k-mono text-xs' }"
+                      />
+                    </template>
+                    <p class="text-2xs leading-normal text-dimmed">
+                      Empty fields render as empty strings, exactly like a
+                      trigger that didn't send them.
+                    </p>
+                  </div>
+                </template>
+
+                <UButton
+                  class="mt-3.5 w-full justify-center"
+                  color="primary"
+                  icon="i-lucide-play"
+                  label="Run workflow"
+                  :loading="starting"
+                  :disabled="!project"
+                  @click="start"
+                />
+              </div>
+            </template>
+          </UPopover>
+          <UDropdownMenu
+            v-if="saved"
+            :items="menuItems"
+            :content="{ align: 'end' }"
+          >
+            <UTooltip text="More actions">
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-ellipsis-vertical"
+                aria-label="More actions"
+                class="size-10 justify-center"
+              />
+            </UTooltip>
+          </UDropdownMenu>
+        </template>
+      </div>
     </div>
 
     <div
       v-if="notFound"
-      class="k-card flex flex-col items-center gap-3 px-6 py-14 text-center"
+      class="k-card mt-4 flex flex-col items-center gap-3 px-6 py-14 text-center"
     >
       <UIcon
         name="i-lucide-workflow"
@@ -412,9 +657,10 @@ const pr = computed(() => {
 
     <template v-else>
       <KPageHeader
-        class="mb-4.5"
+        class="mb-4"
         icon="i-lucide-workflow"
         icon-color="var(--text-primary)"
+        :icon-size="52"
       >
         <input
           v-if="editable"
@@ -441,245 +687,6 @@ const pr = computed(() => {
             v-else-if="meta.description"
             class="truncate text-2sm text-muted"
           >{{ meta.description }}</span>
-        </template>
-        <template #actions>
-          <template v-if="mode === 'running'">
-            <UButton
-              color="error"
-              variant="outline"
-              label="Cancel run"
-              :loading="cancelling"
-              @click="cancel"
-            />
-            <UButton
-              color="neutral"
-              variant="ghost"
-              label="Run in background"
-              @click="detach"
-            />
-          </template>
-          <template v-else-if="mode === 'success'">
-            <UButton
-              v-if="pr"
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-external-link"
-              label="View PR"
-              :to="pr.url"
-              target="_blank"
-            />
-            <UButton
-              color="primary"
-              label="Close"
-              @click="detach"
-            />
-          </template>
-          <template v-else-if="mode === 'failed'">
-            <UButton
-              color="neutral"
-              variant="ghost"
-              label="View log"
-              @click="() => { navigateTo(runWorkspacePath(activeRun!.projectId, activeRun!.id)) }"
-            />
-            <UTooltip text="Closes the test result and opens the failed step for editing. The failed run stays on the runs page.">
-              <UButton
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-pencil"
-                label="Fix failed step"
-                @click="backToEditing"
-              />
-            </UTooltip>
-            <UTooltip text="Continues this run at the failed step, keeping earlier step results. Runs the definition this test started with, without edits made since.">
-              <UButton
-                color="neutral"
-                variant="outline"
-                icon="i-lucide-play"
-                label="Resume run"
-                :loading="retrying"
-                @click="retry"
-              />
-            </UTooltip>
-            <UTooltip text="Starts a fresh test run with the current workflow definition, picking up your edits.">
-              <UButton
-                color="primary"
-                icon="i-lucide-refresh-cw"
-                label="Test again"
-                @click="retest"
-              />
-            </UTooltip>
-          </template>
-          <template v-else>
-            <span
-              v-if="saveState === 'saving'"
-              class="k-mono flex items-center gap-1.5 text-2xs text-dimmed"
-            >
-              <UIcon
-                name="i-lucide-loader-circle"
-                class="size-3.5 animate-spin"
-              /> Saving…
-            </span>
-            <UTooltip
-              v-else-if="saveState === 'error'"
-              :text="saveErrorText"
-            >
-              <span class="k-mono flex items-center gap-1.5 text-2xs text-error">
-                <UIcon
-                  name="i-lucide-circle-x"
-                  class="size-3.5"
-                /> Not saved
-              </span>
-            </UTooltip>
-            <!-- onCloseAutoFocus prevented: refocusing the chip scrolls the header
-                 back into view and cancels the jump-to-step scroll. -->
-            <UPopover
-              v-if="draftIssues.length && steps.length"
-              v-model:open="issuesOpen"
-              :content="{ align: 'end', onCloseAutoFocus: (e: Event) => e.preventDefault() }"
-            >
-              <button
-                type="button"
-                class="k-mono flex cursor-pointer items-center gap-1.5 text-2xs"
-                :class="flaggedIssues.length ? 'text-accent-orange' : 'text-dimmed'"
-              >
-                <UIcon
-                  :name="flaggedIssues.length ? 'i-lucide-circle-alert' : 'i-lucide-circle-dashed'"
-                  class="size-3.5"
-                /> {{ flaggedIssues.length ? `${flaggedIssues.length} ${flaggedIssues.length === 1 ? 'Issue' : 'Issues'}` : 'Incomplete' }}
-              </button>
-              <template #content>
-                <div class="w-80 p-1.5">
-                  <p class="px-2 pb-1 pt-1.5 text-2xs text-dimmed">
-                    {{ flaggedIssues.length ? 'Fix these to run:' : 'Left to fill in before this runs:' }}
-                  </p>
-                  <button
-                    v-for="(issue, i) in draftIssues"
-                    :key="i"
-                    type="button"
-                    class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs text-toned transition-colors enabled:cursor-pointer enabled:hover:bg-(--surface-accented)"
-                    :disabled="!issue.target"
-                    @click="jumpToIssue(issue)"
-                  >
-                    <UIcon
-                      :name="issue.pristine && !submitted ? 'i-lucide-circle-dashed' : 'i-lucide-circle-alert'"
-                      class="mt-0.5 size-3.5 flex-none"
-                      :class="issue.pristine && !submitted ? 'text-dimmed' : 'text-accent-orange'"
-                    />
-                    <span class="min-w-0">{{ issue.text }}</span>
-                  </button>
-                </div>
-              </template>
-            </UPopover>
-            <UPopover
-              v-model:open="runPickerOpen"
-              :content="{ side: 'bottom', align: 'end' }"
-            >
-              <UTooltip
-                :text="!steps.length ? 'Add a step first' : !projects?.length ? 'Connect a project first' : ''"
-                :disabled="!!steps.length && !!projects?.length"
-              >
-                <UButton
-                  color="primary"
-                  icon="i-lucide-play"
-                  trailing-icon="i-lucide-chevron-down"
-                  label="Run"
-                  :disabled="!steps.length || starting || !projects?.length"
-                />
-              </UTooltip>
-              <template #content>
-                <div class="w-72 p-3">
-                  <div class="k-label mb-1.5">
-                    Project
-                  </div>
-                  <USelectMenu
-                    v-model="project"
-                    :items="projects ?? []"
-                    placeholder="Select a project…"
-                    icon="i-lucide-folder-git-2"
-                    class="w-full"
-                  />
-
-                  <template v-if="project">
-                    <div class="k-label mb-1.5 mt-3.5">
-                      Branch
-                    </div>
-                    <USelectMenu
-                      v-model="testBranch"
-                      :items="testBranchItems"
-                      icon="i-lucide-git-branch"
-                      :search-input="{ placeholder: 'Filter branches…' }"
-                      class="w-full"
-                    />
-
-                    <button
-                      type="button"
-                      :aria-expanded="mockOpen"
-                      class="group mt-3.5 flex w-full cursor-pointer items-center gap-1.5"
-                      @click="mockOpen = !mockOpen"
-                    >
-                      <UIcon
-                        name="i-lucide-chevron-right"
-                        class="size-3.5 text-dimmed transition-transform"
-                        :class="mockOpen && 'rotate-90'"
-                      />
-                      <span class="k-label">Trigger event (mock)</span>
-                    </button>
-                    <div
-                      v-if="mockOpen"
-                      class="mt-2 space-y-2"
-                    >
-                      <template
-                        v-for="v in TRIGGER_VARS"
-                        :key="v.path"
-                      >
-                        <UTextarea
-                          v-if="v.path === 'inputs.body'"
-                          v-model="mockInputs[varPathParts(v.path)[1]]"
-                          :placeholder="v.path"
-                          :rows="2"
-                          class="w-full"
-                          :ui="{ base: 'k-mono text-xs' }"
-                        />
-                        <UInput
-                          v-else
-                          v-model="mockInputs[varPathParts(v.path)[1]]"
-                          :placeholder="v.path"
-                          class="w-full"
-                          :ui="{ base: 'k-mono text-xs' }"
-                        />
-                      </template>
-                      <p class="text-2xs leading-normal text-dimmed">
-                        Empty fields render as empty strings, exactly like a
-                        trigger that didn't send them.
-                      </p>
-                    </div>
-                  </template>
-
-                  <UButton
-                    class="mt-3.5 w-full justify-center"
-                    color="primary"
-                    icon="i-lucide-play"
-                    label="Run workflow"
-                    :loading="starting"
-                    :disabled="!project"
-                    @click="start"
-                  />
-                </div>
-              </template>
-            </UPopover>
-            <UDropdownMenu
-              v-if="saved"
-              :items="menuItems"
-              :content="{ align: 'end' }"
-            >
-              <UButton
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-ellipsis-vertical"
-                aria-label="More actions"
-              />
-            </UDropdownMenu>
-          </template>
         </template>
       </KPageHeader>
 
