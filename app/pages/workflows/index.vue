@@ -84,7 +84,7 @@ async function importFile(e: Event) {
   }
 }
 
-const tab = ref<'all' | 'used' | 'unused'>('all')
+const tab = useCookie<'all' | 'used' | 'unused'>('knecht-workflows-filter', { default: () => 'all' })
 const TABS = [
   { id: 'all', label: 'All' },
   { id: 'used', label: 'Automated' },

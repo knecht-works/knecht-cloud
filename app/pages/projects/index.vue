@@ -12,7 +12,7 @@ const runsByProject = computed(() => {
   return { latest, counts }
 })
 
-const activeFw = ref<string | null>(null)
+const activeFw = useCookie<string | null>('knecht-projects-filter', { default: () => null })
 
 const frameworks = computed(() => {
   const labels = new Set<string>()
@@ -20,6 +20,10 @@ const frameworks = computed(() => {
     if (p.framework) labels.add(frameworkMeta(p.framework).label)
   }
   return [...labels].sort()
+})
+
+watchEffect(() => {
+  if (activeFw.value && !frameworks.value.includes(activeFw.value)) activeFw.value = null
 })
 
 const filtered = computed(() =>
