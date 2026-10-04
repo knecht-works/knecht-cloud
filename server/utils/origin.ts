@@ -7,6 +7,18 @@ export function dashboardOrigin(): string {
   return domain ? `https://${domain}` : ''
 }
 
+// The previews are the same site as the dashboard, so SameSite cookies do not
+// stop them: cookie-authenticated requests check the Origin browsers send.
+export function isForeignOrigin(origin: string | null | undefined, host: string): boolean {
+  if (!origin) return false
+  try {
+    return new URL(origin).host !== host
+  }
+  catch {
+    return true
+  }
+}
+
 export function previewOrigin(sessionId: number, label?: string): string | null {
   const origin = dashboardOrigin()
   if (!origin) return null

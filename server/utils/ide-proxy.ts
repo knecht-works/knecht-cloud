@@ -8,6 +8,7 @@ import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { IDE_DEFAULT_SETTINGS, IDE_PORT, withIdeTokenCookie } from '../daemon/ide'
 import { forgetPreview, resolveContainerIp, resolvePreview, webContainerName } from '../daemon/sandbox'
 import { isMember, memberCount } from './members'
+import { isForeignOrigin } from './origin'
 import { knownSessionService, type SessionService } from './session-services'
 
 // Route-based ws handlers cannot serve the workbench's arbitrary paths, so
@@ -29,14 +30,10 @@ export function proxyRunIde(event: H3Event, sessionId: number): Promise<void> {
   })
 }
 
-const DASHBOARD_COOKIE = 'nuxt-session'
-
-// A service can be the project's own code: it must never see the dashboard session.
 export function proxyRunService(event: H3Event, sessionId: number, service: SessionService): Promise<void> {
   return proxyToContainer(event, sessionId, {
     container: service.container,
     port: service.port,
-    cookie: header => header?.split(';').map(c => c.trim()).filter(c => c && !c.startsWith(`${DASHBOARD_COOKIE}=`)).join('; ') || undefined,
     notRunning: `${service.label} is not reachable in this environment.`,
   })
 }
@@ -44,7 +41,7 @@ export function proxyRunService(event: H3Event, sessionId: number, service: Sess
 interface ContainerTarget {
   container: string
   port: number
-  cookie: (header: string | undefined) => string | undefined
+  cookie?: (header: string | undefined) => string | undefined
   html?: (html: string) => string
   notRunning: string
 }
@@ -86,8 +83,8 @@ async function proxyToContainer(event: H3Event, sessionId: number, target: Conta
   const req = event.node.req
   const res = event.node.res
   const wantsHtml = !!target.html && String(getRequestHeader(event, 'accept') ?? '').includes('text/html')
-  const headers = { ...req.headers, cookie: target.cookie(req.headers.cookie) }
-  if (headers.cookie === undefined) delete headers.cookie
+  const headers = { ...req.headers }
+  if (target.cookie) headers.cookie = target.cookie(req.headers.cookie)
   if (wantsHtml) headers['accept-encoding'] = 'identity'
   await new Promise<void>((resolve, reject) => {
     const upstream = httpRequest(
@@ -212,6 +209,9 @@ const pipeWsHooks = {
   async upgrade(request: { headers?: unknown, url?: string }) {
     const target = wsTarget(request)
     if (!target?.byCapability) {
+      if (isForeignOrigin(upgradeHeader(request, 'origin'), upgradeHost(request))) {
+        throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
+      }
       const session = await getUserSession(request as Parameters<typeof getUserSession>[0])
       if (!session?.user) {
         throw createError({ statusCode: 401, statusMessage: 'Login required' })

@@ -9,6 +9,10 @@ export default defineEventHandler(async (event) => {
 
   if (!pathname.startsWith('/api/')) return
 
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(event.method) && isForeignOrigin(getRequestHeader(event, 'origin'), event.node.req.headers.host ?? '')) {
+    throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
+  }
+
   if (pathname.startsWith('/api/_auth/')) return
 
   if (pathname.startsWith('/api/_setup/')) return
