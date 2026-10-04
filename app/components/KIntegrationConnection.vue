@@ -67,7 +67,7 @@ const setupUrl = computed(() => props.form.webhook.setupUrl.replace(/\{(\w+)\}/g
         v-for="field in form.fields"
         :key="field.key"
       >
-        <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">{{ field.label }}</span>
+        <span class="k-label">{{ field.label }}</span>
         <UInput
           v-model="values[field.key]"
           :type="field.type === 'secret' ? 'password' : 'text'"

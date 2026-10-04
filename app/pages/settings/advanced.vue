@@ -50,7 +50,7 @@ watch(sshTarget, () => {
           :error-text="saveError"
         />
       </template>
-      <p class="mb-5 text-2sm leading-relaxed text-muted">
+      <p class="mb-5 text-xs leading-relaxed text-muted">
         How do you reach this server over SSH? The run page's terminal modal uses this
         address to build the copy-pasteable SSH command. The web terminal and the IDE
         work without it.

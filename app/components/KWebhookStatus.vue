@@ -112,7 +112,7 @@ async function submitSecret() {
         <slot name="instructions" />
       </p>
       <div class="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2">
-        <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">URL</span>
+        <span class="k-label">URL</span>
         <span class="k-code min-w-0 max-w-full justify-self-start truncate text-xs">{{ connection.webhookUrl }}</span>
         <UButton
           color="neutral"
@@ -123,7 +123,7 @@ async function submitSecret() {
           aria-label="Copy webhook URL"
           @click="copy('Webhook URL', connection.webhookUrl)"
         />
-        <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Secret</span>
+        <span class="k-label">Secret</span>
         <template v-if="connection.webhookSecret && !secretEditing">
           <span class="k-code min-w-0 max-w-full justify-self-start truncate text-xs">{{ secretShown ? connection.webhookSecret : '•'.repeat(24) }}</span>
           <span class="flex gap-1">

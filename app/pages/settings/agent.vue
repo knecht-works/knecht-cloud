@@ -132,7 +132,7 @@ async function removeAiKey() {
       </template>
       <div class="flex gap-10">
         <div class="min-w-0 max-w-4xl flex-1">
-          <p class="mb-5 text-2sm leading-relaxed text-muted">
+          <p class="mb-5 text-xs leading-relaxed text-muted">
             The <span class="k-code">ai</span> workflow step
             runs opencode inside the run's sandbox, authenticated against the selected
             provider with this key. The key is stored encrypted, and each step can override
@@ -140,7 +140,7 @@ async function removeAiKey() {
           </p>
           <div class="grid grid-cols-1 gap-5 sm:grid-cols-[13rem_1fr]">
             <div>
-              <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Provider</span>
+              <span class="k-label">Provider</span>
               <div class="mt-2 flex gap-2">
                 <USelect
                   v-model="aiProvider"
@@ -174,7 +174,7 @@ async function removeAiKey() {
               </p>
             </div>
             <div>
-              <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">API key</span>
+              <span class="k-label">API key</span>
               <form
                 class="mt-2 flex items-center gap-2"
                 @submit.prevent="saveAiKey"
@@ -214,7 +214,7 @@ async function removeAiKey() {
               </p>
             </div>
             <div class="sm:col-span-2">
-              <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Default model</span>
+              <span class="k-label">Default model</span>
               <div class="mt-2">
                 <UInput
                   v-if="aiModelsError"
@@ -255,7 +255,7 @@ async function removeAiKey() {
               </p>
             </div>
             <div class="sm:col-span-2">
-              <span class="k-mono text-3xs uppercase tracking-widest text-dimmed">Subtask model</span>
+              <span class="k-label">Subtask model</span>
               <div class="mt-2">
                 <UInput
                   v-if="aiModelsError"
@@ -312,7 +312,7 @@ async function removeAiKey() {
         />
       </template>
       <div class="max-w-4xl">
-        <p class="mb-5 text-2sm leading-relaxed text-muted">
+        <p class="mb-5 text-xs leading-relaxed text-muted">
           What should the agent know or follow in every project? These rules are
           added on top of Knecht's built-in behavior rules; each project can add
           its own rules in its settings.
@@ -332,9 +332,6 @@ async function removeAiKey() {
           class="k-mono mt-2 text-2xs text-dimmed"
         >
           Preset by the installation.
-        </p>
-        <p class="mt-2 text-xs leading-normal text-muted">
-          Saved automatically and given to the agent on every run.
         </p>
       </div>
     </KPanel>
