@@ -15,7 +15,7 @@ function changeCount(notes: string): string {
   return n === 1 ? '1 change' : `${n} changes`
 }
 
-type NoteLine = { text: string, kind: 'heading' | 'title' | 'item' | 'text' }
+type NoteLine = { text: string, kind: 'heading' | 'title' | 'item' | 'text' | 'image' }
 
 const LEGACY_HEADINGS: Record<string, string> = { 'Breaking:': '⚠️ Breaking changes', 'New:': '🚀 New', 'Fixed:': '🐛 Fixed' }
 
@@ -25,6 +25,8 @@ function notesLines(notes: string): NoteLine[] {
     .map(line => line.trim().replaceAll('**', '').replaceAll('`', ''))
     .filter(line => line && !/^full changelog/i.test(line))
     .map((line): NoteLine => {
+      const image = line.match(/^<img\b[^>]*\ssrc="([^"]+)"[^>]*>$/) ?? line.match(/^!\[[^\]]*\]\(([^)\s]+)\)$/)
+      if (image) return { text: image[1]!, kind: 'image' }
       if (/^## /.test(line)) return { text: line.slice(3), kind: 'heading' }
       if (LEGACY_HEADINGS[line]) return { text: LEGACY_HEADINGS[line], kind: 'heading' }
       if (/^### /.test(line)) return { text: line.slice(4), kind: 'title' }
@@ -227,7 +229,17 @@ async function runUpdate() {
                   v-if="line.kind === 'item'"
                   class="flex-none text-dimmed"
                 >·</span>
-                <span class="min-w-0 break-words">{{ line.text }}</span>
+                <img
+                  v-if="line.kind === 'image'"
+                  :src="line.text"
+                  alt=""
+                  loading="lazy"
+                  class="my-1 w-full max-w-prose rounded-md border border-muted"
+                >
+                <span
+                  v-else
+                  class="min-w-0 break-words"
+                >{{ line.text }}</span>
               </li>
               <li
                 v-if="!notesLines(rel.notes).length"
