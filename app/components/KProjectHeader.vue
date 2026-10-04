@@ -44,11 +44,16 @@ const onSettings = computed(() => route.path.startsWith(`/projects/${props.proje
           v-model:open="startOpen"
           :content="{ side: 'bottom', align: 'end' }"
         >
-          <UButton
-            color="primary"
-            label="Start workflow"
-            :loading="starting"
-          />
+          <UTooltip
+            text="Run a workflow on this project"
+            :disabled="startOpen"
+          >
+            <UButton
+              color="primary"
+              label="Start workflow"
+              :loading="starting"
+            />
+          </UTooltip>
           <template #content>
             <div class="w-72 p-3">
               <div class="k-label mb-1.5">

@@ -107,19 +107,23 @@ const filtered = computed(() =>
           class="hidden"
           @change="importFile"
         >
-        <UButton
-          label="Import"
-          color="neutral"
-          variant="outline"
-          :loading="importing"
-          @click="importInput?.click()"
-        />
-        <UButton
-          label="New workflow"
-          color="primary"
-          :loading="creating"
-          @click="createWorkflow"
-        />
+        <UTooltip text="Import a workflow from a YAML or JSON file">
+          <UButton
+            label="Import"
+            color="neutral"
+            variant="outline"
+            :loading="importing"
+            @click="importInput?.click()"
+          />
+        </UTooltip>
+        <UTooltip text="Create an empty workflow">
+          <UButton
+            label="New workflow"
+            color="primary"
+            :loading="creating"
+            @click="createWorkflow"
+          />
+        </UTooltip>
       </template>
     </KTopBar>
 
