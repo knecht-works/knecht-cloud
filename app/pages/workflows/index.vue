@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { KWorkflowCard, KWorkflowRow } from '#components'
+
 const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
 const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
 const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
@@ -89,6 +91,8 @@ const TABS = [
   { id: 'unused', label: 'Manual only' },
 ] as const
 
+const view = useCookie<'grid' | 'list'>('knecht-workflows-view', { default: () => 'list' })
+
 const filtered = computed(() =>
   enriched.value.filter(w =>
     tab.value === 'all' || (tab.value === 'used' ? w.triggerCount > 0 : w.triggerCount === 0),
@@ -127,11 +131,13 @@ const filtered = computed(() =>
       </template>
     </KTopBar>
 
-    <KFilterPills
-      v-model="tab"
-      class="mb-3.5"
-      :items="TABS.map(t => ({ value: t.id, label: t.label }))"
-    />
+    <div class="mb-3.5 flex items-center justify-between gap-4">
+      <KFilterPills
+        v-model="tab"
+        :items="TABS.map(t => ({ value: t.id, label: t.label }))"
+      />
+      <KViewToggle v-model="view" />
+    </div>
 
     <div
       v-if="!filtered.length"
@@ -148,9 +154,10 @@ const filtered = computed(() =>
 
     <div
       v-else
-      class="flex flex-col gap-3"
+      :class="view === 'grid' ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'flex flex-col gap-3'"
     >
-      <KWorkflowRow
+      <component
+        :is="view === 'grid' ? KWorkflowCard : KWorkflowRow"
         v-for="w in filtered"
         :id="w.id"
         :key="w.id"
