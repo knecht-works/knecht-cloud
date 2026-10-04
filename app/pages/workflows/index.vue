@@ -124,7 +124,7 @@ const filtered = computed(() =>
           icon="i-lucide-upload"
           label="Import"
           color="neutral"
-          variant="ghost"
+          variant="outline"
           :loading="importing"
           @click="importInput?.click()"
         />
