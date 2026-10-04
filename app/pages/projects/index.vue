@@ -28,6 +28,8 @@ const filtered = computed(() =>
   ),
 )
 
+const view = useCookie<'grid' | 'list'>('knecht-projects-view', { default: () => 'grid' })
+
 const open = ref(false)
 </script>
 
@@ -45,14 +47,62 @@ const open = ref(false)
       </template>
     </KTopBar>
 
-    <KFilterPills
-      v-if="frameworks.length"
-      v-model="activeFw"
-      class="mb-3.5"
-      :items="[{ value: null, label: 'All' }, ...frameworks.map(f => ({ value: f, label: f }))]"
-    />
+    <div class="mb-3.5 flex items-center justify-between gap-4">
+      <KFilterPills
+        v-if="frameworks.length"
+        v-model="activeFw"
+        :items="[{ value: null, label: 'All' }, ...frameworks.map(f => ({ value: f, label: f }))]"
+      />
+      <KViewToggle
+        v-model="view"
+        class="ml-auto"
+      />
+    </div>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div
+      v-if="view === 'list'"
+      class="flex flex-col gap-3"
+    >
+      <KProjectRow
+        v-for="p in filtered"
+        :id="p.id"
+        :key="p.id"
+        :full-name="p.fullName"
+        :default-branch="p.defaultBranch"
+        :private="p.private"
+        :framework="p.framework"
+        :framework-version="p.frameworkVersion"
+        :favicon="p.favicon"
+        :latest="runsByProject.latest.get(p.id) ?? null"
+        :runs-count="runsByProject.counts.get(p.id) ?? 0"
+      />
+
+      <button
+        type="button"
+        class="flex items-center gap-3 rounded-lg border border-dashed border-accented px-5 py-3.5 text-left transition-colors hover:bg-(--surface-glass) cursor-pointer"
+        @click="open = true"
+      >
+        <span class="grid size-[34px] place-items-center rounded-lg border border-accented bg-(--surface-muted) text-primary">
+          <UIcon
+            name="i-lucide-plus"
+            class="size-4"
+          />
+        </span>
+        <div>
+          <div class="text-sm font-medium text-toned">
+            Connect a new project
+          </div>
+          <div class="mt-0.5 text-xs text-dimmed">
+            A GitHub repo with DDEV
+          </div>
+        </div>
+      </button>
+    </div>
+
+    <div
+      v-else
+      class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+    >
       <KProjectCard
         v-for="p in filtered"
         :id="p.id"
