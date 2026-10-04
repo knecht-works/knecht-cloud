@@ -1,6 +1,7 @@
 import { previewLabel } from '../../shared/utils/preview-host'
 import { readDdevConfig, readDdevHosts } from '../daemon/ddev'
 import { exposedPorts, type ExposedPort } from '../daemon/sandbox'
+import { verifyDevServerLabel } from './dev-origin'
 import { getSessionRow } from './entities'
 import { sessionCheckoutDir } from './storage'
 
@@ -52,6 +53,12 @@ export async function sessionServices(sessionId: number): Promise<SessionService
 
 export async function findSessionService(sessionId: number, label: string): Promise<SessionService | undefined> {
   return (await sessionServices(sessionId)).find(s => s.label === label)
+}
+
+export async function isPreviewLabel(sessionId: number, label: string): Promise<boolean> {
+  if (RESERVED_LABELS.has(label) || verifyDevServerLabel(sessionId, label)) return true
+  if (readDdevHosts(sessionCheckoutDir(sessionId)).all.some(host => previewLabel(host) === label)) return true
+  return !!await findSessionService(sessionId, label)
 }
 
 export function knownSessionService(sessionId: number, label: string): SessionService | undefined {
