@@ -94,9 +94,6 @@ async function onRunDeleted() {
   await refreshRuns()
 }
 
-const activeRunCount = computed(() =>
-  projectRuns.value.filter(r => r.status === 'running' || r.status === 'queued').length)
-
 const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
 const projectTriggers = computed(() =>
   (triggers.value ?? []).filter(t => t.projectIds.includes(id)))
@@ -111,34 +108,25 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
 
 <template>
   <div v-if="project">
-    <div class="mb-3.5 flex items-center gap-2 text-dimmed">
-      <NuxtLink
-        to="/projects"
-        class="k-mono text-xs transition-colors hover:text-muted"
-      >
-        Projects
-      </NuxtLink>
-      <UIcon
-        name="i-lucide-chevron-right"
-        class="size-3"
-      />
-      <span class="k-mono truncate text-xs text-muted">{{ project.fullName }}</span>
-    </div>
-
     <KProjectHeader
-      class="mb-5.5"
+      class="mb-4"
       :project="project"
-      :active-runs="activeRunCount"
       @run-started="onRunStarted"
     >
-      <template #nav>
-        <UButton
-          :to="`/projects/${id}/settings`"
-          color="neutral"
-          variant="outline"
-          icon="i-lucide-settings-2"
-          label="Settings"
-        />
+      <template #breadcrumb>
+        <div class="flex min-w-0 items-center gap-2 text-dimmed">
+          <NuxtLink
+            to="/projects"
+            class="k-mono text-xs transition-colors hover:text-muted"
+          >
+            Projects
+          </NuxtLink>
+          <UIcon
+            name="i-lucide-chevron-right"
+            class="size-3"
+          />
+          <span class="k-mono truncate text-xs text-muted">{{ project.fullName }}</span>
+        </div>
       </template>
     </KProjectHeader>
 

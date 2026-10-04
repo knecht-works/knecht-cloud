@@ -37,7 +37,7 @@ async function setLink(value: string | null) {
     :accent="ui.color"
   >
     <div class="flex flex-col">
-      <p class="text-2xs leading-relaxed text-dimmed">
+      <p class="text-xs leading-relaxed text-dimmed">
         Tickets of the linked {{ integration.link.label }} can start this repo's workflows, get Knecht's
         replies, and turn mentions into follow-ups. One {{ integration.link.label }} per repository.
       </p>
