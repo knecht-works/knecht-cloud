@@ -115,7 +115,7 @@ jobs:
       # images, so image lines are dropped and the first image becomes the
       # embed image. Headings shrink a level: Discord renders ## very large.
       - name: Announce the release on Discord
-        if: ${{ endsWith(github.ref_name, '.0') || contains(github.ref_name, '-rc.') }}
+        if: ${{ endsWith(github.ref_name, '.0') }}
         env:
           WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
         run: |
