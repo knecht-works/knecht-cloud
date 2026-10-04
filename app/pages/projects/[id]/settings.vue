@@ -15,7 +15,7 @@ const SECTIONS = [
 <template>
   <div v-if="project">
     <KProjectHeader
-      class="mb-4"
+      class="mb-6"
       :project="project"
       @run-started="runId => navigateTo({ path: `/projects/${id}`, query: { run: String(runId) } })"
     >

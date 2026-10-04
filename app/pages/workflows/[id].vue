@@ -644,7 +644,7 @@ const pr = computed(() => {
 
     <template v-else>
       <KPageHeader
-        class="mb-4"
+        class="mb-6"
         icon="i-lucide-workflow"
         icon-color="var(--text-primary)"
         :icon-size="52"

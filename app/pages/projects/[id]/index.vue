@@ -109,7 +109,7 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
 <template>
   <div v-if="project">
     <KProjectHeader
-      class="mb-4"
+      class="mb-6"
       :project="project"
       @run-started="onRunStarted"
     >
