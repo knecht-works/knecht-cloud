@@ -24,6 +24,21 @@ const durationDelta = computed(() => {
   return d ? { text: `${d > 0 ? '+' : '-'}${formatDuration(Math.abs(d))}`, color: deltaColor(d, false) } : null
 })
 
+const DONUT_CORNER = 1.25
+
+// A filled ring segment shrunk by the corner radius, then stroked with round joins,
+// gives the arc small rounded corners (stroke-linecap only offers fully round ends).
+function donutArc(percent: number) {
+  const outer = 16.5 - DONUT_CORNER
+  const inner = 11.5 + DONUT_CORNER
+  const inset = DONUT_CORNER / 14
+  const start = -Math.PI / 2 + inset
+  const end = Math.max(start + 0.001, -Math.PI / 2 + (percent / 100) * 2 * Math.PI - inset)
+  const large = end - start > Math.PI ? 1 : 0
+  const at = (r: number, a: number) => `${18 + r * Math.cos(a)},${18 + r * Math.sin(a)}`
+  return `M${at(outer, start)} A${outer},${outer} 0 ${large} 1 ${at(outer, end)} L${at(inner, end)} A${inner},${inner} 0 ${large} 0 ${at(inner, start)} Z`
+}
+
 const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
 </script>
 
@@ -78,15 +93,21 @@ const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
               stroke-width="5"
             />
             <circle
+              v-if="stats.triggered >= 100"
               cx="18"
               cy="18"
               r="14"
               fill="none"
               stroke="var(--primary)"
               stroke-width="5"
-              pathLength="100"
-              :stroke-dasharray="`${stats.triggered} 100`"
-              transform="rotate(-90 18 18)"
+            />
+            <path
+              v-else-if="stats.triggered > 0"
+              :d="donutArc(stats.triggered)"
+              fill="var(--primary)"
+              stroke="var(--primary)"
+              :stroke-width="DONUT_CORNER * 2"
+              stroke-linejoin="round"
             />
           </svg>
         </KMetric>

@@ -10,14 +10,14 @@ const max = computed(() => Math.max(1, ...props.days.map(d => d.success + d.fail
 
 <template>
   <div
-    class="flex w-full items-end gap-[3px]"
+    class="flex w-full items-end gap-0.75"
     :style="{ height: `${HEIGHT}px` }"
     aria-hidden="true"
   >
     <div
       v-for="(d, i) in days"
       :key="i"
-      class="flex min-h-0.5 flex-1 flex-col-reverse overflow-hidden rounded-t-[2px] bg-(--surface-glass)"
+      class="flex min-h-0.5 flex-1 flex-col-reverse overflow-hidden rounded-0.75 bg-(--surface-glass)"
     >
       <div
         class="bg-primary"
