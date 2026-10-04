@@ -108,7 +108,6 @@ const filtered = computed(() =>
           @change="importFile"
         >
         <UButton
-          icon="i-lucide-upload"
           label="Import"
           color="neutral"
           variant="outline"
@@ -116,7 +115,6 @@ const filtered = computed(() =>
           @click="importInput?.click()"
         />
         <UButton
-          icon="i-lucide-plus"
           label="New workflow"
           color="primary"
           :loading="creating"
