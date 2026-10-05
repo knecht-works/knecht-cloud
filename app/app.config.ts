@@ -42,5 +42,23 @@ export default defineAppConfig({
         item: 'cursor-pointer',
       },
     },
+    breadcrumb: {
+      slots: {
+        link: 'k-mono text-xs',
+      },
+      variants: {
+        active: {
+          true: { link: 'font-normal' },
+          false: { link: 'font-normal text-dimmed' },
+        },
+      },
+      compoundVariants: [
+        { color: 'neutral', active: true, class: { link: 'text-muted' } },
+        { active: false, to: true, class: { link: 'hover:text-muted' } },
+      ],
+      defaultVariants: {
+        color: 'neutral',
+      },
+    },
   },
 })

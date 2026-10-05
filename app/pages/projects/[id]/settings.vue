@@ -19,29 +19,11 @@ const SECTIONS = [
       @run-started="runId => navigateTo({ path: `/projects/${id}`, query: { run: String(runId) } })"
     >
       <template #breadcrumb>
-        <div class="flex min-w-0 items-center gap-2 text-dimmed">
-          <NuxtLink
-            to="/projects"
-            class="k-mono text-xs transition-colors hover:text-muted"
-          >
-            Projects
-          </NuxtLink>
-          <UIcon
-            name="i-lucide-chevron-right"
-            class="size-3"
-          />
-          <NuxtLink
-            :to="`/projects/${id}`"
-            class="k-mono truncate text-xs transition-colors hover:text-muted"
-          >
-            {{ project.fullName }}
-          </NuxtLink>
-          <UIcon
-            name="i-lucide-chevron-right"
-            class="size-3"
-          />
-          <span class="k-mono text-xs text-muted">Settings</span>
-        </div>
+        <UBreadcrumb :items="[{ label: 'Projects', to: '/projects' }, { label: project.fullName, to: `/projects/${id}` }, { label: 'Settings' }]">
+          <template #separator>
+            <span class="k-mono text-xs text-dimmed">/</span>
+          </template>
+        </UBreadcrumb>
       </template>
     </KProjectHeader>
     <KProjectHero

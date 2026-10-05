@@ -30,7 +30,7 @@ const onSettings = computed(() => route.path.startsWith(`/projects/${props.proje
 </script>
 
 <template>
-  <div class="flex items-start justify-between gap-4">
+  <div class="flex min-h-10 items-center justify-between gap-4">
     <slot name="breadcrumb" />
     <div class="flex flex-none items-center gap-2.5">
       <UPopover
