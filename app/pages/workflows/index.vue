@@ -49,7 +49,7 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const avg = durations.length ? formatDuration(durations.reduce((a, b) => a + b, 0) / durations.length) : null
 
   const latest = wRuns[0] ?? null
-  const status = latest ? RUN_STATUS_META[latest.status] : IDLE_STATUS_META
+  const status = runStatusMeta(latest)
   const statusText = latest ? `${status.label} · ${timeAgo(latest.createdAt)}` : 'No runs yet'
 
   const wTriggers = (triggers.value ?? []).filter(t => t.workflowId === w.id)

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 const props = withDefaults(defineProps<{
-  color?: 'primary' | 'success' | 'orange' | 'violet' | 'warning' | 'error' | 'neutral'
+  color?: keyof typeof DOT_COLOR_VAR
   pulse?: boolean
   glow?: boolean
   size?: number
@@ -11,17 +11,7 @@ const props = withDefaults(defineProps<{
   size: 6,
 })
 
-const COLOR_VAR: Record<string, string> = {
-  primary: 'var(--primary)',
-  success: 'var(--primary)',
-  orange: 'var(--accent-orange)',
-  violet: 'var(--accent-violet)',
-  warning: 'var(--accent-violet)',
-  error: 'var(--status-error)',
-  neutral: 'var(--status-neutral)',
-}
-
-const c = computed(() => COLOR_VAR[props.color] ?? COLOR_VAR.primary)
+const c = computed(() => DOT_COLOR_VAR[props.color] ?? DOT_COLOR_VAR.primary)
 </script>
 
 <template>

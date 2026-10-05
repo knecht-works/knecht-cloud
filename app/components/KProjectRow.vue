@@ -29,7 +29,7 @@ const parts = computed(() => {
 const fw = computed(() => frameworkMeta(props.framework))
 const fwLabel = computed(() => props.frameworkVersion ? `${fw.value.label} ${props.frameworkVersion}` : fw.value.label)
 
-const status = computed(() => props.latest ? RUN_STATUS_META[props.latest.status] : IDLE_STATUS_META)
+const status = computed(() => runStatusMeta(props.latest))
 const statusText = computed(() =>
   props.latest ? `${status.value.label} · ${props.latest.workflow}` : 'Ready · no runs yet',
 )

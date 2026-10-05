@@ -17,7 +17,7 @@ const { data: stepRows, refresh: refreshSteps } = useFetch(`/api/runs/${id}/step
 
 const isLive = computed(() => isLiveStatus(run.value?.status))
 
-const statusMeta = computed(() => run.value ? RUN_STATUS_META[run.value.status] : IDLE_STATUS_META)
+const statusMeta = computed(() => runStatusMeta(run.value))
 
 const previewOnline = computed(() =>
   run.value?.envState === 'up' && run.value.previewReady)
