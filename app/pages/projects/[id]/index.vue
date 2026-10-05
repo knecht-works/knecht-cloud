@@ -132,28 +132,34 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
 
     <!-- Sidebar sizing matches workflows/[id].vue, keep them in sync. -->
     <div class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
-      <KRunWorkspace
-        v-if="selectedRun"
-        :key="selectedRun.id"
-        :run-id="selectedRun.id"
-        @deleted="onRunDeleted"
-        @started="onRunStarted"
-        @changed="refreshRuns"
-      />
-      <KPreviewBrowser
-        v-else
-        :session-id="0"
-        :online="false"
-      >
-        <img
-          src="/mascot/mascotRight.png"
-          alt="Knecht"
-          class="h-16 w-auto drop-shadow-mascot"
+      <div class="min-w-0">
+        <KProjectHero
+          class="mb-6"
+          :project="project"
+        />
+        <KRunWorkspace
+          v-if="selectedRun"
+          :key="selectedRun.id"
+          :run-id="selectedRun.id"
+          @deleted="onRunDeleted"
+          @started="onRunStarted"
+          @changed="refreshRuns"
+        />
+        <KPreviewBrowser
+          v-else
+          :session-id="0"
+          :online="false"
         >
-        <p class="max-w-70 text-2sm text-muted">
-          No live preview yet. Start a workflow to boot the project, then preview it here.
-        </p>
-      </KPreviewBrowser>
+          <img
+            src="/mascot/mascotRight.png"
+            alt="Knecht"
+            class="h-16 w-auto drop-shadow-mascot"
+          >
+          <p class="max-w-70 text-2sm text-muted">
+            No live preview yet. Start a workflow to boot the project, then preview it here.
+          </p>
+        </KPreviewBrowser>
+      </div>
 
       <div class="flex flex-col gap-4.5">
         <div
