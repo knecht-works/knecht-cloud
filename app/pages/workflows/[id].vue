@@ -378,20 +378,12 @@ const pr = computed(() => {
 
 <template>
   <div>
-    <div class="flex items-start justify-between gap-4">
-      <div class="flex min-w-0 items-center gap-2 text-dimmed">
-        <NuxtLink
-          to="/workflows"
-          class="k-mono text-xs transition-colors hover:text-muted"
-        >
-          Workflows
-        </NuxtLink>
-        <UIcon
-          name="i-lucide-chevron-right"
-          class="size-3"
-        />
-        <span class="k-mono truncate text-xs text-muted">{{ meta.name || saved?.name || '…' }}</span>
-      </div>
+    <div class="flex min-h-10 items-center justify-between gap-4">
+      <UBreadcrumb :items="[{ label: 'Workflows', to: '/workflows' }, { label: meta.name || saved?.name || '…' }]">
+        <template #separator>
+          <span class="k-mono text-xs text-dimmed">/</span>
+        </template>
+      </UBreadcrumb>
       <div
         v-if="!notFound"
         class="flex flex-none items-center gap-2.5"

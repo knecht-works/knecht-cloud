@@ -114,19 +114,11 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
       @run-started="onRunStarted"
     >
       <template #breadcrumb>
-        <div class="flex min-w-0 items-center gap-2 text-dimmed">
-          <NuxtLink
-            to="/projects"
-            class="k-mono text-xs transition-colors hover:text-muted"
-          >
-            Projects
-          </NuxtLink>
-          <UIcon
-            name="i-lucide-chevron-right"
-            class="size-3"
-          />
-          <span class="k-mono truncate text-xs text-muted">{{ project.fullName }}</span>
-        </div>
+        <UBreadcrumb :items="[{ label: 'Projects', to: '/projects' }, { label: project.fullName }]">
+          <template #separator>
+            <span class="k-mono text-xs text-dimmed">/</span>
+          </template>
+        </UBreadcrumb>
       </template>
     </KProjectHeader>
 
