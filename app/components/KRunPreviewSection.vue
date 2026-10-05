@@ -75,17 +75,4 @@ async function runAgain() {
       @run-again="runAgain"
     />
   </KPreviewBrowser>
-  <div
-    v-else-if="hasEnv && envState !== 'up' && !isLive"
-    class="k-card flex flex-col items-center gap-3 p-5 text-center"
-  >
-    <KEnvLifecycle
-      :env-state="envState"
-      :workflow-id="workflowId"
-      :reviving="reviving"
-      :restarting="restarting"
-      @revive="reboot"
-      @run-again="runAgain"
-    />
-  </div>
 </template>
