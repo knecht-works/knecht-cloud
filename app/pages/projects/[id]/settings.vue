@@ -15,7 +15,6 @@ const SECTIONS = [
 <template>
   <div v-if="project">
     <KProjectHeader
-      class="mb-6"
       :project="project"
       @run-started="runId => navigateTo({ path: `/projects/${id}`, query: { run: String(runId) } })"
     >
@@ -45,6 +44,10 @@ const SECTIONS = [
         </div>
       </template>
     </KProjectHeader>
+    <KProjectHero
+      class="mb-6"
+      :project="project"
+    />
 
     <KSettingsNav :sections="SECTIONS">
       <NuxtPage />

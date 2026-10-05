@@ -643,424 +643,425 @@ const pr = computed(() => {
     </div>
 
     <template v-else>
-      <KPageHeader
-        class="mb-6"
-        icon="i-lucide-workflow"
-        icon-color="var(--text-primary)"
-        :icon-size="52"
-      >
-        <input
-          v-if="editable"
-          v-model="meta.name"
-          placeholder="Workflow name"
-          spellcheck="false"
-          aria-label="Workflow name"
-          class="k-mono w-full bg-transparent text-2xl font-semibold tracking-tight text-highlighted outline-none placeholder:text-dimmed"
-        >
-        <h1
-          v-else
-          class="k-mono min-w-0 truncate text-2xl font-semibold tracking-tight text-highlighted"
-        >
-          {{ meta.name }}
-        </h1>
-        <template #meta>
-          <input
-            v-if="editable"
-            v-model="meta.description"
-            placeholder="Short description (optional)"
-            class="w-full bg-transparent text-2sm text-muted outline-none placeholder:text-dimmed"
-          >
-          <span
-            v-else-if="meta.description"
-            class="truncate text-2sm text-muted"
-          >{{ meta.description }}</span>
-        </template>
-      </KPageHeader>
-
-      <div
-        v-if="mode === 'running'"
-        class="mb-4.5 overflow-hidden rounded-lg border"
-        style="border-color: color-mix(in oklab, var(--accent-orange) 40%, transparent); background: color-mix(in oklab, var(--accent-orange) 10%, transparent)"
-      >
-        <div class="flex items-center gap-3 px-4 py-3.5">
-          <UIcon
-            name="i-lucide-play"
-            class="size-4.5 flex-none text-accent-orange"
-          />
-          <div class="text-2sm leading-snug text-toned">
-            Test run in the real project · <b>Step {{ startedSteps }} of {{ steps.length }}</b> · executing…
-          </div>
-        </div>
-        <div class="h-1 bg-(--surface-accented)">
-          <div
-            class="h-full bg-accent-orange"
-            :style="{ width: `${(startedSteps / steps.length) * 100}%`, boxShadow: '0 0 12px var(--accent-orange)' }"
-          />
-        </div>
-      </div>
-      <div
-        v-else-if="mode === 'success'"
-        class="mb-4.5 flex items-center gap-3 rounded-lg border px-4 py-3.5"
-        style="border-color: var(--primary-border); background: color-mix(in oklab, var(--primary) 10%, transparent)"
-      >
-        <UIcon
-          name="i-lucide-check"
-          class="size-4.5 flex-none text-primary"
-        />
-        <div class="text-2sm leading-snug text-toned">
-          <b>Test succeeded.</b> All {{ steps.length }} steps green<template v-if="pr">
-            · Pull Request #{{ pr.number }} created
-          </template> · runtime {{ runDuration(activeRun!.startedAt, activeRun!.finishedAt) }}
-        </div>
-      </div>
-      <div
-        v-else-if="mode === 'failed'"
-        class="mb-4.5 flex items-center gap-3 rounded-lg border px-4 py-3.5"
-        style="border-color: color-mix(in oklab, var(--status-error) 45%, transparent); background: color-mix(in oklab, var(--status-error) 12%, transparent)"
-      >
-        <UIcon
-          name="i-lucide-flask-conical"
-          class="size-4.5 flex-none text-error"
-        />
-        <div class="text-2sm leading-snug text-toned">
-          <template v-if="failedStep">
-            <b>Test failed at step {{ failedStep.n }}, "{{ failedStep.label }}".</b>
-            <template v-if="failedStep.skipped">
-              The {{ failedStep.skipped === 1 ? 'following step was' : `following ${failedStep.skipped} steps were` }} skipped.
-            </template>
-          </template>
-          <template v-else>
-            <b>Test failed before its first step.</b> The log below has the details.
-          </template>
-        </div>
-      </div>
-
       <!-- Sidebar sizing matches projects/[id].vue, keep them in sync. -->
-      <div class="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]">
-        <div
-          class="min-w-0"
-          @dragover="overList(steps, 1, $event)"
-          @drop.prevent="performDrop()"
-        >
-          <div class="mb-3 flex gap-3.5">
-            <div class="flex w-7.5 flex-none flex-col items-center">
-              <span
-                class="grid size-7.5 flex-none place-items-center rounded-full"
-                style="background: color-mix(in oklab, var(--accent-violet) 16%, var(--surface-muted)); border: 1px solid color-mix(in oklab, var(--accent-violet) 55%, transparent)"
+      <div class="mt-6 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]">
+        <div class="min-w-0">
+          <KPageHeader
+            class="mb-6"
+            icon="i-lucide-workflow"
+            icon-color="var(--text-primary)"
+            :icon-size="52"
+          >
+            <input
+              v-if="editable"
+              v-model="meta.name"
+              placeholder="Workflow name"
+              spellcheck="false"
+              aria-label="Workflow name"
+              class="k-mono w-full bg-transparent text-2xl font-semibold tracking-tight text-highlighted outline-none placeholder:text-dimmed"
+            >
+            <h1
+              v-else
+              class="k-mono min-w-0 truncate text-2xl font-semibold tracking-tight text-highlighted"
+            >
+              {{ meta.name }}
+            </h1>
+            <template #meta>
+              <input
+                v-if="editable"
+                v-model="meta.description"
+                placeholder="Short description (optional)"
+                class="w-full bg-transparent text-2sm text-muted outline-none placeholder:text-dimmed"
               >
-                <UIcon
-                  name="i-lucide-zap"
-                  class="size-4 text-accent-violet"
-                />
-              </span>
               <span
-                class="my-1 w-0.5 flex-1 rounded-sm bg-(--border-default)"
-                style="min-height: 16px"
+                v-else-if="meta.description"
+                class="truncate text-2sm text-muted"
+              >{{ meta.description }}</span>
+            </template>
+          </KPageHeader>
+
+          <div
+            v-if="mode === 'running'"
+            class="mb-4.5 overflow-hidden rounded-lg border"
+            style="border-color: color-mix(in oklab, var(--accent-orange) 40%, transparent); background: color-mix(in oklab, var(--accent-orange) 10%, transparent)"
+          >
+            <div class="flex items-center gap-3 px-4 py-3.5">
+              <UIcon
+                name="i-lucide-play"
+                class="size-4.5 flex-none text-accent-orange"
+              />
+              <div class="text-2sm leading-snug text-toned">
+                Test run in the real project · <b>Step {{ startedSteps }} of {{ steps.length }}</b> · executing…
+              </div>
+            </div>
+            <div class="h-1 bg-(--surface-accented)">
+              <div
+                class="h-full bg-accent-orange"
+                :style="{ width: `${(startedSteps / steps.length) * 100}%`, boxShadow: '0 0 12px var(--accent-orange)' }"
               />
             </div>
-
-            <div
-              v-if="workflowTriggers.length"
-              class="min-w-0 flex-1 overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-panel"
-            >
-              <div
-                v-if="saved && !saved.enabled"
-                class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2 text-2xs"
-                style="background: color-mix(in oklab, var(--accent-orange) 9%, transparent)"
-              >
-                <span class="k-mono text-accent-orange">Paused: triggers won’t fire</span>
-                <UTooltip
-                  :text="valid ? 'Enable triggers' : 'Finish the step config first'"
+          </div>
+          <div
+            v-else-if="mode === 'success'"
+            class="mb-4.5 flex items-center gap-3 rounded-lg border px-4 py-3.5"
+            style="border-color: var(--primary-border); background: color-mix(in oklab, var(--primary) 10%, transparent)"
+          >
+            <UIcon
+              name="i-lucide-check"
+              class="size-4.5 flex-none text-primary"
+            />
+            <div class="text-2sm leading-snug text-toned">
+              <b>Test succeeded.</b> All {{ steps.length }} steps green<template v-if="pr">
+                · Pull Request #{{ pr.number }} created
+              </template> · runtime {{ runDuration(activeRun!.startedAt, activeRun!.finishedAt) }}
+            </div>
+          </div>
+          <div
+            v-else-if="mode === 'failed'"
+            class="mb-4.5 flex items-center gap-3 rounded-lg border px-4 py-3.5"
+            style="border-color: color-mix(in oklab, var(--status-error) 45%, transparent); background: color-mix(in oklab, var(--status-error) 12%, transparent)"
+          >
+            <UIcon
+              name="i-lucide-flask-conical"
+              class="size-4.5 flex-none text-error"
+            />
+            <div class="text-2sm leading-snug text-toned">
+              <template v-if="failedStep">
+                <b>Test failed at step {{ failedStep.n }}, "{{ failedStep.label }}".</b>
+                <template v-if="failedStep.skipped">
+                  The {{ failedStep.skipped === 1 ? 'following step was' : `following ${failedStep.skipped} steps were` }} skipped.
+                </template>
+              </template>
+              <template v-else>
+                <b>Test failed before its first step.</b> The log below has the details.
+              </template>
+            </div>
+          </div>
+          <div
+            class="min-w-0"
+            @dragover="overList(steps, 1, $event)"
+            @drop.prevent="performDrop()"
+          >
+            <div class="mb-3 flex gap-3.5">
+              <div class="flex w-7.5 flex-none flex-col items-center">
+                <span
+                  class="grid size-7.5 flex-none place-items-center rounded-full"
+                  style="background: color-mix(in oklab, var(--accent-violet) 16%, var(--surface-muted)); border: 1px solid color-mix(in oklab, var(--accent-violet) 55%, transparent)"
                 >
-                  <KToggle
-                    :active="false"
-                    :disabled="togglingEnabled"
-                    aria-label="Enable triggers"
-                    @toggle="toggleEnabled"
+                  <UIcon
+                    name="i-lucide-zap"
+                    class="size-4 text-accent-violet"
                   />
-                </UTooltip>
+                </span>
+                <span
+                  class="my-1 w-0.5 flex-1 rounded-sm bg-(--border-default)"
+                  style="min-height: 16px"
+                />
               </div>
 
               <div
-                v-for="t in workflowTriggers"
-                :key="t.id"
-                class="flex items-start gap-3 border-b border-muted px-4 py-3.5 transition-opacity"
-                :style="{ opacity: (t.active && saved?.enabled) ? 1 : 0.45 }"
+                v-if="workflowTriggers.length"
+                class="min-w-0 flex-1 overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-panel"
               >
-                <button
-                  type="button"
-                  class="group flex min-w-0 flex-1 items-start gap-3 text-left enabled:cursor-pointer"
-                  aria-label="Edit trigger"
-                  :disabled="!editable"
-                  @click="editTrigger(t)"
+                <div
+                  v-if="saved && !saved.enabled"
+                  class="flex items-center justify-between gap-3 border-b border-muted px-4 py-2 text-2xs"
+                  style="background: color-mix(in oklab, var(--accent-orange) 9%, transparent)"
                 >
-                  <KStepIcon
-                    :icon="triggerSourceMeta(t.source).icon"
-                    :color="triggerSourceMeta(t.source).color"
-                    :size="32"
-                    :radius="8"
-                  />
-                  <span class="min-w-0 flex-1">
-                    <span class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                      <span class="text-sm font-medium text-highlighted">
-                        {{ triggerSourceMeta(t.source).label }} {{ t.kind }}
-                      </span>
-                    </span>
-                    <span
-                      v-if="t.source === 'schedule'"
-                      class="mt-1 block text-xs text-muted"
-                    >{{ t.event }}</span>
-                    <span
-                      v-else
-                      class="mt-1 flex flex-col gap-1 text-xs text-muted"
-                    >
-                      <span class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-                        <span>on</span>
-                        <template
-                          v-for="(segments, ei) in t.events"
-                          :key="ei"
-                        >
-                          <span
-                            v-if="ei > 0"
-                            class="-ml-1.5"
-                          >,</span>
-                          <KTriggerSegments :segments="segments" />
-                        </template>
+                  <span class="k-mono text-accent-orange">Paused: triggers won’t fire</span>
+                  <UTooltip
+                    :text="valid ? 'Enable triggers' : 'Finish the step config first'"
+                  >
+                    <KToggle
+                      :active="false"
+                      :disabled="togglingEnabled"
+                      aria-label="Enable triggers"
+                      @toggle="toggleEnabled"
+                    />
+                  </UTooltip>
+                </div>
+
+                <div
+                  v-for="t in workflowTriggers"
+                  :key="t.id"
+                  class="flex items-start gap-3 border-b border-muted px-4 py-3.5 transition-opacity"
+                  :style="{ opacity: (t.active && saved?.enabled) ? 1 : 0.45 }"
+                >
+                  <button
+                    type="button"
+                    class="group flex min-w-0 flex-1 items-start gap-3 text-left enabled:cursor-pointer"
+                    aria-label="Edit trigger"
+                    :disabled="!editable"
+                    @click="editTrigger(t)"
+                  >
+                    <KStepIcon
+                      :icon="triggerSourceMeta(t.source).icon"
+                      :color="triggerSourceMeta(t.source).color"
+                      :size="32"
+                      :radius="8"
+                    />
+                    <span class="min-w-0 flex-1">
+                      <span class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span class="text-sm font-medium text-highlighted">
+                          {{ triggerSourceMeta(t.source).label }} {{ t.kind }}
+                        </span>
                       </span>
                       <span
-                        v-for="(group, gi) in t.conditions"
-                        :key="gi"
-                        class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+                        v-if="t.source === 'schedule'"
+                        class="mt-1 block text-xs text-muted"
+                      >{{ t.event }}</span>
+                      <span
+                        v-else
+                        class="mt-1 flex flex-col gap-1 text-xs text-muted"
                       >
-                        <span>{{ gi === 0 ? 'if' : 'or' }}</span>
-                        <template
-                          v-for="(segments, ci) in group"
-                          :key="ci"
+                        <span class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                          <span>on</span>
+                          <template
+                            v-for="(segments, ei) in t.events"
+                            :key="ei"
+                          >
+                            <span
+                              v-if="ei > 0"
+                              class="-ml-1.5"
+                            >,</span>
+                            <KTriggerSegments :segments="segments" />
+                          </template>
+                        </span>
+                        <span
+                          v-for="(group, gi) in t.conditions"
+                          :key="gi"
+                          class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
                         >
-                          <span v-if="ci > 0">and</span>
-                          <KTriggerSegments :segments="segments" />
-                        </template>
+                          <span>{{ gi === 0 ? 'if' : 'or' }}</span>
+                          <template
+                            v-for="(segments, ci) in group"
+                            :key="ci"
+                          >
+                            <span v-if="ci > 0">and</span>
+                            <KTriggerSegments :segments="segments" />
+                          </template>
+                        </span>
                       </span>
                     </span>
-                  </span>
-                </button>
-                <div class="flex w-37.5 flex-none flex-wrap justify-end gap-1.5 pt-1.5">
-                  <span
-                    v-for="name in projectChips(t.projects)"
-                    :key="name"
-                    class="k-code whitespace-nowrap text-2xs"
-                  >{{ name }}</span>
-                  <span
-                    v-if="!t.projects.length"
-                    class="k-code whitespace-nowrap text-2xs text-(--status-orange)"
-                  >no projects</span>
-                </div>
-                <div class="flex h-8 items-center gap-1">
-                  <KToggle
-                    :active="t.active"
-                    :disabled="!editable"
-                    :aria-label="t.active ? 'Pause trigger' : 'Activate trigger'"
-                    @toggle="toggleTrigger(t)"
-                  />
-                  <UDropdownMenu
-                    :items="[{ label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => removeTrigger(t) }]"
-                    :content="{ align: 'end' }"
-                  >
-                    <UButton
-                      color="neutral"
-                      variant="ghost"
-                      size="xs"
-                      icon="i-lucide-ellipsis-vertical"
-                      aria-label="Trigger actions"
+                  </button>
+                  <div class="flex w-37.5 flex-none flex-wrap justify-end gap-1.5 pt-1.5">
+                    <span
+                      v-for="name in projectChips(t.projects)"
+                      :key="name"
+                      class="k-code whitespace-nowrap text-2xs"
+                    >{{ name }}</span>
+                    <span
+                      v-if="!t.projects.length"
+                      class="k-code whitespace-nowrap text-2xs text-(--status-orange)"
+                    >no projects</span>
+                  </div>
+                  <div class="flex h-8 items-center gap-1">
+                    <KToggle
+                      :active="t.active"
                       :disabled="!editable"
+                      :aria-label="t.active ? 'Pause trigger' : 'Activate trigger'"
+                      @toggle="toggleTrigger(t)"
                     />
-                  </UDropdownMenu>
-                </div>
-              </div>
-            </div>
-            <UButton
-              v-else-if="editable"
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-plus"
-              label="Add trigger"
-              class="w-full justify-center self-start"
-              @click="triggerModalOpen = true"
-            />
-          </div>
-
-          <div
-            v-if="editable && workflowTriggers.length"
-            class="mb-3 flex gap-3.5"
-          >
-            <div class="w-7.5 flex-none" />
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-plus"
-              label="Add trigger"
-              class="w-full justify-center"
-              @click="triggerModalOpen = true"
-            />
-          </div>
-
-          <div
-            v-if="!steps.length"
-            class="flex gap-3.5"
-          >
-            <div class="flex w-7.5 flex-none justify-center">
-              <span class="grid size-7.5 place-items-center rounded-full border border-dashed border-accented text-dimmed">
-                <UIcon
-                  name="i-lucide-plus"
-                  class="size-4"
-                />
-              </span>
-            </div>
-            <div
-              class="flex flex-1 flex-col items-center gap-4 rounded-lg border border-dashed bg-(--surface-glass) px-6 py-9 text-center"
-              :style="{ borderColor: drag?.kind === 'lib' ? 'var(--primary)' : 'var(--border-accented)' }"
-            >
-              <img
-                src="/mascot/mascotRight.png"
-                alt="Knecht"
-                class="h-auto w-19 drop-shadow-mascot"
-              >
-              <div>
-                <div class="text-base font-medium text-toned">
-                  No steps yet
-                </div>
-                <div class="mx-auto mt-1.5 max-w-80 text-2sm text-muted">
-                  Add steps from the library on the right to build out the sequence.
+                    <UDropdownMenu
+                      :items="[{ label: 'Delete', icon: 'i-lucide-trash-2', color: 'error', onSelect: () => removeTrigger(t) }]"
+                      :content="{ align: 'end' }"
+                    >
+                      <UButton
+                        color="neutral"
+                        variant="ghost"
+                        size="xs"
+                        icon="i-lucide-ellipsis-vertical"
+                        aria-label="Trigger actions"
+                        :disabled="!editable"
+                      />
+                    </UDropdownMenu>
+                  </div>
                 </div>
               </div>
               <UButton
-                color="primary"
-                label="Add first step"
-                @click="addStep('ddev-start')"
+                v-else-if="editable"
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-plus"
+                label="Add trigger"
+                class="w-full justify-center self-start"
+                @click="triggerModalOpen = true"
               />
             </div>
-          </div>
 
-          <WorkflowStepList
-            v-else
-            :steps="steps"
-            :depth="1"
-            :vars-base="baseVarGroups()"
-          />
-
-          <div
-            v-if="editable && steps.length"
-            class="flex flex-col"
-            @dragover="overAt(steps, 1, steps.length, $event)"
-          >
-            <div class="flex gap-3.5">
+            <div
+              v-if="editable && workflowTriggers.length"
+              class="mb-3 flex gap-3.5"
+            >
               <div class="w-7.5 flex-none" />
               <UButton
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-plus"
-                label="Add action"
+                label="Add trigger"
                 class="w-full justify-center"
-                @click="addStep('bash')"
+                @click="triggerModalOpen = true"
               />
             </div>
-          </div>
 
-          <div
-            v-if="activeRun"
-            class="ml-11 mt-1"
-          >
-            <KPanel
-              v-if="mode === 'running'"
-              title="Live log"
-              icon="i-lucide-terminal"
-              accent="var(--accent-orange)"
-              :pad="0"
+            <div
+              v-if="!steps.length"
+              class="flex gap-3.5"
             >
-              <template #action>
-                <span class="k-mono text-3xs text-dimmed">run #{{ activeRun.id }}</span>
-              </template>
-              <KRunLog
-                :log="activeRun.log"
-                :rows="testTimeline"
-                live
-                :run-status="activeRun.status"
-                :run-started-at="activeRun.startedAt"
-                :run-finished-at="activeRun.finishedAt"
-              />
-            </KPanel>
-
-            <KPanel
-              v-else-if="mode === 'success'"
-              title="Run result"
-              icon="i-lucide-check"
-              accent="var(--primary)"
-              :pad="0"
-            >
-              <div class="flex flex-col gap-3.5 p-5">
-                <a
-                  v-if="pr"
-                  :href="pr.url"
-                  target="_blank"
-                  class="flex items-center gap-3 rounded-md border p-3"
-                  style="border-color: var(--primary-border); background: color-mix(in oklab, var(--primary) 7%, transparent)"
-                >
-                  <KStepIcon
-                    icon="i-lucide-git-pull-request"
-                    color="var(--primary)"
-                    :size="30"
-                    :radius="7"
-                  />
-                  <div class="min-w-0 flex-1">
-                    <div class="text-2sm text-default">
-                      Pull Request #{{ pr.number }}
-                    </div>
-                    <span class="k-mono text-2xs text-dimmed">view on GitHub</span>
-                  </div>
+              <div class="flex w-7.5 flex-none justify-center">
+                <span class="grid size-7.5 place-items-center rounded-full border border-dashed border-accented text-dimmed">
                   <UIcon
-                    name="i-lucide-external-link"
-                    class="size-4 text-dimmed"
+                    name="i-lucide-plus"
+                    class="size-4"
                   />
-                </a>
-                <div class="flex items-center gap-6">
-                  <span class="k-mono text-2xs text-dimmed">Steps <span class="text-primary">{{ steps.length }} / {{ steps.length }}</span></span>
-                  <span class="k-mono text-2xs text-dimmed">Runtime <span class="text-toned">{{ runDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
+                </span>
+              </div>
+              <div
+                class="flex flex-1 flex-col items-center gap-4 rounded-lg border border-dashed bg-(--surface-glass) px-6 py-9 text-center"
+                :style="{ borderColor: drag?.kind === 'lib' ? 'var(--primary)' : 'var(--border-accented)' }"
+              >
+                <img
+                  src="/mascot/mascotRight.png"
+                  alt="Knecht"
+                  class="h-auto w-19 drop-shadow-mascot"
+                >
+                <div>
+                  <div class="text-base font-medium text-toned">
+                    No steps yet
+                  </div>
+                  <div class="mx-auto mt-1.5 max-w-80 text-2sm text-muted">
+                    Add steps from the library on the right to build out the sequence.
+                  </div>
                 </div>
-              </div>
-              <div class="border-t border-muted">
-                <KRunLog
-                  :log="activeRun.log"
-                  :rows="testTimeline"
-                  :live="false"
-                  :run-status="activeRun.status"
-                  :run-started-at="activeRun.startedAt"
-                  :run-finished-at="activeRun.finishedAt"
+                <UButton
+                  color="primary"
+                  label="Add first step"
+                  @click="addStep('ddev-start')"
                 />
               </div>
-            </KPanel>
+            </div>
 
-            <KPanel
+            <WorkflowStepList
               v-else
-              title="Error details"
-              icon="i-lucide-flask-conical"
-              accent="var(--status-error)"
-              :pad="0"
+              :steps="steps"
+              :depth="1"
+              :vars-base="baseVarGroups()"
+            />
+
+            <div
+              v-if="editable && steps.length"
+              class="flex flex-col"
+              @dragover="overAt(steps, 1, steps.length, $event)"
             >
-              <div class="flex items-center justify-between p-5">
-                <span class="k-mono text-2xs text-dimmed">Failed at step</span>
-                <span class="k-mono text-2xs text-error">{{ failedStep ? `${failedStep.n} of ${steps.length}` : 'before step 1' }}</span>
+              <div class="flex gap-3.5">
+                <div class="w-7.5 flex-none" />
+                <UButton
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide-plus"
+                  label="Add action"
+                  class="w-full justify-center"
+                  @click="addStep('bash')"
+                />
               </div>
-              <div class="border-t border-muted">
+            </div>
+
+            <div
+              v-if="activeRun"
+              class="ml-11 mt-1"
+            >
+              <KPanel
+                v-if="mode === 'running'"
+                title="Live log"
+                icon="i-lucide-terminal"
+                accent="var(--accent-orange)"
+                :pad="0"
+              >
+                <template #action>
+                  <span class="k-mono text-3xs text-dimmed">run #{{ activeRun.id }}</span>
+                </template>
                 <KRunLog
                   :log="activeRun.log"
                   :rows="testTimeline"
-                  :live="false"
+                  live
                   :run-status="activeRun.status"
                   :run-started-at="activeRun.startedAt"
                   :run-finished-at="activeRun.finishedAt"
                 />
-              </div>
-            </KPanel>
+              </KPanel>
+
+              <KPanel
+                v-else-if="mode === 'success'"
+                title="Run result"
+                icon="i-lucide-check"
+                accent="var(--primary)"
+                :pad="0"
+              >
+                <div class="flex flex-col gap-3.5 p-5">
+                  <a
+                    v-if="pr"
+                    :href="pr.url"
+                    target="_blank"
+                    class="flex items-center gap-3 rounded-md border p-3"
+                    style="border-color: var(--primary-border); background: color-mix(in oklab, var(--primary) 7%, transparent)"
+                  >
+                    <KStepIcon
+                      icon="i-lucide-git-pull-request"
+                      color="var(--primary)"
+                      :size="30"
+                      :radius="7"
+                    />
+                    <div class="min-w-0 flex-1">
+                      <div class="text-2sm text-default">
+                        Pull Request #{{ pr.number }}
+                      </div>
+                      <span class="k-mono text-2xs text-dimmed">view on GitHub</span>
+                    </div>
+                    <UIcon
+                      name="i-lucide-external-link"
+                      class="size-4 text-dimmed"
+                    />
+                  </a>
+                  <div class="flex items-center gap-6">
+                    <span class="k-mono text-2xs text-dimmed">Steps <span class="text-primary">{{ steps.length }} / {{ steps.length }}</span></span>
+                    <span class="k-mono text-2xs text-dimmed">Runtime <span class="text-toned">{{ runDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
+                  </div>
+                </div>
+                <div class="border-t border-muted">
+                  <KRunLog
+                    :log="activeRun.log"
+                    :rows="testTimeline"
+                    :live="false"
+                    :run-status="activeRun.status"
+                    :run-started-at="activeRun.startedAt"
+                    :run-finished-at="activeRun.finishedAt"
+                  />
+                </div>
+              </KPanel>
+
+              <KPanel
+                v-else
+                title="Error details"
+                icon="i-lucide-flask-conical"
+                accent="var(--status-error)"
+                :pad="0"
+              >
+                <div class="flex items-center justify-between p-5">
+                  <span class="k-mono text-2xs text-dimmed">Failed at step</span>
+                  <span class="k-mono text-2xs text-error">{{ failedStep ? `${failedStep.n} of ${steps.length}` : 'before step 1' }}</span>
+                </div>
+                <div class="border-t border-muted">
+                  <KRunLog
+                    :log="activeRun.log"
+                    :rows="testTimeline"
+                    :live="false"
+                    :run-status="activeRun.status"
+                    :run-started-at="activeRun.startedAt"
+                    :run-finished-at="activeRun.finishedAt"
+                  />
+                </div>
+              </KPanel>
+            </div>
           </div>
         </div>
 
