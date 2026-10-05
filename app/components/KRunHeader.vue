@@ -229,7 +229,7 @@ const menuItems = computed(() => {
           <UButton
             color="neutral"
             variant="outline"
-            icon="i-lucide-code"
+            icon="i-lucide-file-code"
             aria-label="Open in IDE"
             size="sm"
             class="size-8 justify-center"
