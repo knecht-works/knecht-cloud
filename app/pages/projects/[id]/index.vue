@@ -126,7 +126,7 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
     <div class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[1fr_clamp(340px,26vw,560px)]">
       <div class="min-w-0">
         <KProjectHero
-          class="mb-6"
+          class="mb-3"
           :project="project"
         />
         <KRunWorkspace

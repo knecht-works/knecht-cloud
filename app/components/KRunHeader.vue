@@ -137,14 +137,14 @@ const menuItems = computed(() => {
 
 <template>
   <div>
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div class="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-2">
-        <div class="flex items-baseline gap-2.5">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div class="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
+        <div class="flex items-center gap-2.5">
           <UTooltip :text="statusMeta.label">
             <span
               role="img"
               :aria-label="statusMeta.label"
-              class="flex self-center"
+              class="flex"
             >
               <KStatusDot
                 :color="statusMeta.dot"
@@ -159,7 +159,7 @@ const menuItems = computed(() => {
         </div>
         <div
           v-if="meta.length"
-          class="flex flex-wrap items-baseline gap-x-4 gap-y-2"
+          class="flex flex-wrap items-center gap-x-4 gap-y-2"
         >
           <component
             :is="m.href ? NuxtLink : 'span'"
@@ -167,12 +167,12 @@ const menuItems = computed(() => {
             :key="m.icon"
             :href="m.href"
             :target="m.href?.startsWith('http') ? '_blank' : undefined"
-            class="flex items-baseline gap-1.5 text-dimmed"
+            class="flex items-center gap-1.5 text-dimmed"
             :class="m.href ? 'transition-colors hover:text-muted' : ''"
           >
             <UIcon
               :name="m.icon"
-              class="size-3.5 self-center"
+              class="size-3.5"
             />
             <span class="k-mono text-xs/none text-muted">{{ m.text }}</span>
           </component>
