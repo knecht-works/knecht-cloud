@@ -1,10 +1,21 @@
 import type { Step } from '#shared/utils/workflow'
+import type { EnvState } from '#shared/utils/run'
 import { INTEGRATION_IDS, type IntegrationId, type ObjectKind } from '#shared/utils/integrations'
 import { INTEGRATION_UI, type SessionObjectMeta } from './integrations'
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
 
 type DotColor = 'primary' | 'orange' | 'neutral' | 'error'
+
+export const DOT_COLOR_VAR = {
+  primary: 'var(--primary)',
+  success: 'var(--primary)',
+  orange: 'var(--accent-orange)',
+  violet: 'var(--accent-violet)',
+  warning: 'var(--accent-violet)',
+  error: 'var(--status-error)',
+  neutral: 'var(--status-neutral)',
+}
 
 export interface RunStatusMeta {
   dot: DotColor
@@ -30,6 +41,16 @@ export const IDLE_STATUS_META: RunStatusMeta = {
   pulse: false,
   text: 'var(--text-dimmed)',
   label: 'No runs yet',
+}
+
+const ENV_LABEL: Partial<Record<EnvState, string>> = { stopped: 'Stopped', archived: 'Archived' }
+
+// A success only stays green while its environment is up to inspect.
+export function runStatusMeta(run: { status: RunStatus, envState: EnvState } | null | undefined): RunStatusMeta {
+  if (!run) return IDLE_STATUS_META
+  const meta = RUN_STATUS_META[run.status]
+  if (run.status !== 'success' || run.envState === 'up') return meta
+  return { dot: 'neutral', pulse: false, text: 'var(--text-dimmed)', label: ENV_LABEL[run.envState] ?? meta.label }
 }
 
 interface TriggerSourceMeta {
@@ -83,7 +104,6 @@ export interface SessionObject {
 export interface SessionGroup<T> {
   sessionId: number
   object: SessionObject | null
-  live: boolean
   runs: T[]
 }
 
@@ -109,7 +129,6 @@ export function groupRunsBySession<T extends SessionRunRow>(runs: T[]): SessionG
             closed: head.sessionStatus === 'closed',
           }
         : null,
-      live: head.envState === 'up',
       runs: groupRuns,
     }
   })

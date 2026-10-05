@@ -65,8 +65,8 @@ watch(runs, () => {
   }
 })
 
-const statusMeta = computed(() =>
-  selectedRun.value ? RUN_STATUS_META[selectedRun.value.status] : IDLE_STATUS_META)
+const statusMeta = computed(() => runStatusMeta(selectedRun.value))
+const statusColor = computed(() => DOT_COLOR_VAR[statusMeta.value.dot])
 
 const mascotLine = computed(() => {
   const r = selectedRun.value
@@ -75,7 +75,9 @@ const mascotLine = computed(() => {
   if (r.status === 'failed') return 'The last run failed. Open it to see why.'
   if (!r.hasEnv) return 'This workflow works without a preview environment.'
   if (r.envState === 'up') return r.hasPreviewTarget ? 'The preview is live and ready to inspect.' : 'The environment is up. Open the terminal or the IDE to work in it.'
-  return 'Idle. Trigger a workflow to boot a fresh environment.'
+  if (r.envState === 'stopped') return 'The environment is stopped. Reboot it from the run menu or send a follow-up to wake it.'
+  if (r.envState === 'archived') return 'The environment is archived. Restore it from the run menu to work in it again.'
+  return 'The environment is gone. Run the workflow again for a fresh one.'
 })
 
 const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
@@ -156,11 +158,11 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
       <div class="flex flex-col gap-4.5">
         <div
           class="k-card overflow-hidden"
-          style="border-color: var(--primary-border)"
+          :style="{ borderColor: `color-mix(in oklab, ${statusColor} 30%, transparent)` }"
         >
           <div
             class="flex items-center gap-3.5 px-5 py-4.5"
-            style="background: linear-gradient(90deg, color-mix(in oklab, var(--primary) 8%, transparent), transparent)"
+            :style="{ background: `linear-gradient(90deg, color-mix(in oklab, ${statusColor} 8%, transparent), transparent)` }"
           >
             <img
               src="/mascot/mascotRight.png"

@@ -370,7 +370,7 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
             >
               <ChatDivider v-if="entry.kind === 'run'">
                 <KStatusDot
-                  :color="RUN_STATUS_META[entry.run.status].dot"
+                  :color="runStatusMeta({ status: entry.run.status, envState }).dot"
                   :pulse="RUN_STATUS_META[entry.run.status].pulse"
                   :glow="false"
                   :size="5"

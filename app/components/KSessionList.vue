@@ -6,6 +6,7 @@ type TimeValue = string | number | Date | null | undefined
 interface Run {
   id: number
   status: RunStatus
+  envState: EnvState
   workflow: string
   projectId: number
   project: string
@@ -48,11 +49,12 @@ defineProps<{
     >
       <span
         v-if="r.id === selectedRunId"
-        class="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-primary"
+        class="absolute inset-y-1.5 left-0 w-0.5 rounded-full"
+        :style="{ background: DOT_COLOR_VAR[runStatusMeta(r).dot] }"
       />
       <KStatusDot
-        :color="r.status === 'success' && !g.live ? 'neutral' : RUN_STATUS_META[r.status].dot"
-        :pulse="RUN_STATUS_META[r.status].pulse"
+        :color="runStatusMeta(r).dot"
+        :pulse="runStatusMeta(r).pulse"
         :size="6"
       />
       <span
