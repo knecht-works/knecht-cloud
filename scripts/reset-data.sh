@@ -28,7 +28,7 @@ if [[ "${1:-}" != "-y" ]]; then
 fi
 
 # Collect run ids from every place a run leaves traces (DB rows, checkout dirs,
-# docker labels, including the legacy Sysbox label), mirroring the sweep in
+# docker labels), mirroring the sweep in
 # server/daemon/gc.ts, then tear down each environment by name the same way
 # removeEnvStack (server/daemon/sandbox.ts) does.
 run_ids=$(
@@ -36,7 +36,6 @@ run_ids=$(
     if [[ -f "$DB_PATH" ]]; then sqlite3 "$DB_PATH" 'SELECT id FROM runs' 2>/dev/null || true; fi
     ls "$PROJECTS_DIR" 2>/dev/null | sed -n 's/^run-\([0-9]\{1,\}\)$/\1/p'
     docker ps -a --filter label=com.ddev.site-name --format '{{.Label "com.ddev.site-name"}}' 2>/dev/null | sed -n 's/^knecht-run-\([0-9]\{1,\}\)$/\1/p'
-    docker ps -a --filter label=knecht.run --format '{{.Names}}' 2>/dev/null | sed -n 's/^knecht-run-\([0-9]\{1,\}\)$/\1/p'
   } | sort -un
 )
 
