@@ -2,7 +2,7 @@
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/eslint', 'nuxt-auth-utils', '@comark/nuxt'],
 
-  devtools: { enabled: true },
+  devtools: { enabled: false },
 
   app: {
     // Not the default /_nuxt/: previewed Nuxt projects ship their own /_nuxt/

@@ -30,8 +30,6 @@ KNECHT_GID="${KNECHT_GID:-$(id -g)}"
 # ── 1. Docker ─────────────────────────────────────────────────────────────────
 if command -v docker >/dev/null; then
   echo "✓ Docker already installed ($(docker --version))"
-  # Earlier installs pinned Docker for Sysbox; the pin is obsolete now.
-  sudo apt-mark unhold docker-ce docker-ce-cli >/dev/null 2>&1 || true
 else
   echo "▶ Installing Docker"
   sudo install -m 0755 -d /etc/apt/keyrings
@@ -115,10 +113,6 @@ chown -R "$WARM_USER" "$WARMUP" 2>/dev/null || true
   as_warm_user ddev delete --omit-snapshot -y knecht-warmup
 )
 rm -rf "$WARMUP"
-
-# Leftovers from pre-DooD installs (the per-run Sysbox substrate): the pinned
-# registry cache is dead weight now that images live once on the host daemon.
-sudo docker rm -f knecht-registry >/dev/null 2>&1 || true
 
 echo "✓ Host provisioned. Sanity check:"
 sudo docker info --format '  docker {{.ServerVersion}}'
