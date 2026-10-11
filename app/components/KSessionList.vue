@@ -7,6 +7,7 @@ interface Run {
   id: number
   status: RunStatus
   envState: EnvState
+  envTransition?: EnvTransition | null
   workflow: string
   projectId: number
   project: string
