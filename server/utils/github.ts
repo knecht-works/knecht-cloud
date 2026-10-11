@@ -85,30 +85,13 @@ export async function fetchFavicon(
   }
 }
 
-const COMPOSER_PACKAGE: Record<string, string> = {
-  typo3: 'typo3/cms-core',
-  craftcms: 'craftcms/cms',
-  shopware6: 'shopware/core',
-  laravel: 'laravel/framework',
-  magento2: 'magento/product-community-edition',
-  silverstripe: 'silverstripe/framework',
-}
-
-function composerPackageFor(type: string): string | null {
-  const t = type.toLowerCase()
-  if (t.startsWith('drupal')) return 'drupal/core'
-  return COMPOSER_PACKAGE[t] ?? null
-}
-
 export async function fetchFrameworkVersion(
   octokit: Octokit,
   owner: string,
   repo: string,
-  type: string,
+  pkg: string,
   ref?: string,
 ): Promise<string | null> {
-  const pkg = composerPackageFor(type)
-  if (!pkg) return null
   try {
     const content = await readRepoFile(octokit, owner, repo, 'composer.lock', ref)
     if (content === null) return null
