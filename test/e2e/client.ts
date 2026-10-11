@@ -40,7 +40,7 @@ export interface PreviewResponse {
 // Preview hosts are wildcard subdomains a CI runner cannot resolve, so the preview origin
 // travels in the Host header. node:http because fetch controls the Host header.
 export function previewFetch(
-  runId: number,
+  sessionId: number,
   opts: { label?: string, path?: string, cookie?: string, accept?: string } = {},
 ): Promise<PreviewResponse> {
   const base = new URL(BASE_URL)
@@ -52,7 +52,7 @@ export function previewFetch(
         port: base.port || (https ? 443 : 80),
         path: opts.path ?? '/',
         headers: {
-          host: previewHostname(runId, base.host, opts.label),
+          host: previewHostname(sessionId, base.host, opts.label),
           accept: opts.accept ?? 'text/html',
           ...(opts.cookie ? { cookie: opts.cookie } : {}),
         },

@@ -145,6 +145,7 @@ interface RepoData {
 
 interface RunRow {
   id: number
+  sessionId: number
   status: 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
   envState: string
   previewHosts: string[] | null
@@ -208,6 +209,7 @@ for (const fixture of selected) {
     let ownProject = false
     let workflowId: number | undefined
     let runId: number | undefined
+    let sessionId: number | undefined
 
     beforeAll(async () => {
       client = await login()
@@ -257,6 +259,7 @@ for (const fixture of selected) {
         body: JSON.stringify({ projectId, workflowId }),
       }))
       runId = run.id
+      sessionId = run.sessionId
 
       const finished = await pollUntilFinished(client, run.id, deadlineMs)
       if (finished.status !== 'success') {
@@ -269,20 +272,20 @@ for (const fixture of selected) {
         expect(finished.previewHosts).toContain(host)
       }
 
-      const primary = await previewFetch(run.id, { cookie: client.cookie })
+      const primary = await previewFetch(run.sessionId, { cookie: client.cookie })
       expect(primary.status, previewFailure('primary origin', primary)).toBe(200)
       expect(primary.body.length).toBeGreaterThan(0)
 
       // Not pinned to 200: a CMS may answer a host with a redirect (CP host to login).
       for (const host of fixture.extraHosts ?? []) {
-        const labelled = await previewFetch(run.id, { label: previewLabel(host), cookie: client.cookie })
+        const labelled = await previewFetch(run.sessionId, { label: previewLabel(host), cookie: client.cookie })
         expect(labelled.status, previewFailure(`preview origin for ${host}`, labelled)).toBeLessThan(400)
       }
 
-      const anonNav = await previewFetch(run.id)
+      const anonNav = await previewFetch(run.sessionId)
       expect(anonNav.status).toBe(302)
       expect(anonNav.location).toContain('/login')
-      const anonSub = await previewFetch(run.id, { accept: '*/*' })
+      const anonSub = await previewFetch(run.sessionId, { accept: '*/*' })
       expect(anonSub.status).toBe(401)
     })
 
@@ -292,7 +295,7 @@ for (const fixture of selected) {
 
       const gone = await client.fetch(`/api/runs/${runId}`)
       expect(gone.status).toBe(404)
-      const preview = await previewFetch(runId!, { cookie: client.cookie })
+      const preview = await previewFetch(sessionId!, { cookie: client.cookie })
       expect(preview.status).toBe(404)
       runId = undefined
     })
