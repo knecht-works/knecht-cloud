@@ -10,13 +10,19 @@ export async function projects(p, names) {
   await p.keyboard.press('Escape')
   await p.waitForTimeout(300)
 }
-export async function check(p, label) { await dlg(p).getByLabel(label, { exact: true }).check() }
+export async function check(p, label) {
+  await dlg(p).getByLabel(label, { exact: true }).check()
+}
 export async function pick(p, combo, opts) {
   await combo.click()
   await p.waitForTimeout(300)
   const searchable = await p.evaluate(() => document.activeElement?.tagName === 'INPUT')
   for (const o of opts) {
-    if (searchable) { await p.keyboard.press('ControlOrMeta+a'); await p.keyboard.type(o); await p.waitForTimeout(600) }
+    if (searchable) {
+      await p.keyboard.press('ControlOrMeta+a')
+      await p.keyboard.type(o)
+      await p.waitForTimeout(600)
+    }
     const exact = p.getByRole('option', { name: o, exact: true })
     if (await exact.count()) await exact.first().click()
     else await p.getByRole('option', { name: `Create "${o}"` }).click()
