@@ -18,10 +18,12 @@ const storeQueries = {
   create(context) {
     const file = context.filename.replaceAll('\\', '/')
     return {
-      'CallExpression[callee.property.name=/^(insert|update|delete|from)$/] > MemberExpression.arguments[object.name="schema"]'(node) {
-        const store = TABLE_STORES[node.property.name]
+      'CallExpression[callee.property.name=/^(insert|update|delete|from)$/]:not([callee.object.name="Array"])'(call) {
+        const arg = call.arguments[0]
+        const table = arg?.type === 'MemberExpression' && arg.object.name === 'schema' ? arg.property.name : arg?.type === 'Identifier' ? arg.name : null
+        const store = TABLE_STORES[table]
         if (store && !file.endsWith(store)) {
-          context.report({ node, message: `Query ${node.property.name} through ${store}.` })
+          context.report({ node: arg, message: `Query ${table} through ${store}.` })
         }
       },
     }
