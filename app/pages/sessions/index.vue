@@ -1,12 +1,8 @@
 <script setup lang="ts">
-import { liveTopics } from '#shared/utils/live-topics'
 import { runWorkspacePath } from '#shared/utils/routes'
 import { computeRunStats } from '#shared/utils/run-stats'
 
 const { data: runs } = await useRuns()
-
-const anyLive = computed(() => (runs.value ?? []).some(r => isLiveStatus(r.status)))
-usePollWhile(() => anyLive.value, () => invalidate(liveTopics.runs))
 
 const { data: statsRuns } = useRunStats()
 const stats = computed(() => computeRunStats(statsRuns.value ?? [], new Date()))

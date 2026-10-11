@@ -2,6 +2,8 @@ import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { integrationConnections } from '../db/schema'
 import type { IntegrationId } from '../../shared/utils/integrations'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
 
 type ConnectionRow = typeof integrationConnections.$inferSelect
 type ConnectionFields = Omit<typeof integrationConnections.$inferInsert, 'integration'>
@@ -17,12 +19,15 @@ export function upsertConnection(id: IntegrationId, row: ConnectionFields): void
     .values({ integration: id, ...row })
     .onConflictDoUpdate({ target: integrationConnections.integration, set: row })
     .run()
+  emitTopics(liveTopics.integrations)
 }
 
 export function updateConnection(id: IntegrationId, patch: Partial<ConnectionFields>): void {
   db.update(integrationConnections).set(patch).where(byIntegration(id)).run()
+  emitTopics(liveTopics.integrations)
 }
 
 export function deleteConnection(id: IntegrationId): void {
   db.delete(integrationConnections).where(byIntegration(id)).run()
+  emitTopics(liveTopics.integrations)
 }

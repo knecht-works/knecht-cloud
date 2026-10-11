@@ -1,4 +1,5 @@
 import type { RunStatus } from '~/utils/dashboard'
+import { liveTopics } from '#shared/utils/live-topics'
 
 export interface TestRunRow {
   id: number
@@ -101,8 +102,8 @@ export function useWorkflowTestRun<P extends TestProject>(
     }
   }
 
-  usePollWhile(
-    () => !!activeRun.value && isLiveStatus(activeRun.value.status),
+  onLiveTopics(
+    () => activeRun.value ? [liveTopics.run(activeRun.value.id)] : [],
     async () => {
       if (!activeRun.value) return
       const id = activeRun.value.id

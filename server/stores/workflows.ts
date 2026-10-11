@@ -5,6 +5,8 @@ import type { NewWorkflowRow, WorkflowRow } from '../db/schema'
 import { clearStarterWorkflow } from './projects'
 import { unlinkWorkflowRuns } from './runs'
 import { deleteWorkflowTriggers } from './triggers'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
 
 export function getWorkflowRow(id: number): WorkflowRow | undefined {
   return db.select().from(schema.workflows).where(eq(schema.workflows.id, id)).get()
@@ -37,15 +39,19 @@ export function getWorkflowRows(ids: number[]): WorkflowRow[] {
 }
 
 export function createWorkflow(values: NewWorkflowRow): WorkflowRow {
-  return db.insert(schema.workflows).values(values).returning().get()
+  const workflow = db.insert(schema.workflows).values(values).returning().get()
+  emitTopics(liveTopics.workflows)
+  return workflow
 }
 
 export function updateWorkflow(id: number, patch: Partial<NewWorkflowRow>): WorkflowRow | undefined {
-  return db.update(schema.workflows)
+  const workflow = db.update(schema.workflows)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(schema.workflows.id, id))
     .returning()
     .get()
+  emitTopics(liveTopics.workflows)
+  return workflow
 }
 
 export function discardWorkflowDraft(id: number): WorkflowRow | undefined {
@@ -54,6 +60,7 @@ export function discardWorkflowDraft(id: number): WorkflowRow | undefined {
 
 // FK actions are declarative only (PRAGMA foreign_keys is off): cascade explicitly.
 export function deleteWorkflow(id: number): { deletedTriggers: number } {
+  emitTopics(liveTopics.workflows)
   return db.transaction((tx) => {
     const deletedTriggers = deleteWorkflowTriggers(id, tx)
     unlinkWorkflowRuns(id, tx)

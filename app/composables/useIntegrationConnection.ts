@@ -1,5 +1,6 @@
 import type { ConnectionStatus } from '#shared/utils/connection-form'
 import type { IntegrationId } from '#shared/utils/integrations'
+import { liveTopics } from '#shared/utils/live-topics'
 
 export function useIntegrationConnection(id: IntegrationId, name: string) {
   const toast = useToast()
@@ -11,14 +12,8 @@ export function useIntegrationConnection(id: IntegrationId, name: string) {
   }
 
   // These tools show no delivery log, so the settings page is where the admin sees the webhook arrive.
-  let poll: ReturnType<typeof setInterval> | undefined
-  onMounted(() => {
-    void refresh()
-    poll = setInterval(() => {
-      if (connection.value?.configured) void refresh().catch(() => {})
-    }, 5000)
-  })
-  onUnmounted(() => clearInterval(poll))
+  onMounted(() => void refresh())
+  onLiveTopics(() => [liveTopics.integrations], () => refresh().catch(() => {}))
 
   const error = ref('')
   const connecting = ref(false)
