@@ -48,7 +48,7 @@ vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 const { linear } = await import('../../server/integrations/linear')
 const { linearConnection } = await import('../../server/integrations/linear/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
-const { setProjectLink } = await import('../../server/utils/project-links')
+const { setProjectLink } = await import('../../server/stores/project-links')
 const handler = (await import('../../server/api/linear/webhook.post')).default
 
 const SECRET = 'lin_wh_secret'

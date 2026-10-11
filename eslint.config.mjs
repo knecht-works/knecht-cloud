@@ -3,6 +3,8 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 // Every query on a table goes through its store, so live updates cannot be skipped.
 const TABLE_STORES = {
   projects: 'server/stores/projects.ts',
+  projectLinks: 'server/stores/project-links.ts',
+  triggers: 'server/stores/triggers.ts',
   workflows: 'server/stores/workflows.ts',
 }
 

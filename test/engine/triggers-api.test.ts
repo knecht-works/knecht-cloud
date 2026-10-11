@@ -8,7 +8,7 @@ import { segmentsText, type TriggerSegment } from '../../shared/utils/trigger-fo
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
 const { db, schema } = await import('../../server/db')
-const { setProjectLink } = await import('../../server/utils/project-links')
+const { setProjectLink } = await import('../../server/stores/project-links')
 const create = (await import('../../server/api/triggers/index.post')).default
 const patch = (await import('../../server/api/triggers/[id].patch')).default
 

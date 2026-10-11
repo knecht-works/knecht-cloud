@@ -1,12 +1,11 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { TRIGGER_SOURCES } from '../../../shared/utils/integrations'
-import { db, schema } from '../../db'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
 import type { NewTrigger } from '../../db/schema'
 import { requireWorkflowRow } from '../../stores/workflows'
+import { requireTrigger, updateTrigger } from '../../stores/triggers'
 
 const bodySchema = z.object({
   active: z.boolean().optional(),
@@ -69,6 +68,6 @@ export default defineEventHandler(async (event) => {
     patch.nextFireAt = null
   }
 
-  const updated = db.update(schema.triggers).set(patch).where(eq(schema.triggers.id, id)).returning().get()
+  const updated = updateTrigger(id, patch)!
   return toSummaries([updated])[0]
 })

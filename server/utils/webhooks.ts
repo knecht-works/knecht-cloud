@@ -1,12 +1,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
-import { and, eq } from 'drizzle-orm'
 import { createError, getHeader, readRawBody, type H3Event } from 'h3'
-import { db, schema } from '../db'
 import type { Integration } from '../integrations'
 import { stopEnv } from '../daemon/envs'
 import { handleMention } from './mentions'
 import { findObjectSession, sessionHasActiveWork, syncObjectStatus } from './sessions'
 import { fireTrigger } from './triggers'
+import { listActiveTriggers } from '../stores/triggers'
 
 // No session gate: the integration authenticates the delivery with its signature over the raw body.
 export async function handleWebhook(integration: Integration, event: H3Event) {
@@ -49,11 +48,7 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
 
   const runIds: number[] = []
   if (delivery.event) {
-    const candidates = db
-      .select()
-      .from(schema.triggers)
-      .where(and(eq(schema.triggers.source, integration.id), eq(schema.triggers.active, true)))
-      .all()
+    const candidates = listActiveTriggers(integration.id)
     for (const trigger of candidates) {
       if (!trigger.projectIds.includes(project.id)) continue
       const match = await integration.webhook.match(trigger, delivery)

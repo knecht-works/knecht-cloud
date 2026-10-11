@@ -9,6 +9,8 @@ import { projectMemoryDir } from './agent-memory'
 import { dataDir, projectSharedDir, sessionArchiveDir } from './storage'
 import { removeAttachments } from './attachments'
 import { deleteProjectRow } from '../stores/projects'
+import { deleteProjectLinks } from '../stores/project-links'
+import { removeProjectFromTriggers } from '../stores/triggers'
 
 // FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
 export function deleteProject(id: number): Promise<void> {
@@ -25,11 +27,6 @@ export function deleteProject(id: number): Promise<void> {
   for (const run of runningRuns) cancelRun(run.id)
   for (const sessionId of sessionIds) cancelFollowupWork(sessionId)
 
-  const triggers = db.select({ id: schema.triggers.id, projectIds: schema.triggers.projectIds })
-    .from(schema.triggers)
-    .all()
-    .filter(t => t.projectIds.includes(id))
-
   if (sessionIds.length) {
     removeAttachments(db.select({ id: schema.followups.id }).from(schema.followups).where(inArray(schema.followups.sessionId, sessionIds)).all().map(f => f.id))
   }
@@ -42,13 +39,8 @@ export function deleteProject(id: number): Promise<void> {
       tx.delete(schema.runs).where(eq(schema.runs.projectId, id)).run()
       tx.delete(schema.sessions).where(eq(schema.sessions.projectId, id)).run()
     }
-    for (const t of triggers) {
-      tx.update(schema.triggers)
-        .set({ projectIds: t.projectIds.filter(p => p !== id) })
-        .where(eq(schema.triggers.id, t.id))
-        .run()
-    }
-    tx.delete(schema.projectLinks).where(eq(schema.projectLinks.projectId, id)).run()
+    removeProjectFromTriggers(id, tx)
+    deleteProjectLinks(id, tx)
     deleteProjectRow(id, tx)
   })
 

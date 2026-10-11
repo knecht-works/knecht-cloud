@@ -1,7 +1,5 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../db'
 import { tryParseJson } from '../../utils/json'
-import { linkedProject } from '../../utils/project-links'
+import { linkedKeys, linkedProject } from '../../stores/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import { findObjectSession, sessionHasActiveWork, type SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
@@ -70,14 +68,6 @@ interface Located {
   workItemId: string
 }
 
-function linkedPlaneKeys(): string[] {
-  return db.select({ key: schema.projectLinks.externalKey })
-    .from(schema.projectLinks)
-    .where(eq(schema.projectLinks.integration, 'plane'))
-    .all()
-    .map(r => r.key)
-}
-
 // A comment delivery names the work item but not its project: probe the linked projects for it.
 async function locate(record: PlaneRecord, workItemId: string | undefined): Promise<Located | null> {
   const projectId = nil(record.project_id)
@@ -86,7 +76,7 @@ async function locate(record: PlaneRecord, workItemId: string | undefined): Prom
     return planeProject && workItemId ? { planeProject, workItemId } : null
   }
   if (!workItemId) return null
-  for (const identifier of linkedPlaneKeys()) {
+  for (const identifier of linkedKeys('plane')) {
     const planeProject = (await listPlaneProjects()).find(p => p.identifier === identifier)
     if (!planeProject) continue
     if (await getPlaneWorkItem(planeProject.id, workItemId).then(() => true, () => false)) return { planeProject, workItemId }
