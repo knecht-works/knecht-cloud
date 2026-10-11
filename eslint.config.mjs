@@ -1,35 +1,14 @@
 import withNuxt from './.nuxt/eslint.config.mjs'
 
-// Every query on a table goes through its store, so live updates cannot be skipped.
-const TABLE_STORES = {
-  agentItems: 'server/stores/agent-items.ts',
-  dataMigrations: 'server/db/data-migrations.ts',
-  followups: 'server/stores/followups.ts',
-  githubApp: 'server/stores/github-app.ts',
-  integrationConnections: 'server/stores/integration-connections.ts',
-  members: 'server/stores/members.ts',
-  projects: 'server/stores/projects.ts',
-  projectLinks: 'server/stores/project-links.ts',
-  runs: 'server/stores/runs.ts',
-  runSteps: 'server/stores/run-steps.ts',
-  sessions: 'server/stores/sessions.ts',
-  settings: 'server/stores/settings.ts',
-  triggers: 'server/stores/triggers.ts',
-  workflows: 'server/stores/workflows.ts',
-}
-
+// Every query goes through a store, so live updates cannot be skipped.
 const storeQueries = {
   meta: { type: 'problem', schema: [] },
   create(context) {
-    const file = context.filename.replaceAll('\\', '/')
     return {
-      'CallExpression[callee.property.name=/^(insert|update|delete|from)$/]:not([callee.object.name="Array"])'(call) {
-        const arg = call.arguments[0]
-        const table = arg?.type === 'MemberExpression' && arg.object.name === 'schema' ? arg.property.name : arg?.type === 'Identifier' ? arg.name : null
-        const store = TABLE_STORES[table]
-        if (store && !file.endsWith(store)) {
-          context.report({ node: arg, message: `Query ${table} through ${store}.` })
-        }
+      ImportDeclaration(node) {
+        if (!/(^|\/)db(\/index)?$/.test(node.source.value)) return
+        const imported = node.specifiers.find(s => s.type === 'ImportSpecifier' && s.imported.name === 'db' && s.importKind !== 'type')
+        if (imported) context.report({ node: imported, message: 'Query the database through a store in server/stores.' })
       },
     }
   },
@@ -43,7 +22,7 @@ export default withNuxt(
   },
   {
     files: ['server/**/*.ts'],
-    ignores: ['server/db/data-migrations.ts'],
+    ignores: ['server/stores/**', 'server/db/**'],
     plugins: { knecht: { rules: { 'store-queries': storeQueries } } },
     rules: { 'knecht/store-queries': 'error' },
   },

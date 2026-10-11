@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm'
 import { db, schema, type Executor } from '../db'
 
-type NewRunStep = typeof schema.runSteps.$inferInsert
+export type NewRunStep = typeof schema.runSteps.$inferInsert
 
 export function listRunSteps(runId: number) {
   return db
