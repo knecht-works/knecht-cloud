@@ -1,7 +1,9 @@
 import type { Octokit } from 'octokit'
+import semver from 'semver'
+import { FRAMEWORKS } from '../../shared/utils/frameworks'
 import type { DdevEnv, Project } from '../db/schema'
 import { setProjectMeta } from '../stores/projects'
-import { detectEnv, parseDdevConfig, repoShipsDdevConfig } from './env-detect'
+import { detectEnv, parseDdevConfig, repoShipsDdevConfig, type ReadFile } from './env-detect'
 import { fetchFavicon, fetchFrameworkVersion, fetchPackageManager, repoReader } from './github'
 import { getInstallationClient } from './github-app'
 
@@ -10,6 +12,41 @@ export interface ProjectMeta {
   frameworkVersion: string | null
   ddevEnv: DdevEnv
   favicon: string
+}
+
+interface DetectedFramework {
+  id: string
+  composer?: string
+  npmRange?: string
+}
+
+function readDeps(read: ReadFile, path: string, keys: string[]): Record<string, unknown> {
+  const text = read(path)
+  if (!text) return {}
+  try {
+    const json = JSON.parse(text) as Record<string, Record<string, unknown> | undefined>
+    return Object.assign({}, ...keys.map(k => json[k] ?? {}))
+  }
+  catch {
+    return {}
+  }
+}
+
+export function detectFramework(read: ReadFile): DetectedFramework | null {
+  const composer = readDeps(read, 'composer.json', ['require'])
+  const npm = readDeps(read, 'package.json', ['dependencies', 'devDependencies'])
+  for (const fw of FRAMEWORKS) {
+    const composerPkg = fw.composer?.find(p => p in composer)
+    if (composerPkg) return { id: fw.id, composer: composerPkg }
+    const npmPkg = fw.npm?.find(p => p in npm)
+    if (npmPkg) return { id: fw.id, npmRange: String(npm[npmPkg]) }
+  }
+  return null
+}
+
+function npmVersion(range: string): string | null {
+  const v = semver.validRange(range) ? semver.minVersion(range) : null
+  return v ? `${v.major}.${v.minor}` : null
 }
 
 export async function resolveProjectMeta(
@@ -22,13 +59,16 @@ export async function resolveProjectMeta(
   const detected = detectEnv(read)
   const ddevText = read('.ddev/config.yaml')
   const cfg = repoShipsDdevConfig(ddevText) ? parseDdevConfig(ddevText) : null
+  const framework = detectFramework(read)
   const [frameworkVersion, packageManager, favicon] = await Promise.all([
-    cfg?.type ? fetchFrameworkVersion(octokit, owner, name, cfg.type, ref) : Promise.resolve(null),
+    framework?.composer
+      ? fetchFrameworkVersion(octokit, owner, name, framework.composer, ref)
+      : Promise.resolve(framework?.npmRange ? npmVersion(framework.npmRange) : null),
     fetchPackageManager(octokit, owner, name, ref),
     fetchFavicon(octokit, owner, name, ref),
   ])
   return {
-    framework: cfg?.type ?? null,
+    framework: framework?.id ?? cfg?.type ?? null,
     frameworkVersion,
     favicon: favicon ?? '',
     ddevEnv: {

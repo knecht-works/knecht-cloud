@@ -1,6 +1,7 @@
 import type { Step } from '#shared/utils/workflow'
 import type { EnvState, EnvTransition } from '#shared/utils/run'
 import { INTEGRATION_IDS, type IntegrationId, type ObjectKind } from '#shared/utils/integrations'
+import { FRAMEWORKS } from '#shared/utils/frameworks'
 import { INTEGRATION_UI, type SessionObjectMeta } from './integrations'
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
@@ -149,26 +150,13 @@ interface FrameworkMeta {
   color: string
 }
 
-const FRAMEWORKS: Record<string, FrameworkMeta> = {
-  typo3: { label: 'TYPO3', color: 'var(--accent-orange)' },
-  wordpress: { label: 'WordPress', color: 'var(--accent-violet)' },
-  craftcms: { label: 'Craft CMS', color: '#7aa8d8' },
-  shopware6: { label: 'Shopware', color: 'var(--primary)' },
-  laravel: { label: 'Laravel', color: 'var(--accent-clay)' },
-  magento: { label: 'Magento', color: 'var(--accent-orange)' },
-  magento2: { label: 'Magento', color: 'var(--accent-orange)' },
-  silverstripe: { label: 'SilverStripe', color: '#7aa8d8' },
-  backdrop: { label: 'Backdrop', color: '#7aa8d8' },
-  php: { label: 'PHP', color: 'var(--text-toned)' },
-}
-
 const UNKNOWN_FRAMEWORK: FrameworkMeta = { label: 'DDEV', color: 'var(--text-toned)' }
 
 export function frameworkMeta(type?: string | null): FrameworkMeta {
   if (!type) return UNKNOWN_FRAMEWORK
   const t = type.toLowerCase()
-  if (t.startsWith('drupal')) return { label: 'Drupal', color: '#7aa8d8' }
-  return FRAMEWORKS[t] ?? { label: type.toUpperCase(), color: 'var(--text-toned)' }
+  const fw = FRAMEWORKS.find(f => f.id === t || (f.id === 'drupal' && t.startsWith('drupal')))
+  return { label: fw?.label ?? type.toUpperCase(), color: fw?.color ?? 'var(--text-toned)' }
 }
 
 // det = deterministic, out = output, flow = if/loop

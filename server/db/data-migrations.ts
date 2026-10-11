@@ -13,6 +13,7 @@ const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0005_trigger_event_configs', run: triggerEventConfigs },
   { name: '0006_trigger_conditions', run: triggerConditions },
   { name: '0007_trigger_event_values', run: triggerEventValues },
+  { name: '0008_redetect_frameworks', run: redetectFrameworks },
 ]
 
 export function runDataMigrations(): void {
@@ -88,6 +89,11 @@ interface SingleValueEvent { type: string, value?: string }
 interface FilterTriggerConfig { kind: string, on: SingleValueEvent[], filters: Record<string, string[]> }
 interface LegacyGithubConfig { event?: string, branches?: string[], issueActions?: string[], issueLabel?: string | null }
 interface LegacyJiraConfig { event?: string, label?: string, status?: string, statusCategory?: string, issueType?: string }
+
+// A null ddevEnv makes backfillFrameworks resolve the project again on its next load.
+function redetectFrameworks(): void {
+  db.update(schema.projects).set({ ddevEnv: null }).run()
+}
 
 function fromLegacyGithub(c: LegacyGithubConfig): FilterTriggerConfig {
   if (c.event === 'issues') {

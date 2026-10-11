@@ -67,6 +67,45 @@ describe('resolveProjectMeta', () => {
     })
   })
 
+  it('detects the framework from composer.json over the ddev type', async () => {
+    const meta = await resolveProjectMeta(octokitWith({
+      '.ddev/config.yaml': 'name: demo\ntype: laravel\n',
+      'composer.json': '{ "require": { "craftcms/cms": "^5.0" } }',
+      'composer.lock': '{ "packages": [{ "name": "craftcms/cms", "version": "5.4.2" }] }',
+    }), 'o', 'r')
+    expect(meta.framework).toBe('craftcms')
+    expect(meta.frameworkVersion).toBe('5.4')
+  })
+
+  it('detects Kirby from composer.json behind a plain php ddev type', async () => {
+    const meta = await resolveProjectMeta(octokitWith({
+      '.ddev/config.yaml': 'name: demo\ntype: php\n',
+      'composer.json': '{ "require": { "getkirby/cms": "^4.0" } }',
+      'composer.lock': '{ "packages": [{ "name": "getkirby/cms", "version": "4.3.1" }] }',
+    }), 'o', 'r')
+    expect(meta.framework).toBe('kirby')
+    expect(meta.frameworkVersion).toBe('4.3')
+  })
+
+  it('detects the framework from package.json devDependencies without a ddev type', async () => {
+    const meta = await resolveProjectMeta(octokitWith({
+      '.ddev/config.yaml': 'name: demo\n',
+      'package.json': '{ "dependencies": { "vue": "^3.5.0" }, "devDependencies": { "nuxt": "^3.12.4" } }',
+    }), 'o', 'r')
+    expect(meta.framework).toBe('nuxt')
+    expect(meta.frameworkVersion).toBe('3.12')
+  })
+
+  it('falls back to the ddev type when no known package is required', async () => {
+    const meta = await resolveProjectMeta(octokitWith({
+      '.ddev/config.yaml': 'name: demo\ntype: php\n',
+      'composer.json': '{ "require": { "php": "^8.2" } }',
+      'package.json': 'not json',
+    }), 'o', 'r')
+    expect(meta.framework).toBe('php')
+    expect(meta.frameworkVersion).toBeNull()
+  })
+
   it('keeps a repo with an unparseable ddev config a ddev project, framework unknown', async () => {
     const meta = await resolveProjectMeta(octokitWith({ '.ddev/config.yaml': 'name: [' }), 'o', 'r')
     expect(meta.framework).toBeNull()
