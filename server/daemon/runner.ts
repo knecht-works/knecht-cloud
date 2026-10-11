@@ -128,7 +128,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     for (const warning of warnings) log(`Warning: ${warning}\n`)
     if (changed && session.envState === 'up') {
       log(`Environment definition changed: applying it\n`)
-      await startEnvStack(sessionId)
+      await startEnvStack(sessionId, log)
     }
 
     const ctx = createContext(runId, project, run.inputs ?? {})
@@ -143,7 +143,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
       signal: controller.signal,
       sandbox: {
         projectDir: WEB_PROJECT_DIR,
-        ensureUp: () => ensureEnvUp(sessionId),
+        ensureUp: () => ensureEnvUp(sessionId, log),
         stream: (command, opts) => streamInSandbox(sessionId, command, log, opts?.env, controller.signal),
         spawn: (command, opts) => spawnInSandbox(sessionId, command, opts?.env),
         copyIn: (hostPath, sandboxPath) => copyIntoSandbox(sessionId, hostPath, sandboxPath),
