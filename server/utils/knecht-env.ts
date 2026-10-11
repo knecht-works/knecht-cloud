@@ -1,9 +1,9 @@
-import { getSessionRow } from './entities'
 import { bridgeBaseUrl, bridgeToken } from './agent-bridge'
 import { devServerOrigin } from './dev-origin'
 import { previewOrigin } from './origin'
 import { previewLabel } from '../../shared/utils/preview-host'
 import { describeObject, sessionObject } from './sessions'
+import { getSessionRow } from '../stores/sessions'
 
 // bridgeEnv goes to the agent process per exec, never into the container env:
 // the token authorizes pushes and PRs on the session's repo.

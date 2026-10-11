@@ -1,11 +1,8 @@
 import { existsSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db, schema } from '../../db'
 import { logSink, openAgent, type AgentSession, type TranscriptSink } from '../../daemon/agent'
-import { getSessionRow } from '../../utils/entities'
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '../../../shared/utils/workflow'
 import { type AiProviderId, MODEL_NAME_RE, stripLegacyModelPrefix } from '../../../shared/utils/ai'
 import { getSettings } from '../../utils/settings'
@@ -17,6 +14,7 @@ import { agentModelRef, buildAgentRules, buildOpencodeConfig } from '../../utils
 import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
+import { getSessionRow, updateSession } from '../../stores/sessions'
 
 // Env names follow models.dev; google accepts several, set all.
 const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
@@ -148,10 +146,7 @@ export async function compactAgentSession(rt: ActionRuntime, sink: TranscriptSin
       await agent.close()
     }
   }
-  db.update(schema.sessions)
-    .set({ agentSessionId: null, agentHandover: summary || null })
-    .where(eq(schema.sessions.id, rt.sessionId))
-    .run()
+  updateSession(rt.sessionId, { agentSessionId: null, agentHandover: summary || null })
   sink.item({ key: 'divider', type: 'divider', text: summary ? 'Context compacted. The next message starts a fresh session with the hand-over.' : 'Context compacted. The next message starts a fresh session.' })
   return summary
 }
@@ -162,7 +157,7 @@ export function handoverPreamble(summary: string): string {
 
 function rememberAgentSession(sessionId: number, agent: AgentSession): void {
   if (agent.loaded) return
-  db.update(schema.sessions).set({ agentSessionId: agent.sessionId }).where(eq(schema.sessions.id, sessionId)).run()
+  updateSession(sessionId, { agentSessionId: agent.sessionId })
 }
 
 async function runWithOutput(

@@ -1,17 +1,15 @@
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import type { Step } from '../../../shared/utils/workflow'
-import { db, schema } from '../../db'
 import { projectDumpDir } from '../../utils/storage'
 import { detectPreviewFavicon } from '../../utils/favicon'
-import { getSessionRow } from '../../utils/entities'
 import { sessionPreviewUrl } from '../../utils/preview-target'
 import { readDdevConfig } from '../../daemon/ddev'
 import { waitForDevServer } from '../../daemon/dev-server'
 import { bootEnv } from '../../daemon/envs'
 import { defineAction, type ActionRuntime } from './types'
+import { getSessionRow, updateSession } from '../../stores/sessions'
 
 const yamlParams = z.object({ commands: z.string().optional() })
 
@@ -50,7 +48,7 @@ export const ddevStartAction = defineAction({
       log: rt.log,
       signal: rt.signal,
     })
-    db.update(schema.sessions).set({ previewReady: true }).where(eq(schema.sessions.id, rt.sessionId)).run()
+    updateSession(rt.sessionId, { previewReady: true })
     const outputs = previewOutputs(rt)
     if (outputs && !rt.project.favicon) void detectPreviewFavicon(rt.sessionId, rt.project)
     return outputs
@@ -64,10 +62,7 @@ function previewOutputs(rt: ActionRuntime): { url: string } | undefined {
 }
 
 function sessionBooted(sessionId: number): boolean {
-  return db.select({ previewReady: schema.sessions.previewReady })
-    .from(schema.sessions)
-    .where(eq(schema.sessions.id, sessionId))
-    .get()?.previewReady ?? false
+  return getSessionRow(sessionId)?.previewReady ?? false
 }
 
 function dumpFile(rt: ActionRuntime): string | null {

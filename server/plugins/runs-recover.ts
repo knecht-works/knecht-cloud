@@ -2,8 +2,8 @@ import { sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { appendLog } from '../daemon/runner'
 import { handBackObject } from '../integrations/assignee'
-import { getSessionRow } from '../utils/entities'
 import { getProject } from '../stores/projects'
+import { getSessionRow } from '../stores/sessions'
 
 export default defineNitroPlugin(() => {
   const interrupted = db.select({ id: schema.runs.id, sessionId: schema.runs.sessionId })

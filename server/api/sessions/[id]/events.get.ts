@@ -1,5 +1,5 @@
-import { requireSession } from '../../../utils/entities'
 import { onLive } from '../../../utils/live'
+import { requireSession } from '../../../stores/sessions'
 
 const HEARTBEAT_MS = 25_000
 

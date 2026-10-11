@@ -1,7 +1,7 @@
 import { tryParseJson } from '../../utils/json'
 import { linkedKeys, linkedProject } from '../../stores/project-links'
 import { verifySha256Signature } from '../../utils/signature'
-import { findObjectSession, sessionHasActiveWork, type SessionObject } from '../../utils/sessions'
+import { sessionHasActiveWork, type SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
@@ -9,6 +9,7 @@ import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { addPlaneComment, forgetPlaneCache, getPlaneComment, planeMyself, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
 import { PLANE_CONNECTION_FORM, planeConnection, planeCredentials } from './credentials'
 import { htmlMentionIds, htmlToMarkdown, markdownToHtml } from './html'
+import { findObjectSession } from '../../stores/sessions'
 
 export const PLANE_STATE_GROUPS = { backlog: 'Backlog', unstarted: 'Unstarted', started: 'Started', completed: 'Completed', cancelled: 'Cancelled' } as const
 

@@ -1,7 +1,5 @@
 import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../db'
 import { devServerIsPreview } from '../daemon/ddev'
 import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
 import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
@@ -10,6 +8,7 @@ import { forgetPreview, resolveContainerIp, resolvePreview, webContainerName } f
 import { isMember, memberCount } from './members'
 import { isForeignOrigin } from './origin'
 import { knownSessionService, type SessionService } from './session-services'
+import { getSessionRow, touchSessionPreview } from '../stores/sessions'
 
 // Route-based ws handlers cannot serve the workbench's arbitrary paths, so
 // wrapWebsocketResolve intercepts h3's ws route resolution instead.
@@ -17,7 +16,7 @@ import { knownSessionService, type SessionService } from './session-services'
 const IDE_LABEL = 'ide'
 
 function bumpPreviewSeen(sessionId: number): void {
-  db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, sessionId)).run()
+  touchSessionPreview(sessionId)
 }
 
 export function proxyRunIde(event: H3Event, sessionId: number): Promise<void> {
@@ -69,7 +68,7 @@ async function proxyToContainer(event: H3Event, sessionId: number, target: Conta
     throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
   }
 
-  const env = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+  const env = getSessionRow(sessionId)
   if (!env) throw createError({ statusCode: 404, statusMessage: 'Session not found' })
   if (env.envState !== 'up') {
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
@@ -189,10 +188,7 @@ function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }
   const service = ref.label ? knownSessionService(ref.sessionId, ref.label) : undefined
   if (service) return { sessionId: ref.sessionId, port: service.port, byCapability: false, container: service.container }
   if (ref.label) return null
-  const session = db.select({ previewHosts: schema.sessions.previewHosts, previewPort: schema.sessions.previewPort })
-    .from(schema.sessions)
-    .where(eq(schema.sessions.id, ref.sessionId))
-    .get()
+  const session = getSessionRow(ref.sessionId)
   return session && devServerIsPreview(session) ? { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, byCapability: false } : null
 }
 
@@ -222,7 +218,7 @@ const pipeWsHooks = {
     }
     const env = target === null
       ? null
-      : db.select().from(schema.sessions).where(eq(schema.sessions.id, target.sessionId)).get()
+      : getSessionRow(target.sessionId)
     if (!env || env.envState !== 'up') {
       throw createError({ statusCode: 409, statusMessage: 'Environment is not running' })
     }

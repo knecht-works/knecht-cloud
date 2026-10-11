@@ -1,3 +1,5 @@
+import { getSessionRow } from '../stores/sessions'
+
 // Caddy's on_demand_tls "ask" endpoint (see Caddyfile): 200 means "issue a
 // certificate for this hostname", any error status means refuse. This is the
 // abuse guard Let's Encrypt issuance hangs on: without it, anyone resolving a

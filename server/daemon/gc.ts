@@ -1,10 +1,10 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
-import { db, schema } from '../db'
 import { listProjects } from '../stores/projects'
 import { dataDir, projectsDir } from '../utils/storage'
 import { removeEnvStack } from './sandbox'
+import { listSessionIds } from '../stores/sessions'
 
 export interface GcResult {
   sandboxes: string[]
@@ -18,7 +18,7 @@ export interface GcResult {
 }
 
 export async function collectGarbage(): Promise<GcResult> {
-  const liveSessions = new Set(db.select({ id: schema.sessions.id }).from(schema.sessions).all().map(r => r.id))
+  const liveSessions = new Set(listSessionIds())
   const projects = listProjects()
   const liveProjects = new Set(projects.map(p => p.id))
 
