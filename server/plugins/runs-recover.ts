@@ -1,30 +1,16 @@
-import { sql } from 'drizzle-orm'
-import { db, schema } from '../db'
 import { handBackObject } from '../integrations/assignee'
 import { getProject } from '../stores/projects'
 import { getSessionRow } from '../stores/sessions'
 import { appendRunLog, failInterruptedRuns } from '../stores/runs'
+import { failInterruptedSteps } from '../stores/run-steps'
+import { failInterruptedFollowups } from '../stores/followups'
 
 export default defineNitroPlugin(() => {
   const interrupted = failInterruptedRuns('\n✗ Interrupted by a daemon restart\n')
 
-  db.update(schema.runSteps)
-    .set({
-      status: 'failed',
-      error: 'Interrupted by a daemon restart',
-      finishedAt: new Date(),
-    })
-    .where(sql`${schema.runSteps.status} = 'running'`)
-    .run()
+  failInterruptedSteps('Interrupted by a daemon restart')
 
-  db.update(schema.followups)
-    .set({
-      status: 'failed',
-      error: 'Interrupted by a daemon restart',
-      finishedAt: new Date(),
-    })
-    .where(sql`${schema.followups.status} = 'running'`)
-    .run()
+  failInterruptedFollowups('Interrupted by a daemon restart')
 
   for (const run of interrupted) {
     const session = getSessionRow(run.sessionId)

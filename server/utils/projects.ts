@@ -1,7 +1,6 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { inArray } from 'drizzle-orm'
-import { db, schema } from '../db'
+import { db } from '../db'
 import { teardownSession } from '../daemon/envs'
 import { cancelFollowupWork } from '../daemon/followups'
 import { cancelRun } from '../daemon/runner'
@@ -13,6 +12,9 @@ import { deleteProjectLinks } from '../stores/project-links'
 import { removeProjectFromTriggers } from '../stores/triggers'
 import { listSessionIds, deleteProjectSessions } from '../stores/sessions'
 import { listRunningWorkflowRunIds, listProjectRunIds, deleteProjectRuns } from '../stores/runs'
+import { deleteRunSteps } from '../stores/run-steps'
+import { listFollowupIds, deleteFollowups } from '../stores/followups'
+import { deleteAgentItems } from '../stores/agent-items'
 
 // FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
 export function deleteProject(id: number): Promise<void> {
@@ -20,15 +22,13 @@ export function deleteProject(id: number): Promise<void> {
   for (const runId of listRunningWorkflowRunIds(id)) cancelRun(runId)
   for (const sessionId of sessionIds) cancelFollowupWork(sessionId)
 
-  if (sessionIds.length) {
-    removeAttachments(db.select({ id: schema.followups.id }).from(schema.followups).where(inArray(schema.followups.sessionId, sessionIds)).all().map(f => f.id))
-  }
+  removeAttachments(listFollowupIds({ sessionIds }))
   db.transaction((tx) => {
     if (sessionIds.length) {
       const runIds = listProjectRunIds(id, tx)
-      if (runIds.length) tx.delete(schema.runSteps).where(inArray(schema.runSteps.runId, runIds)).run()
-      tx.delete(schema.agentItems).where(inArray(schema.agentItems.sessionId, sessionIds)).run()
-      tx.delete(schema.followups).where(inArray(schema.followups.sessionId, sessionIds)).run()
+      deleteRunSteps(runIds, tx)
+      deleteAgentItems({ sessionIds }, tx)
+      deleteFollowups({ sessionIds }, tx)
       deleteProjectRuns(id, tx)
       deleteProjectSessions(id, tx)
     }

@@ -1,5 +1,3 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../../db'
 import { startFollowup } from '../../../daemon/followups'
 import { dispatchRuns } from '../../../daemon/dispatcher'
 import { sessionHasActiveWork } from '../../../utils/sessions'
@@ -7,11 +5,13 @@ import { emitLive } from '../../../utils/live'
 import { followupView } from '../../../utils/transcript'
 import { requireSession } from '../../../stores/sessions'
 import { requireRun } from '../../../stores/runs'
+import { getFollowup, requeueFollowup } from '../../../stores/followups'
+import { deleteAgentItems } from '../../../stores/agent-items'
 
 // The failed turn is reused as is (prompt, model, attachments): its transcript starts over.
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
-  const followup = db.select().from(schema.followups).where(eq(schema.followups.id, id)).get()
+  const followup = getFollowup(id)
   if (!followup) throw createError({ statusCode: 404, statusMessage: 'Follow-up not found' })
   if (followup.status !== 'failed') throw createError({ statusCode: 409, statusMessage: 'Only a failed turn can be retried' })
 
@@ -26,11 +26,8 @@ export default defineEventHandler((event) => {
   }
   const busy = pending || sessionHasActiveWork(session.id)
 
-  db.delete(schema.agentItems).where(eq(schema.agentItems.followupId, id)).run()
-  db.update(schema.followups)
-    .set({ status: 'queued', error: null, startedAt: null, finishedAt: null })
-    .where(eq(schema.followups.id, id))
-    .run()
+  deleteAgentItems({ followupIds: [id] })
+  requeueFollowup(id)
   const view = followupView(id)!
   emitLive({ type: 'followup-reset', sessionId: session.id, followup: view })
 

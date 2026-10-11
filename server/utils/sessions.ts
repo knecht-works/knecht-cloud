@@ -1,11 +1,10 @@
-import { and, eq, inArray } from 'drizzle-orm'
-import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import { getIntegration } from '../integrations'
 import { sessionPreviewUrl } from './preview-target'
 import { getSessionRow, findObjectSession, createSession, updateSession } from '../stores/sessions'
 import { latestSessionPrUrl, sessionHasActiveRun } from '../stores/runs'
+import { sessionHasActiveFollowup } from '../stores/followups'
 
 export interface SessionObject {
   integration: IntegrationId
@@ -60,16 +59,7 @@ export function syncObjectStatus(projectId: number, object: SessionObject, statu
 }
 
 export function sessionHasActiveWork(sessionId: number): boolean {
-  if (sessionHasActiveRun(sessionId)) return true
-  const followup = db
-    .select({ id: schema.followups.id })
-    .from(schema.followups)
-    .where(and(
-      eq(schema.followups.sessionId, sessionId),
-      inArray(schema.followups.status, ['queued', 'running']),
-    ))
-    .get()
-  return Boolean(followup)
+  return sessionHasActiveRun(sessionId) || sessionHasActiveFollowup(sessionId)
 }
 
 export function withSessionLinks(text: string, sessionId: number): string {

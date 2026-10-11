@@ -1,6 +1,4 @@
 import { join } from 'node:path'
-import { and, eq, inArray } from 'drizzle-orm'
-import { db, schema } from '../db'
 import type { Followup, Project, Run, Session } from '../db/schema'
 import { compactAgentSession, handoverPreamble, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
@@ -20,6 +18,7 @@ import { followupAttachmentsDir, SANDBOX_ATTACHMENTS_DIR, sandboxAttachmentPath 
 import { getProject } from '../stores/projects'
 import { getSessionRow, updateSession } from '../stores/sessions'
 import { getRun, updateRun, startQueuedRun, finishActiveRun, cancelActiveMentionRuns } from '../stores/runs'
+import { getFollowup, updateFollowup, claimQueuedFollowup, cancelActiveFollowups } from '../stores/followups'
 
 const controllers = new Map<number, AbortController>()
 
@@ -30,29 +29,12 @@ export function cancelFollowup(sessionId: number): boolean {
   return true
 }
 
-export function hasActiveFollowup(sessionId: number): boolean {
-  const row = db
-    .select({ id: schema.followups.id })
-    .from(schema.followups)
-    .where(and(
-      eq(schema.followups.sessionId, sessionId),
-      inArray(schema.followups.status, ['queued', 'running']),
-    ))
-    .get()
-  return Boolean(row)
-}
-
-// Claim-first: the fast lane and the dispatcher can both call this without double-running one.
 export async function startFollowup(followupId: number): Promise<void> {
   try {
-    const claimed = db.update(schema.followups)
-      .set({ status: 'running', startedAt: new Date() })
-      .where(and(eq(schema.followups.id, followupId), eq(schema.followups.status, 'queued')))
-      .run()
-    if (!claimed.changes) return
+    if (!claimQueuedFollowup(followupId)) return
     emitFollowup(followupId)
 
-    const followup = db.select().from(schema.followups).where(eq(schema.followups.id, followupId)).get()
+    const followup = getFollowup(followupId)
     const session = followup && getSessionRow(followup.sessionId)
     const run = followup && getRun(followup.runId)
     const project = session && getProject(session.projectId)
@@ -181,24 +163,14 @@ async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRun
 
 // Mention anchor runs go with their follow-ups: nothing else moves those rows out of queued/running.
 export function cancelFollowupWork(sessionId: number, runId?: number): number {
-  const flipped = db.update(schema.followups)
-    .set({ status: 'failed', error: 'Cancelled', finishedAt: new Date() })
-    .where(and(
-      runId === undefined ? eq(schema.followups.sessionId, sessionId) : eq(schema.followups.runId, runId),
-      inArray(schema.followups.status, ['queued', 'running']),
-    ))
-    .returning({ id: schema.followups.id })
-    .all()
-  for (const { id } of flipped) emitFollowup(id)
+  const flipped = cancelActiveFollowups(runId === undefined ? { sessionId } : { runId })
+  for (const id of flipped) emitFollowup(id)
   cancelActiveMentionRuns(runId === undefined ? { sessionId } : { runId })
   cancelFollowup(sessionId)
   return flipped.length
 }
 
 function finishFollowup(id: number, status: 'success' | 'failed', error?: string): void {
-  db.update(schema.followups)
-    .set({ status, error: error ?? null, finishedAt: new Date() })
-    .where(eq(schema.followups.id, id))
-    .run()
+  updateFollowup(id, { status, error: error ?? null, finishedAt: new Date() })
   emitFollowup(id)
 }
