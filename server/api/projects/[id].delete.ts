@@ -1,3 +1,5 @@
+import { getProject } from '../../stores/projects'
+
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
   if (!getProject(id)) {

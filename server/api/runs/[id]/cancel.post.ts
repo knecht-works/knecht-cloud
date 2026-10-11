@@ -3,8 +3,9 @@ import { db, schema } from '../../../db'
 import { cancelFollowupWork } from '../../../daemon/followups'
 import { appendLog, cancelRun } from '../../../daemon/runner'
 import { handBackObject } from '../../../integrations/assignee'
-import { getProject, getSessionRow } from '../../../utils/entities'
+import { getSessionRow } from '../../../utils/entities'
 import { withRunSessionEnv } from '../../../utils/run-view'
+import { getProject } from '../../../stores/projects'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)

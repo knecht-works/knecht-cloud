@@ -1,7 +1,6 @@
 import { request } from 'node:http'
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../db'
 import type { Project } from '../db/schema'
+import { setProjectMeta } from '../stores/projects'
 import { previewTargetPort, readDdevHosts } from '../daemon/ddev'
 import { resolvePreview } from '../daemon/sandbox'
 import { getSessionRow } from './entities'
@@ -52,10 +51,7 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
 }
 
 function save(projectId: number, favicon: string): void {
-  db.update(schema.projects)
-    .set({ favicon })
-    .where(eq(schema.projects.id, projectId))
-    .run()
+  setProjectMeta(projectId, { favicon })
 }
 
 function iconHref(html: string): string | null {

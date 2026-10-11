@@ -1,7 +1,6 @@
 import type { Octokit } from 'octokit'
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../db'
 import type { DdevEnv, Project } from '../db/schema'
+import { setProjectMeta } from '../stores/projects'
 import { detectEnv, parseDdevConfig, repoShipsDdevConfig } from './env-detect'
 import { fetchFavicon, fetchFrameworkVersion, fetchPackageManager, repoReader } from './github'
 import { getInstallationClient } from './github-app'
@@ -60,10 +59,7 @@ export async function backfillFrameworks(projects: Project[]): Promise<void> {
       const octokit = await getInstallationClient(p.owner, p.name)
       const meta = await resolveProjectMeta(octokit, p.owner, p.name, p.defaultBranch)
       const patch = { ...meta, favicon: p.favicon || meta.favicon }
-      db.update(schema.projects)
-        .set(patch)
-        .where(eq(schema.projects.id, p.id))
-        .run()
+      setProjectMeta(p.id, patch)
       Object.assign(p, patch)
       attemptedAt.delete(p.id)
     }

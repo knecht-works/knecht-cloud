@@ -2,8 +2,9 @@ import type { DdevEnv, Run, Session } from '../db/schema'
 import type { Step } from '../../shared/utils/workflow'
 import { runHasEnv } from '../../shared/utils/run'
 import { schema } from '../db'
-import { getProject, getSessionRow } from './entities'
+import { getSessionRow } from './entities'
 import { hasPreviewTarget } from './preview-target'
+import { getProject } from '../stores/projects'
 
 export const runSessionColumns = {
   envState: schema.sessions.envState,

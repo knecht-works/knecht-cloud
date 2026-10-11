@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { INTEGRATION_IDS } from '../../../../shared/utils/integrations'
 import { getIntegration } from '../../../integrations'
 import { linkedProject, projectLinks, setProjectLink } from '../../../utils/project-links'
+import { requireProject } from '../../../stores/projects'
 
 const bodySchema = z.object({
   integration: z.enum(INTEGRATION_IDS),
