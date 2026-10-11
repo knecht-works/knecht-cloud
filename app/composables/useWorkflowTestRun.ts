@@ -5,7 +5,6 @@ export interface TestRunRow {
   id: number
   projectId: number
   status: RunStatus
-  log: string
   startedAt: string | number | null
   finishedAt: string | number | null
 }
@@ -43,6 +42,7 @@ export function useWorkflowTestRun<P extends TestProject>(
   const starting = ref(false)
   const activeRun = ref<TestRunRow | null>(null)
   const activeRunSteps = ref<TestRunStepRow[]>([])
+  const activeRunLog = useRunLog(() => activeRun.value?.id)
 
   const testBranch = ref<string>()
   watch(project, p => testBranch.value = p?.defaultBranch ?? 'main')
@@ -193,5 +193,5 @@ export function useWorkflowTestRun<P extends TestProject>(
     }
   }
 
-  return { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
+  return { open, project, starting, activeRun, activeRunSteps, activeRunLog, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
 }

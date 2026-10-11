@@ -125,19 +125,16 @@ export function useSessionTranscript(sessionId: number, runId: () => number) {
     if (i !== -1) turns.value.splice(i, 1)
   }
 
-  let source: EventSource | undefined
-  onMounted(() => {
-    source = new EventSource(`/api/sessions/${sessionId}/events`)
+  useEventSource(`/api/sessions/${sessionId}/events`, {
     // EventSource reconnects by itself; changes missed while it was down are refetched.
-    source.addEventListener('open', () => {
+    'open': () => {
       if (loaded.value) refresh()
-    })
-    source.addEventListener('item', e => applyItem(JSON.parse(e.data)))
-    source.addEventListener('followup', e => applyTurn(JSON.parse(e.data)))
-    source.addEventListener('followup-removed', e => remove(JSON.parse(e.data).id))
-    source.addEventListener('followup-reset', e => reset(JSON.parse(e.data)))
+    },
+    'item': e => applyItem(JSON.parse(e.data)),
+    'followup': e => applyTurn(JSON.parse(e.data)),
+    'followup-removed': e => remove(JSON.parse(e.data).id),
+    'followup-reset': e => reset(JSON.parse(e.data)),
   })
-  onUnmounted(() => source?.close())
 
   const active = computed(() => turns.value.some(isTurnActive))
 

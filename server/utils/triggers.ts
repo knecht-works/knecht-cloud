@@ -9,7 +9,7 @@ import { getTriggerSource } from './trigger-sources'
 import { getWorkflowRow, getWorkflowRows } from '../stores/workflows'
 import { getProjects } from '../stores/projects'
 import { recordTriggerFired } from '../stores/triggers'
-import { ranOnVersion, createRun, updateRun } from '../stores/runs'
+import { appendRunLog, createRun, finishRun, ranOnVersion } from '../stores/runs'
 
 export interface TriggerSummary {
   id: number
@@ -89,11 +89,8 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
     runIds.push(run.id)
 
     if (!isGithubAppConfigured()) {
-      updateRun(run.id, {
-        status: 'failed',
-        finishedAt: new Date(),
-        log: 'GitHub App not configured. Complete the GitHub App setup (/setup) to enable runs.\n',
-      })
+      appendRunLog(run.id, 'GitHub App not configured. Complete the GitHub App setup (/setup) to enable runs.\n')
+      finishRun(run.id, 'failed')
     }
   }
 

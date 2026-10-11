@@ -106,7 +106,7 @@ const saveErrorText = computed(() =>
 
 const hasIncompleteEdits = computed(() => !!saved.value?.draftSteps)
 
-const { open, project, starting, activeRun, activeRunSteps, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
+const { open, project, starting, activeRun, activeRunSteps, activeRunLog, testBranch, testBranchItems, mockInputs, start, detach, retest, cancel, cancelling, retry, retrying }
   = useWorkflowTestRun<(typeof projects.value)[number]>(() => saved.value?.id, {
     beforeStart: () => draftSave.flush(),
     onStarted: () => openSteps.value.clear(),
@@ -369,7 +369,7 @@ provide(RAIL_CTX, {
 })
 
 const pr = computed(() => {
-  const m = activeRun.value?.log.match(/Opened PR #(\d+): (\S+)/)
+  const m = activeRunLog.value.match(/Opened PR #(\d+): (\S+)/)
   return m ? { number: m[1], url: m[2] } : null
 })
 </script>
@@ -971,7 +971,7 @@ const pr = computed(() => {
                   <span class="k-mono text-3xs text-dimmed">run #{{ activeRun.id }}</span>
                 </template>
                 <KRunLog
-                  :log="activeRun.log"
+                  :log="activeRunLog"
                   :rows="testTimeline"
                   live
                   :run-status="activeRun.status"
@@ -1019,7 +1019,7 @@ const pr = computed(() => {
                 </div>
                 <div class="border-t border-muted">
                   <KRunLog
-                    :log="activeRun.log"
+                    :log="activeRunLog"
                     :rows="testTimeline"
                     :live="false"
                     :run-status="activeRun.status"
@@ -1042,7 +1042,7 @@ const pr = computed(() => {
                 </div>
                 <div class="border-t border-muted">
                   <KRunLog
-                    :log="activeRun.log"
+                    :log="activeRunLog"
                     :rows="testTimeline"
                     :live="false"
                     :run-status="activeRun.status"

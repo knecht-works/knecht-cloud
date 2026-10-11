@@ -15,6 +15,7 @@ const id = props.runId
 // Not awaited: a blocking async setup would re-trigger Suspense on every run switch.
 const { data: run } = useRun(id)
 const { data: stepRows } = useRunSteps(id)
+const log = useRunLog(id)
 
 const isLive = computed(() => isLiveStatus(run.value?.status))
 
@@ -126,7 +127,7 @@ function refreshWorkspace() {
         </span>
       </template>
       <KRunLog
-        :log="run.log"
+        :log="log"
         :rows="timeline"
         :live="isLive || followupActive"
         :run-status="run.status"
