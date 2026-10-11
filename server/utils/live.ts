@@ -14,6 +14,21 @@ export function emitLive(event: LiveEvent): void {
   bus.emit(`session:${event.sessionId}`, event)
 }
 
+export interface RunLogChunk {
+  text: string
+  end: number
+}
+
+export function emitRunLog(runId: number, chunk: RunLogChunk): void {
+  bus.emit(`run-log:${runId}`, chunk)
+}
+
+export function onRunLog(runId: number, handler: (chunk: RunLogChunk) => void): () => void {
+  const name = `run-log:${runId}`
+  bus.on(name, handler)
+  return () => bus.off(name, handler)
+}
+
 export function onLive(sessionId: number, handler: (event: LiveEvent) => void): () => void {
   const name = `session:${sessionId}`
   bus.on(name, handler)

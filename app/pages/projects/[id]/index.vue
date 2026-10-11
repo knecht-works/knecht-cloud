@@ -24,7 +24,7 @@ const queryRun = Number(route.query.run)
 if (Number.isInteger(queryRun) && !projectRuns.value.some(r => r.id === queryRun)) {
   const fetched = await $fetch(`/api/runs/${queryRun}`).catch(() => null)
   if (fetched && fetched.projectId === id) {
-    const { log, steps, ...row } = fetched
+    const { steps, ...row } = fetched
     offListRun.value = row
   }
 }
