@@ -2,6 +2,13 @@ import { desc, eq, inArray } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewProject, Project } from '../db/schema'
+import { deleteAgentItems } from './agent-items'
+import { deleteFollowups } from './followups'
+import { deleteProjectLinks } from './project-links'
+import { deleteRunSteps } from './run-steps'
+import { deleteProjectRuns, listProjectRunIds } from './runs'
+import { deleteProjectSessions } from './sessions'
+import { removeProjectFromTriggers } from './triggers'
 
 type ProjectMeta = Partial<Pick<NewProject, 'framework' | 'frameworkVersion' | 'ddevEnv' | 'favicon'>>
 
@@ -51,6 +58,18 @@ export function clearStarterWorkflow(workflowId: number, tx: Executor = db): voi
   tx.update(schema.projects).set({ starterWorkflowId: null }).where(eq(schema.projects.starterWorkflowId, workflowId)).run()
 }
 
-export function deleteProjectRow(id: number, tx: Executor = db): void {
-  tx.delete(schema.projects).where(eq(schema.projects.id, id)).run()
+// FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
+export function deleteProjectCascade(id: number, sessionIds: number[]): void {
+  db.transaction((tx) => {
+    if (sessionIds.length) {
+      deleteRunSteps(listProjectRunIds(id, tx), tx)
+      deleteAgentItems({ sessionIds }, tx)
+      deleteFollowups({ sessionIds }, tx)
+      deleteProjectRuns(id, tx)
+      deleteProjectSessions(id, tx)
+    }
+    removeProjectFromTriggers(id, tx)
+    deleteProjectLinks(id, tx)
+    tx.delete(schema.projects).where(eq(schema.projects.id, id)).run()
+  })
 }

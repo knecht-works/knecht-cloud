@@ -1,5 +1,4 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import type { schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import { COMPOSITE_CHILD_KEYS, defaultStepTimeout, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
@@ -20,7 +19,7 @@ import { ensureEnvUp } from './envs'
 import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession, closeObjectlessSession } from '../stores/sessions'
 import { appendRunLog, claimQueuedRun, finishRun, getRun, runLogBytes, updateRun } from '../stores/runs'
-import { listTopLevelWorkflowSteps, listWorkflowStepOutputs, createRunStep, updateRunStep, deleteWorkflowStepsFrom } from '../stores/run-steps'
+import { listTopLevelWorkflowSteps, listWorkflowStepOutputs, createRunStep, updateRunStep, deleteWorkflowStepsFrom, type NewRunStep } from '../stores/run-steps'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
 
@@ -306,7 +305,7 @@ function runActionTimed(
   })
 }
 
-type StepRowPatch = Partial<typeof schema.runSteps.$inferInsert>
+type StepRowPatch = Partial<NewRunStep>
 
 function stepParams(step: Step): Record<string, unknown> {
   const skip = new Set<string>(STEP_META_KEYS)
