@@ -3,8 +3,8 @@ const toast = useToast()
 const toastError = useToastError()
 const id = Number(useRoute().params.id)
 
-const { data: project } = await useFetch(`/api/projects/${id}`)
-const { data: runs } = useFetch('/api/runs', { query: { projectId: id }, default: () => [], lazy: true })
+const { data: project } = await useProject(id)
+const { data: runs } = useRuns(id)
 const activeRunCount = computed(() =>
   (runs.value ?? []).filter(r => r.status === 'running' || r.status === 'queued').length)
 

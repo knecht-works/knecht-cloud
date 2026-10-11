@@ -9,7 +9,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ runStarted: [runId: number] }>()
 
-const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
+const { data: workflowList } = useWorkflows()
 const startableWorkflows = computed(() => (workflowList.value ?? []).filter(workflowRunnable))
 const startOpen = ref(false)
 

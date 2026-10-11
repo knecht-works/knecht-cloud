@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { EnvTransition } from '#shared/utils/run'
+import { liveTopics } from '#shared/utils/live-topics'
 
 const props = defineProps<{ runId: number }>()
 
@@ -11,9 +12,9 @@ const emit = defineEmits<{
 
 const id = props.runId
 
-// Lazy: a blocking async setup would re-trigger Suspense on every run switch.
-const { data: run, refresh } = useFetch(`/api/runs/${id}`, { lazy: true })
-const { data: stepRows, refresh: refreshSteps } = useFetch(`/api/runs/${id}/steps`, { lazy: true })
+// Not awaited: a blocking async setup would re-trigger Suspense on every run switch.
+const { data: run } = useRun(id)
+const { data: stepRows } = useRunSteps(id)
 
 const isLive = computed(() => isLiveStatus(run.value?.status))
 
@@ -52,7 +53,7 @@ const pending = ref<EnvTransition | null>(null)
 const busy = computed(() => run.value?.envTransition ?? pending.value)
 
 function refreshWorkspace() {
-  return Promise.all([refresh(), refreshSteps()])
+  return invalidate(liveTopics.run(id))
 }
 
 usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refreshWorkspace)

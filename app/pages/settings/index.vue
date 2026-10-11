@@ -3,13 +3,7 @@ const { user, clear } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()
 
-interface Member {
-  login: string
-  name: string | null
-  avatarUrl: string | null
-  isOwner: boolean
-}
-const { data: members } = await useFetch<Member[]>('/api/members')
+const { data: members } = await useMembers()
 
 // Member logins are stored lowercased; the session login keeps GitHub's casing.
 const myLogin = computed(() => user.value?.login.toLowerCase())
@@ -28,7 +22,7 @@ async function invite() {
   if (!login) return
   inviting.value = true
   try {
-    members.value = await $fetch<Member[]>('/api/members', { method: 'POST', body: { login } })
+    members.value = await $fetch('/api/members', { method: 'POST', body: { login } })
     newLogin.value = ''
     toast.add({ title: `Invited @${login}`, color: 'success' })
   }
@@ -44,7 +38,7 @@ const removing = ref('')
 async function remove(login: string) {
   removing.value = login
   try {
-    members.value = await $fetch<Member[]>(`/api/members/${login}`, { method: 'DELETE' })
+    members.value = await $fetch(`/api/members/${login}`, { method: 'DELETE' })
     toast.add({ title: `Removed @${login}`, color: 'success' })
   }
   catch (e) {

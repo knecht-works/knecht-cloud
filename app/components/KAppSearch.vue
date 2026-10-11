@@ -1,9 +1,9 @@
 <script setup lang="ts">
 defineProps<{ collapsed?: boolean }>()
 
-const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
-const { data: workflows } = useFetch('/api/workflows', { default: () => [], lazy: true })
-const { data: integrations } = useFetch('/api/integrations', { default: () => [], lazy: true })
+const { data: projects } = useProjects()
+const { data: workflows } = useWorkflows()
+const { data: integrations } = useIntegrations()
 
 const SETTINGS = [
   { label: 'Access', suffix: 'Members, invite, owner, sign out', icon: 'i-lucide-users', to: '/settings' },

@@ -1,9 +1,9 @@
 <script setup lang="ts">
 const id = Number(useRoute().params.id)
 
-const { data: project } = await useFetch(`/api/projects/${id}`)
+const { data: project } = await useProject(id)
 
-const { data: integrations, status } = useFetch('/api/integrations', { default: () => [], lazy: true })
+const { data: integrations, status } = useIntegrations()
 const linkableIntegrations = computed(() =>
   integrations.value.filter(i => i.configured).flatMap(i => i.link ? [{ ...i, link: i.link }] : []))
 </script>

@@ -49,7 +49,7 @@ const { data: settings } = useSettings()
 const aiConfigured = computed(() => !!settings.value?.aiKeyConfigured)
 const promptDisabled = computed(() => !aiConfigured.value || !canFollowup.value)
 
-const { data: members } = useFetch('/api/members', { key: 'members', lazy: true, default: () => [] })
+const { data: members } = useMembers()
 // Mentions carry a display name, not a login: those fall back to initials.
 function authorAvatar(turn: ChatTurn) {
   const login = turn.requestedBy ?? ''

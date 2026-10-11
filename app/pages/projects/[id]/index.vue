@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import { liveTopics } from '#shared/utils/live-topics'
+
 const route = useRoute()
 const id = Number(route.params.id)
 
-const { data: project } = await useFetch(`/api/projects/${id}`)
-const { data: runs, refresh: refreshRuns } = await useFetch('/api/runs', {
-  query: { projectId: id },
-  default: () => [],
-})
+const { data: project } = await useProject(id)
+const { data: runs } = await useRuns(id)
 
 const projectRuns = computed(() => runs.value ?? [])
 const latest = computed(() => projectRuns.value[0] ?? null)
@@ -80,23 +79,23 @@ const mascotLine = computed(() => {
   return 'The environment is gone. Run the workflow again for a fresh one.'
 })
 
-const { data: workflowList } = useFetch('/api/workflows', { default: () => [], lazy: true })
+const { data: workflowList } = useWorkflows()
 const startableWorkflows = computed(() => (workflowList.value ?? []).filter(workflowRunnable))
 const { starting, start: startRun } = useStartRun(id, onRunStarted)
 const startWorkflow = (workflowId: number) => startRun(workflowId, project.value?.defaultBranch ?? 'main')
 
 async function onRunStarted(runId: number) {
-  await refreshRuns()
+  await invalidate(liveTopics.runs)
   lastSeenLatestId.value = runId
   await navigateTo({ query: { ...route.query, run: String(runId) } }, { replace: true })
 }
 
 async function onRunDeleted() {
   if (offListRun.value?.id === selectedRunId.value) offListRun.value = null
-  await refreshRuns()
+  await invalidate(liveTopics.runs)
 }
 
-const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
+const { data: triggers } = useTriggers()
 const projectTriggers = computed(() =>
   (triggers.value ?? []).filter(t => t.projectIds.includes(id)))
 
@@ -105,7 +104,7 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
   return trigger ? [{ id: w.id, name: w.name, trigger, more: rest.length }] : []
 }))
 
-usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshRuns)
+usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), () => invalidate(liveTopics.runs))
 </script>
 
 <template>
@@ -137,7 +136,7 @@ usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), refreshR
           :run-id="selectedRun.id"
           @deleted="onRunDeleted"
           @started="onRunStarted"
-          @changed="refreshRuns"
+          @changed="invalidate(liveTopics.runs)"
         />
         <KPreviewBrowser
           v-else

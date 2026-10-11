@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { liveTopics } from '#shared/utils/live-topics'
 import { flattenSteps } from '#shared/utils/workflow'
 
 const route = useRoute()
@@ -7,13 +8,10 @@ const toastError = useToastError()
 
 const id = computed(() => Number(route.params.id))
 
-const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
-const { data: projects } = useFetch('/api/projects', {
-  default: () => [],
-  lazy: true,
-  transform: rows => rows.map(p => ({ ...p, label: p.fullName })),
-})
-const { data: allTriggers, refresh: refreshTriggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
+const { data: workflows } = await useWorkflows()
+const { data: projectRows } = useProjects()
+const projects = computed(() => projectRows.value.map(p => ({ ...p, label: p.fullName })))
+const { data: allTriggers } = useTriggers()
 
 const saved = computed(() => workflows.value?.find(w => w.id === id.value) ?? null)
 const notFound = computed(() => !saved.value)
@@ -73,7 +71,7 @@ const metaSave = useAutosave(async () => {
     body: { name: meta.name.trim(), description: meta.description },
   })
   metaOriginal.value = JSON.stringify({ ...meta })
-  await refresh()
+  await invalidate(liveTopics.workflows)
 })
 watch(meta, () => {
   if (!saved.value || JSON.stringify({ ...meta }) === metaOriginal.value) return
@@ -147,7 +145,7 @@ watch(triggerModalOpen, (isOpen) => {
 async function toggleTrigger(t: { id: number, active: boolean }) {
   try {
     await $fetch(`/api/triggers/${t.id}`, { method: 'PATCH', body: { active: !t.active } })
-    await refreshTriggers()
+    await invalidate(liveTopics.triggers)
   }
   catch (e) {
     toastError('Failed to update trigger', e)
@@ -157,7 +155,7 @@ async function toggleTrigger(t: { id: number, active: boolean }) {
 async function removeTrigger(t: { id: number }) {
   try {
     await $fetch(`/api/triggers/${t.id}`, { method: 'DELETE' })
-    await refreshTriggers()
+    await invalidate(liveTopics.triggers)
     toast.add({ title: 'Trigger deleted', color: 'success' })
   }
   catch (e) {
@@ -181,7 +179,7 @@ async function toggleEnabled() {
       method: 'PATCH',
       body: { enabled: turningOn },
     })
-    await refresh()
+    await invalidate(liveTopics.workflows)
   }
   catch (e) {
     toastError('Failed to update workflow', e)
@@ -270,7 +268,7 @@ async function discardDraft() {
   try {
     await draftSave.flush()
     await $fetch(`/api/workflows/${id.value}/discard`, { method: 'POST' })
-    await refresh()
+    await invalidate(liveTopics.workflows)
     loadSteps()
   }
   catch (e) {
@@ -303,7 +301,7 @@ async function removeWorkflow() {
   removing.value = true
   try {
     const res = await $fetch<{ deletedTriggers: number }>(`/api/workflows/${id.value}`, { method: 'DELETE' })
-    await refresh()
+    await invalidate(liveTopics.workflows)
     toast.add({
       title: 'Workflow deleted',
       description: res.deletedTriggers ? `${res.deletedTriggers} trigger(s) removed with it` : undefined,
@@ -1072,7 +1070,7 @@ const pr = computed(() => {
       v-model:open="triggerModalOpen"
       :preset-workflow-id="saved?.id"
       :trigger="editingTrigger"
-      @created="refreshTriggers"
+      @created="invalidate(liveTopics.triggers)"
     />
 
     <KConfirmModal

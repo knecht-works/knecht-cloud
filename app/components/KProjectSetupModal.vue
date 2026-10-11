@@ -96,7 +96,7 @@ async function saveEnvAndContinue() {
 const dumpInput = ref<HTMLInputElement>()
 const { uploading: uploadingDump, dumpName, upload: uploadDump } = useProjectDump(project)
 
-const { data: workflowRows } = useFetch('/api/workflows', { default: () => [], lazy: true })
+const { data: workflowRows } = useWorkflows()
 const bootWorkflow = computed(() => workflowRows.value.find(w => w.name === 'boot-and-preview' && workflowRunnable(w)))
 const hasBootWorkflow = computed(() => !!bootWorkflow.value)
 

@@ -27,8 +27,8 @@ const SOURCES: { key: Source, label: string, icon: string }[] = [
   ...INTEGRATION_IDS.map(id => ({ key: id, ...integrationUi(id) })),
 ]
 
-const { data: projects } = useFetch('/api/projects', { default: () => [], lazy: true })
-const { data: integrations } = useFetch('/api/integrations', { default: () => [], lazy: true })
+const { data: projects } = useProjects()
+const { data: integrations } = useIntegrations()
 
 const source = ref<Source>('schedule')
 const workflowId = ref<number>()
