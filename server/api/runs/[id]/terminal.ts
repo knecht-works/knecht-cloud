@@ -1,6 +1,7 @@
 import { openRunTerminal, type RunTerminal } from '../../../daemon/terminal'
 import { isMember, memberCount } from '../../../utils/members'
 import { requireSession, touchSessionPreview } from '../../../stores/sessions'
+import { getRun, requireRun } from '../../../stores/runs'
 
 // The /api auth middleware does not cover the upgrade request: session and membership are checked here.
 // Client frames are JSON ({t:'i',d} input, {t:'r',cols,rows} resize), server frames are raw TTY bytes.

@@ -1,12 +1,9 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import type { H3Event } from 'h3'
-import { and, desc, eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db, schema } from '../db'
 import type { Session } from '../db/schema'
 import { currentBranch, pushBranch } from '../daemon/git'
-import { appendLog } from '../daemon/runner'
 import { getIntegration, type Integration } from '../integrations'
 import { applyLabels, moveToStatus } from '../integrations/capabilities'
 import { verifyBridgeToken } from '../utils/agent-bridge'
@@ -17,6 +14,7 @@ import { sessionCheckoutDir } from '../utils/storage'
 import { getProject } from '../stores/projects'
 import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession } from '../stores/sessions'
+import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from '../stores/runs'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
 // Plain git works inside the sandbox (the session's checkout is a
@@ -61,16 +59,6 @@ function reply(event: H3Event, code: number, text: string): string {
   return text.endsWith('\n') ? text : `${text}\n`
 }
 
-// The session's newest run: where bridge activity lands in a log/timeline.
-function latestRun(sessionId: number) {
-  return db
-    .select({ id: schema.runs.id })
-    .from(schema.runs)
-    .where(eq(schema.runs.sessionId, sessionId))
-    .orderBy(desc(schema.runs.id))
-    .get()
-}
-
 export default defineEventHandler(async (event) => {
   const sessionId = Number(getHeader(event, 'x-knecht-run-id') ?? '')
   const token = getHeader(event, 'x-knecht-token') ?? ''
@@ -87,9 +75,10 @@ export default defineEventHandler(async (event) => {
     return reply(event, 409, 'the session has no checkout (environment torn down)')
   }
 
-  const run = latestRun(sessionId)
+  // Bridge activity lands in the log of the session's newest run.
+  const run = latestSessionRun(sessionId)
   const log = (text: string) => {
-    if (run) appendLog(run.id, text)
+    if (run) appendRunLog(run.id, text)
   }
 
   const parsed = bodySchema.safeParse(await readBody(event))
@@ -150,7 +139,7 @@ export default defineEventHandler(async (event) => {
         if (!pr) return reply(event, 200, 'no commits on the branch, nothing to open a PR for')
         updateSession(sessionId, { branch })
         if (run) {
-          db.update(schema.runs).set({ branch, prUrl: pr.url }).where(eq(schema.runs.id, run.id)).run()
+          updateRun(run.id, { branch, prUrl: pr.url })
         }
         const did = pr.existing ? 'pushed to existing' : 'opened'
         log(`\nagent-git: ${did} PR #${pr.number}: ${pr.url}\n`)
@@ -190,11 +179,7 @@ async function viaIntegration<T>(fn: () => Promise<T>): Promise<T> {
 // whatever workflow run is executing in the session right now. Follow-ups
 // (no running run) always carry the reply tools.
 function requireRepliesEnabled(sessionId: number): void {
-  const running = db
-    .select({ workflowId: schema.runs.workflowId })
-    .from(schema.runs)
-    .where(and(eq(schema.runs.sessionId, sessionId), eq(schema.runs.status, 'running')))
-    .get()
+  const running = getRunningSessionRun(sessionId)
   if (!running?.workflowId) return
   const workflow = getWorkflowRow(running.workflowId)
   if (workflow && !workflow.repliesEnabled) {

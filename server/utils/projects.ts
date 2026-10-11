@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { and, eq, inArray } from 'drizzle-orm'
+import { inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { teardownSession } from '../daemon/envs'
 import { cancelFollowupWork } from '../daemon/followups'
@@ -12,16 +12,12 @@ import { deleteProjectRow } from '../stores/projects'
 import { deleteProjectLinks } from '../stores/project-links'
 import { removeProjectFromTriggers } from '../stores/triggers'
 import { listSessionIds, deleteProjectSessions } from '../stores/sessions'
+import { listRunningWorkflowRunIds, listProjectRunIds, deleteProjectRuns } from '../stores/runs'
 
 // FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
 export function deleteProject(id: number): Promise<void> {
   const sessionIds = listSessionIds(id)
-  const runningRuns = db.select({ id: schema.runs.id })
-    .from(schema.runs)
-    .where(and(eq(schema.runs.projectId, id), eq(schema.runs.kind, 'workflow'), eq(schema.runs.status, 'running')))
-    .all()
-
-  for (const run of runningRuns) cancelRun(run.id)
+  for (const runId of listRunningWorkflowRunIds(id)) cancelRun(runId)
   for (const sessionId of sessionIds) cancelFollowupWork(sessionId)
 
   if (sessionIds.length) {
@@ -29,11 +25,11 @@ export function deleteProject(id: number): Promise<void> {
   }
   db.transaction((tx) => {
     if (sessionIds.length) {
-      const runIds = tx.select({ id: schema.runs.id }).from(schema.runs).where(eq(schema.runs.projectId, id)).all().map(r => r.id)
+      const runIds = listProjectRunIds(id, tx)
       if (runIds.length) tx.delete(schema.runSteps).where(inArray(schema.runSteps.runId, runIds)).run()
       tx.delete(schema.agentItems).where(inArray(schema.agentItems.sessionId, sessionIds)).run()
       tx.delete(schema.followups).where(inArray(schema.followups.sessionId, sessionIds)).run()
-      tx.delete(schema.runs).where(eq(schema.runs.projectId, id)).run()
+      deleteProjectRuns(id, tx)
       deleteProjectSessions(id, tx)
     }
     removeProjectFromTriggers(id, tx)

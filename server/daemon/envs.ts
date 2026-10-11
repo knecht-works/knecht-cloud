@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
-import { and, desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import type { EnvTransition } from '../../shared/utils/run'
@@ -14,6 +14,7 @@ import { prepareSessionCheckout } from './git'
 import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
 import { getProject } from '../stores/projects'
 import { getSessionRow, listSessionsInEnvState, updateSession, touchSessionPreview } from '../stores/sessions'
+import { listRunSessionIds } from '../stores/runs'
 
 // In memory on purpose: a crash mid-transition must not wedge a DB state no reaper reclaims.
 const transitions = new Map<number, EnvTransition>()
@@ -238,14 +239,7 @@ export async function reapIdleEnvs(): Promise<void> {
     .all()
     .map(r => r.runId)
   const busy = new Set([
-    ...runningRuns.length
-      ? db
-          .select({ sessionId: schema.runs.sessionId })
-          .from(schema.runs)
-          .where(inArray(schema.runs.id, runningRuns))
-          .all()
-          .map(r => r.sessionId)
-      : [],
+    ...listRunSessionIds(runningRuns),
     ...db
       .select({ sessionId: schema.followups.sessionId })
       .from(schema.followups)

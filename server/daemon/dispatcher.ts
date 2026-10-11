@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import { asc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import { startRun } from './runner'
 import { startFollowup } from './followups'
 import { getSettings } from '../utils/settings'
+import { listRunningRunSessionIds, listQueuedWorkflowRuns } from '../stores/runs'
 
 // Started but maybe not yet 'running': guards against double-starting across ticks.
 const active = new Map<number, number>()
@@ -10,13 +11,7 @@ const activeFollowups = new Map<number, number>()
 
 function busySessions(): Set<number> {
   const busy = new Set<number>([...active.values(), ...activeFollowups.values()])
-  for (const r of db
-    .select({ sessionId: schema.runs.sessionId })
-    .from(schema.runs)
-    .where(eq(schema.runs.status, 'running'))
-    .all()) {
-    busy.add(r.sessionId)
-  }
+  for (const sessionId of listRunningRunSessionIds()) busy.add(sessionId)
   for (const f of db
     .select({ sessionId: schema.followups.sessionId })
     .from(schema.followups)
@@ -32,18 +27,7 @@ export function hasRunningWork(): boolean {
 }
 
 export function dispatchRuns(): void {
-  // A mention run is executed by its follow-up and must not block it below.
-  const queued = db
-    .select({
-      run: { id: schema.runs.id, sessionId: schema.runs.sessionId },
-      project: schema.projects,
-    })
-    .from(schema.runs)
-    .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))
-    .where(and(eq(schema.runs.status, 'queued'), eq(schema.runs.kind, 'workflow')))
-    .orderBy(asc(schema.runs.id))
-    .all()
-    .filter(({ run }) => !active.has(run.id))
+  const queued = listQueuedWorkflowRuns().filter(({ run }) => !active.has(run.id))
 
   const busy = busySessions()
   let capacity = Math.max(1, getSettings().maxConcurrentRuns) - active.size - activeFollowups.size

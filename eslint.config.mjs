@@ -4,6 +4,7 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 const TABLE_STORES = {
   projects: 'server/stores/projects.ts',
   projectLinks: 'server/stores/project-links.ts',
+  runs: 'server/stores/runs.ts',
   sessions: 'server/stores/sessions.ts',
   triggers: 'server/stores/triggers.ts',
   workflows: 'server/stores/workflows.ts',

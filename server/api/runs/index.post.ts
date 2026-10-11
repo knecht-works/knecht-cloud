@@ -1,11 +1,11 @@
 import { z } from 'zod'
-import { db, schema } from '../../db'
 import { publishStepsSchema } from '../../workflows/schema'
 import { dispatchRuns } from '../../daemon/dispatcher'
 import { emptyInputs } from '../../utils/inputs'
 import { resolveSession } from '../../utils/sessions'
 import { requireProject } from '../../stores/projects'
 import { requireWorkflowRow } from '../../stores/workflows'
+import { createRun } from '../../stores/runs'
 
 const bodySchema = z.object({
   projectId: z.number().int(),
@@ -30,20 +30,16 @@ export default defineEventHandler(async (event) => {
   const project = requireProject(result.data.projectId)
 
   const session = resolveSession(project, null, result.data.branch ?? null)
-  const run = db
-    .insert(schema.runs)
-    .values({
-      projectId: project.id,
-      sessionId: session.id,
-      workflow: workflow.name,
-      workflowId: workflow.id,
-      trigger: 'manual',
-      branch: session.branch ?? project.defaultBranch,
-      inputs: { ...emptyInputs('manual'), ...result.data.inputs },
-      steps: validated.data,
-    })
-    .returning()
-    .get()
+  const run = createRun({
+    projectId: project.id,
+    sessionId: session.id,
+    workflow: workflow.name,
+    workflowId: workflow.id,
+    trigger: 'manual',
+    branch: session.branch ?? project.defaultBranch,
+    inputs: { ...emptyInputs('manual'), ...result.data.inputs },
+    steps: validated.data,
+  })
 
   dispatchRuns()
 

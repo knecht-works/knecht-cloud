@@ -6,6 +6,7 @@ import { sessionHasActiveWork } from '../../../utils/sessions'
 import { emitLive } from '../../../utils/live'
 import { followupView } from '../../../utils/transcript'
 import { requireSession } from '../../../stores/sessions'
+import { requireRun } from '../../../stores/runs'
 
 // The failed turn is reused as is (prompt, model, attachments): its transcript starts over.
 export default defineEventHandler((event) => {

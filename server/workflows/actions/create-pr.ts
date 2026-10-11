@@ -1,11 +1,10 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import type { Step } from '../../../shared/utils/workflow'
-import { db, schema } from '../../db'
 import { pushBranch } from '../../daemon/git'
 import { createPullRequest, getInstallationToken } from '../../utils/github-app'
 import { withPreviewFooter } from '../../utils/origin'
 import { defineAction } from './types'
+import { updateRun } from '../../stores/runs'
 
 export const createPrAction = defineAction({
   type: 'create-pr',
@@ -39,7 +38,7 @@ export const createPrAction = defineAction({
       rt.log(`No changes to open a PR for, skipping\n`)
       return
     }
-    db.update(schema.runs).set({ prUrl: pr.url }).where(eq(schema.runs.id, rt.runId)).run()
+    updateRun(rt.runId, { prUrl: pr.url })
     rt.log(`${pr.existing ? 'Pushed to existing' : 'Opened'} PR #${pr.number}: ${pr.url}\n`)
     return { url: pr.url, number: pr.number }
   },

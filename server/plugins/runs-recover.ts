@@ -1,23 +1,12 @@
 import { sql } from 'drizzle-orm'
 import { db, schema } from '../db'
-import { appendLog } from '../daemon/runner'
 import { handBackObject } from '../integrations/assignee'
 import { getProject } from '../stores/projects'
 import { getSessionRow } from '../stores/sessions'
+import { appendRunLog, failInterruptedRuns } from '../stores/runs'
 
 export default defineNitroPlugin(() => {
-  const interrupted = db.select({ id: schema.runs.id, sessionId: schema.runs.sessionId })
-    .from(schema.runs)
-    .where(sql`${schema.runs.status} = 'running'`)
-    .all()
-  db.update(schema.runs)
-    .set({
-      status: 'failed',
-      finishedAt: new Date(),
-      log: sql`${schema.runs.log} || '\n✗ Interrupted by a daemon restart\n'`,
-    })
-    .where(sql`${schema.runs.status} = 'running'`)
-    .run()
+  const interrupted = failInterruptedRuns('\n✗ Interrupted by a daemon restart\n')
 
   db.update(schema.runSteps)
     .set({
@@ -40,6 +29,6 @@ export default defineNitroPlugin(() => {
   for (const run of interrupted) {
     const session = getSessionRow(run.sessionId)
     const project = session && getProject(session.projectId)
-    if (session && project) void handBackObject(session, run.id, project, text => appendLog(run.id, text))
+    if (session && project) void handBackObject(session, run.id, project, text => appendRunLog(run.id, text))
   }
 })

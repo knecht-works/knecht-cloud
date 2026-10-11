@@ -1,10 +1,11 @@
-import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import { getIntegration } from '../integrations'
 import { sessionPreviewUrl } from './preview-target'
 import { getSessionRow, findObjectSession, createSession, updateSession } from '../stores/sessions'
+import { latestSessionPrUrl, sessionHasActiveRun } from '../stores/runs'
 
 export interface SessionObject {
   integration: IntegrationId
@@ -59,15 +60,7 @@ export function syncObjectStatus(projectId: number, object: SessionObject, statu
 }
 
 export function sessionHasActiveWork(sessionId: number): boolean {
-  const run = db
-    .select({ id: schema.runs.id })
-    .from(schema.runs)
-    .where(and(
-      eq(schema.runs.sessionId, sessionId),
-      inArray(schema.runs.status, ['queued', 'running']),
-    ))
-    .get()
-  if (run) return true
+  if (sessionHasActiveRun(sessionId)) return true
   const followup = db
     .select({ id: schema.followups.id })
     .from(schema.followups)
@@ -86,13 +79,8 @@ export function withSessionLinks(text: string, sessionId: number): string {
   const preview = sessionPreviewUrl(session)
   if (preview) links.push(`**Preview:** ${preview}`)
   if (session.objectKind !== 'pull_request') {
-    const run = db
-      .select({ prUrl: schema.runs.prUrl })
-      .from(schema.runs)
-      .where(and(eq(schema.runs.sessionId, sessionId), isNotNull(schema.runs.prUrl)))
-      .orderBy(desc(schema.runs.id))
-      .get()
-    if (run?.prUrl) links.push(`**PR:** ${run.prUrl}`)
+    const prUrl = latestSessionPrUrl(sessionId)
+    if (prUrl) links.push(`**PR:** ${prUrl}`)
   }
   if (!links.length) return text
   return `${text.trim()}\n\n---\n${links.join(' · ')}`
