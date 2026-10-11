@@ -5,7 +5,7 @@ import { makeProject } from '../helpers/db'
 vi.mock('../../server/utils/github-app', () => ({}))
 
 const handler = (await import('../../server/api/projects/[id]/link.put')).default
-const { linkedProject, projectLinks } = await import('../../server/utils/project-links')
+const { linkedProject, projectLinks } = await import('../../server/stores/project-links')
 
 const put = (projectId: number, body: object) =>
   callRoute(handler, { method: 'PUT', route: '/:id', path: `/${projectId}`, body })

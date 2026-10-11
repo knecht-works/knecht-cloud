@@ -3,6 +3,7 @@ import { createError } from 'h3'
 import { db, schema } from '../db'
 import type { NewWorkflowRow, WorkflowRow } from '../db/schema'
 import { clearStarterWorkflow } from './projects'
+import { deleteWorkflowTriggers } from './triggers'
 
 export function getWorkflowRow(id: number): WorkflowRow | undefined {
   return db.select().from(schema.workflows).where(eq(schema.workflows.id, id)).get()
@@ -53,10 +54,10 @@ export function discardWorkflowDraft(id: number): WorkflowRow | undefined {
 // FK actions are declarative only (PRAGMA foreign_keys is off): cascade explicitly.
 export function deleteWorkflow(id: number): { deletedTriggers: number } {
   return db.transaction((tx) => {
-    const { changes } = tx.delete(schema.triggers).where(eq(schema.triggers.workflowId, id)).run()
+    const deletedTriggers = deleteWorkflowTriggers(id, tx)
     tx.update(schema.runs).set({ workflowId: null }).where(eq(schema.runs.workflowId, id)).run()
     clearStarterWorkflow(id, tx)
     tx.delete(schema.workflows).where(eq(schema.workflows.id, id)).run()
-    return { deletedTriggers: changes }
+    return { deletedTriggers }
   })
 }

@@ -1,5 +1,5 @@
 import { backfillFrameworks } from '../../utils/framework'
-import { withLinks } from '../../utils/project-links'
+import { withLinks } from '../../stores/project-links'
 import { requireProject } from '../../stores/projects'
 
 export default defineEventHandler(async (event) => {

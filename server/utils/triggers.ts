@@ -10,6 +10,7 @@ import type { TriggerSegment } from '../../shared/utils/trigger-form'
 import { getTriggerSource } from './trigger-sources'
 import { getWorkflowRow, getWorkflowRows } from '../stores/workflows'
 import { getProjects } from '../stores/projects'
+import { recordTriggerFired } from '../stores/triggers'
 
 export interface TriggerSummary {
   id: number
@@ -105,10 +106,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
 
   if (!runIds.length) return []
 
-  db.update(schema.triggers)
-    .set({ lastFiredAt: new Date(), firedCount: t.firedCount + 1, updatedAt: new Date() })
-    .where(eq(schema.triggers.id, t.id))
-    .run()
+  recordTriggerFired(t)
 
   dispatchRuns()
 
