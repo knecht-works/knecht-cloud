@@ -103,8 +103,6 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
   const [trigger, ...rest] = projectTriggers.value.filter(t => t.workflowId === w.id)
   return trigger ? [{ id: w.id, name: w.name, trigger, more: rest.length }] : []
 }))
-
-usePollWhile(() => projectRuns.value.some(r => isLiveStatus(r.status)), () => invalidate(liveTopics.runs))
 </script>
 
 <template>

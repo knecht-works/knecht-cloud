@@ -2,6 +2,8 @@ import { and, eq } from 'drizzle-orm'
 import { db, schema, type Executor } from '../db'
 import type { Project } from '../db/schema'
 import type { IntegrationId } from '../../shared/utils/integrations'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
 
 export type ProjectLinks = Partial<Record<IntegrationId, string>>
 
@@ -40,14 +42,17 @@ export function setProjectLink(projectId: number, integration: IntegrationId, ex
     db.delete(schema.projectLinks)
       .where(and(eq(schema.projectLinks.projectId, projectId), eq(schema.projectLinks.integration, integration)))
       .run()
-    return
   }
-  db.insert(schema.projectLinks)
-    .values({ projectId, integration, externalKey })
-    .onConflictDoUpdate({ target: [schema.projectLinks.projectId, schema.projectLinks.integration], set: { externalKey } })
-    .run()
+  else {
+    db.insert(schema.projectLinks)
+      .values({ projectId, integration, externalKey })
+      .onConflictDoUpdate({ target: [schema.projectLinks.projectId, schema.projectLinks.integration], set: { externalKey } })
+      .run()
+  }
+  emitTopics(liveTopics.projects, liveTopics.project(projectId))
 }
 
 export function deleteProjectLinks(projectId: number, tx: Executor = db): void {
   tx.delete(schema.projectLinks).where(eq(schema.projectLinks.projectId, projectId)).run()
+  emitTopics(liveTopics.projects, liveTopics.project(projectId))
 }

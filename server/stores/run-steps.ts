@@ -1,5 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm'
 import { db, schema, type Executor } from '../db'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
 
 export type NewRunStep = typeof schema.runSteps.$inferInsert
 
@@ -74,18 +76,23 @@ export function listRunIdsWithRunningSteps(): number[] {
 }
 
 export function createRunStep(values: NewRunStep): number {
-  return db.insert(schema.runSteps).values(values).returning({ id: schema.runSteps.id }).get().id
+  const { id } = db.insert(schema.runSteps).values(values).returning({ id: schema.runSteps.id }).get()
+  emitTopics(liveTopics.run(values.runId))
+  return id
 }
 
 export function updateRunStep(id: number, patch: Partial<NewRunStep>): void {
-  db.update(schema.runSteps).set(patch).where(eq(schema.runSteps.id, id)).run()
+  const row = db.update(schema.runSteps).set(patch).where(eq(schema.runSteps.id, id)).returning({ runId: schema.runSteps.runId }).get()
+  if (row) emitTopics(liveTopics.run(row.runId))
 }
 
 export function failInterruptedSteps(error: string): void {
-  db.update(schema.runSteps)
+  const failed = db.update(schema.runSteps)
     .set({ status: 'failed', error, finishedAt: new Date() })
     .where(eq(schema.runSteps.status, 'running'))
-    .run()
+    .returning({ runId: schema.runSteps.runId })
+    .all()
+  emitTopics(...failed.map(r => liveTopics.run(r.runId)))
 }
 
 export function deleteWorkflowStepsFrom(runId: number, fromRowId: number): void {
@@ -96,8 +103,11 @@ export function deleteWorkflowStepsFrom(runId: number, fromRowId: number): void 
       eq(schema.runSteps.origin, 'workflow'),
     ))
     .run()
+  emitTopics(liveTopics.run(runId))
 }
 
 export function deleteRunSteps(runIds: number[], tx: Executor = db): void {
-  if (runIds.length) tx.delete(schema.runSteps).where(inArray(schema.runSteps.runId, runIds)).run()
+  if (!runIds.length) return
+  tx.delete(schema.runSteps).where(inArray(schema.runSteps.runId, runIds)).run()
+  emitTopics(...runIds.map(liveTopics.run))
 }

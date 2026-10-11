@@ -1,6 +1,8 @@
 import { asc, count, eq } from 'drizzle-orm'
 import { db } from '../db'
 import { members, type Member } from '../db/schema'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
 
 const norm = (login: string) => login.trim().toLowerCase()
 
@@ -37,6 +39,7 @@ export function addMember(p: Profile & { isOwner?: boolean, invitedBy?: string |
     })
     .onConflictDoNothing({ target: members.login })
     .run()
+  emitTopics(liveTopics.members)
 }
 
 export function touchProfile(p: Profile): void {
@@ -44,8 +47,10 @@ export function touchProfile(p: Profile): void {
     .set({ name: p.name ?? null, avatarUrl: p.avatarUrl ?? null })
     .where(eq(members.login, norm(p.login)))
     .run()
+  emitTopics(liveTopics.members)
 }
 
 export function removeMember(login: string): void {
   db.delete(members).where(eq(members.login, norm(login))).run()
+  emitTopics(liveTopics.members)
 }

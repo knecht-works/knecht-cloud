@@ -2,6 +2,8 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewRun, Project, Run } from '../db/schema'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
 
 type RunStatus = Run['status']
 type FinalStatus = 'success' | 'failed' | 'cancelled'
@@ -194,6 +196,10 @@ export function listRunningWorkflowRunIds(projectId: number): number[] {
     .map(r => r.id)
 }
 
+export function listSessionRunIds(sessionId: number): number[] {
+  return db.select({ id: schema.runs.id }).from(schema.runs).where(eq(schema.runs.sessionId, sessionId)).all().map(r => r.id)
+}
+
 export function listProjectRunIds(projectId: number, tx: Executor = db): number[] {
   return tx.select({ id: schema.runs.id }).from(schema.runs).where(eq(schema.runs.projectId, projectId)).all().map(r => r.id)
 }
@@ -207,12 +213,19 @@ export function runLogBytes(runId: number): number {
     .get()?.bytes ?? 0
 }
 
+export function runsChanged(ids: number[]): void {
+  emitTopics(liveTopics.runs, ...ids.map(liveTopics.run))
+}
+
 export function createRun(values: NewRun): Run {
-  return db.insert(schema.runs).values(values).returning().get()
+  const run = db.insert(schema.runs).values(values).returning().get()
+  runsChanged([run.id])
+  return run
 }
 
 export function updateRun(id: number, patch: Partial<NewRun>): void {
   db.update(schema.runs).set(patch).where(eq(schema.runs.id, id)).run()
+  runsChanged([id])
 }
 
 export function appendRunLog(runId: number, text: string): void {
@@ -220,15 +233,18 @@ export function appendRunLog(runId: number, text: string): void {
     .set({ log: sql`${schema.runs.log} || ${text}` })
     .where(eq(schema.runs.id, runId))
     .run()
+  emitTopics(liveTopics.run(runId))
 }
 
 // A cancel can land while the run sits queued; the claim must lose that race.
 export function claimQueuedRun(id: number): boolean {
-  return db.update(schema.runs)
+  const claimed = db.update(schema.runs)
     .set({ status: 'running', startedAt: new Date(), finishedAt: null })
     .where(and(eq(schema.runs.id, id), eq(schema.runs.status, 'queued')))
     .run()
     .changes > 0
+  if (claimed) runsChanged([id])
+  return claimed
 }
 
 export function startQueuedRun(id: number): void {
@@ -236,6 +252,7 @@ export function startQueuedRun(id: number): void {
     .set({ status: 'running', startedAt: new Date() })
     .where(and(eq(schema.runs.id, id), eq(schema.runs.status, 'queued')))
     .run()
+  runsChanged([id])
 }
 
 export function requeueRun(id: number): void {
@@ -248,40 +265,49 @@ export function finishRun(id: number, status: FinalStatus): void {
 
 // Guarded so a user cancel, which flips the row first, is never overwritten.
 export function finishActiveRun(id: number, status: FinalStatus): boolean {
-  return db.update(schema.runs)
+  const finished = db.update(schema.runs)
     .set({ status, finishedAt: new Date() })
     .where(and(eq(schema.runs.id, id), inArray(schema.runs.status, ACTIVE)))
     .run()
     .changes > 0
+  if (finished) runsChanged([id])
+  return finished
 }
 
 export function cancelActiveMentionRuns(scope: { sessionId: number } | { runId: number }): void {
-  db.update(schema.runs)
+  const cancelled = db.update(schema.runs)
     .set({ status: 'cancelled', finishedAt: new Date() })
     .where(and(
       'runId' in scope ? eq(schema.runs.id, scope.runId) : eq(schema.runs.sessionId, scope.sessionId),
       eq(schema.runs.kind, 'mention'),
       inArray(schema.runs.status, ACTIVE),
     ))
-    .run()
+    .returning({ id: schema.runs.id })
+    .all()
+  if (cancelled.length) runsChanged(cancelled.map(r => r.id))
 }
 
 export function failInterruptedRuns(note: string): Pick<Run, 'id' | 'sessionId'>[] {
-  return db.update(schema.runs)
+  const failed = db.update(schema.runs)
     .set({ status: 'failed', finishedAt: new Date(), log: sql`${schema.runs.log} || ${note}` })
     .where(eq(schema.runs.status, 'running'))
     .returning({ id: schema.runs.id, sessionId: schema.runs.sessionId })
     .all()
+  runsChanged(failed.map(r => r.id))
+  return failed
 }
 
 export function unlinkWorkflowRuns(workflowId: number, tx: Executor = db): void {
-  tx.update(schema.runs).set({ workflowId: null }).where(eq(schema.runs.workflowId, workflowId)).run()
+  const unlinked = tx.update(schema.runs).set({ workflowId: null }).where(eq(schema.runs.workflowId, workflowId)).returning({ id: schema.runs.id }).all()
+  runsChanged(unlinked.map(r => r.id))
 }
 
 export function deleteRun(id: number): void {
   db.delete(schema.runs).where(eq(schema.runs.id, id)).run()
+  runsChanged([id])
 }
 
 export function deleteProjectRuns(projectId: number, tx: Executor = db): void {
   tx.delete(schema.runs).where(eq(schema.runs.projectId, projectId)).run()
+  runsChanged([])
 }
