@@ -5,7 +5,7 @@ import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 const toastError = useToastError()
 const id = Number(useRoute().params.id)
 
-const { data: project } = await useFetch(`/api/projects/${id}`)
+const { data: project } = await useProject(id)
 
 const agentInstructions = ref(project.value?.agentInstructions ?? '')
 const { state: instructionsState, error: instructionsError, schedule: scheduleInstructions } = useAutosave(async () => {
@@ -19,7 +19,7 @@ watch(agentInstructions, () => {
   scheduleInstructions()
 })
 
-const { data: workflows } = await useFetch('/api/workflows')
+const { data: workflows } = await useWorkflows()
 const starterItems = computed(() =>
   (workflows.value ?? [])
     .filter(w => w.publishedAt)
@@ -35,7 +35,7 @@ async function setStarter(value: number | null) {
     toastError('Failed to save', e)
   }
 }
-const { data: integrations } = useFetch('/api/integrations', { default: () => [], lazy: true })
+const { data: integrations } = useIntegrations()
 const configuredIntegrations = computed(() => integrations.value.filter(i => i.configured))
 function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
   const { as, on } = integrationUi(i.id).mention

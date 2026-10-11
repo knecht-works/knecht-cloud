@@ -1,7 +1,7 @@
 <script setup lang="ts">
 const id = Number(useRoute().params.id)
 
-const { data: project } = await useFetch(`/api/projects/${id}`)
+const { data: project } = await useProject(id)
 
 const base = `/projects/${id}/settings`
 const SECTIONS = [

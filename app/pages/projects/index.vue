@@ -1,6 +1,8 @@
 <script setup lang="ts">
-const { data: projects, refresh } = await useFetch('/api/projects')
-const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
+import { liveTopics } from '#shared/utils/live-topics'
+
+const { data: projects } = await useProjects()
+const { data: runs } = useRuns()
 
 const runsByProject = computed(() => {
   const latest = new Map<number, (typeof runs.value)[number]>()
@@ -145,7 +147,7 @@ const open = ref(false)
 
     <KProjectSetupModal
       v-model:open="open"
-      @created="refresh"
+      @created="invalidate(liveTopics.projects)"
     />
   </div>
 </template>

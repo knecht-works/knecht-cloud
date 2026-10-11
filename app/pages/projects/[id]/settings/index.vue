@@ -6,7 +6,7 @@ const toast = useToast()
 const toastError = useToastError()
 const id = Number(useRoute().params.id)
 
-const { data: project } = await useFetch(`/api/projects/${id}`)
+const { data: project } = await useProject(id)
 
 const fwLabel = computed(() => {
   const label = frameworkMeta(project.value?.framework).label
