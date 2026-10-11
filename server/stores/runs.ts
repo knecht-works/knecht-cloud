@@ -3,7 +3,7 @@ import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewRun, Project, Run } from '../db/schema'
 import { liveTopics } from '../../shared/utils/live-topics'
-import { emitTopics } from '../utils/live'
+import { emitRunLog, emitTopics, type RunLogChunk } from '../utils/live'
 
 type RunStatus = Run['status']
 type FinalStatus = 'success' | 'failed' | 'cancelled'
@@ -60,7 +60,6 @@ export function getRunView(id: number) {
       kind: schema.runs.kind,
       branch: schema.runs.branch,
       prUrl: schema.runs.prUrl,
-      log: schema.runs.log,
     })
     .from(schema.runs)
     .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))
@@ -204,13 +203,20 @@ export function listProjectRunIds(projectId: number, tx: Executor = db): number[
   return tx.select({ id: schema.runs.id }).from(schema.runs).where(eq(schema.runs.projectId, projectId)).all().map(r => r.id)
 }
 
-// Cast to blob: sqlite's length() on TEXT counts characters while the dashboard cuts the log in bytes.
+// In bytes, not characters: sqlite's length() on TEXT counts characters, the log offsets are bytes.
+const logBytes = sql<number>`length(cast(${schema.runs.log} as blob))`
+
 export function runLogBytes(runId: number): number {
-  return db
-    .select({ bytes: sql<number>`length(cast(${schema.runs.log} as blob))` })
+  return db.select({ bytes: logBytes }).from(schema.runs).where(eq(schema.runs.id, runId)).get()?.bytes ?? 0
+}
+
+export function readRunLog(runId: number, fromByte: number): RunLogChunk {
+  const row = db
+    .select({ tail: sql<Buffer>`substr(cast(${schema.runs.log} as blob), ${fromByte + 1})`, end: logBytes })
     .from(schema.runs)
     .where(eq(schema.runs.id, runId))
-    .get()?.bytes ?? 0
+    .get()
+  return { text: row ? Buffer.from(row.tail).toString('utf8') : '', end: row?.end ?? fromByte }
 }
 
 export function runsChanged(ids: number[]): void {
@@ -229,11 +235,12 @@ export function updateRun(id: number, patch: Partial<NewRun>): void {
 }
 
 export function appendRunLog(runId: number, text: string): void {
-  db.update(schema.runs)
+  const row = db.update(schema.runs)
     .set({ log: sql`${schema.runs.log} || ${text}` })
     .where(eq(schema.runs.id, runId))
-    .run()
-  emitTopics(liveTopics.run(runId))
+    .returning({ end: logBytes })
+    .get()
+  if (row) emitRunLog(runId, { text, end: row.end })
 }
 
 // A cancel can land while the run sits queued; the claim must lose that race.
