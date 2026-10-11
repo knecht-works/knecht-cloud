@@ -2,6 +2,7 @@ import { asc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { AgentItem, Followup } from '../db/schema'
 import { emitLive } from './live'
+import { listSessionRunSummaries } from '../stores/runs'
 
 export const followupColumns = {
   id: schema.followups.id,
@@ -54,18 +55,7 @@ export function sessionTranscript(sessionId: number) {
     .orderBy(asc(schema.followups.id))
     .all()
   const items = listAgentItems(followups.map(f => f.id))
-  const runs = db.select({
-    id: schema.runs.id,
-    workflow: schema.runs.workflow,
-    kind: schema.runs.kind,
-    status: schema.runs.status,
-    prUrl: schema.runs.prUrl,
-    createdAt: schema.runs.createdAt,
-    finishedAt: schema.runs.finishedAt,
-  }).from(schema.runs)
-    .where(eq(schema.runs.sessionId, sessionId))
-    .orderBy(asc(schema.runs.id))
-    .all()
+  const runs = listSessionRunSummaries(sessionId)
   return {
     runs,
     followups: followups.map(f => ({

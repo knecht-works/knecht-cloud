@@ -2,6 +2,7 @@ import { archiveEnv } from '../../../daemon/envs'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { withRunSessionEnv } from '../../../utils/run-view'
 import { requireSession } from '../../../stores/sessions'
+import { requireRun } from '../../../stores/runs'
 
 // The stop step is not skipped: stopping is what exports the database the
 // archive needs.

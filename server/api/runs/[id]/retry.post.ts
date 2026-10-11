@@ -1,13 +1,12 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../../db'
 import { resumePoint } from '../../../daemon/runner'
 import { dispatchRuns } from '../../../daemon/dispatcher'
 import { hasActiveFollowup } from '../../../daemon/followups'
 import { sessionCheckoutDir } from '../../../utils/storage'
 import { withRunSessionEnv } from '../../../utils/run-view'
 import { requireSession } from '../../../stores/sessions'
+import { requireRun, requeueRun } from '../../../stores/runs'
 
 // Resuming past completed steps needs the session's checkout (their file state).
 export default defineEventHandler((event) => {
@@ -36,10 +35,7 @@ export default defineEventHandler((event) => {
     }
   }
 
-  db.update(schema.runs)
-    .set({ status: 'queued', finishedAt: null })
-    .where(eq(schema.runs.id, id))
-    .run()
+  requeueRun(id)
   dispatchRuns()
 
   return withRunSessionEnv(requireRun(id))

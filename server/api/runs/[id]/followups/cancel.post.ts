@@ -1,4 +1,5 @@
 import { cancelFollowupWork } from '../../../../daemon/followups'
+import { requireRun } from '../../../../stores/runs'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)

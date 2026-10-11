@@ -1,6 +1,7 @@
 import { reviveEnv } from '../../../daemon/envs'
 import { withRunSessionEnv } from '../../../utils/run-view'
 import { requireSession } from '../../../stores/sessions'
+import { requireRun } from '../../../stores/runs'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

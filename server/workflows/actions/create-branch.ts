@@ -1,9 +1,8 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db, schema } from '../../db'
 import { createBranch } from '../../daemon/git'
 import { defineAction } from './types'
 import { updateSession } from '../../stores/sessions'
+import { updateRun } from '../../stores/runs'
 
 export const createBranchAction = defineAction({
   type: 'create-branch',
@@ -14,7 +13,7 @@ export const createBranchAction = defineAction({
   async run(step, rt) {
     rt.log(`\n▶ create-branch: ${step.name}\n`)
     await createBranch(rt.checkoutDir, step.name)
-    db.update(schema.runs).set({ branch: step.name }).where(eq(schema.runs.id, rt.runId)).run()
+    updateRun(rt.runId, { branch: step.name })
     updateSession(rt.sessionId, { branch: step.name })
     return { name: step.name }
   },

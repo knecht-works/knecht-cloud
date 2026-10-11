@@ -3,6 +3,7 @@ import { createError } from 'h3'
 import { db, schema } from '../db'
 import type { NewWorkflowRow, WorkflowRow } from '../db/schema'
 import { clearStarterWorkflow } from './projects'
+import { unlinkWorkflowRuns } from './runs'
 import { deleteWorkflowTriggers } from './triggers'
 
 export function getWorkflowRow(id: number): WorkflowRow | undefined {
@@ -55,7 +56,7 @@ export function discardWorkflowDraft(id: number): WorkflowRow | undefined {
 export function deleteWorkflow(id: number): { deletedTriggers: number } {
   return db.transaction((tx) => {
     const deletedTriggers = deleteWorkflowTriggers(id, tx)
-    tx.update(schema.runs).set({ workflowId: null }).where(eq(schema.runs.workflowId, id)).run()
+    unlinkWorkflowRuns(id, tx)
     clearStarterWorkflow(id, tx)
     tx.delete(schema.workflows).where(eq(schema.workflows.id, id)).run()
     return { deletedTriggers }

@@ -9,6 +9,7 @@ import { CLEAR_COMMAND, PR_COMMAND, PUBLISH_FOLLOWUP_PROMPT } from '../../../../
 import { MODEL_NAME_RE } from '../../../../shared/utils/ai'
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, saveAttachments, type UploadedFile } from '../../../utils/attachments'
 import { requireSession, updateSession } from '../../../stores/sessions'
+import { requireRun } from '../../../stores/runs'
 
 const bodySchema = z.object({
   prompt: z.string().trim().min(1),

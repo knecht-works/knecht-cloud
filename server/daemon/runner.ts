@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import { and, asc, eq, gte, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gte, isNull } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import { COMPOSITE_CHILD_KEYS, defaultStepTimeout, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
@@ -10,7 +10,6 @@ import { formatEnvSummary } from '../../shared/utils/env-spec'
 import { runWorkspacePath } from '../../shared/utils/routes'
 import { sessionSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
-import { getRun } from '../utils/entities'
 import { dashboardOrigin } from '../utils/origin'
 import { agentRepliedSince, describeObject, sessionObject } from '../utils/sessions'
 import { getIntegration } from '../integrations'
@@ -21,6 +20,7 @@ import { copyIntoSandbox, spawnInSandbox, startEnvStack, streamInSandbox, WEB_PR
 import { ensureEnvUp } from './envs'
 import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession, closeObjectlessSession } from '../stores/sessions'
+import { appendRunLog, claimQueuedRun, finishRun, getRun, runLogBytes, updateRun } from '../stores/runs'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
 
@@ -53,18 +53,18 @@ export function resumePoint(runId: number): { fromIndex: number, tailRowId: numb
 
 export function startRun(runId: number, project: Project): Promise<void> {
   return execRun(runId, project).catch((e) => {
-    appendLog(runId, `\nRunner crashed: ${(e as Error).message}\n`)
-    finish(runId, 'failed')
+    appendRunLog(runId, `\nRunner crashed: ${(e as Error).message}\n`)
+    finishRun(runId, 'failed')
   })
 }
 
 async function execRun(runId: number, project: Project): Promise<void> {
-  const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()
+  const run = getRun(runId)
   if (!run) return
   const session = getSessionRow(run.sessionId)
   if (!session) {
-    appendLog(runId, `\nSession ${run.sessionId} no longer exists\n`)
-    finish(runId, 'failed')
+    appendRunLog(runId, `\nSession ${run.sessionId} no longer exists\n`)
+    finishRun(runId, 'failed')
     return
   }
 
@@ -73,24 +73,19 @@ async function execRun(runId: number, project: Project): Promise<void> {
   if (!steps) {
     const workflow = run.workflowId ? getWorkflow(run.workflowId) : undefined
     if (!workflow) {
-      finish(runId, 'failed')
+      finishRun(runId, 'failed')
       return
     }
     steps = workflow.steps
-    db.update(schema.runs).set({ steps }).where(eq(schema.runs.id, runId)).run()
+    updateRun(runId, { steps })
   }
 
-  // A cancel can land while the run sits queued; the claim must lose that race.
-  const claimed = db.update(schema.runs)
-    .set({ status: 'running', startedAt: new Date(), finishedAt: null })
-    .where(and(eq(schema.runs.id, runId), eq(schema.runs.status, 'queued')))
-    .run()
-  if (!claimed.changes) return
+  if (!claimQueuedRun(runId)) return
 
   const controller = new AbortController()
   controllers.set(runId, controller)
 
-  const log = (text: string) => appendLog(runId, text)
+  const log = (text: string) => appendRunLog(runId, text)
   await takeObject(session, runId, project, log)
 
   try {
@@ -150,7 +145,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     }
     await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
-    finish(runId, 'success')
+    finishRun(runId, 'success')
     closeObjectlessSession(session.id)
     await notifyRunFinished(runId, project, session, 'success', log)
     await handBackObject(session, runId, project, log)
@@ -158,7 +153,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
   catch (e) {
     const cancelled = controller.signal.aborted
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
-    finish(runId, cancelled ? 'cancelled' : 'failed')
+    finishRun(runId, cancelled ? 'cancelled' : 'failed')
     closeObjectlessSession(session.id)
     if (!cancelled) await notifyRunFinished(runId, project, session, 'failed', log)
     await handBackObject(session, runId, project, log)
@@ -352,30 +347,6 @@ function capOutputs(outputs: Record<string, unknown> | undefined): Record<string
     throw new Error(`Step outputs too large (${size} bytes > ${MAX_OUTPUT_BYTES}): keep large data in the sandbox filesystem and pass a path instead`)
   }
   return outputs
-}
-
-export function appendLog(runId: number, text: string): void {
-  db.update(schema.runs)
-    .set({ log: sql`${schema.runs.log} || ${text}` })
-    .where(eq(schema.runs.id, runId))
-    .run()
-}
-
-// Other writers append outside this module. Cast to blob: sqlite's length()
-// on TEXT counts characters while the dashboard cuts the log in bytes.
-export function runLogBytes(runId: number): number {
-  return db
-    .select({ bytes: sql<number>`length(cast(${schema.runs.log} as blob))` })
-    .from(schema.runs)
-    .where(eq(schema.runs.id, runId))
-    .get()?.bytes ?? 0
-}
-
-function finish(runId: number, status: 'success' | 'failed' | 'cancelled'): void {
-  db.update(schema.runs)
-    .set({ status, finishedAt: new Date() })
-    .where(eq(schema.runs.id, runId))
-    .run()
 }
 
 // The integration's own write-back on the object (a ticket gets the PR link as a comment);

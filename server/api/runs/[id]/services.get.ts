@@ -1,5 +1,6 @@
 import { sessionServices } from '../../../utils/session-services'
 import { requireSession } from '../../../stores/sessions'
+import { requireRun } from '../../../stores/runs'
 
 export default defineEventHandler(async (event) => {
   const run = requireRun(requireIntParam(event))
