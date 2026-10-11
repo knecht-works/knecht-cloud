@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { RunStatus } from '~/utils/dashboard'
-import type { EnvState } from '#shared/utils/run'
+import type { EnvState, EnvTransition } from '#shared/utils/run'
 
 interface RunSummary {
   status: RunStatus
   envState: EnvState
+  envTransition?: EnvTransition | null
   workflow: string
   createdAt: string | number | Date | null
 }

@@ -1,5 +1,5 @@
 import type { Step } from '#shared/utils/workflow'
-import type { EnvState } from '#shared/utils/run'
+import type { EnvState, EnvTransition } from '#shared/utils/run'
 import { INTEGRATION_IDS, type IntegrationId, type ObjectKind } from '#shared/utils/integrations'
 import { INTEGRATION_UI, type SessionObjectMeta } from './integrations'
 
@@ -45,10 +45,20 @@ export const IDLE_STATUS_META: RunStatusMeta = {
 
 const ENV_LABEL: Partial<Record<EnvState, string>> = { stopped: 'Stopped', archived: 'Archived' }
 
+const TRANSITION_LABEL: Record<EnvTransition, string> = {
+  stopping: 'Stopping',
+  rebooting: 'Rebooting',
+  restoring: 'Restoring',
+  archiving: 'Archiving',
+}
+
 // A success only stays green while its environment is up to inspect.
-export function runStatusMeta(run: { status: RunStatus, envState: EnvState } | null | undefined): RunStatusMeta {
+export function runStatusMeta(run: { status: RunStatus, envState: EnvState, envTransition?: EnvTransition | null } | null | undefined): RunStatusMeta {
   if (!run) return IDLE_STATUS_META
   const meta = RUN_STATUS_META[run.status]
+  if (run.envTransition && !isLiveStatus(run.status)) {
+    return { dot: 'orange', pulse: true, text: 'var(--accent-orange)', label: TRANSITION_LABEL[run.envTransition] }
+  }
   if (run.status !== 'success' || run.envState === 'up') return meta
   return { dot: 'neutral', pulse: false, text: 'var(--text-dimmed)', label: ENV_LABEL[run.envState] ?? meta.label }
 }

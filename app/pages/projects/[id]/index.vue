@@ -73,6 +73,10 @@ const mascotLine = computed(() => {
   if (r.status === 'running' || r.status === 'queued') return `Working on ${r.workflow} right now.`
   if (r.status === 'failed') return 'The last run failed. Open it to see why.'
   if (!r.hasEnv) return 'This workflow works without a preview environment.'
+  if (r.envTransition === 'stopping') return 'The environment is shutting down.'
+  if (r.envTransition === 'rebooting') return 'The environment is booting again. The preview is back in a moment.'
+  if (r.envTransition === 'restoring') return 'The environment is being restored from its archive. This takes a few minutes.'
+  if (r.envTransition === 'archiving') return 'The environment is being archived.'
   if (r.envState === 'up') return r.hasPreviewTarget ? 'The preview is live and ready to inspect.' : 'The environment is up. Open the terminal or the IDE to work in it.'
   if (r.envState === 'stopped') return 'The environment is stopped. Reboot it from the run menu or send a follow-up to wake it.'
   if (r.envState === 'archived') return 'The environment is archived. Restore it from the run menu to work in it again.'
