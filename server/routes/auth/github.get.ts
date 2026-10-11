@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { withQuery } from 'ufo'
 import { dashboardOrigin } from '../../utils/origin'
 import { githubAppCredentials } from '../../utils/github-credentials'
-import { addMember, isMember, memberCount, touchProfile } from '../../utils/members'
+import { addMember, isMember, memberCount, touchProfile } from '../../stores/members'
 
 // Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
 export default defineEventHandler(async (event) => {

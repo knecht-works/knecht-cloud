@@ -1,6 +1,4 @@
-import { eq } from 'drizzle-orm'
-import { db } from '../db'
-import { githubApp } from '../db/schema'
+import { getGithubAppRow, saveGithubAppRow } from '../stores/github-app'
 import { decrypt, encrypt } from './crypto'
 
 export interface GithubAppCredentials {
@@ -26,7 +24,7 @@ let cache: GithubAppCredentials | null | undefined
 export function githubAppCredentials(): GithubAppCredentials | null {
   if (cache !== undefined) return cache
 
-  const row = db.select().from(githubApp).where(eq(githubApp.id, 1)).get()
+  const row = getGithubAppRow()
   cache = row
     ? {
         appId: row.appId,
@@ -52,17 +50,14 @@ export function isGithubAppConfigured(): boolean {
 }
 
 export function saveGithubAppCredentials(app: SavableGithubApp): void {
-  db.insert(githubApp)
-    .values({
-      id: 1,
-      appId: String(app.appId),
-      slug: app.slug ?? null,
-      htmlUrl: app.htmlUrl ?? null,
-      clientId: app.clientId,
-      clientSecretEnc: encrypt(app.clientSecret),
-      privateKeyEnc: encrypt(app.privateKey),
-      webhookSecretEnc: app.webhookSecret ? encrypt(app.webhookSecret) : null,
-    })
-    .run()
+  saveGithubAppRow({
+    appId: String(app.appId),
+    slug: app.slug ?? null,
+    htmlUrl: app.htmlUrl ?? null,
+    clientId: app.clientId,
+    clientSecretEnc: encrypt(app.clientSecret),
+    privateKeyEnc: encrypt(app.privateKey),
+    webhookSecretEnc: app.webhookSecret ? encrypt(app.webhookSecret) : null,
+  })
   cache = undefined
 }

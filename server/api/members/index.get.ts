@@ -1,3 +1,3 @@
-import { listMembers } from '../../utils/members'
+import { listMembers } from '../../stores/members'
 
 export default defineEventHandler(() => listMembers())

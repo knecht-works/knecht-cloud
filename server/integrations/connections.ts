@@ -1,7 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { eq } from 'drizzle-orm'
-import { db } from '../db'
-import { integrationConnections } from '../db/schema'
+import { deleteConnection, getConnectionRow, updateConnection, upsertConnection } from '../stores/integration-connections'
 import { decrypt, encrypt } from '../utils/crypto'
 import { dashboardOrigin } from '../utils/origin'
 import { keyPreview } from '../utils/settings'
@@ -37,18 +35,17 @@ export interface TypedConnectionStore<F extends string> extends ConnectionStore 
 const seconds = (date: Date) => Math.floor(date.getTime() / 1000)
 
 export function createConnectionStore<F extends string>(id: IntegrationId, form: ConnectionFormDef): TypedConnectionStore<F> {
-  const where = eq(integrationConnections.integration, id)
   const secretKeys = new Set(form.fields.filter(f => f.type === 'secret').map(f => f.key))
   const minted = form.webhook.secret === 'minted'
   let cache: Connection<F> | null | undefined
 
   function credentials(): Connection<F> | null {
     if (cache !== undefined) return cache
-    const row = db.select().from(integrationConnections).where(where).get()
+    const row = getConnectionRow(id)
     // A minted secret missing from an older connection is created here, so the row stays usable without a reconnect.
     if (row && minted && !row.webhookSecretEnc) {
       row.webhookSecretEnc = encrypt(randomBytes(32).toString('hex'))
-      db.update(integrationConnections).set({ webhookSecretEnc: row.webhookSecretEnc }).where(where).run()
+      updateConnection(id, { webhookSecretEnc: row.webhookSecretEnc })
     }
     cache = row
       ? {
@@ -67,7 +64,7 @@ export function createConnectionStore<F extends string>(id: IntegrationId, form:
 
     status() {
       const creds = credentials()
-      const row = creds ? db.select().from(integrationConnections).where(where).get() : undefined
+      const row = creds ? getConnectionRow(id) : undefined
       const fields = form.fields.filter(f => creds?.[f.key as F])
       return {
         configured: !!creds,
@@ -93,30 +90,24 @@ export function createConnectionStore<F extends string>(id: IntegrationId, form:
         accountId: account.accountId ?? null,
         webhookSecretEnc: webhookSecret ? encrypt(webhookSecret) : null,
       }
-      db.insert(integrationConnections)
-        .values({ integration: id, ...row })
-        .onConflictDoUpdate({ target: integrationConnections.integration, set: row })
-        .run()
+      upsertConnection(id, row)
       cache = undefined
     },
 
     saveWebhookSecret(secret) {
-      db.update(integrationConnections).set({ webhookSecretEnc: encrypt(secret) }).where(where).run()
+      updateConnection(id, { webhookSecretEnc: encrypt(secret) })
       cache = undefined
     },
 
     remove() {
-      db.delete(integrationConnections).where(where).run()
+      deleteConnection(id)
       cache = undefined
     },
 
     recordDelivery(result) {
-      db.update(integrationConnections)
-        .set(result.ok
-          ? { lastDeliveryAt: new Date(), lastDeliverySummary: result.summary }
-          : { lastRejectedAt: new Date(), lastRejectedReason: result.reason })
-        .where(where)
-        .run()
+      updateConnection(id, result.ok
+        ? { lastDeliveryAt: new Date(), lastDeliverySummary: result.summary }
+        : { lastRejectedAt: new Date(), lastRejectedReason: result.reason })
     },
   }
 }

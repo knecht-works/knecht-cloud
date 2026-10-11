@@ -1,5 +1,5 @@
 import { INTEGRATIONS } from '../integrations'
-import { addMember, isMember, memberCount } from '../utils/members'
+import { addMember, isMember, memberCount } from '../stores/members'
 
 export default defineEventHandler(async (event) => {
   const { pathname } = getRequestURL(event)
