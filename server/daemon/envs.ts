@@ -1,12 +1,11 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
-import { and, desc, eq, inArray, lt } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import type { EnvTransition } from '../../shared/utils/run'
 import { getSettings } from '../utils/settings'
-import { getSessionRow } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
 import { configureSessionEnv, readDdevConfig } from './ddev'
@@ -14,6 +13,7 @@ import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
 import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
 import { getProject } from '../stores/projects'
+import { getSessionRow, listSessionsInEnvState, updateSession, touchSessionPreview } from '../stores/sessions'
 
 // In memory on purpose: a crash mid-transition must not wedge a DB state no reaper reclaims.
 const transitions = new Map<number, EnvTransition>()
@@ -71,7 +71,7 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
   }
   catch (e) {
     await stopEnvStack(sessionId).catch(() => {})
-    db.update(schema.sessions).set({ envState: priorState }).where(eq(schema.sessions.id, sessionId)).run()
+    updateSession(sessionId, { envState: priorState })
     throw e
   }
 }
@@ -110,7 +110,7 @@ async function configureEnv(dir: string, project: Project, sessionId: number, ur
 }
 
 function pinDevServerPort(sessionId: number, port: number | null): void {
-  db.update(schema.sessions).set({ previewPort: port }).where(eq(schema.sessions.id, sessionId)).run()
+  updateSession(sessionId, { previewPort: port })
 }
 
 export async function rehydrateEnv(sessionId: number): Promise<void> {
@@ -185,12 +185,7 @@ function lastBootStep(sessionId: number): { commands?: string } | null {
 // No restart policy on containers (per-container policies leave a stack with
 // add-on services half-up), so every 'up' env gets an unconditional `ddev start`.
 export async function reconcileEnvStates(): Promise<void> {
-  const up = db
-    .select({ id: schema.sessions.id })
-    .from(schema.sessions)
-    .where(eq(schema.sessions.envState, 'up'))
-    .orderBy(desc(schema.sessions.previewLastSeen))
-    .all()
+  const up = listSessionsInEnvState('up')
   for (const { id } of up) {
     try {
       await startEnvStack(id)
@@ -198,17 +193,14 @@ export async function reconcileEnvStates(): Promise<void> {
     }
     catch (err) {
       forgetPreview(id)
-      db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, id)).run()
+      updateSession(id, { envState: 'stopped' })
       console.error(`[envs] boot restore of session ${id} failed, marked stopped:`, err)
     }
   }
 }
 
 function markUp(sessionId: number): void {
-  db.update(schema.sessions)
-    .set({ envState: 'up', previewLastSeen: new Date() })
-    .where(eq(schema.sessions.id, sessionId))
-    .run()
+  updateSession(sessionId, { envState: 'up', previewLastSeen: new Date() })
 }
 
 // The reaper tick must not pile a second stop onto a session mid-export.
@@ -218,7 +210,7 @@ export async function stopEnv(sessionId: number): Promise<void> {
     await exportSessionDb(sessionId)
     // `ddev stop` on an unregistered project fails and would wedge the env in 'up'.
     if (await envStackRunning(sessionId)) await stopEnvStack(sessionId)
-    db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, sessionId)).run()
+    updateSession(sessionId, { envState: 'stopped' })
   })
 }
 
@@ -237,11 +229,7 @@ async function exportSessionDb(sessionId: number): Promise<void> {
 export async function reapIdleEnvs(): Promise<void> {
   const { idleStopMinutes } = getSettings()
   const cutoff = new Date(Date.now() - idleStopMinutes * 60_000)
-  const idle = db
-    .select({ id: schema.sessions.id })
-    .from(schema.sessions)
-    .where(and(eq(schema.sessions.envState, 'up'), lt(schema.sessions.previewLastSeen, cutoff)))
-    .all()
+  const idle = listSessionsInEnvState('up', { seenBefore: cutoff })
   if (!idle.length) return
   const runningRuns = db
     .select({ runId: schema.runSteps.runId })
@@ -268,7 +256,7 @@ export async function reapIdleEnvs(): Promise<void> {
   for (const { id } of idle) {
     try {
       if (busy.has(id)) {
-        db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, id)).run()
+        touchSessionPreview(id)
         continue
       }
       await stopEnv(id)
@@ -283,11 +271,7 @@ export async function archiveStaleEnvs(): Promise<void> {
   const { previewRetentionDays } = getSettings()
   if (previewRetentionDays <= 0) return
   const cutoff = new Date(Date.now() - previewRetentionDays * 86_400_000)
-  const stale = db
-    .select()
-    .from(schema.sessions)
-    .where(and(eq(schema.sessions.envState, 'stopped'), lt(schema.sessions.previewLastSeen, cutoff)))
-    .all()
+  const stale = listSessionsInEnvState('stopped', { seenBefore: cutoff })
   for (const session of stale) await archiveEnv(session.id)
 }
 
@@ -295,7 +279,7 @@ export async function archiveEnv(sessionId: number): Promise<void> {
   await inTransition(sessionId, 'archiving', async () => {
     await snapshotCheckout(sessionId)
     await teardownSession(sessionId)
-    db.update(schema.sessions).set({ envState: 'archived' }).where(eq(schema.sessions.id, sessionId)).run()
+    updateSession(sessionId, { envState: 'archived' })
   })
 }
 
@@ -307,7 +291,7 @@ async function snapshotCheckout(sessionId: number): Promise<void> {
   if (!existsSync(gitDir)) return
   try {
     const { stdout: sha } = await execa('git', ['-C', dir, 'rev-parse', 'HEAD'])
-    db.update(schema.sessions).set({ commitSha: sha.trim() }).where(eq(schema.sessions.id, sessionId)).run()
+    updateSession(sessionId, { commitSha: sha.trim() })
     await execa('git', ['-C', dir, 'add', '-A'])
     mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
     // .git first: a diff that blows maxBuffer below must still leave a restorable object store.
@@ -330,15 +314,11 @@ export async function reapExpiredArchives(): Promise<void> {
   const { archiveRetentionDays } = getSettings()
   if (archiveRetentionDays <= 0) return
   const cutoff = new Date(Date.now() - archiveRetentionDays * 86_400_000)
-  const expired = db
-    .select({ id: schema.sessions.id })
-    .from(schema.sessions)
-    .where(and(eq(schema.sessions.envState, 'archived'), lt(schema.sessions.previewLastSeen, cutoff)))
-    .all()
+  const expired = listSessionsInEnvState('archived', { seenBefore: cutoff })
   for (const { id } of expired) {
     rmSync(sessionArchiveDir(id), { recursive: true, force: true })
     // Or the boot step treats the session as already booted.
-    db.update(schema.sessions).set({ envState: 'down', previewReady: false }).where(eq(schema.sessions.id, id)).run()
+    updateSession(id, { envState: 'down', previewReady: false })
   }
 }
 

@@ -1,12 +1,11 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import AdmZip from 'adm-zip'
-import { and, eq } from 'drizzle-orm'
-import { db, schema } from '../../../db'
 import { rebootEnv } from '../../../daemon/envs'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { WEB_PROJECT_DIR, webMountPresent } from '../../../daemon/sandbox'
 import { requireProject } from '../../../stores/projects'
+import { listSessionsInEnvState } from '../../../stores/sessions'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
@@ -50,11 +49,7 @@ export default defineEventHandler(async (event) => {
 
   // The bind mount is declared at boot, so envs that were up before the folder existed lack it.
   // Not while work is executing: recreating the web container would kill it.
-  const upSessions = db
-    .select({ id: schema.sessions.id })
-    .from(schema.sessions)
-    .where(and(eq(schema.sessions.projectId, id), eq(schema.sessions.envState, 'up')))
-    .all()
+  const upSessions = listSessionsInEnvState('up', { projectId: id })
   await Promise.all(upSessions.map(async (session) => {
     if (sessionHasActiveWork(session.id)) return
     if (await webMountPresent(session.id, `${WEB_PROJECT_DIR}/${target}`)) return

@@ -20,6 +20,7 @@ import { configureSessionEnv } from './ddev'
 import { copyIntoSandbox, spawnInSandbox, startEnvStack, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
 import { ensureEnvUp } from './envs'
 import { getWorkflowRow } from '../stores/workflows'
+import { getSessionRow, updateSession, closeObjectlessSession } from '../stores/sessions'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
 
@@ -60,7 +61,7 @@ export function startRun(runId: number, project: Project): Promise<void> {
 async function execRun(runId: number, project: Project): Promise<void> {
   const run = db.select().from(schema.runs).where(eq(schema.runs.id, runId)).get()
   if (!run) return
-  const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()
+  const session = getSessionRow(run.sessionId)
   if (!session) {
     appendLog(runId, `\nSession ${run.sessionId} no longer exists\n`)
     finish(runId, 'failed')
@@ -116,15 +117,12 @@ async function execRun(runId: number, project: Project): Promise<void> {
     // the environment even if the project setting changes later.
     const urlMode = session.urlMode ?? project.urlMode
     const { env, warnings, injected, devServerPort, changed } = await configureSessionEnv(dir, project, sessionId, urlMode)
-    db.update(schema.sessions)
-      .set({
-        previewHosts: env.hosts.value,
-        urlMode,
-        previewPort: devServerPort,
-        branch: session.branch ?? run.branch ?? project.defaultBranch,
-      })
-      .where(eq(schema.sessions.id, sessionId))
-      .run()
+    updateSession(sessionId, {
+      previewHosts: env.hosts.value,
+      urlMode,
+      previewPort: devServerPort,
+      branch: session.branch ?? run.branch ?? project.defaultBranch,
+    })
     log(`Environment: ${sessionSandboxName(sessionId)} (${formatEnvSummary(env)}, +${injected} env var(s))\n`)
     for (const warning of warnings) log(`Warning: ${warning}\n`)
     if (changed && session.envState === 'up') {
@@ -168,14 +166,6 @@ async function execRun(runId: number, project: Project): Promise<void> {
   finally {
     controllers.delete(runId)
   }
-}
-
-// Closed is a display state, not a gate: dashboard follow-ups still land on it.
-function closeObjectlessSession(sessionId: number): void {
-  db.update(schema.sessions)
-    .set({ status: 'closed', closedAt: new Date() })
-    .where(and(eq(schema.sessions.id, sessionId), isNull(schema.sessions.objectKind)))
-    .run()
 }
 
 function replayOutputs(runId: number, ctx: RunContext): void {

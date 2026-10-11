@@ -1,7 +1,7 @@
 import { stopEnv } from '../../../daemon/envs'
-import { requireSession } from '../../../utils/entities'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { withRunSessionEnv } from '../../../utils/run-view'
+import { requireSession } from '../../../stores/sessions'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

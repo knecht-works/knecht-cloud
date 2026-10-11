@@ -1,8 +1,6 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../../db'
 import { openRunTerminal, type RunTerminal } from '../../../daemon/terminal'
 import { isMember, memberCount } from '../../../utils/members'
-import { requireSession } from '../../../utils/entities'
+import { requireSession, touchSessionPreview } from '../../../stores/sessions'
 
 // The /api auth middleware does not cover the upgrade request: session and membership are checked here.
 // Client frames are JSON ({t:'i',d} input, {t:'r',cols,rows} resize), server frames are raw TTY bytes.
@@ -15,7 +13,7 @@ function bumpPreviewSeen(sessionId: number): void {
   const now = Date.now()
   if (now - (lastBump.get(sessionId) ?? 0) < 30_000) return
   lastBump.set(sessionId, now)
-  db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, sessionId)).run()
+  touchSessionPreview(sessionId)
 }
 
 function parseTerminalUrl(url: string): { runId: number, service: string, cols: number, rows: number } | null {

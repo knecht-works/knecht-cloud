@@ -6,6 +6,7 @@ import { cancelFollowupWork } from '../../daemon/followups'
 import { cancelRun } from '../../daemon/runner'
 import { sessionArchiveDir } from '../../utils/storage'
 import { removeAttachments } from '../../utils/attachments'
+import { deleteSession } from '../../stores/sessions'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
@@ -38,7 +39,7 @@ export default defineEventHandler(async (event) => {
     db.delete(schema.agentItems).where(eq(schema.agentItems.sessionId, run.sessionId)).run()
     removeAttachments(db.select({ id: schema.followups.id }).from(schema.followups).where(eq(schema.followups.sessionId, run.sessionId)).all().map(f => f.id))
     db.delete(schema.followups).where(eq(schema.followups.sessionId, run.sessionId)).run()
-    db.delete(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).run()
+    deleteSession(run.sessionId)
   }
   return { ok: true }
 })

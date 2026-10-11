@@ -1,7 +1,7 @@
 import { archiveEnv } from '../../../daemon/envs'
-import { requireSession } from '../../../utils/entities'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { withRunSessionEnv } from '../../../utils/run-view'
+import { requireSession } from '../../../stores/sessions'
 
 // The stop step is not skipped: stopping is what exports the database the
 // archive needs.

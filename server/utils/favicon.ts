@@ -3,9 +3,9 @@ import type { Project } from '../db/schema'
 import { setProjectMeta } from '../stores/projects'
 import { previewTargetPort, readDdevHosts } from '../daemon/ddev'
 import { resolvePreview } from '../daemon/sandbox'
-import { getSessionRow } from './entities'
 import { sessionPreviewUrl } from './preview-target'
 import { sessionCheckoutDir } from './storage'
+import { getSessionRow } from '../stores/sessions'
 
 const MAX_HTML_BYTES = 512_000
 

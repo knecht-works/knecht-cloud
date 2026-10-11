@@ -11,14 +11,11 @@ import { removeAttachments } from './attachments'
 import { deleteProjectRow } from '../stores/projects'
 import { deleteProjectLinks } from '../stores/project-links'
 import { removeProjectFromTriggers } from '../stores/triggers'
+import { listSessionIds, deleteProjectSessions } from '../stores/sessions'
 
 // FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
 export function deleteProject(id: number): Promise<void> {
-  const sessionIds = db.select({ id: schema.sessions.id })
-    .from(schema.sessions)
-    .where(eq(schema.sessions.projectId, id))
-    .all()
-    .map(s => s.id)
+  const sessionIds = listSessionIds(id)
   const runningRuns = db.select({ id: schema.runs.id })
     .from(schema.runs)
     .where(and(eq(schema.runs.projectId, id), eq(schema.runs.kind, 'workflow'), eq(schema.runs.status, 'running')))
@@ -37,7 +34,7 @@ export function deleteProject(id: number): Promise<void> {
       tx.delete(schema.agentItems).where(inArray(schema.agentItems.sessionId, sessionIds)).run()
       tx.delete(schema.followups).where(inArray(schema.followups.sessionId, sessionIds)).run()
       tx.delete(schema.runs).where(eq(schema.runs.projectId, id)).run()
-      tx.delete(schema.sessions).where(eq(schema.sessions.projectId, id)).run()
+      deleteProjectSessions(id, tx)
     }
     removeProjectFromTriggers(id, tx)
     deleteProjectLinks(id, tx)

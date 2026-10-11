@@ -10,13 +10,13 @@ import { appendLog } from '../daemon/runner'
 import { getIntegration, type Integration } from '../integrations'
 import { applyLabels, moveToStatus } from '../integrations/capabilities'
 import { verifyBridgeToken } from '../utils/agent-bridge'
-import { getSessionRow } from '../utils/entities'
 import { createPullRequest, getInstallationToken } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
 import { describeObject, recordAgentReply, sessionObject, withSessionLinks, type SessionObject } from '../utils/sessions'
 import { sessionCheckoutDir } from '../utils/storage'
 import { getProject } from '../stores/projects'
 import { getWorkflowRow } from '../stores/workflows'
+import { getSessionRow, updateSession } from '../stores/sessions'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
 // Plain git works inside the sandbox (the session's checkout is a
@@ -148,7 +148,7 @@ export default defineEventHandler(async (event) => {
           base: project.defaultBranch,
         })
         if (!pr) return reply(event, 200, 'no commits on the branch, nothing to open a PR for')
-        db.update(schema.sessions).set({ branch }).where(eq(schema.sessions.id, sessionId)).run()
+        updateSession(sessionId, { branch })
         if (run) {
           db.update(schema.runs).set({ branch, prUrl: pr.url }).where(eq(schema.runs.id, run.id)).run()
         }
