@@ -160,7 +160,7 @@ describe('runner', () => {
     await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, project)
     expect(startEnvStack).not.toHaveBeenCalled()
     await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, { ...project, phpVersion: '8.2' })
-    expect(startEnvStack).toHaveBeenCalledWith(run.sessionId)
+    expect(startEnvStack).toHaveBeenCalledWith(run.sessionId, expect.any(Function))
   })
 
   it('fails the run at a failing step and does not execute later steps', async () => {

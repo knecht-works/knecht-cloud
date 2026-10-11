@@ -9,11 +9,10 @@ import { getSettings } from '../utils/settings'
 import { getProject, getSessionRow } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
-import { joinBootCommands, runSetupCommands } from '../workflows/actions/ddev-start'
 import { configureSessionEnv, readDdevConfig } from './ddev'
 import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
-import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack } from './sandbox'
+import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
 
 // In memory on purpose: a crash mid-transition must not wedge a DB state no reaper reclaims.
 const transitions = new Map<number, EnvTransition>()
@@ -32,9 +31,61 @@ async function inTransition(sessionId: number, kind: EnvTransition, fn: () => Pr
   }
 }
 
-export async function ensureEnvUp(sessionId: number): Promise<void> {
-  if (!await envStackRunning(sessionId)) await startEnvStack(sessionId)
+export async function ensureEnvUp(sessionId: number, log?: (text: string) => void): Promise<void> {
+  if (!await envStackRunning(sessionId)) await startEnvStack(sessionId, log)
   markUp(sessionId)
+}
+
+export interface BootPlan {
+  dbFile: string | null
+  projectCommands: string
+  stepCommands?: string
+  log?: (text: string) => void
+  signal?: AbortSignal
+}
+
+// A half-booted stack would otherwise idle until the reaper reclaims it.
+export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> {
+  const log = plan.log ?? (() => {})
+  const exec = async (command: string[]) => (await streamInSandbox(sessionId, command, log, undefined, plan.signal)).code
+  const priorState = getSessionRow(sessionId)?.envState ?? 'down'
+  try {
+    await startEnvStack(sessionId, log)
+    markUp(sessionId)
+    if (plan.dbFile) {
+      log(`\n▶ import-db (${basename(plan.dbFile)})\n`)
+      const code = await exec(['ddev', 'import-db', `--file=${plan.dbFile}`])
+      if (code !== 0) throw new Error(`ddev import-db exited with code ${code}`)
+    }
+    if (plan.projectCommands.trim()) log(`\nBoot commands (project settings):\n`)
+    await runSetupCommands(plan.projectCommands, c => exec(['bash', '-lc', c]), log)
+    if (plan.stepCommands?.trim()) log(`\nAdditional setup commands (this workflow's boot step):\n`)
+    await runSetupCommands(plan.stepCommands, c => exec(['bash', '-lc', c]), log)
+    const port = getSessionRow(sessionId)?.previewPort
+    if (port != null) {
+      log(`\n▶ Starting the dev server on port ${port}\n`)
+      await restartDevServer(exec)
+      await waitForDevServer(sessionId, port)
+    }
+  }
+  catch (e) {
+    await stopEnvStack(sessionId).catch(() => {})
+    db.update(schema.sessions).set({ envState: priorState }).where(eq(schema.sessions.id, sessionId)).run()
+    throw e
+  }
+}
+
+async function runSetupCommands(
+  commands: string | undefined,
+  exec: (command: string) => Promise<number>,
+  log: (text: string) => void,
+): Promise<void> {
+  const lines = (commands ?? '').split('\n').map(l => l.trim()).filter(Boolean)
+  for (const command of lines) {
+    log(`\n▶ ${command}\n`)
+    const code = await exec(command)
+    if (code !== 0) throw new Error(`'${command}' exited with code ${code}`)
+  }
 }
 
 export async function rebootEnv(sessionId: number): Promise<void> {
@@ -98,24 +149,14 @@ async function restoreFromArchive(sessionId: number): Promise<void> {
   if (existsSync(stateArchive) && !existsSync(join(dir, '.knecht'))) {
     await execa('tar', ['-xzf', stateArchive, '-C', dir])
   }
-  const devServerPort = await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite')
-  pinDevServerPort(sessionId, devServerPort)
+  pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
 
-  await startEnvStack(sessionId)
-  try {
-    await importArchivedDb(sessionId, project)
-    await rerunBootSetup(sessionId, project)
-    if (devServerPort !== null) {
-      await restartDevServer(async command => (await execInSandbox(sessionId, command, { reject: false })).exitCode ?? 1)
-      await waitForDevServer(sessionId, devServerPort)
-    }
-  }
-  catch (e) {
-    // A half-restored stack must not stay 'archived': no reaper reclaims that state.
-    await stopEnvStack(sessionId)
-    throw e
-  }
-  markUp(sessionId)
+  const bootStep = lastBootStep(sessionId)
+  await bootEnv(sessionId, {
+    dbFile: archivedDbFile(sessionId, project),
+    projectCommands: bootStep ? project.bootCommands : '',
+    stepCommands: bootStep?.commands,
+  })
 }
 
 export async function reviveEnv(sessionId: number): Promise<void> {
@@ -125,7 +166,7 @@ export async function reviveEnv(sessionId: number): Promise<void> {
   else await ensureEnvUp(sessionId)
 }
 
-async function rerunBootSetup(sessionId: number, project: Project): Promise<void> {
+function lastBootStep(sessionId: number): { commands?: string } | null {
   const row = db
     .select({ params: schema.runSteps.params })
     .from(schema.runSteps)
@@ -137,12 +178,7 @@ async function rerunBootSetup(sessionId: number, project: Project): Promise<void
     ))
     .orderBy(desc(schema.runSteps.id))
     .get()
-  if (!row) return
-  const { commands } = (row.params ?? {}) as { commands?: string }
-  await runSetupCommands(joinBootCommands(project.bootCommands, commands), async (command) => {
-    const { exitCode } = await execInSandbox(sessionId, ['bash', '-lc', command], { reject: false })
-    return exitCode ?? 1
-  })
+  return row ? (row.params ?? {}) as { commands?: string } : null
 }
 
 // No restart policy on containers (per-container policies leave a stack with
@@ -305,12 +341,10 @@ export async function reapExpiredArchives(): Promise<void> {
   }
 }
 
-async function importArchivedDb(sessionId: number, project: Project): Promise<void> {
+function archivedDbFile(sessionId: number, project: Project): string | null {
   const archived = join(sessionArchiveDir(sessionId), 'db.sql.gz')
   const fallback = project.dbDumpPath && join(projectDumpDir(project.id), basename(project.dbDumpPath))
-  const file = existsSync(archived) ? archived : fallback && existsSync(fallback) ? fallback : null
-  if (!file) return
-  await execInSandbox(sessionId, ['ddev', 'import-db', `--file=${file}`])
+  return existsSync(archived) ? archived : fallback && existsSync(fallback) ? fallback : null
 }
 
 export async function teardownSession(sessionId: number): Promise<void> {

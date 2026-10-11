@@ -57,9 +57,13 @@ export async function resolveContainerUser(sessionId: number): Promise<{ uid: nu
   }
 }
 
-export async function startEnvStack(sessionId: number): Promise<void> {
+export async function startEnvStack(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
   forgetPreview(sessionId)
-  await execDdev(sessionId, ['start', '-y'])
+  const child = execDdev(sessionId, ['start', '-y'], { reject: false })
+  child.stdout?.on('data', (d: Buffer) => log(d.toString()))
+  child.stderr?.on('data', (d: Buffer) => log(d.toString()))
+  const { exitCode, stderr } = await child
+  if (exitCode !== 0) throw new Error(`ddev start exited with code ${exitCode}: ${String(stderr).trim().split('\n').at(-1)}`)
   await wireNetworks(sessionId)
 }
 
@@ -147,10 +151,7 @@ const EXEC_WRAPPER = 'HOME="$(getent passwd "$(id -u)" | cut -d: -f6)"; [ -n "$H
 // `env` becomes `docker exec -e` so a secret never appears in the command line.
 export function execInSandbox(sessionId: number, command: string[], options?: Options, env?: Record<string, string>) {
   if (command[0] === 'ddev') {
-    const child = execDdev(sessionId, command.slice(1), { ...options, env: { ...(options?.env as Record<string, string> | undefined), ...env } })
-    // Every `ddev start` re-attaches ddev_default, so the detach must follow each one.
-    if (command[1] === 'start') void child.then(() => wireNetworks(sessionId), () => {})
-    return child
+    return execDdev(sessionId, command.slice(1), { ...options, env: { ...(options?.env as Record<string, string> | undefined), ...env } })
   }
   return execa('docker', dockerExecArgs(sessionId, command, env), options)
 }
