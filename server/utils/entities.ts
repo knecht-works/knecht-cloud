@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../db'
-import type { Run, Session, Trigger } from '../db/schema'
+import type { Run, Session } from '../db/schema'
 
 export function getRun(id: number): Run | undefined {
   return db.select().from(schema.runs).where(eq(schema.runs.id, id)).get()
@@ -24,10 +24,4 @@ export function requireSession(id: number): Session {
 
 export function requireRunSession(run: Run): Session {
   return requireSession(run.sessionId)
-}
-
-export function requireTrigger(id: number): Trigger {
-  const trigger = db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()
-  if (!trigger) throw createError({ statusCode: 404, statusMessage: 'Trigger not found' })
-  return trigger
 }

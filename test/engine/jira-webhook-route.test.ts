@@ -34,7 +34,7 @@ const { jiraConnection, jiraCredentials } = await import('../../server/integrati
 const { resolveSession } = await import('../../server/utils/sessions')
 const { db, schema } = await import('../../server/db')
 const { eq } = await import('drizzle-orm')
-const { setProjectLink } = await import('../../server/utils/project-links')
+const { setProjectLink } = await import('../../server/stores/project-links')
 const handler = (await import('../../server/api/jira/webhook.post')).default
 
 const KNECHT_ACCOUNT = 'knecht-account-id'

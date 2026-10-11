@@ -1,5 +1,5 @@
 import { tryParseJson } from '../../utils/json'
-import { linkedProject } from '../../utils/project-links'
+import { linkedProject } from '../../stores/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'

@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { TRIGGER_SOURCES } from '../../../shared/utils/integrations'
-import { db, schema } from '../../db'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
 import { requireWorkflowRow } from '../../stores/workflows'
+import { createTrigger } from '../../stores/triggers'
 
 const bodySchema = z.object({
   source: z.enum(TRIGGER_SOURCES),
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
     values.nextFireAt = nextRun(data.cron)
   }
 
-  const row = db.insert(schema.triggers).values(values).returning().get()
+  const row = createTrigger(values)
 
   return toSummaries([row])[0]
 })

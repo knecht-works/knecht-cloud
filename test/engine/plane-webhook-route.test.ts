@@ -71,7 +71,7 @@ vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 const { plane } = await import('../../server/integrations/plane')
 const { planeConnection } = await import('../../server/integrations/plane/credentials')
 const { resolveSession } = await import('../../server/utils/sessions')
-const { setProjectLink } = await import('../../server/utils/project-links')
+const { setProjectLink } = await import('../../server/stores/project-links')
 const handler = (await import('../../server/api/plane/webhook.post')).default
 
 const SECRET = 'plane_wh_secret'

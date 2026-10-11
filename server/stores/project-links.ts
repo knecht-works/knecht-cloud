@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { db, schema } from '../db'
+import { db, schema, type Executor } from '../db'
 import type { Project } from '../db/schema'
 import type { IntegrationId } from '../../shared/utils/integrations'
 
@@ -27,6 +27,14 @@ export function linkedProject(integration: IntegrationId, externalKey: string): 
     .get()?.project
 }
 
+export function linkedKeys(integration: IntegrationId): string[] {
+  return db.select({ key: schema.projectLinks.externalKey })
+    .from(schema.projectLinks)
+    .where(eq(schema.projectLinks.integration, integration))
+    .all()
+    .map(r => r.key)
+}
+
 export function setProjectLink(projectId: number, integration: IntegrationId, externalKey: string | null): void {
   if (externalKey === null) {
     db.delete(schema.projectLinks)
@@ -38,4 +46,8 @@ export function setProjectLink(projectId: number, integration: IntegrationId, ex
     .values({ projectId, integration, externalKey })
     .onConflictDoUpdate({ target: [schema.projectLinks.projectId, schema.projectLinks.integration], set: { externalKey } })
     .run()
+}
+
+export function deleteProjectLinks(projectId: number, tx: Executor = db): void {
+  tx.delete(schema.projectLinks).where(eq(schema.projectLinks.projectId, projectId)).run()
 }
