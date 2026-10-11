@@ -2,12 +2,11 @@ import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import * as h3 from 'h3'
 import { createApp, createRouter, toNodeListener, type EventHandler } from 'h3'
-import * as entities from '../../server/utils/entities'
 import * as http from '../../server/utils/http'
 
 // Nitro auto-imports h3 and server/utils into route modules; the engine tests
 // import the route modules directly, so the same names must exist as globals.
-Object.assign(globalThis, h3, entities, http)
+Object.assign(globalThis, h3, http)
 
 export interface RouteResponse {
   status: number

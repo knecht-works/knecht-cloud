@@ -2,6 +2,7 @@ import { listRunServices, resolveContainerUser, serviceContainerName, WEB_PROJEC
 import { getSettings } from '../../../utils/settings'
 import { defaultSshTarget, sshTerminalCommand } from '../../../utils/ssh'
 import { requireSession, touchSessionPreview } from '../../../stores/sessions'
+import { requireRun } from '../../../stores/runs'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

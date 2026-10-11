@@ -7,6 +7,7 @@ import { cancelRun } from '../../daemon/runner'
 import { sessionArchiveDir } from '../../utils/storage'
 import { removeAttachments } from '../../utils/attachments'
 import { deleteSession } from '../../stores/sessions'
+import { getRun, sessionHasRuns, deleteRun } from '../../stores/runs'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
@@ -26,14 +27,9 @@ export default defineEventHandler(async (event) => {
   if (followupIds.length) db.delete(schema.agentItems).where(inArray(schema.agentItems.followupId, followupIds)).run()
   removeAttachments(followupIds)
   db.delete(schema.followups).where(eq(schema.followups.runId, id)).run()
-  db.delete(schema.runs).where(eq(schema.runs.id, id)).run()
+  deleteRun(id)
 
-  const siblings = db
-    .select({ id: schema.runs.id })
-    .from(schema.runs)
-    .where(eq(schema.runs.sessionId, run.sessionId))
-    .get()
-  if (!siblings) {
+  if (!sessionHasRuns(run.sessionId)) {
     await teardownSession(run.sessionId)
     rmSync(sessionArchiveDir(run.sessionId), { recursive: true, force: true })
     db.delete(schema.agentItems).where(eq(schema.agentItems.sessionId, run.sessionId)).run()

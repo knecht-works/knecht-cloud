@@ -1,26 +1,9 @@
 import type { DdevEnv, Run, Session } from '../db/schema'
 import type { Step } from '../../shared/utils/workflow'
 import { runHasEnv } from '../../shared/utils/run'
-import { schema } from '../db'
 import { hasPreviewTarget } from './preview-target'
 import { getProject } from '../stores/projects'
 import { getSessionRow } from '../stores/sessions'
-
-export const runSessionColumns = {
-  envState: schema.sessions.envState,
-  previewHosts: schema.sessions.previewHosts,
-  previewReady: schema.sessions.previewReady,
-  previewPort: schema.sessions.previewPort,
-  projectEnv: schema.projects.ddevEnv,
-  projectDevServer: schema.projects.devServer,
-  projectPreviewPort: schema.projects.previewPort,
-  objectIntegration: schema.sessions.objectIntegration,
-  objectKind: schema.sessions.objectKind,
-  objectKey: schema.sessions.objectKey,
-  objectTitle: schema.sessions.objectTitle,
-  objectUrl: schema.sessions.objectUrl,
-  sessionStatus: schema.sessions.status,
-}
 
 interface SessionEnvRow {
   envState: Session['envState']

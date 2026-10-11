@@ -6,6 +6,7 @@ import { emptyInputs } from './inputs'
 import { resolveSession, sessionHasActiveWork, type SessionObject } from './sessions'
 import { emitFollowup } from './transcript'
 import { getWorkflowRow } from '../stores/workflows'
+import { createRun } from '../stores/runs'
 
 export async function handleMention(integration: Integration, project: Project, comment: WebhookComment): Promise<string> {
   if (comment.fromSelf) return 'ignored (comment by Knecht itself)'
@@ -25,7 +26,7 @@ export async function handleMention(integration: Integration, project: Project, 
       await postHint(integration, project, object, starter ? 'starter-unpublished' : 'no-starter')
       return 'replied with a setup hint (no usable starter workflow)'
     }
-    const run = db.insert(schema.runs).values({
+    const run = createRun({
       projectId: project.id,
       sessionId: session.id,
       workflow: starter.name,
@@ -33,7 +34,7 @@ export async function handleMention(integration: Integration, project: Project, 
       trigger: 'mention',
       branch: session.branch ?? project.defaultBranch,
       inputs: emptyInputs('mention'),
-    }).returning().get()
+    })
     queueMentionRun(project, session, comment.body, comment.author)
     dispatchRuns()
     return `queued starter run ${run.id} + mention run on session ${session.id}`
@@ -45,7 +46,7 @@ export async function handleMention(integration: Integration, project: Project, 
 }
 
 function queueMentionRun(project: Project, session: Session, prompt: string, author: CommentAuthor): number {
-  const runId = db.insert(schema.runs).values({
+  const runId = createRun({
     projectId: project.id,
     sessionId: session.id,
     workflow: 'Mention',
@@ -53,7 +54,7 @@ function queueMentionRun(project: Project, session: Session, prompt: string, aut
     trigger: 'mention',
     branch: session.branch ?? project.defaultBranch,
     actor: author,
-  }).returning({ id: schema.runs.id }).get().id
+  }).id
   const followup = db.insert(schema.followups).values({
     sessionId: session.id,
     runId,

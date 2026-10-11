@@ -1,5 +1,3 @@
-import { and, eq } from 'drizzle-orm'
-import { db, schema } from '../db'
 import type { Trigger } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import { isGithubAppConfigured } from './github-credentials'
@@ -11,6 +9,7 @@ import { getTriggerSource } from './trigger-sources'
 import { getWorkflowRow, getWorkflowRows } from '../stores/workflows'
 import { getProjects } from '../stores/projects'
 import { recordTriggerFired } from '../stores/triggers'
+import { ranOnVersion, createRun, updateRun } from '../stores/runs'
 
 export interface TriggerSummary {
   id: number
@@ -73,34 +72,28 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   const runIds: number[] = []
   for (const project of projects) {
     const session = resolveSession(project, opts.object ?? null, opts.branch ?? null)
+    // One action reaches us as several deliveries of the same object version (see `objectVersion`).
     if (opts.version && ranOnVersion(t.id, session.id, opts.version)) continue
-    const run = db
-      .insert(schema.runs)
-      .values({
-        projectId: project.id,
-        sessionId: session.id,
-        workflow: workflow.name,
-        workflowId: workflow.id,
-        trigger: t.source,
-        triggerId: t.id,
-        branch: session.branch ?? opts.branch ?? project.defaultBranch,
-        objectVersion: opts.version ?? null,
-        actor: opts.actor ?? null,
-        inputs: opts.inputs ?? emptyInputs(t.source),
-      })
-      .returning()
-      .get()
+    const run = createRun({
+      projectId: project.id,
+      sessionId: session.id,
+      workflow: workflow.name,
+      workflowId: workflow.id,
+      trigger: t.source,
+      triggerId: t.id,
+      branch: session.branch ?? opts.branch ?? project.defaultBranch,
+      objectVersion: opts.version ?? null,
+      actor: opts.actor ?? null,
+      inputs: opts.inputs ?? emptyInputs(t.source),
+    })
     runIds.push(run.id)
 
     if (!isGithubAppConfigured()) {
-      db.update(schema.runs)
-        .set({
-          status: 'failed',
-          finishedAt: new Date(),
-          log: 'GitHub App not configured. Complete the GitHub App setup (/setup) to enable runs.\n',
-        })
-        .where(eq(schema.runs.id, run.id))
-        .run()
+      updateRun(run.id, {
+        status: 'failed',
+        finishedAt: new Date(),
+        log: 'GitHub App not configured. Complete the GitHub App setup (/setup) to enable runs.\n',
+      })
     }
   }
 
@@ -111,12 +104,4 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   dispatchRuns()
 
   return runIds
-}
-
-// One action reaches us as several deliveries of the same object version (see `objectVersion`).
-function ranOnVersion(triggerId: number, sessionId: number, version: string): boolean {
-  return !!db.select({ id: schema.runs.id })
-    .from(schema.runs)
-    .where(and(eq(schema.runs.triggerId, triggerId), eq(schema.runs.sessionId, sessionId), eq(schema.runs.objectVersion, version)))
-    .get()
 }

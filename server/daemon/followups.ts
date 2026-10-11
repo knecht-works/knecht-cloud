@@ -5,7 +5,6 @@ import type { Followup, Project, Run, Session } from '../db/schema'
 import { compactAgentSession, handoverPreamble, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
-import { getRun } from '../utils/entities'
 import { getIntegration } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { sessionCheckoutDir } from '../utils/storage'
@@ -20,6 +19,7 @@ import { COMPACT_COMMAND } from '../../shared/utils/followup'
 import { followupAttachmentsDir, SANDBOX_ATTACHMENTS_DIR, sandboxAttachmentPath } from '../utils/attachments'
 import { getProject } from '../stores/projects'
 import { getSessionRow, updateSession } from '../stores/sessions'
+import { getRun, updateRun, startQueuedRun, finishActiveRun, cancelActiveMentionRuns } from '../stores/runs'
 
 const controllers = new Map<number, AbortController>()
 
@@ -64,10 +64,7 @@ export async function startFollowup(followupId: number): Promise<void> {
     // The runner never touches a mention's run row, so its lifecycle is mirrored here.
     const mirrorsRun = followup.origin === 'mention' && run.kind === 'mention'
     if (mirrorsRun) {
-      db.update(schema.runs)
-        .set({ status: 'running', startedAt: new Date() })
-        .where(and(eq(schema.runs.id, run.id), eq(schema.runs.status, 'queued')))
-        .run()
+      startQueuedRun(run.id)
     }
 
     const controller = new AbortController()
@@ -77,13 +74,13 @@ export async function startFollowup(followupId: number): Promise<void> {
     try {
       const reply = await execFollowup(followup, session, run, project, controller)
       finishFollowup(followupId, 'success')
-      if (mirrorsRun) finishMentionRun(run.id, 'success')
+      if (mirrorsRun) finishActiveRun(run.id, 'success')
       await postMentionReply(followup, session, project, reply)
     }
     catch (e) {
       const cancelled = controller.signal.aborted
       finishFollowup(followupId, 'failed', cancelled ? 'Cancelled' : (e as Error).message)
-      if (mirrorsRun) finishMentionRun(run.id, cancelled ? 'cancelled' : 'failed')
+      if (mirrorsRun) finishActiveRun(run.id, cancelled ? 'cancelled' : 'failed')
       if (!cancelled) {
         await postMentionReply(followup, session, project, `I could not finish this: ${(e as Error).message}`)
       }
@@ -174,20 +171,12 @@ async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRun
     // 'HEAD' is a detached checkout, not a branch name.
     if (branch !== rt.project.defaultBranch && branch !== 'HEAD') {
       updateSession(sessionId, { branch })
-      db.update(schema.runs).set({ branch }).where(eq(schema.runs.id, runId)).run()
+      updateRun(runId, { branch })
     }
   }
   catch {
     // No checkout, no sync.
   }
-}
-
-// Guarded so a user cancel, which flips the row first, is never overwritten.
-function finishMentionRun(runId: number, status: 'success' | 'failed' | 'cancelled'): void {
-  db.update(schema.runs)
-    .set({ status, finishedAt: new Date() })
-    .where(and(eq(schema.runs.id, runId), inArray(schema.runs.status, ['queued', 'running'])))
-    .run()
 }
 
 // Mention anchor runs go with their follow-ups: nothing else moves those rows out of queued/running.
@@ -201,14 +190,7 @@ export function cancelFollowupWork(sessionId: number, runId?: number): number {
     .returning({ id: schema.followups.id })
     .all()
   for (const { id } of flipped) emitFollowup(id)
-  db.update(schema.runs)
-    .set({ status: 'cancelled', finishedAt: new Date() })
-    .where(and(
-      runId === undefined ? eq(schema.runs.sessionId, sessionId) : eq(schema.runs.id, runId),
-      eq(schema.runs.kind, 'mention'),
-      inArray(schema.runs.status, ['queued', 'running']),
-    ))
-    .run()
+  cancelActiveMentionRuns(runId === undefined ? { sessionId } : { runId })
   cancelFollowup(sessionId)
   return flipped.length
 }
