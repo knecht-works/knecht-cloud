@@ -1,4 +1,4 @@
-import { getMember, listMembers, removeMember } from '../../utils/members'
+import { getMember, listMembers, removeMember } from '../../stores/members'
 
 export default defineEventHandler(async (event) => {
   await requireUserSession(event)

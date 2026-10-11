@@ -1,10 +1,9 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../db'
+import { getGithubAppRow } from '../../stores/github-app'
 import { getProjectByGithubId } from '../../stores/projects'
 import { addCommentReaction, addIssueLabels, createIssueComment, getIssueContext, listRepoAssignees, listRepoBranches, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
-import { isMember } from '../../utils/members'
+import { isMember } from '../../stores/members'
 import { verifySha256Signature } from '../../utils/signature'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
@@ -15,7 +14,7 @@ const MENTION_HANDLE = 'knecht-works'
 let cachedSlug: string | null | undefined
 function appSlug(): string | null {
   if (cachedSlug !== undefined) return cachedSlug
-  cachedSlug = db.select({ slug: schema.githubApp.slug }).from(schema.githubApp).where(eq(schema.githubApp.id, 1)).get()?.slug ?? null
+  cachedSlug = getGithubAppRow()?.slug ?? null
   return cachedSlug
 }
 

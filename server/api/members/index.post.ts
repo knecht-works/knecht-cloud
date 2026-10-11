@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { addMember, isMember, listMembers } from '../../utils/members'
+import { addMember, isMember, listMembers } from '../../stores/members'
 
 // GitHub usernames are at most 39 chars of alphanumerics and single hyphens.
 const bodySchema = z.object({

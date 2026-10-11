@@ -1,5 +1,5 @@
 import { startUpdate } from '../../daemon/update'
-import { getMember } from '../../utils/members'
+import { getMember } from '../../stores/members'
 import { currentVersion, isNewerVersion, latestVersion } from '../../utils/version'
 
 export default defineEventHandler(async (event) => {

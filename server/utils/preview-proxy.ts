@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { previewTargetPort, readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
-import { isMember, memberCount } from './members'
+import { isMember, memberCount } from '../stores/members'
 import { sessionCheckoutDir } from './storage'
 import { getSessionRow, touchSessionPreview } from '../stores/sessions'
 
