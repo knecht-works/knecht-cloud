@@ -1,5 +1,5 @@
 import { isGithubAppConfigured, saveGithubAppCredentials } from '../../utils/github-credentials'
-import { addMember } from '../../utils/members'
+import { addMember } from '../../stores/members'
 
 interface Conversion {
   id: number

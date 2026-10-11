@@ -1,5 +1,5 @@
 import { openRunTerminal, type RunTerminal } from '../../../daemon/terminal'
-import { isMember, memberCount } from '../../../utils/members'
+import { isMember, memberCount } from '../../../stores/members'
 import { requireSession, touchSessionPreview } from '../../../stores/sessions'
 import { getRun, requireRun } from '../../../stores/runs'
 

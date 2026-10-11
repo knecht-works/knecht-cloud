@@ -1,27 +1,16 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../db'
+import { getSettingsRow, updateSettingsRow } from '../stores/settings'
 import { decrypt } from './crypto'
 import { defaultSshTarget } from './ssh'
 import { settingsPreset } from './settings-preset'
 import type { Settings } from '../db/schema'
 
 export function getSettings(): Settings {
-  return { ...settingsRow(), ...settingsPreset().overrides }
-}
-
-function settingsRow(): Settings {
-  const existing = db.select().from(schema.settings).where(eq(schema.settings.id, 1)).get()
-  if (existing) return existing
-  db.insert(schema.settings).values({ id: 1 }).onConflictDoNothing().run()
-  return db.select().from(schema.settings).where(eq(schema.settings.id, 1)).get()!
+  return { ...getSettingsRow(), ...settingsPreset().overrides }
 }
 
 export type SettingsPatch = Partial<Omit<Settings, 'id'>>
 export function updateSettings(patch: SettingsPatch): Settings {
-  getSettings()
-  if (Object.keys(patch).length) {
-    db.update(schema.settings).set(patch).where(eq(schema.settings.id, 1)).run()
-  }
+  updateSettingsRow(patch)
   return getSettings()
 }
 

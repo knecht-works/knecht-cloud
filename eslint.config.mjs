@@ -3,12 +3,17 @@ import withNuxt from './.nuxt/eslint.config.mjs'
 // Every query on a table goes through its store, so live updates cannot be skipped.
 const TABLE_STORES = {
   agentItems: 'server/stores/agent-items.ts',
+  dataMigrations: 'server/db/data-migrations.ts',
   followups: 'server/stores/followups.ts',
+  githubApp: 'server/stores/github-app.ts',
+  integrationConnections: 'server/stores/integration-connections.ts',
+  members: 'server/stores/members.ts',
   projects: 'server/stores/projects.ts',
   projectLinks: 'server/stores/project-links.ts',
   runs: 'server/stores/runs.ts',
   runSteps: 'server/stores/run-steps.ts',
   sessions: 'server/stores/sessions.ts',
+  settings: 'server/stores/settings.ts',
   triggers: 'server/stores/triggers.ts',
   workflows: 'server/stores/workflows.ts',
 }
