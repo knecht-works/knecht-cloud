@@ -1,8 +1,6 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
-import { and, desc, eq } from 'drizzle-orm'
-import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import type { EnvTransition } from '../../shared/utils/run'
 import { getSettings } from '../utils/settings'
@@ -15,6 +13,8 @@ import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnv
 import { getProject } from '../stores/projects'
 import { getSessionRow, listSessionsInEnvState, updateSession, touchSessionPreview } from '../stores/sessions'
 import { listRunSessionIds } from '../stores/runs'
+import { lastSuccessfulSessionStep, listRunIdsWithRunningSteps } from '../stores/run-steps'
+import { listRunningFollowupSessionIds } from '../stores/followups'
 
 // In memory on purpose: a crash mid-transition must not wedge a DB state no reaper reclaims.
 const transitions = new Map<number, EnvTransition>()
@@ -169,17 +169,7 @@ export async function reviveEnv(sessionId: number): Promise<void> {
 }
 
 function lastBootStep(sessionId: number): { commands?: string } | null {
-  const row = db
-    .select({ params: schema.runSteps.params })
-    .from(schema.runSteps)
-    .innerJoin(schema.runs, eq(schema.runSteps.runId, schema.runs.id))
-    .where(and(
-      eq(schema.runs.sessionId, sessionId),
-      eq(schema.runSteps.type, 'ddev-start'),
-      eq(schema.runSteps.status, 'success'),
-    ))
-    .orderBy(desc(schema.runSteps.id))
-    .get()
+  const row = lastSuccessfulSessionStep(sessionId, 'ddev-start')
   return row ? (row.params ?? {}) as { commands?: string } : null
 }
 
@@ -232,20 +222,10 @@ export async function reapIdleEnvs(): Promise<void> {
   const cutoff = new Date(Date.now() - idleStopMinutes * 60_000)
   const idle = listSessionsInEnvState('up', { seenBefore: cutoff })
   if (!idle.length) return
-  const runningRuns = db
-    .select({ runId: schema.runSteps.runId })
-    .from(schema.runSteps)
-    .where(eq(schema.runSteps.status, 'running'))
-    .all()
-    .map(r => r.runId)
+  const runningRuns = listRunIdsWithRunningSteps()
   const busy = new Set([
     ...listRunSessionIds(runningRuns),
-    ...db
-      .select({ sessionId: schema.followups.sessionId })
-      .from(schema.followups)
-      .where(eq(schema.followups.status, 'running'))
-      .all()
-      .map(r => r.sessionId),
+    ...listRunningFollowupSessionIds(),
   ])
   for (const { id } of idle) {
     try {

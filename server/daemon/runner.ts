@@ -1,6 +1,5 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import { and, asc, eq, gte, isNull } from 'drizzle-orm'
-import { db, schema } from '../db'
+import type { schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import { COMPOSITE_CHILD_KEYS, defaultStepTimeout, isComposite, isCompositeType, STEP_META_KEYS, type CompositeStep, type Step } from '../../shared/utils/workflow'
 import { getWorkflow } from '../workflows'
@@ -21,6 +20,7 @@ import { ensureEnvUp } from './envs'
 import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession, closeObjectlessSession } from '../stores/sessions'
 import { appendRunLog, claimQueuedRun, finishRun, getRun, runLogBytes, updateRun } from '../stores/runs'
+import { listTopLevelWorkflowSteps, listWorkflowStepOutputs, createRunStep, updateRunStep, deleteWorkflowStepsFrom } from '../stores/run-steps'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
 
@@ -34,17 +34,7 @@ export function cancelRun(runId: number): boolean {
 }
 
 export function resumePoint(runId: number): { fromIndex: number, tailRowId: number | null } {
-  // Follow-up rows appended after the run finished must not shift the resume point.
-  const top = db
-    .select({ id: schema.runSteps.id, stepIndex: schema.runSteps.stepIndex, status: schema.runSteps.status })
-    .from(schema.runSteps)
-    .where(and(
-      eq(schema.runSteps.runId, runId),
-      isNull(schema.runSteps.parentStepId),
-      eq(schema.runSteps.origin, 'workflow'),
-    ))
-    .orderBy(asc(schema.runSteps.id))
-    .all()
+  const top = listTopLevelWorkflowSteps(runId)
   const last = top.at(-1)
   if (!last) return { fromIndex: 0, tailRowId: null }
   if (last.status === 'success') return { fromIndex: last.stepIndex + 1, tailRowId: null }
@@ -91,13 +81,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
   try {
     const resume = resumePoint(runId)
     if (resume.tailRowId !== null) {
-      db.delete(schema.runSteps)
-        .where(and(
-          eq(schema.runSteps.runId, runId),
-          gte(schema.runSteps.id, resume.tailRowId),
-          eq(schema.runSteps.origin, 'workflow'),
-        ))
-        .run()
+      deleteWorkflowStepsFrom(runId, resume.tailRowId)
     }
     if (resume.fromIndex > 0 || resume.tailRowId !== null) {
       log(`\n↻ Retrying from step ${resume.fromIndex + 1}\n`)
@@ -164,13 +148,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
 }
 
 function replayOutputs(runId: number, ctx: RunContext): void {
-  const rows = db
-    .select({ stepId: schema.runSteps.stepId, type: schema.runSteps.type, outputs: schema.runSteps.outputs })
-    .from(schema.runSteps)
-    .where(and(eq(schema.runSteps.runId, runId), eq(schema.runSteps.origin, 'workflow')))
-    .orderBy(asc(schema.runSteps.id))
-    .all()
-  for (const row of rows) {
+  for (const row of listWorkflowStepOutputs(runId)) {
     if (!row.outputs) continue
     ctx.steps[row.stepId] = row.outputs
     const type = row.type as Step['type']
@@ -253,7 +231,7 @@ async function execStep(
   const rendered = action ? renderStepParams(step, ctx, action.rawParams) : step
   // Read the offset before inserting: the action's banner must be the first bytes at it.
   const logStart = runLogBytes(runId)
-  const row = db.insert(schema.runSteps).values({
+  const rowId = createRunStep({
     runId,
     stepIndex: index,
     stepId: step.id ?? `i${index}`,
@@ -263,10 +241,10 @@ async function execStep(
     iteration: scope.iteration,
     logStart,
     startedAt: new Date(),
-  }).returning({ id: schema.runSteps.id }).get()
+  })
 
   const finalize = (patch: StepRowPatch) =>
-    updateStepRow(row.id, { ...patch, finishedAt: new Date() })
+    updateRunStep(rowId, { ...patch, finishedAt: new Date() })
 
   const maxAttempts = Math.max(1, step.retry?.attempts ?? 1)
   for (let attempt = 1; ; attempt++) {
@@ -286,7 +264,7 @@ async function execStep(
       if (attempt < maxAttempts) {
         const delay = (step.retry?.backoffSeconds ?? 0) * 2 ** (attempt - 1)
         rt.log(`\nStep failed (attempt ${attempt}/${maxAttempts}): ${error}. Retrying in ${delay}s\n`)
-        updateStepRow(row.id, { error, attempt })
+        updateRunStep(rowId, { error, attempt })
         await sleep(delay * 1000)
         continue
       }
@@ -329,10 +307,6 @@ function runActionTimed(
 }
 
 type StepRowPatch = Partial<typeof schema.runSteps.$inferInsert>
-
-function updateStepRow(rowId: number, patch: StepRowPatch): void {
-  db.update(schema.runSteps).set(patch).where(eq(schema.runSteps.id, rowId)).run()
-}
 
 function stepParams(step: Step): Record<string, unknown> {
   const skip = new Set<string>(STEP_META_KEYS)

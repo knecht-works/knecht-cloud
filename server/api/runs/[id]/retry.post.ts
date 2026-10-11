@@ -2,11 +2,11 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { resumePoint } from '../../../daemon/runner'
 import { dispatchRuns } from '../../../daemon/dispatcher'
-import { hasActiveFollowup } from '../../../daemon/followups'
 import { sessionCheckoutDir } from '../../../utils/storage'
 import { withRunSessionEnv } from '../../../utils/run-view'
 import { requireSession } from '../../../stores/sessions'
 import { requireRun, requeueRun } from '../../../stores/runs'
+import { sessionHasActiveFollowup } from '../../../stores/followups'
 
 // Resuming past completed steps needs the session's checkout (their file state).
 export default defineEventHandler((event) => {
@@ -20,7 +20,7 @@ export default defineEventHandler((event) => {
   if (run.kind === 'mention') {
     throw createError({ statusCode: 409, statusMessage: 'A mention run cannot be retried. Mention Knecht on the thread again instead.' })
   }
-  if (hasActiveFollowup(session.id)) {
+  if (sessionHasActiveFollowup(session.id)) {
     throw createError({ statusCode: 409, statusMessage: 'A follow-up is running in this session. Wait for it to finish.' })
   }
   if (!run.steps) {
