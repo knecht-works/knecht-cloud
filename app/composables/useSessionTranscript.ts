@@ -70,7 +70,6 @@ export function isTurnActive(turn: Pick<ChatTurn, 'status'>): boolean {
 export function useSessionTranscript(sessionId: number, runId: () => number) {
   const runs = ref<ChatRun[]>([])
   const turns = ref<ChatTurn[]>([])
-  const connected = ref(false)
 
   const { data, refresh, status: loadStatus } = useFetch<TranscriptResponse>(`/api/sessions/${sessionId}/transcript`, { lazy: true })
   const loaded = computed(() => loadStatus.value !== 'idle' && loadStatus.value !== 'pending')
@@ -129,12 +128,9 @@ export function useSessionTranscript(sessionId: number, runId: () => number) {
   let source: EventSource | undefined
   onMounted(() => {
     source = new EventSource(`/api/sessions/${sessionId}/events`)
+    // EventSource reconnects by itself; changes missed while it was down are refetched.
     source.addEventListener('open', () => {
-      connected.value = true
       if (loaded.value) refresh()
-    })
-    source.addEventListener('error', () => {
-      connected.value = false
     })
     source.addEventListener('item', e => applyItem(JSON.parse(e.data)))
     source.addEventListener('followup', e => applyTurn(JSON.parse(e.data)))
@@ -144,7 +140,6 @@ export function useSessionTranscript(sessionId: number, runId: () => number) {
   onUnmounted(() => source?.close())
 
   const active = computed(() => turns.value.some(isTurnActive))
-  usePollWhile(() => !connected.value && active.value, refresh)
 
   let nextTempId = -1
   async function send(prompt: string, extra: Record<string, string> = {}, files: File[] = []): Promise<void> {
@@ -203,7 +198,7 @@ export function useSessionTranscript(sessionId: number, runId: () => number) {
     await $fetch(`/api/runs/${runId()}/followups/cancel`, { method: 'POST' })
   }
 
-  return { runs, turns, active, connected, loaded, refresh, send, unqueue, retry, stop }
+  return { runs, turns, active, loaded, refresh, send, unqueue, retry, stop }
 }
 
 function mergeItems(current: ChatItem[], fetched: ChatItem[]): ChatItem[] {
