@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { liveTopics } from '#shared/utils/live-topics'
 import { KWorkflowCard, KWorkflowRow } from '#components'
 
-const { data: workflows, refresh } = await useFetch('/api/workflows', { default: () => [] })
-const { data: runs } = useFetch('/api/runs', { default: () => [], lazy: true })
-const { data: triggers } = useFetch('/api/triggers', { default: () => [], lazy: true })
+const { data: workflows } = await useWorkflows()
+const { data: runs } = useRuns()
+const { data: triggers } = useTriggers()
 const toastError = useToastError()
 
 type WorkflowItem = NonNullable<typeof workflows.value>[number]
@@ -14,7 +15,7 @@ async function toggleEnabled(w: WorkflowItem) {
       method: 'PATCH',
       body: { enabled: !w.enabled },
     })
-    await refresh()
+    await invalidate(liveTopics.workflows)
   }
   catch (e) {
     toastError('Failed to update workflow', e)

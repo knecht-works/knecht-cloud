@@ -1,13 +1,14 @@
 <script setup lang="ts">
+import { liveTopics } from '#shared/utils/live-topics'
 import { runWorkspacePath } from '#shared/utils/routes'
 import { computeRunStats } from '#shared/utils/run-stats'
 
-const { data: runs, refresh } = await useFetch('/api/runs', { default: () => [] })
+const { data: runs } = await useRuns()
 
 const anyLive = computed(() => (runs.value ?? []).some(r => isLiveStatus(r.status)))
-usePollWhile(() => anyLive.value, refresh)
+usePollWhile(() => anyLive.value, () => invalidate(liveTopics.runs))
 
-const { data: statsRuns } = useFetch('/api/runs/stats', { default: () => [], lazy: true, watch: [runs] })
+const { data: statsRuns } = useRunStats()
 const stats = computed(() => computeRunStats(statsRuns.value ?? [], new Date()))
 
 function deltaColor(delta: number, higherIsBetter: boolean) {

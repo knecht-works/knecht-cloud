@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { data: integrations } = await useFetch('/api/integrations', { default: () => [] })
+const { data: integrations } = await useIntegrations()
 </script>
 
 <template>

@@ -4,7 +4,7 @@ import { runWorkspacePath } from '#shared/utils/routes'
 // Old-scheme links sit in published PR bodies, so /runs/:id must keep resolving.
 // A page, not routeRules: see pages/index.vue.
 const id = Number(useRoute().params.id)
-const { data: run } = await useFetch(`/api/runs/${id}`)
+const { data: run } = await useRun(id)
 await navigateTo(
   run.value ? runWorkspacePath(run.value.projectId, id) : '/sessions',
   { replace: true },
