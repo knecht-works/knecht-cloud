@@ -55,8 +55,6 @@ const busy = computed(() => run.value?.envTransition ?? pending.value)
 function refreshWorkspace() {
   return invalidate(liveTopics.run(id))
 }
-
-usePollWhile(() => isLive.value || followupActive.value || !!busy.value, refreshWorkspace)
 </script>
 
 <template>

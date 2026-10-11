@@ -3,6 +3,9 @@ import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewSession, Run, Session } from '../db/schema'
 import type { SessionObject } from '../utils/sessions'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
+import { listSessionRunIds } from './runs'
 
 export function getSessionRow(id: number): Session | undefined {
   return db.select().from(schema.sessions).where(eq(schema.sessions.id, id)).get()
@@ -58,12 +61,19 @@ export function createSession(values: NewSession): Session {
   return db.insert(schema.sessions).values(values).returning().get()
 }
 
-export function updateSession(id: number, patch: Partial<NewSession>): void {
-  db.update(schema.sessions).set(patch).where(eq(schema.sessions.id, id)).run()
+// Run views join their session, so a session change is a change of its runs.
+export function sessionChanged(id: number): void {
+  emitTopics(liveTopics.runs, ...listSessionRunIds(id).map(liveTopics.run))
 }
 
+export function updateSession(id: number, patch: Partial<NewSession>): void {
+  db.update(schema.sessions).set(patch).where(eq(schema.sessions.id, id)).run()
+  sessionChanged(id)
+}
+
+// Silent: it runs on every proxied preview request and changes nothing the dashboard shows.
 export function touchSessionPreview(id: number): void {
-  updateSession(id, { previewLastSeen: new Date() })
+  db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, id)).run()
 }
 
 // Closed is a display state, not a gate: dashboard follow-ups still land on it.
@@ -72,6 +82,7 @@ export function closeObjectlessSession(id: number): void {
     .set({ status: 'closed', closedAt: new Date() })
     .where(and(eq(schema.sessions.id, id), isNull(schema.sessions.objectKind)))
     .run()
+  sessionChanged(id)
 }
 
 export function deleteSession(id: number, tx: Executor = db): void {

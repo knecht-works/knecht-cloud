@@ -2,6 +2,8 @@ import { desc, eq, inArray } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewProject, Project } from '../db/schema'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
 import { deleteAgentItems } from './agent-items'
 import { deleteFollowups } from './followups'
 import { deleteProjectLinks } from './project-links'
@@ -34,16 +36,24 @@ export function getProjects(ids: number[]): Project[] {
   return ids.length ? db.select().from(schema.projects).where(inArray(schema.projects.id, ids)).all() : []
 }
 
+export function projectChanged(id: number): void {
+  emitTopics(liveTopics.projects, liveTopics.project(id))
+}
+
 export function createProject(values: NewProject): Project {
-  return db.insert(schema.projects).values(values).returning().get()
+  const project = db.insert(schema.projects).values(values).returning().get()
+  projectChanged(project.id)
+  return project
 }
 
 export function updateProjectConfig(id: number, patch: Partial<NewProject>): Project | undefined {
-  return db.update(schema.projects)
+  const project = db.update(schema.projects)
     .set({ ...patch, updatedAt: new Date() })
     .where(eq(schema.projects.id, id))
     .returning()
     .get()
+  projectChanged(id)
+  return project
 }
 
 export function setProjectDump(id: number, dbDumpPath: string | null): Project | undefined {
@@ -52,10 +62,16 @@ export function setProjectDump(id: number, dbDumpPath: string | null): Project |
 
 export function setProjectMeta(id: number, meta: ProjectMeta): void {
   db.update(schema.projects).set(meta).where(eq(schema.projects.id, id)).run()
+  projectChanged(id)
 }
 
 export function clearStarterWorkflow(workflowId: number, tx: Executor = db): void {
-  tx.update(schema.projects).set({ starterWorkflowId: null }).where(eq(schema.projects.starterWorkflowId, workflowId)).run()
+  const cleared = tx.update(schema.projects)
+    .set({ starterWorkflowId: null })
+    .where(eq(schema.projects.starterWorkflowId, workflowId))
+    .returning({ id: schema.projects.id })
+    .all()
+  for (const { id } of cleared) projectChanged(id)
 }
 
 // FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
@@ -72,4 +88,5 @@ export function deleteProjectCascade(id: number, sessionIds: number[]): void {
     deleteProjectLinks(id, tx)
     tx.delete(schema.projects).where(eq(schema.projects.id, id)).run()
   })
+  projectChanged(id)
 }

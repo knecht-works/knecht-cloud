@@ -11,7 +11,7 @@ import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
 import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
 import { getProject } from '../stores/projects'
-import { getSessionRow, listSessionsInEnvState, updateSession, touchSessionPreview } from '../stores/sessions'
+import { getSessionRow, listSessionsInEnvState, sessionChanged, updateSession, touchSessionPreview } from '../stores/sessions'
 import { listRunSessionIds } from '../stores/runs'
 import { lastSuccessfulSessionStep, listRunIdsWithRunningSteps } from '../stores/run-steps'
 import { listRunningFollowupSessionIds } from '../stores/followups'
@@ -25,11 +25,13 @@ export function envTransition(sessionId: number): EnvTransition | null {
 
 async function inTransition(sessionId: number, kind: EnvTransition, fn: () => Promise<void>): Promise<void> {
   transitions.set(sessionId, kind)
+  sessionChanged(sessionId)
   try {
     await fn()
   }
   finally {
     transitions.delete(sessionId)
+    sessionChanged(sessionId)
   }
 }
 
