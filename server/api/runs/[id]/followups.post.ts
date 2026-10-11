@@ -1,6 +1,4 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db, schema } from '../../../db'
 import { startFollowup } from '../../../daemon/followups'
 import { dispatchRuns } from '../../../daemon/dispatcher'
 import { sessionHasActiveWork } from '../../../utils/sessions'
@@ -10,6 +8,8 @@ import { MODEL_NAME_RE } from '../../../../shared/utils/ai'
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, saveAttachments, type UploadedFile } from '../../../utils/attachments'
 import { requireSession, updateSession } from '../../../stores/sessions'
 import { requireRun } from '../../../stores/runs'
+import { createFollowup, updateFollowup } from '../../../stores/followups'
+import { createAgentItem } from '../../../stores/agent-items'
 
 const bodySchema = z.object({
   prompt: z.string().trim().min(1),
@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
     if (busy) throw createError({ statusCode: 409, statusMessage: 'Wait for the running turn to finish before clearing.' })
     // No agent involved: the next turn simply starts a new agent session.
     const now = new Date()
-    const followup = db.insert(schema.followups).values({
+    const followup = createFollowup({
       sessionId: session.id,
       runId: id,
       prompt: CLEAR_COMMAND,
@@ -57,30 +57,30 @@ export default defineEventHandler(async (event) => {
       status: 'success',
       startedAt: now,
       finishedAt: now,
-    }).returning().get()
+    })
     updateSession(session.id, { agentSessionId: null, agentHandover: null })
-    const item = db.insert(schema.agentItems).values({
+    const item = createAgentItem({
       sessionId: session.id,
       followupId: followup.id,
       seq: 0,
       type: 'divider',
       text: 'New conversation. The agent no longer knows the messages above.',
-    }).returning().get()
+    })
     emitFollowup(followup.id)
     emitItem(item)
     return followup
   }
 
-  const inserted = db.insert(schema.followups).values({
+  const inserted = createFollowup({
     sessionId: session.id,
     runId: id,
     prompt: result.data.prompt === PR_COMMAND ? PUBLISH_FOLLOWUP_PROMPT : result.data.prompt,
     model: result.data.model ?? null,
     requestedBy: user.login,
-  }).returning().get()
+  })
   const attachments = saveAttachments(inserted.id, files)
   const followup = attachments.length
-    ? db.update(schema.followups).set({ attachments }).where(eq(schema.followups.id, inserted.id)).returning().get()!
+    ? updateFollowup(inserted.id, { attachments })!
     : inserted
   emitFollowup(followup.id)
 

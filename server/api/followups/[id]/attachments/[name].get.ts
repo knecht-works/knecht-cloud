@@ -1,13 +1,12 @@
 import { createReadStream, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../../../db'
+import { getFollowup } from '../../../../stores/followups'
 import { followupAttachmentsDir } from '../../../../utils/attachments'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
   const name = getRouterParam(event, 'name') ?? ''
-  const row = db.select({ attachments: schema.followups.attachments }).from(schema.followups).where(eq(schema.followups.id, id)).get()
+  const row = getFollowup(id)
   const attachment = row?.attachments.find(a => a.name === name)
   const path = attachment && join(followupAttachmentsDir(id), attachment.name)
   if (!attachment || !path || !existsSync(path)) {

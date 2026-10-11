@@ -1,4 +1,3 @@
-import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import type { CommentAuthor, Integration, WebhookComment } from '../integrations'
@@ -7,6 +6,7 @@ import { resolveSession, sessionHasActiveWork, type SessionObject } from './sess
 import { emitFollowup } from './transcript'
 import { getWorkflowRow } from '../stores/workflows'
 import { createRun } from '../stores/runs'
+import { createFollowup } from '../stores/followups'
 
 export async function handleMention(integration: Integration, project: Project, comment: WebhookComment): Promise<string> {
   if (comment.fromSelf) return 'ignored (comment by Knecht itself)'
@@ -55,13 +55,13 @@ function queueMentionRun(project: Project, session: Session, prompt: string, aut
     branch: session.branch ?? project.defaultBranch,
     actor: author,
   }).id
-  const followup = db.insert(schema.followups).values({
+  const followup = createFollowup({
     sessionId: session.id,
     runId,
     prompt,
     requestedBy: author.name,
     origin: 'mention',
-  }).returning({ id: schema.followups.id }).get()
+  })
   emitFollowup(followup.id)
   return runId
 }
