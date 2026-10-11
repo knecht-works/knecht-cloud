@@ -1,12 +1,11 @@
 import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../db'
 import { previewTargetPort, readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { isMember, memberCount } from './members'
 import { sessionCheckoutDir } from './storage'
+import { getSessionRow, touchSessionPreview } from '../stores/sessions'
 
 // Two URL modes per session (sessions.urlMode), see internals/docs/preview-contract.md.
 
@@ -75,7 +74,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     }
   }
 
-  const env = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+  const env = getSessionRow(sessionId)
   if (!env) {
     throw createError({ statusCode: 404, statusMessage: 'Session not found' })
   }
@@ -99,10 +98,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
 
-  db.update(schema.sessions)
-    .set({ previewLastSeen: new Date() })
-    .where(eq(schema.sessions.id, sessionId))
-    .run()
+  touchSessionPreview(sessionId)
 
   const baseHost = stripPreviewPrefix(url.host)
   const rewriteMode = (env.urlMode ?? 'rewrite') === 'rewrite'

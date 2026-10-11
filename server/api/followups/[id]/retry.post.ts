@@ -2,10 +2,10 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../../db'
 import { startFollowup } from '../../../daemon/followups'
 import { dispatchRuns } from '../../../daemon/dispatcher'
-import { requireSession } from '../../../utils/entities'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { emitLive } from '../../../utils/live'
 import { followupView } from '../../../utils/transcript'
+import { requireSession } from '../../../stores/sessions'
 
 // The failed turn is reused as is (prompt, model, attachments): its transcript starts over.
 export default defineEventHandler((event) => {

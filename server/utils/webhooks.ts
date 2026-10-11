@@ -3,9 +3,10 @@ import { createError, getHeader, readRawBody, type H3Event } from 'h3'
 import type { Integration } from '../integrations'
 import { stopEnv } from '../daemon/envs'
 import { handleMention } from './mentions'
-import { findObjectSession, sessionHasActiveWork, syncObjectStatus } from './sessions'
+import { sessionHasActiveWork, syncObjectStatus } from './sessions'
 import { fireTrigger } from './triggers'
 import { listActiveTriggers } from '../stores/triggers'
+import { findObjectSession } from '../stores/sessions'
 
 // No session gate: the integration authenticates the delivery with its signature over the raw body.
 export async function handleWebhook(integration: Integration, event: H3Event) {

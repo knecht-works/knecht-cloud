@@ -5,7 +5,7 @@ import type { Followup, Project, Run, Session } from '../db/schema'
 import { compactAgentSession, handoverPreamble, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
-import { getRun, getSessionRow } from '../utils/entities'
+import { getRun } from '../utils/entities'
 import { getIntegration } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { sessionCheckoutDir } from '../utils/storage'
@@ -19,6 +19,7 @@ import { ensureEnvUp, reviveEnv } from './envs'
 import { COMPACT_COMMAND } from '../../shared/utils/followup'
 import { followupAttachmentsDir, SANDBOX_ATTACHMENTS_DIR, sandboxAttachmentPath } from '../utils/attachments'
 import { getProject } from '../stores/projects'
+import { getSessionRow, updateSession } from '../stores/sessions'
 
 const controllers = new Map<number, AbortController>()
 
@@ -127,7 +128,7 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
   if (followup.attachments.length) await stageAttachments(rt, followup)
   const reply = await runFollowupPrompt(rt, followupMessage(followup, session), sink, followup.model)
   if (session.agentHandover) {
-    db.update(schema.sessions).set({ agentHandover: null }).where(eq(schema.sessions.id, session.id)).run()
+    updateSession(session.id, { agentHandover: null })
   }
   await syncSessionBranch(session.id, run.id, rt)
   return reply
@@ -172,7 +173,7 @@ async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRun
     const branch = await currentBranch(rt.checkoutDir)
     // 'HEAD' is a detached checkout, not a branch name.
     if (branch !== rt.project.defaultBranch && branch !== 'HEAD') {
-      db.update(schema.sessions).set({ branch }).where(eq(schema.sessions.id, sessionId)).run()
+      updateSession(sessionId, { branch })
       db.update(schema.runs).set({ branch }).where(eq(schema.runs.id, runId)).run()
     }
   }

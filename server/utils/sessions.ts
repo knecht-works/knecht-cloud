@@ -4,6 +4,7 @@ import type { Project, Session } from '../db/schema'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import { getIntegration } from '../integrations'
 import { sessionPreviewUrl } from './preview-target'
+import { getSessionRow, findObjectSession, createSession, updateSession } from '../stores/sessions'
 
 export interface SessionObject {
   integration: IntegrationId
@@ -28,56 +29,33 @@ export function describeObject(object: SessionObject): string {
   return getIntegration(object.integration).objects.describe(object)
 }
 
-export function findObjectSession(projectId: number, object: SessionObject): Session | undefined {
-  return db
-    .select()
-    .from(schema.sessions)
-    .where(and(
-      eq(schema.sessions.projectId, projectId),
-      eq(schema.sessions.objectIntegration, object.integration),
-      eq(schema.sessions.objectKind, object.kind),
-      eq(schema.sessions.objectKey, object.key),
-    ))
-    .get()
-}
-
 // `branch` seeds the checkout on creation only: later events never re-point a checkout.
 export function resolveSession(project: Project, object: SessionObject | null, branch: string | null): Session {
   if (object) {
     const existing = findObjectSession(project.id, object)
     if (existing) {
       if (object.title && object.title !== existing.objectTitle) {
-        db.update(schema.sessions)
-          .set({ objectTitle: object.title })
-          .where(eq(schema.sessions.id, existing.id))
-          .run()
+        updateSession(existing.id, { objectTitle: object.title })
         existing.objectTitle = object.title
       }
       return existing
     }
   }
-  return db
-    .insert(schema.sessions)
-    .values({
-      projectId: project.id,
-      objectIntegration: object?.integration ?? null,
-      objectKind: object?.kind ?? null,
-      objectKey: object?.key ?? null,
-      objectUrl: object?.url ?? null,
-      objectTitle: object?.title ?? null,
-      branch: branch ?? project.defaultBranch,
-    })
-    .returning()
-    .get()
+  return createSession({
+    projectId: project.id,
+    objectIntegration: object?.integration ?? null,
+    objectKind: object?.kind ?? null,
+    objectKey: object?.key ?? null,
+    objectUrl: object?.url ?? null,
+    objectTitle: object?.title ?? null,
+    branch: branch ?? project.defaultBranch,
+  })
 }
 
 export function syncObjectStatus(projectId: number, object: SessionObject, status: 'open' | 'closed'): void {
   const session = findObjectSession(projectId, object)
   if (!session || session.status === status) return
-  db.update(schema.sessions)
-    .set({ status, closedAt: status === 'closed' ? new Date() : null })
-    .where(eq(schema.sessions.id, session.id))
-    .run()
+  updateSession(session.id, { status, closedAt: status === 'closed' ? new Date() : null })
 }
 
 export function sessionHasActiveWork(sessionId: number): boolean {
@@ -102,7 +80,7 @@ export function sessionHasActiveWork(sessionId: number): boolean {
 }
 
 export function withSessionLinks(text: string, sessionId: number): string {
-  const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()
+  const session = getSessionRow(sessionId)
   if (!session) return text
   const links: string[] = []
   const preview = sessionPreviewUrl(session)

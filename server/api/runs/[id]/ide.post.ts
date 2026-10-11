@@ -1,7 +1,7 @@
 import { ideMountMissing, ideStaged, startRunIde } from '../../../daemon/ide'
-import { requireSession } from '../../../utils/entities'
 import { rebootEnv } from '../../../daemon/envs'
 import { sessionHasActiveWork } from '../../../utils/sessions'
+import { requireSession } from '../../../stores/sessions'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

@@ -2,13 +2,13 @@ import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { db, schema } from '../../../db'
 import { startFollowup } from '../../../daemon/followups'
-import { requireSession } from '../../../utils/entities'
 import { dispatchRuns } from '../../../daemon/dispatcher'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { emitFollowup, emitItem } from '../../../utils/transcript'
 import { CLEAR_COMMAND, PR_COMMAND, PUBLISH_FOLLOWUP_PROMPT } from '../../../../shared/utils/followup'
 import { MODEL_NAME_RE } from '../../../../shared/utils/ai'
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, saveAttachments, type UploadedFile } from '../../../utils/attachments'
+import { requireSession, updateSession } from '../../../stores/sessions'
 
 const bodySchema = z.object({
   prompt: z.string().trim().min(1),
@@ -57,7 +57,7 @@ export default defineEventHandler(async (event) => {
       startedAt: now,
       finishedAt: now,
     }).returning().get()
-    db.update(schema.sessions).set({ agentSessionId: null, agentHandover: null }).where(eq(schema.sessions.id, session.id)).run()
+    updateSession(session.id, { agentSessionId: null, agentHandover: null })
     const item = db.insert(schema.agentItems).values({
       sessionId: session.id,
       followupId: followup.id,

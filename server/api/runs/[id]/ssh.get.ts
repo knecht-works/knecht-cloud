@@ -1,9 +1,7 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../../db'
 import { listRunServices, resolveContainerUser, serviceContainerName, WEB_PROJECT_DIR } from '../../../daemon/sandbox'
 import { getSettings } from '../../../utils/settings'
-import { requireSession } from '../../../utils/entities'
 import { defaultSshTarget, sshTerminalCommand } from '../../../utils/ssh'
+import { requireSession, touchSessionPreview } from '../../../stores/sessions'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
@@ -27,7 +25,7 @@ export default defineEventHandler(async (event) => {
     ]))
   }
 
-  db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, session.id)).run()
+  touchSessionPreview(session.id)
 
   return { services, sshCommands }
 })

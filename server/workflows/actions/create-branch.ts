@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { db, schema } from '../../db'
 import { createBranch } from '../../daemon/git'
 import { defineAction } from './types'
+import { updateSession } from '../../stores/sessions'
 
 export const createBranchAction = defineAction({
   type: 'create-branch',
@@ -14,7 +15,7 @@ export const createBranchAction = defineAction({
     rt.log(`\n▶ create-branch: ${step.name}\n`)
     await createBranch(rt.checkoutDir, step.name)
     db.update(schema.runs).set({ branch: step.name }).where(eq(schema.runs.id, rt.runId)).run()
-    db.update(schema.sessions).set({ branch: step.name }).where(eq(schema.sessions.id, rt.sessionId)).run()
+    updateSession(rt.sessionId, { branch: step.name })
     return { name: step.name }
   },
 })
