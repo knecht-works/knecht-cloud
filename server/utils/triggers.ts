@@ -1,14 +1,15 @@
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { Trigger } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
-import { getWorkflowRow } from './entities'
 import { isGithubAppConfigured } from './github-credentials'
 import { emptyInputs, type TriggerInputs } from './inputs'
 import { resolveSession, type SessionObject } from './sessions'
 import type { TriggerSource } from '../../shared/utils/integrations'
 import type { TriggerSegment } from '../../shared/utils/trigger-form'
 import { getTriggerSource } from './trigger-sources'
+import { getWorkflowRow, getWorkflowRows } from '../stores/workflows'
+import { getProjects } from '../stores/projects'
 
 export interface TriggerSummary {
   id: number
@@ -33,29 +34,8 @@ function endpoint(t: Trigger): string | null {
 }
 
 export function toSummaries(rows: Trigger[]): TriggerSummary[] {
-  const ids = [...new Set(rows.flatMap(r => r.projectIds))]
-  const names = new Map<number, string>()
-  if (ids.length) {
-    for (const p of db
-      .select({ id: schema.projects.id, name: schema.projects.name })
-      .from(schema.projects)
-      .where(inArray(schema.projects.id, ids))
-      .all()) {
-      names.set(p.id, p.name)
-    }
-  }
-
-  const workflowIds = [...new Set(rows.map(r => r.workflowId))]
-  const workflowNames = new Map<number, string>()
-  if (workflowIds.length) {
-    for (const w of db
-      .select({ id: schema.workflows.id, name: schema.workflows.name })
-      .from(schema.workflows)
-      .where(inArray(schema.workflows.id, workflowIds))
-      .all()) {
-      workflowNames.set(w.id, w.name)
-    }
-  }
+  const names = new Map(getProjects([...new Set(rows.flatMap(r => r.projectIds))]).map(p => [p.id, p.name]))
+  const workflowNames = new Map(getWorkflowRows([...new Set(rows.map(r => r.workflowId))]).map(w => [w.id, w.name]))
 
   return rows.map(t => ({
     id: t.id,
@@ -87,9 +67,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   if (!workflow || !workflow.enabled || !workflow.publishedAt) return []
 
   const projectIds = opts.projectIds ?? t.projectIds
-  const projects = projectIds.length
-    ? db.select().from(schema.projects).where(inArray(schema.projects.id, projectIds)).all()
-    : []
+  const projects = getProjects(projectIds)
 
   const runIds: number[] = []
   for (const project of projects) {

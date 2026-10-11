@@ -4,6 +4,7 @@ import { db, schema } from '../../db'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
+import { requireWorkflowRow } from '../../stores/workflows'
 
 const bodySchema = z.object({
   source: z.enum(TRIGGER_SOURCES),

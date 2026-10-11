@@ -1,6 +1,5 @@
 import { rmSync } from 'node:fs'
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../../db'
+import { setProjectDump, requireProject } from '../../../stores/projects'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
@@ -15,10 +14,5 @@ export default defineEventHandler((event) => {
     }
   }
 
-  return db
-    .update(schema.projects)
-    .set({ dbDumpPath: null, dbImported: false, updatedAt: new Date() })
-    .where(eq(schema.projects.id, id))
-    .returning()
-    .get()
+  return setProjectDump(id, null)
 })

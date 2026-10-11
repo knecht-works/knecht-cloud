@@ -1,8 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { eq } from 'drizzle-orm'
 import { projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
-import { db, schema } from '../../../db'
+import { setProjectDump, requireProject } from '../../../stores/projects'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
@@ -20,10 +19,5 @@ export default defineEventHandler(async (event) => {
   const filePath = join(projectDumpDir(id), sanitizeFilename(file.filename))
   writeFileSync(filePath, file.data)
 
-  return db
-    .update(schema.projects)
-    .set({ dbDumpPath: filePath, dbImported: false, updatedAt: new Date() })
-    .where(eq(schema.projects.id, id))
-    .returning()
-    .get()
+  return setProjectDump(id, filePath)
 })

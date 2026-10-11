@@ -1,9 +1,8 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 import { DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGERS } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
-import { db, schema } from '../../db'
+import { updateProjectConfig, requireProject } from '../../stores/projects'
 
 const bodySchema = z.object({
   envVars: z
@@ -51,12 +50,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: `Port ${PREVIEW_FORWARD_PORT} is reserved for the preview` })
   }
 
-  const updated = db
-    .update(schema.projects)
-    .set({ ...result.data, updatedAt: new Date() })
-    .where(eq(schema.projects.id, id))
-    .returning()
-    .get()
+  const updated = updateProjectConfig(id, result.data)
 
   if (!updated) {
     throw createError({ statusCode: 404, statusMessage: 'Project not found' })

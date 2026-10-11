@@ -1,7 +1,7 @@
 import { projectDetectedEnv } from '../../shared/utils/env-spec'
 import type { Project, Session } from '../db/schema'
-import { getProject } from './entities'
 import { previewOrigin } from './origin'
+import { getProject } from '../stores/projects'
 
 // A repo with its own ddev config serves its site even with an empty pinned host
 // list: ddev defaults the name when config.yaml omits it or fails to parse.

@@ -1,4 +1,5 @@
 import { listRepoBranches } from '../../../utils/github-app'
+import { requireProject } from '../../../stores/projects'
 
 export default defineEventHandler(async (event) => {
   const project = requireProject(requireIntParam(event))
