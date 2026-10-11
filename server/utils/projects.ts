@@ -8,6 +8,7 @@ import { cancelRun } from '../daemon/runner'
 import { projectMemoryDir } from './agent-memory'
 import { dataDir, projectSharedDir, sessionArchiveDir } from './storage'
 import { removeAttachments } from './attachments'
+import { deleteProjectRow } from '../stores/projects'
 
 // FKs are declarative only (PRAGMA foreign_keys is off), so every table is cleared explicitly.
 export function deleteProject(id: number): Promise<void> {
@@ -48,7 +49,7 @@ export function deleteProject(id: number): Promise<void> {
         .run()
     }
     tx.delete(schema.projectLinks).where(eq(schema.projectLinks.projectId, id)).run()
-    tx.delete(schema.projects).where(eq(schema.projects.id, id)).run()
+    deleteProjectRow(id, tx)
   })
 
   return cleanupFiles(id, sessionIds).catch((e) => {

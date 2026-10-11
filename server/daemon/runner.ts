@@ -10,7 +10,7 @@ import { formatEnvSummary } from '../../shared/utils/env-spec'
 import { runWorkspacePath } from '../../shared/utils/routes'
 import { sessionSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
-import { getRun, getWorkflowRow } from '../utils/entities'
+import { getRun } from '../utils/entities'
 import { dashboardOrigin } from '../utils/origin'
 import { agentRepliedSince, describeObject, sessionObject } from '../utils/sessions'
 import { getIntegration } from '../integrations'
@@ -19,6 +19,7 @@ import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
 import { copyIntoSandbox, spawnInSandbox, startEnvStack, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
 import { ensureEnvUp } from './envs'
+import { getWorkflowRow } from '../stores/workflows'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
 

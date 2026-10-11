@@ -1,6 +1,5 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../../db'
 import type { NewWorkflowRow } from '../../db/schema'
+import { updateWorkflow, requireWorkflowRow, getWorkflowRowByName } from '../../stores/workflows'
 import { publishStepsSchema, workflowPatchSchema } from '../../workflows/schema'
 
 export default defineEventHandler(async (event) => {
@@ -18,7 +17,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'A workflow with this name already exists' })
   }
 
-  const patch: Partial<NewWorkflowRow> = { updatedAt: new Date() }
+  const patch: Partial<NewWorkflowRow> = {}
   if (data.name !== undefined) patch.name = data.name
   if (data.description !== undefined) patch.description = data.description
   if (data.draftSteps !== undefined) {
@@ -41,10 +40,5 @@ export default defineEventHandler(async (event) => {
     patch.enabled = data.enabled
   }
 
-  return db
-    .update(schema.workflows)
-    .set(patch)
-    .where(eq(schema.workflows.id, id))
-    .returning()
-    .get()
+  return updateWorkflow(id, patch)
 })

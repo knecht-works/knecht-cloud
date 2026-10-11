@@ -1,6 +1,5 @@
-import { eq } from 'drizzle-orm'
 import { z } from 'zod'
-import { db, schema } from '../../db'
+import { createProject, getProjectByGithubId } from '../../stores/projects'
 import type { ProjectMeta } from '../../utils/framework'
 import { resolveProjectMeta } from '../../utils/framework'
 import { getInstallationClient } from '../../utils/github-app'
@@ -21,12 +20,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid project data' })
   }
 
-  const existing = db
-    .select()
-    .from(schema.projects)
-    .where(eq(schema.projects.githubId, result.data.githubId))
-    .get()
-  if (existing) {
+  if (getProjectByGithubId(result.data.githubId)) {
     throw createError({ statusCode: 409, statusMessage: 'Repo is already connected' })
   }
 
@@ -39,5 +33,5 @@ export default defineEventHandler(async (event) => {
     // Connect anyway, the backfill retries.
   }
 
-  return db.insert(schema.projects).values({ ...result.data, ...meta }).returning().get()
+  return createProject({ ...result.data, ...meta })
 })

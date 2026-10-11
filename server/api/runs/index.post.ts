@@ -4,6 +4,8 @@ import { publishStepsSchema } from '../../workflows/schema'
 import { dispatchRuns } from '../../daemon/dispatcher'
 import { emptyInputs } from '../../utils/inputs'
 import { resolveSession } from '../../utils/sessions'
+import { requireProject } from '../../stores/projects'
+import { requireWorkflowRow } from '../../stores/workflows'
 
 const bodySchema = z.object({
   projectId: z.number().int(),

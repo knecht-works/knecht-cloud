@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../db'
+import { getProjectByGithubId } from '../../stores/projects'
 import { addCommentReaction, addIssueLabels, createIssueComment, getIssueContext, listRepoAssignees, listRepoBranches, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
@@ -68,9 +69,7 @@ export const github: Integration = {
       const name = header('x-github-event') ?? ''
       const payload = (tryParseJson(raw) ?? {}) as GithubPayload
       const githubId = payload.repository?.id
-      const project = githubId
-        ? db.select().from(schema.projects).where(eq(schema.projects.githubId, githubId)).get()
-        : undefined
+      const project = githubId ? getProjectByGithubId(githubId) : undefined
       if (!project) return null
 
       const action = payload.action ?? ''

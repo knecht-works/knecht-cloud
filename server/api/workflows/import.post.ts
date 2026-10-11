@@ -1,6 +1,6 @@
 import { parse } from 'yaml'
 import { z } from 'zod'
-import { db, schema } from '../../db'
+import { createWorkflow, uniqueWorkflowName } from '../../stores/workflows'
 import { workflowDocumentSchema } from '../../workflows/schema'
 
 const bodySchema = z.object({
@@ -28,9 +28,5 @@ export default defineEventHandler(async (event) => {
 
   const name = uniqueWorkflowName(result.data.name)
 
-  return db
-    .insert(schema.workflows)
-    .values({ name, description: result.data.description, steps: result.data.steps, publishedAt: new Date() })
-    .returning()
-    .get()
+  return createWorkflow({ name, description: result.data.description, steps: result.data.steps, publishedAt: new Date() })
 })

@@ -1,4 +1,4 @@
-import { db, schema } from '../../db'
+import { createWorkflow, uniqueWorkflowName } from '../../stores/workflows'
 import { workflowCreateSchema } from '../../workflows/schema'
 
 export default defineEventHandler(async (event) => {
@@ -9,9 +9,5 @@ export default defineEventHandler(async (event) => {
   }
 
   const name = uniqueWorkflowName(result.data.name ?? 'Untitled workflow')
-  return db
-    .insert(schema.workflows)
-    .values({ name, description: result.data.description, steps: [], enabled: false })
-    .returning()
-    .get()
+  return createWorkflow({ name, description: result.data.description, steps: [], enabled: false })
 })

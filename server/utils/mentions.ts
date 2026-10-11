@@ -2,10 +2,10 @@ import { db, schema } from '../db'
 import type { Project, Session } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import type { CommentAuthor, Integration, WebhookComment } from '../integrations'
-import { getWorkflowRow } from './entities'
 import { emptyInputs } from './inputs'
 import { resolveSession, sessionHasActiveWork, type SessionObject } from './sessions'
 import { emitFollowup } from './transcript'
+import { getWorkflowRow } from '../stores/workflows'
 
 export async function handleMention(integration: Integration, project: Project, comment: WebhookComment): Promise<string> {
   if (comment.fromSelf) return 'ignored (comment by Knecht itself)'

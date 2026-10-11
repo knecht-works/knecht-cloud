@@ -6,13 +6,14 @@ import { db, schema } from '../db'
 import type { Project } from '../db/schema'
 import type { EnvTransition } from '../../shared/utils/run'
 import { getSettings } from '../utils/settings'
-import { getProject, getSessionRow } from '../utils/entities'
+import { getSessionRow } from '../utils/entities'
 import { getInstallationToken } from '../utils/github-app'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
 import { configureSessionEnv, readDdevConfig } from './ddev'
 import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
 import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
+import { getProject } from '../stores/projects'
 
 // In memory on purpose: a crash mid-transition must not wedge a DB state no reaper reclaims.
 const transitions = new Map<number, EnvTransition>()

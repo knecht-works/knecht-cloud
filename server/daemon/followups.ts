@@ -5,7 +5,7 @@ import type { Followup, Project, Run, Session } from '../db/schema'
 import { compactAgentSession, handoverPreamble, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
-import { getProject, getRun, getSessionRow } from '../utils/entities'
+import { getRun, getSessionRow } from '../utils/entities'
 import { getIntegration } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { sessionCheckoutDir } from '../utils/storage'
@@ -18,6 +18,7 @@ import { copyIntoSandbox, spawnInSandbox, streamInSandbox, WEB_PROJECT_DIR } fro
 import { ensureEnvUp, reviveEnv } from './envs'
 import { COMPACT_COMMAND } from '../../shared/utils/followup'
 import { followupAttachmentsDir, SANDBOX_ATTACHMENTS_DIR, sandboxAttachmentPath } from '../utils/attachments'
+import { getProject } from '../stores/projects'
 
 const controllers = new Map<number, AbortController>()
 

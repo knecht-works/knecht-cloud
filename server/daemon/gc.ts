@@ -2,6 +2,7 @@ import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
 import { db, schema } from '../db'
+import { listProjects } from '../stores/projects'
 import { dataDir, projectsDir } from '../utils/storage'
 import { removeEnvStack } from './sandbox'
 
@@ -18,7 +19,7 @@ export interface GcResult {
 
 export async function collectGarbage(): Promise<GcResult> {
   const liveSessions = new Set(db.select({ id: schema.sessions.id }).from(schema.sessions).all().map(r => r.id))
-  const projects = db.select({ id: schema.projects.id, dbDumpPath: schema.projects.dbDumpPath }).from(schema.projects).all()
+  const projects = listProjects()
   const liveProjects = new Set(projects.map(p => p.id))
 
   const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], sharedDirs: [], memoryDirs: [], dockerPruned: [] }

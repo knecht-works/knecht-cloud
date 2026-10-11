@@ -6,6 +6,7 @@ import { db, schema } from '../../../db'
 import { rebootEnv } from '../../../daemon/envs'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { WEB_PROJECT_DIR, webMountPresent } from '../../../daemon/sandbox'
+import { requireProject } from '../../../stores/projects'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

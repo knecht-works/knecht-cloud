@@ -4,8 +4,8 @@ import type { TriggerSource } from '../../../shared/utils/integrations'
 import { triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerDescription } from '../../../shared/utils/trigger-form'
 import { INTEGRATIONS, type Integration } from '../../integrations'
 import { triggerConfigSchema } from '../../integrations/trigger-config'
-import { getProject } from '../entities'
 import { projectLinks } from '../project-links'
+import { getProject } from '../../stores/projects'
 
 export interface TriggerSourceDef {
   source: TriggerSource

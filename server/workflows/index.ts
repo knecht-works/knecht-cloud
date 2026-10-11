@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm'
-import { db, schema } from '../db'
+import type { WorkflowRow } from '../db/schema'
 import { ensureStepIds } from '../../shared/utils/workflow'
 import { getSettings, updateSettings } from '../utils/settings'
+import { createWorkflow, getWorkflowRow, listWorkflowRows } from '../stores/workflows'
 import { parseWorkflow, type Workflow } from './schema'
 
 // Embedded, not read from disk: the bundled Nitro output has no source files.
@@ -36,25 +36,25 @@ steps:
 
 const STARTERS: Workflow[] = [BOOT_AND_PREVIEW, DEMO_PR].map(parseWorkflow)
 
-function rowToWorkflow(row: typeof schema.workflows.$inferSelect): Workflow {
+function rowToWorkflow(row: WorkflowRow): Workflow {
   return { name: row.name, description: row.description, steps: ensureStepIds(row.steps) }
 }
 
 export function listWorkflows(): Workflow[] {
-  return db.select().from(schema.workflows).all().map(rowToWorkflow)
+  return listWorkflowRows().map(rowToWorkflow)
 }
 
 export function getWorkflow(id: number): Workflow | undefined {
-  const row = db.select().from(schema.workflows).where(eq(schema.workflows.id, id)).get()
+  const row = getWorkflowRow(id)
   return row ? rowToWorkflow(row) : undefined
 }
 
 export function seedWorkflows(): void {
   if (getSettings().workflowsSeeded) return
-  const existing = new Set(db.select({ name: schema.workflows.name }).from(schema.workflows).all().map(r => r.name))
+  const existing = new Set(listWorkflowRows().map(r => r.name))
   for (const wf of STARTERS) {
     if (!existing.has(wf.name)) {
-      db.insert(schema.workflows).values({ name: wf.name, description: wf.description, steps: wf.steps, publishedAt: new Date() }).run()
+      createWorkflow({ name: wf.name, description: wf.description, steps: wf.steps, publishedAt: new Date() })
     }
   }
   updateSettings({ workflowsSeeded: true })

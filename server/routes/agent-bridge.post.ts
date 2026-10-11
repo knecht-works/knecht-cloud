@@ -10,11 +10,13 @@ import { appendLog } from '../daemon/runner'
 import { getIntegration, type Integration } from '../integrations'
 import { applyLabels, moveToStatus } from '../integrations/capabilities'
 import { verifyBridgeToken } from '../utils/agent-bridge'
-import { getProject, getSessionRow, getWorkflowRow } from '../utils/entities'
+import { getSessionRow } from '../utils/entities'
 import { createPullRequest, getInstallationToken } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
 import { describeObject, recordAgentReply, sessionObject, withSessionLinks, type SessionObject } from '../utils/sessions'
 import { sessionCheckoutDir } from '../utils/storage'
+import { getProject } from '../stores/projects'
+import { getWorkflowRow } from '../stores/workflows'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
 // Plain git works inside the sandbox (the session's checkout is a
