@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import { ENV_STATES } from '../../shared/utils/run'
+import { ENV_STATES, type RunDiagnosis } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import { PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
 import { INTEGRATION_IDS, OBJECT_KINDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
@@ -170,6 +170,7 @@ export const runs = sqliteTable('runs', {
     .references(() => triggers.id, { onDelete: 'set null' }),
   branch: text('branch'),
   prUrl: text('pr_url'),
+  failureDiagnosis: text('failure_diagnosis', { mode: 'json' }).$type<RunDiagnosis>(),
   // The object's update time as delivered, to the second: a trigger runs once per version of an object.
   objectVersion: text('object_version'),
   inputs: text('inputs', { mode: 'json' }).$type<Record<string, string>>(),

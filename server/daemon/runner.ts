@@ -19,6 +19,7 @@ import { ensureEnvUp } from './envs'
 import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession, closeObjectlessSession } from '../stores/sessions'
 import { appendRunLog, claimQueuedRun, finishRun, getRun, runLogBytes, updateRun } from '../stores/runs'
+import { diagnoseRunFailure } from './failure-diagnosis'
 import { listTopLevelWorkflowSteps, listWorkflowStepOutputs, createRunStep, updateRunStep, deleteWorkflowStepsFrom, type NewRunStep } from '../stores/run-steps'
 
 const MAX_OUTPUT_BYTES = 64 * 1024
@@ -137,6 +138,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     const cancelled = controller.signal.aborted
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
     finishRun(runId, cancelled ? 'cancelled' : 'failed')
+    if (!cancelled) void diagnoseRunFailure(runId)
     closeObjectlessSession(session.id)
     if (!cancelled) await notifyRunFinished(runId, project, session, 'failed', log)
     await handBackObject(session, runId, project, log)
