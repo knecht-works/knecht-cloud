@@ -11,7 +11,9 @@ export function maskSecrets(params: Record<string, unknown>): Record<string, unk
     }).join('\n')
   }
   if (typeof params.url === 'string') {
-    masked.url = params.url.replace(/([?&][^=&#]+=)([^&#]*)/g, (_, key: string, value: string) => key + mask(value))
+    masked.url = params.url
+      .replace(/^([a-z][a-z0-9+.-]*:\/\/)([^/?#@]+)@/i, (_, scheme: string, userinfo: string) => `${scheme}${mask(userinfo)}@`)
+      .replace(/([?&][^=&#]+=)([^&#]*)/g, (_, key: string, value: string) => key + mask(value))
   }
   return masked
 }
