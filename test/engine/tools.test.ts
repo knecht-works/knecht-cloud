@@ -3,7 +3,7 @@ import { appendRunLog } from '../../server/stores/runs'
 import { createRunStep, readStepLog } from '../../server/stores/run-steps'
 import { createWorkflow } from '../../server/stores/workflows'
 import { callTool, type ToolContext } from '../../server/tools/registry'
-import { getRunTool, getStepLogTool, listRunsTool } from '../../server/tools/runs'
+import { getRunLogTool, getRunTool, getStepLogTool, listRunsTool } from '../../server/tools/runs'
 import { getWorkflowTool } from '../../server/tools/workflows'
 import { makeProject, makeRun } from '../helpers/db'
 
@@ -54,5 +54,13 @@ describe('workflow tools', () => {
     expect(result.published).toContain('Authorization: ***')
     expect(result.published).not.toContain('secret')
     expect(result.draft).toContain('echo draft')
+  })
+})
+
+describe('get_run_log', () => {
+  it('returns the end of the whole log', async () => {
+    const run = makeRun(makeProject(), [])
+    appendRunLog(run.id, 'preparing\n\x1B[31mddev start failed\x1B[0m\n')
+    expect(await callTool(getRunLogTool, { runId: run.id, maxBytes: 27 }, system)).toEqual({ text: 'ddev start failed\n', omittedBytes: 10 })
   })
 })

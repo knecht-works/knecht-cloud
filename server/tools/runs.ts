@@ -1,7 +1,7 @@
 import { createError } from 'h3'
 import { z } from 'zod'
 import { stripAnsi } from '../../shared/utils/ansi'
-import { getRunView, listRunViews } from '../stores/runs'
+import { getRunView, listRunViews, readRunLog, runLogBytes } from '../stores/runs'
 import { listRunSteps, readStepLog } from '../stores/run-steps'
 import { maskSecrets } from './redact'
 import { defineTool } from './registry'
@@ -81,5 +81,20 @@ export const getStepLogTool = defineTool({
     const text = stripAnsi(log)
     const omitted = Math.max(0, text.length - maxChars)
     return { text: omitted ? text.slice(-maxChars) : text, omittedChars: omitted }
+  },
+})
+
+export const getRunLogTool = defineTool({
+  name: 'get_run_log',
+  description: 'Returns the last maxBytes bytes of a run\'s whole log, ANSI codes removed. Use it when a run failed before any step, for example while preparing the environment.',
+  scope: 'runs:read',
+  input: z.object({
+    runId: z.number().int(),
+    maxBytes: z.number().int().min(1).max(100_000).default(24_000),
+  }),
+  run: ({ runId, maxBytes }) => {
+    if (!getRunView(runId)) throw createError({ statusCode: 404, statusMessage: 'Run not found' })
+    const omittedBytes = Math.max(0, runLogBytes(runId) - maxBytes)
+    return { text: stripAnsi(readRunLog(runId, omittedBytes).text), omittedBytes }
   },
 })
