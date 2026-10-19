@@ -71,7 +71,10 @@ const mascotLine = computed(() => {
   const r = selectedRun.value
   if (!r) return 'No runs yet. Start a workflow to boot this project.'
   if (r.status === 'running' || r.status === 'queued') return `Working on ${r.workflow} right now.`
-  if (r.status === 'failed') return 'The last run failed. Open it to see why.'
+  if (r.status === 'failed') {
+    if (r.failureDiagnosis?.state === 'pending') return 'Knecht is looking into why the last run failed.'
+    return r.failureDiagnosis?.summary ?? 'The last run failed. Open it to see why.'
+  }
   if (!r.hasEnv) return 'This workflow works without a preview environment.'
   if (r.envTransition === 'stopping') return 'The environment is shutting down.'
   if (r.envTransition === 'rebooting') return 'The environment is booting again. The preview is back in a moment.'
@@ -82,6 +85,9 @@ const mascotLine = computed(() => {
   if (r.envState === 'archived') return 'The environment is archived. Restore it from the run menu to work in it again.'
   return 'The environment is gone. Run the workflow again for a fresh one.'
 })
+
+const diagnosis = computed(() => selectedRun.value?.status === 'failed' ? selectedRun.value.failureDiagnosis : null)
+const focusStep = ref<{ stepRowId: number } | null>(null)
 
 const { data: workflowList } = useWorkflows()
 const startableWorkflows = computed(() => (workflowList.value ?? []).filter(workflowRunnable))
@@ -136,6 +142,7 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
           v-if="selectedRun"
           :key="selectedRun.id"
           :run-id="selectedRun.id"
+          :focus-step="focusStep"
           @deleted="onRunDeleted"
           @started="onRunStarted"
           @changed="invalidate(liveTopics.runs)"
@@ -183,8 +190,29 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
                 >{{ statusMeta.label }}</span>
               </div>
               <p class="mt-1.5 text-2sm leading-snug text-toned">
-                {{ mascotLine }}
+                <UIcon
+                  v-if="diagnosis?.state === 'pending'"
+                  name="i-lucide-loader-circle"
+                  class="mr-1 inline-block size-3 animate-spin align-[-1px] text-dimmed"
+                />{{ mascotLine }}
               </p>
+              <div
+                v-if="diagnosis?.state === 'done' && diagnosis.steps.length"
+                class="mt-2 flex flex-wrap gap-1.5"
+              >
+                <button
+                  v-for="s in diagnosis.steps"
+                  :key="s.id"
+                  type="button"
+                  class="k-mono inline-flex cursor-pointer items-center gap-1 rounded-md border border-muted px-1.5 py-0.5 text-2xs text-muted transition-colors hover:bg-elevated/50 hover:text-highlighted"
+                  @click="focusStep = { stepRowId: s.id }"
+                >
+                  <UIcon
+                    name="i-lucide-corner-down-right"
+                    class="size-3"
+                  />{{ s.label }}
+                </button>
+              </div>
             </div>
           </div>
         </div>

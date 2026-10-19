@@ -2,7 +2,7 @@
 import type { EnvTransition } from '#shared/utils/run'
 import { liveTopics } from '#shared/utils/live-topics'
 
-const props = defineProps<{ runId: number }>()
+const props = defineProps<{ runId: number, focusStep?: { stepRowId: number } | null }>()
 
 const emit = defineEmits<{
   deleted: []
@@ -133,6 +133,7 @@ function refreshWorkspace() {
         :run-status="run.status"
         :run-started-at="run.startedAt"
         :run-finished-at="run.finishedAt"
+        :focus="focusStep"
         resizable
       />
     </KPanel>
