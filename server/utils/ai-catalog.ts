@@ -73,16 +73,42 @@ async function fetchModelList(url: string, key: string, label: string): Promise<
   return data.data
 }
 
-interface RegistryProvider {
+interface RegistryRoute {
+  npm?: string
+  api?: string
+}
+
+interface RegistryProvider extends RegistryRoute {
   name?: string
-  models?: Record<string, { name?: string }>
+  models?: Record<string, { name?: string, provider?: RegistryRoute }>
+}
+
+let registryCache: { at: number, registry: Record<string, RegistryProvider> } | null = null
+
+async function loadRegistry(): Promise<Record<string, RegistryProvider>> {
+  if (registryCache && Date.now() - registryCache.at < REGISTRY_TTL_MS) return registryCache.registry
+  try {
+    const res = await fetch('https://models.dev/api.json', { signal: AbortSignal.timeout(15_000) })
+    if (!res.ok) throw new Error(`models.dev responded ${res.status}`)
+    registryCache = { at: Date.now(), registry: await res.json() as Record<string, RegistryProvider> }
+    return registryCache.registry
+  }
+  catch (e) {
+    if (!registryCache) throw e
+    registryCache.at = Date.now()
+    return registryCache.registry
+  }
+}
+
+// OpenCode Zen and Go serve each model through the API of its maker; models.dev records which.
+export async function registryRoute(provider: AiProviderId, model: string): Promise<RegistryRoute> {
+  const entry = (await loadRegistry())[provider]
+  const route = entry?.models?.[model]?.provider
+  return { npm: route?.npm ?? entry?.npm, api: route?.api ?? entry?.api }
 }
 
 async function registryModels(provider: AiProviderId): Promise<AiModel[]> {
-  const res = await fetch('https://models.dev/api.json', { signal: AbortSignal.timeout(15_000) })
-  if (!res.ok) throw new Error(`models.dev responded ${res.status}`)
-  const registry = await res.json() as Record<string, RegistryProvider>
-  const entry = registry[provider]
+  const entry = (await loadRegistry())[provider]
   const label = entry?.name ?? aiProviderSpec(provider)?.label ?? provider
   return Object.entries(entry?.models ?? {})
     .map(([id, m]) => ({ id, name: m.name ?? id, provider: label }))
