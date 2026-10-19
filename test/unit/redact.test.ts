@@ -14,6 +14,11 @@ describe('maskSecrets', () => {
     })
   })
 
+  it('masks credentials in the URL userinfo', () => {
+    expect(maskSecrets({ url: 'https://user:token@api.test/x?a=1' }).url).toBe('https://***@api.test/x?a=***')
+    expect(maskSecrets({ url: 'https://{{ secrets.auth }}@api.test/x' }).url).toBe('https://{{ secrets.auth }}@api.test/x')
+  })
+
   it('masks http steps nested in if and loop', () => {
     const [step] = maskStepSecrets([{
       type: 'loop',
