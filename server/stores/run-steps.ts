@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm'
 import { db, schema, type Executor } from '../db'
 import { liveTopics } from '../../shared/utils/live-topics'
 import { emitTopics } from '../utils/live'
+import { readRunLog } from './runs'
 
 export type NewRunStep = typeof schema.runSteps.$inferInsert
 
@@ -50,6 +51,15 @@ export function listWorkflowStepOutputs(runId: number) {
     .where(and(eq(schema.runSteps.runId, runId), eq(schema.runSteps.origin, 'workflow')))
     .orderBy(asc(schema.runSteps.id))
     .all()
+}
+
+// A step's log runs from its logStart to the next step's, in bytes.
+export function readStepLog(runId: number, stepRowId: number): string | undefined {
+  const steps = listRunSteps(runId)
+  const start = steps.find(s => s.id === stepRowId)?.logStart
+  if (start === undefined || start === null) return undefined
+  const end = steps.map(s => s.logStart).filter((n): n is number => n !== null && n > start).sort((a, b) => a - b)[0]
+  return readRunLog(runId, start, end).text
 }
 
 export function lastSuccessfulSessionStep(sessionId: number, type: string): { params: Record<string, unknown> | null } | undefined {

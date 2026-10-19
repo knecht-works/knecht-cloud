@@ -68,13 +68,16 @@ export function getRunView(id: number) {
     .get()
 }
 
-export function listRunViews(projectId: number | undefined, limit: number) {
+export function listRunViews(projectId: number | undefined, limit: number, status?: RunStatus) {
   return db
     .select(runListColumns)
     .from(schema.runs)
     .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))
     .innerJoin(schema.sessions, eq(schema.runs.sessionId, schema.sessions.id))
-    .where(projectId === undefined ? undefined : eq(schema.runs.projectId, projectId))
+    .where(and(
+      projectId === undefined ? undefined : eq(schema.runs.projectId, projectId),
+      status === undefined ? undefined : eq(schema.runs.status, status),
+    ))
     .orderBy(desc(schema.runs.id))
     .limit(limit)
     .all()
@@ -210,9 +213,12 @@ export function runLogBytes(runId: number): number {
   return db.select({ bytes: logBytes }).from(schema.runs).where(eq(schema.runs.id, runId)).get()?.bytes ?? 0
 }
 
-export function readRunLog(runId: number, fromByte: number): RunLogChunk {
+export function readRunLog(runId: number, fromByte: number, toByte?: number): RunLogChunk {
+  const slice = toByte === undefined
+    ? sql<Buffer>`substr(cast(${schema.runs.log} as blob), ${fromByte + 1})`
+    : sql<Buffer>`substr(cast(${schema.runs.log} as blob), ${fromByte + 1}, ${toByte - fromByte})`
   const row = db
-    .select({ tail: sql<Buffer>`substr(cast(${schema.runs.log} as blob), ${fromByte + 1})`, end: logBytes })
+    .select({ tail: slice, end: logBytes })
     .from(schema.runs)
     .where(eq(schema.runs.id, runId))
     .get()
