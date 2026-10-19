@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewRun, Project, Run } from '../db/schema'
+import type { RunDiagnosis } from '../../shared/utils/run'
 import { liveTopics } from '../../shared/utils/live-topics'
 import { emitRunLog, emitTopics, type RunLogChunk } from '../utils/live'
 
@@ -41,6 +42,7 @@ const runListColumns = {
   startedAt: schema.runs.startedAt,
   finishedAt: schema.runs.finishedAt,
   createdAt: schema.runs.createdAt,
+  failureDiagnosis: schema.runs.failureDiagnosis,
 }
 
 export function getRun(id: number): Run | undefined {
@@ -269,7 +271,7 @@ export function startQueuedRun(id: number): void {
 }
 
 export function requeueRun(id: number): void {
-  updateRun(id, { status: 'queued', finishedAt: null })
+  updateRun(id, { status: 'queued', finishedAt: null, failureDiagnosis: null })
 }
 
 export function finishRun(id: number, status: FinalStatus): void {
@@ -298,6 +300,23 @@ export function cancelActiveMentionRuns(scope: { sessionId: number } | { runId: 
     .returning({ id: schema.runs.id })
     .all()
   if (cancelled.length) runsChanged(cancelled.map(r => r.id))
+}
+
+export function setRunDiagnosis(id: number, diagnosis: RunDiagnosis | null): void {
+  // A re-run reuses the id; a diagnosis that arrives after it would describe the previous attempt.
+  const written = db.update(schema.runs)
+    .set({ failureDiagnosis: diagnosis })
+    .where(and(eq(schema.runs.id, id), eq(schema.runs.status, 'failed')))
+    .run()
+    .changes > 0
+  if (written) runsChanged([id])
+}
+
+export function clearPendingDiagnoses(): void {
+  db.update(schema.runs)
+    .set({ failureDiagnosis: null })
+    .where(sql`json_extract(${schema.runs.failureDiagnosis}, '$.state') = 'pending'`)
+    .run()
 }
 
 export function failInterruptedRuns(note: string): Pick<Run, 'id' | 'sessionId'>[] {

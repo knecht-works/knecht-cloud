@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `failure_diagnosis` text;

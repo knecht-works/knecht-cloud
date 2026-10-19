@@ -1,7 +1,7 @@
 import { handBackObject } from '../integrations/assignee'
 import { getProject } from '../stores/projects'
 import { getSessionRow } from '../stores/sessions'
-import { appendRunLog, failInterruptedRuns } from '../stores/runs'
+import { appendRunLog, clearPendingDiagnoses, failInterruptedRuns } from '../stores/runs'
 import { failInterruptedSteps } from '../stores/run-steps'
 import { failInterruptedFollowups } from '../stores/followups'
 
@@ -11,6 +11,8 @@ export default defineNitroPlugin(() => {
   failInterruptedSteps('Interrupted by a daemon restart')
 
   failInterruptedFollowups('Interrupted by a daemon restart')
+
+  clearPendingDiagnoses()
 
   for (const run of interrupted) {
     const session = getSessionRow(run.sessionId)
