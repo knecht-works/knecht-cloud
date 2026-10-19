@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
-import { appendRunLog, requeueRun } from '../../server/stores/runs'
+import { appendRunLog, finishRun, requeueRun } from '../../server/stores/runs'
 import { createRunStep } from '../../server/stores/run-steps'
 import { makeProject, makeRun, getRun } from '../helpers/db'
 
@@ -13,7 +13,7 @@ vi.mock('../../server/utils/settings', () => ({ getSettings: () => ({ aiKeyEnc: 
 const { diagnoseRunFailure } = await import('../../server/daemon/failure-diagnosis')
 
 function failedRun() {
-  const run = makeRun(makeProject(), [], { status: 'failed', workflow: 'CI' })
+  const run = makeRun(makeProject(), [], { status: 'failed', workflow: 'CI', finishedAt: new Date(Date.now() - 5_000) })
   const ok = createRunStep({ runId: run.id, stepIndex: 0, stepId: 'install', type: 'bash', status: 'success', logStart: 0 })
   appendRunLog(run.id, 'installed\n')
   const bad = createRunStep({ runId: run.id, stepIndex: 1, stepId: 'test', type: 'bash', status: 'failed', error: 'exit code 1', logStart: 10 })
@@ -63,5 +63,23 @@ describe('diagnoseRunFailure', () => {
     })
     await diagnoseRunFailure(run.id)
     expect(getRun(run.id).failureDiagnosis).toBeNull()
+  })
+
+  it('keeps a later attempt\'s diagnosis when the earlier one fails late', async () => {
+    const { run } = failedRun()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let releaseFirst!: () => void
+    generateText.mockImplementationOnce(() => new Promise((_, reject) => {
+      releaseFirst = () => reject(new Error('timeout'))
+    }))
+    const first = diagnoseRunFailure(run.id)
+    await vi.waitFor(() => expect(releaseFirst).toBeDefined())
+    requeueRun(run.id)
+    finishRun(run.id, 'failed')
+    generateText.mockResolvedValueOnce({ output: { summary: 'second', stepIds: [] } })
+    await diagnoseRunFailure(run.id)
+    releaseFirst()
+    await first
+    expect(getRun(run.id).failureDiagnosis).toMatchObject({ state: 'done', summary: 'second' })
   })
 })

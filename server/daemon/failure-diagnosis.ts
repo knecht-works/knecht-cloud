@@ -1,7 +1,7 @@
 import { generateText, Output } from 'ai'
 import { languageModel } from '../utils/llm'
 import { buildDiagnosisPrompt, DIAGNOSIS_INSTRUCTIONS, diagnosisSchema, stepLabel } from '../utils/run-diagnosis'
-import { setRunDiagnosis } from '../stores/runs'
+import { getRunView, setRunDiagnosis } from '../stores/runs'
 import { getSettings } from '../utils/settings'
 import { callTool, type ToolContext } from '../tools/registry'
 import { getRunLogTool, getRunTool, getStepLogTool } from '../tools/runs'
@@ -12,8 +12,9 @@ const MAX_SUMMARY_CHARS = 280
 
 export async function diagnoseRunFailure(runId: number): Promise<void> {
   const settings = getSettings()
-  if (!settings.aiKeyEnc || !settings.aiModel) return
-  setRunDiagnosis(runId, { state: 'pending' })
+  const finishedAt = getRunView(runId)?.finishedAt
+  if (!settings.aiKeyEnc || !settings.aiModel || !finishedAt) return
+  setRunDiagnosis(runId, finishedAt, { state: 'pending' })
   try {
     const run = await callTool(getRunTool, { runId }, SYSTEM)
     // A failed if/loop row only wraps its failed child, whose own row carries the log.
@@ -34,7 +35,7 @@ export async function diagnoseRunFailure(runId: number): Promise<void> {
       abortSignal: AbortSignal.timeout(60_000),
     })
     const cited = output.stepIds.flatMap(id => run.steps.find(s => s.id === id) ?? [])
-    setRunDiagnosis(runId, {
+    setRunDiagnosis(runId, finishedAt, {
       state: 'done',
       summary: output.summary.trim().slice(0, MAX_SUMMARY_CHARS),
       steps: (cited.length ? cited : failed).slice(0, 3).map(s => ({ id: s.id, label: stepLabel(s) })),
@@ -42,6 +43,6 @@ export async function diagnoseRunFailure(runId: number): Promise<void> {
   }
   catch (e) {
     console.warn(`[failure-diagnosis] run ${runId} skipped:`, (e as Error).message)
-    setRunDiagnosis(runId, null)
+    setRunDiagnosis(runId, finishedAt, null)
   }
 }

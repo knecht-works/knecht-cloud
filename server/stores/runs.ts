@@ -302,11 +302,11 @@ export function cancelActiveMentionRuns(scope: { sessionId: number } | { runId: 
   if (cancelled.length) runsChanged(cancelled.map(r => r.id))
 }
 
-export function setRunDiagnosis(id: number, diagnosis: RunDiagnosis | null): void {
-  // A re-run reuses the id; a diagnosis that arrives after it would describe the previous attempt.
+// A retry reuses the id, so finishedAt tells which failed attempt the diagnosis belongs to.
+export function setRunDiagnosis(id: number, finishedAt: Date, diagnosis: RunDiagnosis | null): void {
   const written = db.update(schema.runs)
     .set({ failureDiagnosis: diagnosis })
-    .where(and(eq(schema.runs.id, id), eq(schema.runs.status, 'failed')))
+    .where(and(eq(schema.runs.id, id), eq(schema.runs.status, 'failed'), eq(schema.runs.finishedAt, finishedAt)))
     .run()
     .changes > 0
   if (written) runsChanged([id])
