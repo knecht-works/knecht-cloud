@@ -5,6 +5,8 @@ import { type AiProviderId, type LangdockRegion, langdockAnthropicBaseUrl, langd
 export const RULES_PATH = '/var/www/html/.knecht/opencode/rules.md'
 export const WORKFLOW_SYSTEM_PATH = '/var/www/html/.knecht/opencode/workflow.md'
 export const MEMORY_INDEX_PATH = '/var/www/html/.knecht/opencode/memory/MEMORY.md'
+export const AGENT_KEY_ENV = 'KNECHT_AI_KEY'
+const AGENT_KEY_REF = `{env:${AGENT_KEY_ENV}}`
 
 export interface OpencodeConfigInput {
   provider: AiProviderId
@@ -20,10 +22,10 @@ export interface OpencodeConfig {
   permission: 'allow'
   small_model?: string
   provider?: Record<string, {
-    npm: string
-    name: string
-    options: { baseURL: string, apiKey: string, setCacheKey?: false }
-    models: Record<string, object>
+    npm?: string
+    name?: string
+    options: { baseURL?: string, apiKey: string, setCacheKey?: false }
+    models?: Record<string, object>
   }>
 }
 
@@ -54,6 +56,10 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
     permission: 'allow',
   }
   if (input.subtaskModel) config.small_model = agentModelRef(input.provider, models[1]!)
+  // Without an explicit apiKey opencode looks the key up under a per-provider env name.
+  if (input.provider !== 'langdock') {
+    config.provider = { [input.provider]: { options: { apiKey: AGENT_KEY_REF } } }
+  }
   // @ai-sdk/openai, not openai-compatible: Langdock's chat/completions route rejects
   // function tools combined with reasoning_effort (GPT-5.x); the Responses API accepts both.
   if (input.provider === 'langdock') {
@@ -66,7 +72,7 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
         name: 'Langdock',
         options: {
           baseURL: langdockBaseUrl(input.region),
-          apiKey: '{env:LANGDOCK_API_KEY}',
+          apiKey: AGENT_KEY_REF,
           setCacheKey: false,
         },
         models: Object.fromEntries(openai.map(m => [m, {}])),
@@ -78,7 +84,7 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
         name: 'Langdock (Anthropic)',
         options: {
           baseURL: langdockAnthropicBaseUrl(input.region),
-          apiKey: '{env:LANGDOCK_API_KEY}',
+          apiKey: AGENT_KEY_REF,
         },
         models: Object.fromEntries(anthropic.map(m => [m, {}])),
       }

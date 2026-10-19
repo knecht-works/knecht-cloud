@@ -9,7 +9,7 @@ import {
 } from '../../server/utils/opencode-config'
 
 describe('buildOpencodeConfig', () => {
-  it('emits the static instructions array and no provider block for registry providers', () => {
+  it('emits the static instructions array and points the registry provider at the shared key env', () => {
     const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })
     expect(config).toEqual({
       $schema: 'https://opencode.ai/config.json',
@@ -18,6 +18,7 @@ describe('buildOpencodeConfig', () => {
       instructions: [RULES_PATH, WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
       model: 'anthropic/claude-sonnet-4-5',
       permission: 'allow',
+      provider: { anthropic: { options: { apiKey: '{env:KNECHT_AI_KEY}' } } },
     })
   })
 
@@ -28,7 +29,7 @@ describe('buildOpencodeConfig', () => {
       name: 'Langdock',
       options: {
         baseURL: 'https://api.langdock.com/openai/eu/v1',
-        apiKey: '{env:LANGDOCK_API_KEY}',
+        apiKey: '{env:KNECHT_AI_KEY}',
         setCacheKey: false,
       },
       models: { 'gpt-5.1': {} },
@@ -43,7 +44,7 @@ describe('buildOpencodeConfig', () => {
       name: 'Langdock (Anthropic)',
       options: {
         baseURL: 'https://api.langdock.com/anthropic/eu/v1',
-        apiKey: '{env:LANGDOCK_API_KEY}',
+        apiKey: '{env:KNECHT_AI_KEY}',
       },
       models: { 'claude-sonnet-4-5': {} },
     })
@@ -77,7 +78,6 @@ describe('buildOpencodeConfig', () => {
   it('emits small_model for registry providers and strips a legacy prefix from it', () => {
     const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: 'anthropic/claude-haiku-4-5' })
     expect(config.small_model).toBe('anthropic/claude-haiku-4-5')
-    expect(config.provider).toBeUndefined()
   })
 
   it('dedupes the langdock models map when main and subtask model match', () => {
