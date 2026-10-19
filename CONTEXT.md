@@ -57,5 +57,23 @@ The durable working context for one object in one project: a checkout, an enviro
 **Follow-up**:
 An additional prompt appended to a finished run's session. Comes from the dashboard or from a mention.
 
+**Agent**:
+The AI that works inside a run's sandbox on the checkout, through the ai step or a follow-up.
+
 **Member**:
 A person allowed to use this Knecht instance and to address it via mentions.
+
+### AI
+
+**Tool**:
+One typed operation the AI may perform on Knecht, such as reading a run or listing workflows. Tools live in one registry and serve the dashboard features, MCP and the sandbox agent alike.
+
+**Scope**:
+The permission a tool requires, written as resource plus `read` or `write` (`runs:read`, `workflows:write`).
+
+**Actor**:
+On whose behalf a tool call runs: a member, or the system for background work. The system may only read.
+
+**Micro-agent**:
+A model call in a dashboard feature whose data and actions come only from the tools the feature hands it.
+_Avoid_: Agent (that is the AI working inside a run's sandbox)
