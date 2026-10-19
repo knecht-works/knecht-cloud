@@ -1,4 +1,4 @@
-import { AI_PROVIDERS, type AiModel, type AiProviderId, langdockAnthropicBaseUrl, langdockBaseUrl } from '../../shared/utils/ai'
+import { type AiModel, type AiProviderId, aiProviderSpec, langdockAnthropicBaseUrl, langdockBaseUrl } from '../../shared/utils/ai'
 import type { Settings } from '../db/schema'
 import { decrypt } from './crypto'
 
@@ -8,6 +8,7 @@ let cache: { at: number, ttl: number, scope: string, models: AiModel[] } | null 
 
 export async function loadModelCatalog(settings: Settings): Promise<AiModel[]> {
   const provider = settings.aiProvider as AiProviderId
+  const spec = aiProviderSpec(provider)
   const scope = `${provider}:${settings.aiRegion}:${settings.aiKeyEnc ?? ''}`
   if (cache && cache.scope === scope && Date.now() - cache.at < cache.ttl) return cache.models
   try {
@@ -19,9 +20,9 @@ export async function loadModelCatalog(settings: Settings): Promise<AiModel[]> {
       live = true
       models = await langdockModels(settings.aiRegion, key)
     }
-    else if (provider in OPENCODE_PLANS && key) {
+    else if (spec?.modelsUrl && key) {
       live = true
-      models = await opencodeModels(provider, key).catch(() => registryModels(provider))
+      models = await opencodeModels(provider, spec.modelsUrl, spec.label, key).catch(() => registryModels(provider))
     }
     else {
       models = await registryModels(provider)
@@ -35,20 +36,14 @@ export async function loadModelCatalog(settings: Settings): Promise<AiModel[]> {
   }
 }
 
-const OPENCODE_PLANS: Partial<Record<AiProviderId, { url: string, label: string }>> = {
-  'opencode': { url: 'https://opencode.ai/zen/v1/models', label: 'OpenCode Zen' },
-  'opencode-go': { url: 'https://opencode.ai/zen/go/v1/models', label: 'OpenCode Go' },
-}
-
-async function opencodeModels(provider: AiProviderId, key: string): Promise<AiModel[]> {
-  const plan = OPENCODE_PLANS[provider]!
-  const data = await fetchModelList(plan.url, key, plan.label)
+async function opencodeModels(provider: AiProviderId, url: string, label: string, key: string): Promise<AiModel[]> {
+  const data = await fetchModelList(url, key, label)
   return data
     .map(m => ({
       // The plan endpoint may prefix ids with the provider id.
       id: m.id.startsWith(`${provider}/`) ? m.id.slice(provider.length + 1) : m.id,
       name: m.name ?? m.id,
-      provider: plan.label,
+      provider: label,
     }))
     .sort((a, b) => a.id.localeCompare(b.id))
 }
@@ -88,7 +83,7 @@ async function registryModels(provider: AiProviderId): Promise<AiModel[]> {
   if (!res.ok) throw new Error(`models.dev responded ${res.status}`)
   const registry = await res.json() as Record<string, RegistryProvider>
   const entry = registry[provider]
-  const label = entry?.name ?? AI_PROVIDERS.find(p => p.id === provider)?.label ?? provider
+  const label = entry?.name ?? aiProviderSpec(provider)?.label ?? provider
   return Object.entries(entry?.models ?? {})
     .map(([id, m]) => ({ id, name: m.name ?? id, provider: label }))
     .sort((a, b) => a.id.localeCompare(b.id))

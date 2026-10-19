@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { z } from 'zod'
 import { logSink, openAgent, type AgentSession, type TranscriptSink } from '../../daemon/agent'
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '../../../shared/utils/workflow'
-import { type AiProviderId, MODEL_NAME_RE, stripLegacyModelPrefix } from '../../../shared/utils/ai'
+import { AI_PROVIDERS, type AiProviderId, MODEL_NAME_RE, aiProviderSpec, stripLegacyModelPrefix } from '../../../shared/utils/ai'
 import { getSettings } from '../../utils/settings'
 import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
@@ -15,16 +15,6 @@ import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 import { getSessionRow, updateSession } from '../../stores/sessions'
-
-// Env names follow models.dev; google accepts several, set all.
-const PROVIDER_KEY_ENV: Record<AiProviderId, string[]> = {
-  'opencode': ['OPENCODE_API_KEY'],
-  'opencode-go': ['OPENCODE_API_KEY'],
-  'anthropic': ['ANTHROPIC_API_KEY'],
-  'openai': ['OPENAI_API_KEY'],
-  'google': ['GOOGLE_API_KEY', 'GOOGLE_GENERATIVE_AI_API_KEY', 'GEMINI_API_KEY'],
-  'langdock': ['LANGDOCK_API_KEY'],
-}
 
 // workflow.md is always (over)written so one ai step's prompt never leaks into a later one.
 const AGENT_CONFIG_SUBDIR = join('.knecht', 'opencode')
@@ -94,16 +84,16 @@ async function resolveAgentEnv(
     throw new Error(`Invalid model '${bare}': expected a bare model name, e.g. claude-sonnet-4-5`)
   }
   const provider = settings.aiProvider as AiProviderId
-  const envNames = PROVIDER_KEY_ENV[provider]
-  if (!envNames) {
-    throw new Error(`Unsupported provider '${provider}'. Supported: ${Object.keys(PROVIDER_KEY_ENV).join(', ')}`)
+  const spec = aiProviderSpec(provider)
+  if (!spec) {
+    throw new Error(`Unsupported provider '${provider}'. Supported: ${AI_PROVIDERS.map(p => p.id).join(', ')}`)
   }
   const model = agentModelRef(provider, bare)
   const key = decrypt(settings.aiKeyEnc)
   return {
     model,
     bareModel: bare,
-    env: { ...Object.fromEntries(envNames.map(name => [name, key])), ...await bridgeEnv(sessionId) },
+    env: { ...Object.fromEntries(spec.keyEnv.map(name => [name, key])), ...await bridgeEnv(sessionId) },
   }
 }
 
