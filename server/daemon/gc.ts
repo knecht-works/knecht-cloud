@@ -5,6 +5,9 @@ import { listProjects } from '../stores/projects'
 import { dataDir, projectsDir } from '../utils/storage'
 import { removeEnvStack } from './sandbox'
 import { listSessionIds } from '../stores/sessions'
+import { deleteToolCallsBefore } from '../stores/tool-calls'
+
+const TOOL_CALL_RETENTION_MS = 90 * 24 * 60 * 60_000
 
 export interface GcResult {
   sandboxes: string[]
@@ -31,6 +34,7 @@ export async function collectGarbage(): Promise<GcResult> {
   result.sharedDirs = reapOrphanSharedDirs(liveProjects)
   result.memoryDirs = reapOrphanMemoryDirs(liveProjects)
   result.dockerPruned = await pruneHostDocker()
+  deleteToolCallsBefore(new Date(Date.now() - TOOL_CALL_RETENTION_MS))
 
   return result
 }

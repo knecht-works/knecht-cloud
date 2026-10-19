@@ -450,3 +450,19 @@ export const members = sqliteTable('members', {
 
 export type Member = typeof members.$inferSelect
 export type NewMember = typeof members.$inferInsert
+
+export const toolCalls = sqliteTable('tool_calls', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // null = the system; otherwise the member's login.
+  actor: text('actor'),
+  channel: text('channel', { enum: ['dashboard', 'mcp', 'daemon'] }).notNull(),
+  tool: text('tool').notNull(),
+  input: text('input', { mode: 'json' }).$type<unknown>(),
+  error: text('error'),
+  durationMs: integer('duration_ms').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, table => [
+  index('tool_calls_created_at_idx').on(table.createdAt),
+])
