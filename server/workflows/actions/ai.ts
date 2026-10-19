@@ -10,7 +10,7 @@ import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
 import { bridgeEnv } from '../../utils/knecht-env'
 import { persistAgentMemory, seedAgentMemory } from '../../utils/agent-memory'
-import { agentModelRef, buildAgentRules, buildOpencodeConfig } from '../../utils/opencode-config'
+import { AGENT_KEY_ENV, agentModelRef, buildAgentRules, buildOpencodeConfig } from '../../utils/opencode-config'
 import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
@@ -84,8 +84,7 @@ async function resolveAgentEnv(
     throw new Error(`Invalid model '${bare}': expected a bare model name, e.g. claude-sonnet-4-5`)
   }
   const provider = settings.aiProvider as AiProviderId
-  const spec = aiProviderSpec(provider)
-  if (!spec) {
+  if (!aiProviderSpec(provider)) {
     throw new Error(`Unsupported provider '${provider}'. Supported: ${AI_PROVIDERS.map(p => p.id).join(', ')}`)
   }
   const model = agentModelRef(provider, bare)
@@ -93,7 +92,7 @@ async function resolveAgentEnv(
   return {
     model,
     bareModel: bare,
-    env: { ...Object.fromEntries(spec.keyEnv.map(name => [name, key])), ...await bridgeEnv(sessionId) },
+    env: { [AGENT_KEY_ENV]: key, ...await bridgeEnv(sessionId) },
   }
 }
 
