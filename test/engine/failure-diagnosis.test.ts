@@ -34,7 +34,7 @@ describe('diagnoseRunFailure', () => {
       return { output: { summary: '  A test fails.  ', stepIds: [bad, 999] } }
     })
     await diagnoseRunFailure(run.id)
-    expect(getRun(run.id).failureDiagnosis).toEqual({ state: 'done', summary: 'A test fails.', steps: [{ id: bad, label: 'test' }] })
+    expect(getRun(run.id).failureDiagnosis).toEqual({ state: 'done', summary: 'A test fails.', steps: [{ id: bad, stepId: 'test', label: 'test' }] })
     const calls = db.select().from(schema.toolCalls).where(eq(schema.toolCalls.channel, 'daemon')).all()
       .filter(c => (c.input as { runId?: number }).runId === run.id)
     expect(calls.map(c => [c.tool, c.actor])).toEqual([['get_run', null], ['get_step_log', null]])
