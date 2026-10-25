@@ -87,7 +87,6 @@ const mascotLine = computed(() => {
 })
 
 const diagnosis = computed(() => selectedRun.value?.status === 'failed' ? selectedRun.value.failureDiagnosis : null)
-const focusStep = ref<{ stepRowId: number } | null>(null)
 
 const { data: workflowList } = useWorkflows()
 const startableWorkflows = computed(() => (workflowList.value ?? []).filter(workflowRunnable))
@@ -142,7 +141,6 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
           v-if="selectedRun"
           :key="selectedRun.id"
           :run-id="selectedRun.id"
-          :focus-step="focusStep"
           @deleted="onRunDeleted"
           @started="onRunStarted"
           @changed="invalidate(liveTopics.runs)"
@@ -197,21 +195,20 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
                 />{{ mascotLine }}
               </p>
               <div
-                v-if="diagnosis?.state === 'done' && diagnosis.steps.length"
+                v-if="diagnosis?.state === 'done' && diagnosis.steps.length && selectedRun?.workflowId"
                 class="mt-2 flex flex-wrap gap-1.5"
               >
-                <button
+                <NuxtLink
                   v-for="s in diagnosis.steps"
                   :key="s.id"
-                  type="button"
+                  :to="{ path: `/workflows/${selectedRun.workflowId}`, query: { step: s.stepId } }"
                   class="k-mono inline-flex cursor-pointer items-center gap-1 rounded-md border border-muted px-1.5 py-0.5 text-2xs text-muted transition-colors hover:bg-elevated/50 hover:text-highlighted"
-                  @click="focusStep = { stepRowId: s.id }"
                 >
                   <UIcon
                     name="i-lucide-corner-down-right"
                     class="size-3"
                   />{{ s.label }}
-                </button>
+                </NuxtLink>
               </div>
             </div>
           </div>

@@ -38,7 +38,7 @@ export async function diagnoseRunFailure(runId: number): Promise<void> {
     setRunDiagnosis(runId, finishedAt, {
       state: 'done',
       summary: output.summary.trim().slice(0, MAX_SUMMARY_CHARS),
-      steps: (cited.length ? cited : failed).slice(0, 3).map(s => ({ id: s.id, label: stepLabel(s) })),
+      steps: (cited.length ? cited : failed).slice(0, 3).map(s => ({ id: s.id, stepId: s.stepId, label: stepLabel(s) })),
     })
   }
   catch (e) {

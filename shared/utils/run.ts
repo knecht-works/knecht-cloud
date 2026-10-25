@@ -5,7 +5,7 @@ export type EnvState = (typeof ENV_STATES)[number]
 
 export type RunDiagnosis
   = | { state: 'pending' }
-    | { state: 'done', summary: string, steps: { id: number, label: string }[] }
+    | { state: 'done', summary: string, steps: { id: number, stepId: string, label: string }[] }
 
 export const ENV_TRANSITIONS = ['stopping', 'rebooting', 'restoring', 'archiving'] as const
 export type EnvTransition = (typeof ENV_TRANSITIONS)[number]

@@ -27,8 +27,6 @@ const props = defineProps<{
   runStartedAt: string | number | Date | null
   runFinishedAt: string | number | Date | null
   resizable?: boolean
-  // Each new object jumps once, so the same step can be requested again.
-  focus?: { stepRowId: number } | null
 }>()
 
 const logBytes = computed(() => new TextEncoder().encode(props.log))
@@ -136,17 +134,6 @@ function jumpTo(key: number | 'prelude') {
   container.value.scrollTo({ top: target.offsetTop })
   activeKey.value = key
 }
-
-let focused: object | null = null
-watch([sections, () => props.focus], async () => {
-  const focus = props.focus
-  if (!focus || focus === focused) return
-  await nextTick()
-  if (!anchors.has(focus.stepRowId)) return
-  focused = focus
-  jumpTo(focus.stepRowId)
-  container.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-}, { immediate: true })
 </script>
 
 <template>
