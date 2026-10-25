@@ -1,14 +1,23 @@
-import { generateText, Output } from 'ai'
-import { languageModel } from '../utils/llm'
 import { buildDiagnosisPrompt, DIAGNOSIS_INSTRUCTIONS, diagnosisSchema, stepLabel } from '../utils/run-diagnosis'
+import { defineAiFeature, runAiFeature } from '../utils/ai-feature'
 import { getRunView, setRunDiagnosis } from '../stores/runs'
 import { getSettings } from '../utils/settings'
 import { callTool, type ToolContext } from '../tools/registry'
 import { getRunLogTool, getRunTool, getStepLogTool } from '../tools/runs'
+import { getWorkflowTool } from '../tools/workflows'
 import { isCompositeType, type Step } from '../../shared/utils/workflow'
 
 const SYSTEM: ToolContext = { actor: { kind: 'system' }, channel: 'daemon' }
 const MAX_SUMMARY_CHARS = 280
+
+const diagnosis = defineAiFeature({
+  id: 'failure-diagnosis',
+  model: 'fast',
+  instructions: DIAGNOSIS_INSTRUCTIONS,
+  tools: [getRunTool, getStepLogTool, getRunLogTool, getWorkflowTool],
+  output: diagnosisSchema,
+  maxSteps: 4,
+})
 
 export async function diagnoseRunFailure(runId: number): Promise<void> {
   const settings = getSettings()
@@ -26,11 +35,7 @@ export async function diagnoseRunFailure(runId: number): Promise<void> {
     // A failure before the first step (e.g. while preparing the environment) has no failed step row.
     const runLogTail = failed.length ? undefined : (await callTool(getRunLogTool, { runId }, SYSTEM)).text
 
-    const { output } = await generateText({
-      model: await languageModel('fast'),
-      instructions: DIAGNOSIS_INSTRUCTIONS,
-      prompt: buildDiagnosisPrompt(run.workflow, run.steps, stepLogs, runLogTail),
-      output: Output.object({ schema: diagnosisSchema }),
+    const output = await runAiFeature(diagnosis, buildDiagnosisPrompt(run, stepLogs, runLogTail), SYSTEM, {
       maxOutputTokens: 400,
       abortSignal: AbortSignal.timeout(60_000),
     })

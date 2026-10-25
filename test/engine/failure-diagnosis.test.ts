@@ -12,6 +12,10 @@ vi.mock('../../server/utils/settings', () => ({ getSettings: () => ({ aiKeyEnc: 
 
 const { diagnoseRunFailure } = await import('../../server/daemon/failure-diagnosis')
 
+function answer(output: { summary: string, stepIds: number[] }) {
+  return { output, steps: [], totalUsage: {} }
+}
+
 function failedRun() {
   const run = makeRun(makeProject(), [], { status: 'failed', workflow: 'CI', finishedAt: new Date(Date.now() - 5_000) })
   const ok = createRunStep({ runId: run.id, stepIndex: 0, stepId: 'install', type: 'bash', status: 'success', logStart: 0 })
@@ -24,6 +28,7 @@ function failedRun() {
 describe('diagnoseRunFailure', () => {
   beforeEach(() => {
     generateText.mockReset()
+    vi.spyOn(console, 'info').mockImplementation(() => {})
   })
 
   it('reads the run through audited system tool calls and stores the summary with step links', async () => {
@@ -31,7 +36,7 @@ describe('diagnoseRunFailure', () => {
     generateText.mockImplementation(async ({ prompt }: { prompt: string }) => {
       expect(getRun(run.id).failureDiagnosis).toEqual({ state: 'pending' })
       expect(prompt).toContain('FAIL foo.test.ts')
-      return { output: { summary: '  A test fails.  ', stepIds: [bad, 999] } }
+      return answer({ summary: '  A test fails.  ', stepIds: [bad, 999] })
     })
     await diagnoseRunFailure(run.id)
     expect(getRun(run.id).failureDiagnosis).toEqual({ state: 'done', summary: 'A test fails.', steps: [{ id: bad, stepId: 'test', label: 'test' }] })
@@ -42,7 +47,7 @@ describe('diagnoseRunFailure', () => {
 
   it('links the failed steps when the model cites none', async () => {
     const { run, bad } = failedRun()
-    generateText.mockResolvedValue({ output: { summary: 'x', stepIds: [] } })
+    generateText.mockResolvedValue(answer({ summary: 'x', stepIds: [] }))
     await diagnoseRunFailure(run.id)
     expect(getRun(run.id).failureDiagnosis).toMatchObject({ steps: [{ id: bad }] })
   })
@@ -59,7 +64,7 @@ describe('diagnoseRunFailure', () => {
     const { run } = failedRun()
     generateText.mockImplementation(async () => {
       requeueRun(run.id)
-      return { output: { summary: 'stale', stepIds: [] } }
+      return answer({ summary: 'stale', stepIds: [] })
     })
     await diagnoseRunFailure(run.id)
     expect(getRun(run.id).failureDiagnosis).toBeNull()
@@ -76,7 +81,7 @@ describe('diagnoseRunFailure', () => {
     await vi.waitFor(() => expect(releaseFirst).toBeDefined())
     requeueRun(run.id)
     finishRun(run.id, 'failed')
-    generateText.mockResolvedValueOnce({ output: { summary: 'second', stepIds: [] } })
+    generateText.mockResolvedValueOnce(answer({ summary: 'second', stepIds: [] }))
     await diagnoseRunFailure(run.id)
     releaseFirst()
     await first
