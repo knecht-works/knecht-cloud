@@ -44,6 +44,7 @@ export const getRunTool = defineTool({
       projectId: run.projectId,
       project: run.project,
       workflow: run.workflow,
+      workflowId: run.workflowId,
       status: run.status,
       trigger: run.trigger,
       object: run.objectTitle && { title: run.objectTitle, url: run.objectUrl },
