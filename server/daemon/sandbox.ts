@@ -17,7 +17,7 @@ function sessionNetwork(sessionId: number): string {
 }
 
 let ownContainer: Promise<string | null> | undefined
-// Null for a host process (the dev VM), which reaches the web containers directly.
+// Null outside a container (tests); dev and production both run Knecht in one.
 function knechtContainer(): Promise<string | null> {
   ownContainer ??= execa('docker', ['inspect', hostname()]).then(() => hostname(), () => null)
   return ownContainer
@@ -324,14 +324,7 @@ async function wireNetworks(sessionId: number): Promise<void> {
 async function attachBridgeHost(sessionId: number): Promise<void> {
   const network = sessionNetwork(sessionId)
   const self = await knechtContainer()
-  if (self) {
-    await execa('docker', ['network', 'connect', '--alias', BRIDGE_HOST, network, self]).catch(() => {})
-    return
-  }
-  const gateway = await execa('docker', ['network', 'inspect', network, '-f', '{{(index .IPAM.Config 0).Gateway}}']).then(r => r.stdout.trim(), () => '')
-  if (!gateway) return
-  const entry = `${gateway} ${BRIDGE_HOST}`
-  await execa('docker', ['exec', '-u', 'root', webContainerName(sessionId), 'sh', '-c', `grep -qx '${entry}' /etc/hosts || echo '${entry}' >> /etc/hosts`]).catch(() => {})
+  if (self) await execa('docker', ['network', 'connect', '--alias', BRIDGE_HOST, network, self]).catch(() => {})
 }
 
 // An attached Knecht keeps ddev from removing the session network on stop.
