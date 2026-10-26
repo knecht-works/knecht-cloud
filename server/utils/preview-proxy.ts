@@ -2,7 +2,7 @@ import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
 import { previewTargetPort, readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
-import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
+import { credentialDevServerTags, devServerCorsOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { isMember, memberCount } from '../stores/members'
 import { sessionCheckoutDir } from './storage'
 import { getSessionRow, touchSessionPreview } from '../stores/sessions'
@@ -51,7 +51,11 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
   // (crossorigin=anonymous fonts, preflights); domain-wide, that would log the
   // operator out of the dashboard.
   removeResponseHeader(event, 'set-cookie')
-  if (!internal && !devOrigin) {
+  // Browsers never send cookies with a preflight, so it is answered here and never reaches the dev server.
+  if (devOrigin && event.method === 'OPTIONS' && getRequestHeader(event, 'access-control-request-method')) {
+    return answerDevServerPreflight(event, sessionId)
+  }
+  if (!internal) {
     if (!session?.user) {
       const reqUrl = getRequestURL(event)
       if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
@@ -132,7 +136,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
     headers['accept-encoding'] = 'identity'
   }
 
-  const corsOrigin = devOrigin ? sessionCorsOrigin(req.headers.origin, sessionId, baseHost) : null
+  const corsOrigin = devOrigin ? devServerCorsOrigin(req.headers.origin, sessionId, baseHost) : null
 
   await new Promise<void>((resolve, reject) => {
     const upstream = httpRequest(
@@ -166,11 +170,12 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
             res.setHeader(key, rewriteUrls(String(value), mappings, url.protocol))
             continue
           }
-          if (corsOrigin && lower === 'access-control-allow-origin') continue
+          if (corsOrigin && (lower === 'access-control-allow-origin' || lower === 'access-control-allow-credentials')) continue
           res.setHeader(key, value)
         }
         if (corsOrigin) {
           res.setHeader('access-control-allow-origin', corsOrigin)
+          res.setHeader('access-control-allow-credentials', 'true')
           const vary = [up.headers.vary].flat().filter(Boolean).map(String)
           if (!vary.some(v => /\borigin\b/i.test(v))) vary.push('Origin')
           res.setHeader('vary', vary.join(', '))
@@ -188,6 +193,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label?:
         up.on('end', () => {
           let body = Buffer.concat(chunks).toString('utf8')
           if (rewrite) body = rewriteUrls(body, mappings, url.protocol)
+          if (isHtml && !devOrigin) body = credentialDevServerTags(body, sessionId, baseHost)
           if (isHtml) body = injectBridge(body)
           const buf = Buffer.from(body, 'utf8')
           res.setHeader('content-length', String(buf.byteLength))
@@ -236,20 +242,18 @@ function rewriteUrls(
 
 const hostsCache = new Map<number, DdevHosts>()
 
-// Module scripts on the dev origin need an Access-Control-Allow-Origin naming
-// the page's origin; Vite only allows localhost, so the proxy answers for the
-// session's own preview origins. Anonymous requests only, never credentials.
-function sessionCorsOrigin(origin: string | undefined, sessionId: number, baseHost: string): string | null {
-  if (!origin) return null
-  let host: string
-  try {
-    host = new URL(origin).host
-  }
-  catch {
-    return null
-  }
-  const ref = parsePreviewHost(host)
-  return ref?.sessionId === sessionId && stripPreviewPrefix(host) === baseHost ? origin : null
+function answerDevServerPreflight(event: H3Event, sessionId: number): void {
+  const corsOrigin = devServerCorsOrigin(getRequestHeader(event, 'origin'), sessionId, stripPreviewPrefix(getRequestURL(event).host))
+  if (!corsOrigin) throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
+  setResponseHeaders(event, {
+    'access-control-allow-origin': corsOrigin,
+    'access-control-allow-credentials': 'true',
+    'access-control-allow-methods': getRequestHeader(event, 'access-control-request-method') ?? '',
+    'access-control-allow-headers': getRequestHeader(event, 'access-control-request-headers') ?? '',
+    'vary': 'Origin',
+  })
+  setResponseStatus(event, 204)
+  event.node.res.end()
 }
 
 function sessionHosts(sessionId: number): DdevHosts {
