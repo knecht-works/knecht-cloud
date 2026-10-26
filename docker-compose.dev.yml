@@ -1,0 +1,38 @@
+# Dev and e2e CI: the prod service with nuxt dev instead of the built app.
+# Mounts, socket and user stay those of docker-compose.yml, so runs boot the
+# way they do in production. Start it via scripts/dev-compose.sh.
+
+services:
+  knecht:
+    image: knecht-dev
+    build:
+      context: .
+      target: dev
+    ports: !override
+      - "127.0.0.1:${KNECHT_DEV_PORT:-3333}:${KNECHT_DEV_PORT:-3333}"
+    environment:
+      - PORT=${KNECHT_DEV_PORT:-3333}
+      - KNECHT_DATA_DIR
+      - KNECHT_DB_PATH
+      - KNECHT_PROJECTS
+      - KNECHT_BASE_URL
+      - KNECHT_BASE_DOMAIN
+      - KNECHT_DEV_POLLING
+      - KNECHT_TEST_AUTH
+      - KNECHT_TEST_GITHUB_TOKEN
+      - KNECHT_TEST_GITHUB_APP_ID
+      - KNECHT_TEST_GITHUB_APP_PRIVATE_KEY
+      - NUXT_SESSION_PASSWORD
+    # lvh.me is public DNS for 127.0.0.1, which some resolvers filter; inside
+    # the container it must reach this server anyway.
+    extra_hosts:
+      - "lvh.me:127.0.0.1"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - nuxt:/app/.nuxt
+    restart: !reset null
+
+volumes:
+  node_modules:
+  nuxt:

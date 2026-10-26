@@ -11,8 +11,8 @@ than the repo, so go straight to the right layer instead of rediscovering it.
 ## Layer 1: the live dev database (NOT the repo's .data/)
 
 The repo's `.data/knecht.db` on the Mac is stale. The live dev DB is VM-local:
-`~/.knecht-dev/.data/knecht.db` (bind-mounted over the checkout by
-`scripts/vm-dev.sh`).
+`~/.knecht-dev/.data/knecht.db`, the `KNECHT_DATA_DIR` that
+`scripts/dev-compose.sh` mounts into the dev container.
 
 ```bash
 limactl shell knecht-dev -- bash -c 'sqlite3 "$HOME/.knecht-dev/.data/knecht.db" "<SQL>"'
@@ -41,13 +41,14 @@ Since the DooD rebuild there is NO per-run sandbox container and no inner
 Docker. Each run is a ddev project named `knecht-run-<runId>` directly on the
 VM's docker daemon: containers `ddev-knecht-run-<id>-web` and
 `ddev-knecht-run-<id>-db` (no router, no ssh-agent; they are omitted
-globally). Project-facing exec targets the web container as the dev user's
-uid; ddev CLI commands run host-side with the worktree as cwd.
+globally). Project-facing exec targets the web container as uid 1000; ddev
+CLI commands run in the dev container (`knecht` service) with the worktree as
+cwd, never with a ddev on the VM itself.
 
 ```bash
 limactl shell knecht-dev -- docker ps
-limactl shell knecht-dev -- docker exec -u "$(limactl shell knecht-dev -- id -u)" ddev-knecht-run-<id>-web bash -c '<cmd>'
-limactl shell knecht-dev -- bash -c 'cd /data/knecht/projects/run-<id> && ddev describe'
+limactl shell knecht-dev -- docker exec -u 1000 ddev-knecht-run-<id>-web bash -c '<cmd>'
+limactl shell knecht-dev -- bash scripts/dev-compose.sh exec -w /data/knecht/projects/run-<id> knecht ddev describe
 ```
 
 The checkout is mounted at `/var/www/html` in the web container and lives

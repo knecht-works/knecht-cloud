@@ -75,6 +75,14 @@ USER node
 WORKDIR /app
 
 
+# ═══ dev: nuxt dev on the prod tooling (dev VM and e2e CI) ════════════════════
+# The source is bind-mounted over /app (docker-compose.dev.yml). These dirs
+# become named volumes, which inherit the node ownership created here.
+FROM tooling AS dev
+RUN mkdir -p /app/node_modules /app/.nuxt
+CMD ["bash", "scripts/dev-entrypoint.sh"]
+
+
 # ═══ prod: built app on Nitro (the shipped image, default target) ═════════════
 FROM tooling AS prod
 # The release tag this image was built from (CI passes it; see

@@ -46,36 +46,17 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      # Same npm as the prod image (Dockerfile), so npm ci accepts the lock
-      # file; see test.yml.
-      - run: npm install -g npm@11.9.0
-
-      - run: npm ci
-
-      # lvh.me resolves to 127.0.0.1 via public DNS, but the runners' resolver
-      # filters such rebind-style answers, so pin it locally. (Preview-host
-      # wildcards will need per-host entries or dnsmasq when boot e2e lands.)
-      - name: Resolve lvh.me locally
-        run: echo "127.0.0.1 lvh.me" | sudo tee -a /etc/hosts
-
-      - name: Start a dev server
+      - name: Start the dev container
         run: bash scripts/ci-dev-server.sh
 
       # The boot e2e needs the ddev substrate and runs in its own job below.
-      - run: npm run test:e2e -- --exclude test/e2e/boot.test.ts
-        env:
-          KNECHT_E2E_BASE_URL: http://lvh.me:3333
+      - run: bash scripts/dev-compose.sh exec -T -e KNECHT_E2E_BASE_URL=http://lvh.me:3333 knecht npm run test:e2e -- --exclude test/e2e/boot.test.ts
 
       # failure() alone would skip this when the job dies of timeout-minutes
       # (that surfaces as a cancellation), the case that needs the log most.
       - name: Dump the server log on failure
         if: failure() || cancelled()
-        run: tail -200 /tmp/knecht-dev.log
+        run: bash scripts/dev-compose.sh logs --tail 200 knecht
 
   # The boot e2e: provision the runner as a real Knecht substrate
   # (provision-host.sh, the same script the VPS and the dev VM run), start the
@@ -126,30 +107,10 @@ jobs:
           sudo chmod 666 /var/run/docker.sock
           docker info > /dev/null
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      # Same npm as the prod image (Dockerfile), so npm ci accepts the lock
-      # file; see test.yml.
-      - run: npm install -g npm@11.9.0
-
-      - run: npm ci
-
-      # lvh.me resolves to 127.0.0.1 via public DNS, but the runners' resolver
-      # filters such rebind-style answers, so pin it locally. Preview hosts
-      # (*.preview.lvh.me) need no entries: the test connects to the base host
-      # and routes via the Host header (test/e2e/client.ts previewFetch).
-      - name: Resolve lvh.me locally
-        run: echo "127.0.0.1 lvh.me" | sudo tee -a /etc/hosts
-
-      - name: Start a dev server
+      - name: Start the dev container
         run: bash scripts/ci-dev-server.sh
 
-      - run: npm run test:e2e -- boot
-        env:
-          KNECHT_E2E_BASE_URL: http://lvh.me:3333
+      - run: bash scripts/dev-compose.sh exec -T -e KNECHT_E2E_BASE_URL=http://lvh.me:3333 -e KNECHT_E2E_FIXTURE="$KNECHT_E2E_FIXTURE" knecht npm run test:e2e -- boot
 
       # failure() alone would skip this when the job dies of timeout-minutes
       # (that surfaces as a cancellation), the likeliest way a sandbox boot
@@ -158,7 +119,7 @@ jobs:
         if: failure() || cancelled()
         run: |
           echo "--- dev log:"
-          tail -300 /tmp/knecht-dev.log || true
+          bash scripts/dev-compose.sh logs --tail 300 knecht || true
           echo "--- containers:"
           docker ps -a || true
           for c in $(docker ps -aq --filter label=knecht.run); do

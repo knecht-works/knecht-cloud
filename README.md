@@ -158,27 +158,23 @@ All state lives in `/data/knecht/data` (SQLite database, run archives, uploaded 
 
 ## Development Setup
 
-Knecht needs a Linux host with Docker and the [ddev](https://ddev.com) CLI.
-For local development there is a Lima VM that provides exactly that.
+Knecht needs a Linux host with Docker. For local development there is a Lima
+VM that provides it. The dashboard runs there in a dev container built from
+the production image (`docker-compose.dev.yml`), so it drives
+[ddev](https://ddev.com) exactly like a production instance.
 
 ```bash
-# Install dependencies
-npm install
-
 # Prepare the environment
 cp .env.example .env   # adjust the values (see the comments in the file)
 
-# Run database migrations
-npm run db:migrate
-
-# Start the dashboard
-npm run dev
+# Start the dashboard in the VM (http://localhost:3333)
+npm run dev:vm
 ```
 
 > [!NOTE]
-> Running project environments requires a Linux host with Docker and ddev.
-> Details on host setup live in `.env.example` and the provisioning scripts
-> under `scripts/`.
+> The e2e CI runs the same dev container (`scripts/dev-compose.sh`). Details
+> on host setup live in `.env.example` and the provisioning scripts under
+> `scripts/`.
 
 ## License
 
