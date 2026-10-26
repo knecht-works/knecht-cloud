@@ -98,9 +98,8 @@ jobs:
             fi
           done
 
-      # Docker (the runner's own works fine now: no pin, no special runtime),
-      # the pinned ddev CLI, the ddev global config (router omitted) and the
-      # image warm-up. Same path as the VPS and the dev VM.
+      # Docker (the runner's own works fine now: no pin, no special runtime)
+      # and the projects dir. Same path as the VPS and the dev VM.
       - name: Provision the substrate
         run: |
           ./scripts/provision-host.sh

@@ -58,7 +58,7 @@ export interface EnvOverrides {
   previewPort: number | null
 }
 
-// Must match the DDEV_VERSION the host runs; check on a ddev bump.
+// Must match the Dockerfile's DDEV_VERSION; check on a ddev bump.
 export const DDEV_PHP_VERSIONS = ['5.6', '7.0', '7.1', '7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4'] as const
 export const DDEV_DEFAULT_PHP = '8.4'
 export const DDEV_DEFAULT_NODE = '22'

@@ -19,8 +19,8 @@
 #      does that itself), and both own the shared state dirs.
 #   2. Clones the repo to /opt/knecht at the newest release tag (compose file,
 #      Caddyfile, scripts live there; the app itself runs from the GHCR image).
-#   3. Provisions the host: Docker, the pinned ddev CLI, the ddev global
-#      config + image warm-up (scripts/provision-host.sh).
+#   3. Provisions the host: Docker and the projects dir
+#      (scripts/provision-host.sh). ddev comes with the Knecht image.
 #   4. Writes /opt/knecht/.env (asks one question: your domain).
 #   5. Pulls and starts the app + the caddy TLS entry point.
 set -euo pipefail
@@ -94,11 +94,10 @@ say "Checking out $TAG"
 git -C "$INSTALL_DIR" checkout -qf "$TAG"
 
 # ── 3. Provision the host ─────────────────────────────────────────────────────
-# Docker, the pinned ddev CLI, the ddev global config and the image warm-up.
-# Idempotent; by far the longest step.
+# Docker and the projects dir. Idempotent.
 # < /dev/null: this script arrives via `curl | bash`, so bash reads it from
-# stdin; a provisioning child (ddev) reading stdin would swallow the rest of
-# the script and the install would end silently right here.
+# stdin; a provisioning child reading stdin would swallow the rest of the
+# script and the install would end silently right here.
 KNECHT_UID=1000 KNECHT_GID=1000 KNECHT_PROJECTS="$PROJECTS_DIR" \
   bash "$INSTALL_DIR/scripts/provision-host.sh" < /dev/null
 

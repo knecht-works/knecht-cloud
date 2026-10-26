@@ -1,4 +1,4 @@
-# The Knecht dev VM: the run substrate (host Docker + ddev) is Linux-only, so
+# The Knecht dev VM: the run substrate (host Docker) is Linux-only, so
 # on macOS development happens inside this Ubuntu VM, the same substrate as
 # the production VPS. Create + provision:
 #
