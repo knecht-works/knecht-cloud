@@ -12,16 +12,18 @@ export KNECHT_DB_PATH="${KNECHT_DB_PATH:-$KNECHT_DATA_DIR/knecht.db}"
 export KNECHT_PROJECTS="${KNECHT_PROJECTS:-/data/knecht/projects}"
 export DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
 
-# The container runs as uid 1000 (as in production); the host user keeps
-# access for sqlite3, scripts/reset-data.sh and debugging.
-if [ ! -f "$KNECHT_DATA_DIR/.dev-acl" ]; then
+# The container runs as uid 1000 and must own its files, since only the owner
+# may chmod them; an ACL keeps the host user's access for sqlite3,
+# scripts/reset-data.sh and debugging.
+if [ ! -f "$KNECHT_DATA_DIR/.dev-owner" ]; then
   command -v setfacl >/dev/null || sudo apt-get install -y -qq acl
   sudo mkdir -p "$KNECHT_DATA_DIR/.ddev" "$KNECHT_PROJECTS"
   for dir in "$KNECHT_DATA_DIR" "$KNECHT_PROJECTS"; do
+    sudo chown -R 1000:1000 "$dir"
     sudo setfacl -R -m "u:1000:rwX,u:$(id -u):rwX" "$dir"
     sudo setfacl -R -d -m "u:1000:rwX,u:$(id -u):rwX" "$dir"
   done
-  touch "$KNECHT_DATA_DIR/.dev-acl"
+  sudo touch "$KNECHT_DATA_DIR/.dev-owner"
 fi
 
 [ -f .env ] || touch .env
