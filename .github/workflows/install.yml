@@ -5,8 +5,8 @@
 # up its ddev, and a routerless ddev project booted by the app's ddev with its
 # web container reachable by IP (what every run and preview depends on).
 #
-# The `from` leg starts at the last release instead, with its own installer,
-# so existing instances are proven to survive the update.
+# The `latest-release` leg starts at the newest stable release instead, with
+# its own installer, so instances on it are proven to survive the update.
 #
 # Runs on amd64 AND arm64 (the two supported host architectures). Note: the
 # smoke installs with KNECHT_REF=<sha>, which pins the `latest` image, so the
@@ -32,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
-        from: [this, v0.13.1]
+        from: [this, latest-release]
     name: install (${{ matrix.runner }}, from ${{ matrix.from }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -54,8 +54,14 @@ jobs:
           sudo userdel packer 2>/dev/null || true
 
       - name: Run the installer like a user would
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          FROM_REF=$([ "${{ matrix.from }}" = this ] && echo "$REF" || echo "${{ matrix.from }}")
+          FROM_REF="$REF"
+          if [ "${{ matrix.from }}" = latest-release ]; then
+            FROM_REF=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            echo "Starting from $FROM_REF"
+          fi
           curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${FROM_REF}/scripts/install.sh" \
             | sudo env KNECHT_DOMAIN=knecht.invalid KNECHT_REF="$FROM_REF" bash
 
