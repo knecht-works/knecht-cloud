@@ -7,6 +7,7 @@ import { parse, stringify } from 'yaml'
 import { toolsDir } from '../utils/storage'
 import { readSandboxAsset } from '../utils/sandbox-assets'
 import { stageIde } from '../daemon/ide'
+import { warmUpDdev } from '../daemon/sandbox'
 
 // Without this global config the first `ddev start` boots a router that collides
 // with Caddy on :80/:443. ~/.ddev because daemon/sandbox.ts strips XDG_CONFIG_HOME.
@@ -17,6 +18,7 @@ export default defineNitroPlugin(() => {
   catch (e) {
     console.error('ddev global config setup failed:', (e as Error).message)
   }
+  void warmUpDdev()
   void stageAgentTools().catch(e =>
     console.error('agent tools staging failed:', (e as Error).message))
   void stageIde().catch(e =>

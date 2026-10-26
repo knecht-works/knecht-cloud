@@ -1,8 +1,10 @@
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { hostname } from 'node:os'
+import { join } from 'node:path'
 import { execa, type Options } from 'execa'
 import { toSandboxProcess, type SandboxProcess } from './sandbox-process'
 import { BRIDGE_HOST, writeBridgeCredentialHelper } from '../utils/agent-bridge'
-import { sessionSandboxName, sessionCheckoutDir } from '../utils/storage'
+import { dataDir, sessionSandboxName, sessionCheckoutDir } from '../utils/storage'
 
 export const WEB_PROJECT_DIR = '/var/www/html'
 
@@ -57,7 +59,38 @@ export async function resolveContainerUser(sessionId: number): Promise<{ uid: nu
   }
 }
 
+let ddevWarm: Promise<void> = Promise.resolve()
+
+// Pulls the images of a new ddev version and seeds the ddev-global-cache
+// volume, whose first-time setup is not safe under parallel project starts.
+export function warmUpDdev(): Promise<void> {
+  ddevWarm = runDdevWarmUp().catch(e => console.error('ddev warm-up failed:', (e as Error).message))
+  return ddevWarm
+}
+
+async function runDdevWarmUp(): Promise<void> {
+  const { stdout: version } = await execa('ddev', ['--version'], { env: DDEV_ENV })
+  const marker = join(dataDir(), 'ddev-warmed')
+  if (existsSync(marker) && readFileSync(marker, 'utf8') === version) return
+  // Under the data dir: the host daemon resolves the project's bind mount by this path.
+  const dir = join(dataDir(), 'ddev-warmup')
+  mkdirSync(join(dir, 'public'), { recursive: true })
+  writeFileSync(join(dir, 'public', 'index.php'), '<?php echo "knecht-warmup";')
+  const options = { cwd: dir, env: DDEV_ENV }
+  try {
+    await execa('ddev', ['config', '--project-type=php', '--docroot=public', '--project-name=knecht-warmup'], options)
+    await execa('ddev', ['start', '-y'], options)
+  }
+  finally {
+    await execa('ddev', ['delete', '--omit-snapshot', '-y', 'knecht-warmup'], options).catch(() => {})
+    rmSync(dir, { recursive: true, force: true })
+  }
+  writeFileSync(marker, version)
+  console.log(`ddev warmed up (${version})`)
+}
+
 export async function startEnvStack(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
+  await ddevWarm
   forgetPreview(sessionId)
   const child = execDdev(sessionId, ['start', '-y'], { reject: false })
   child.stdout?.on('data', (d: Buffer) => log(d.toString()))
