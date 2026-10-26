@@ -140,3 +140,16 @@ jobs:
             echo "::error::A fixture boot failed (${{ needs.boot-fixture.result }})."
             exit 1
           fi
+
+  # The single "e2e" check the main ruleset requires: green only when api and
+  # every fixture boot passed. Same `always()` and fork guard as boot above.
+  e2e:
+    needs: [api, boot]
+    if: always() && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.api.result }}" != "success" ] || [ "${{ needs.boot.result }}" != "success" ]; then
+            echo "::error::e2e failed (api: ${{ needs.api.result }}, boot: ${{ needs.boot.result }})."
+            exit 1
+          fi
