@@ -27,7 +27,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  install:
+  install-leg:
     strategy:
       fail-fast: false
       matrix:
@@ -128,3 +128,17 @@ jobs:
           curl -fsS -m 10 -H 'Host: whatever.example.com' "http://$IP/" | grep -F spike-ok
           echo "web container ok at $IP"
           ddev delete --omit-snapshot -y spike
+
+  # The single "install" check the main ruleset requires, so the matrix can
+  # change without touching the ruleset. `always()` so a failed leg reaches it
+  # (a failed dependency would otherwise skip it, and a skipped check passes).
+  install:
+    needs: install-leg
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ needs.install-leg.result }}" != "success" ]; then
+            echo "::error::An install leg failed (${{ needs.install-leg.result }})."
+            exit 1
+          fi
