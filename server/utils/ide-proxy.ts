@@ -2,7 +2,7 @@ import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
 import { devServerIsPreview } from '../daemon/ddev'
 import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
-import { looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
+import { devServerCorsOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { IDE_DEFAULT_SETTINGS, IDE_PORT, withIdeTokenCookie } from '../daemon/ide'
 import { forgetPreview, resolveContainerIp, resolvePreview, webContainerName } from '../daemon/sandbox'
 import { isMember, memberCount } from '../stores/members'
@@ -172,7 +172,7 @@ function upgradeProtocols(source: { headers?: unknown, request?: { headers?: unk
 interface WsTarget {
   sessionId: number
   port: number
-  byCapability: boolean
+  devOrigin: boolean
   container?: string
 }
 
@@ -180,16 +180,16 @@ function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }
   const host = upgradeHost(source).split(':')[0] ?? ''
   const ref = parsePreviewHost(host)
   if (!ref) return null
-  if (ref.label === IDE_LABEL) return { sessionId: ref.sessionId, port: IDE_PORT, byCapability: false }
+  if (ref.label === IDE_LABEL) return { sessionId: ref.sessionId, port: IDE_PORT, devOrigin: false }
   if (looksLikeDevServerLabel(ref.label)) {
     if (!verifyDevServerLabel(ref.sessionId, ref.label)) return null
-    return { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, byCapability: true }
+    return { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, devOrigin: true }
   }
   const service = ref.label ? knownSessionService(ref.sessionId, ref.label) : undefined
-  if (service) return { sessionId: ref.sessionId, port: service.port, byCapability: false, container: service.container }
+  if (service) return { sessionId: ref.sessionId, port: service.port, devOrigin: false, container: service.container }
   if (ref.label) return null
   const session = getSessionRow(ref.sessionId)
-  return session && devServerIsPreview(session) ? { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, byCapability: false } : null
+  return session && devServerIsPreview(session) ? { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, devOrigin: false } : null
 }
 
 interface Pipe {
@@ -204,17 +204,20 @@ const pipes = new Map<string, Pipe>()
 const pipeWsHooks = {
   async upgrade(request: { headers?: unknown, url?: string }) {
     const target = wsTarget(request)
-    if (!target?.byCapability) {
-      if (isForeignOrigin(upgradeHeader(request, 'origin'), upgradeHost(request))) {
-        throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
-      }
-      const session = await getUserSession(request as Parameters<typeof getUserSession>[0])
-      if (!session?.user) {
-        throw createError({ statusCode: 401, statusMessage: 'Login required' })
-      }
-      if (memberCount() > 0 && !isMember(session.user.login)) {
-        throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
-      }
+    const origin = upgradeHeader(request, 'origin')
+    const host = upgradeHost(request)
+    // The dev origin's HMR socket is opened by a page on another preview host of the same session.
+    const fromSessionPage = target?.devOrigin === true
+      && devServerCorsOrigin(origin, target.sessionId, stripPreviewPrefix(host)) !== null
+    if (isForeignOrigin(origin, host) && !fromSessionPage) {
+      throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
+    }
+    const session = await getUserSession(request as Parameters<typeof getUserSession>[0])
+    if (!session?.user) {
+      throw createError({ statusCode: 401, statusMessage: 'Login required' })
+    }
+    if (memberCount() > 0 && !isMember(session.user.login)) {
+      throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
     }
     const env = target === null
       ? null
