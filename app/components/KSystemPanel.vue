@@ -19,6 +19,10 @@ type NoteLine = { text: string, kind: 'heading' | 'title' | 'item' | 'text' | 'i
 
 const LEGACY_HEADINGS: Record<string, string> = { 'Breaking:': '⚠️ Breaking changes', 'New:': '🚀 New', 'Fixed:': '🐛 Fixed' }
 
+function withoutEmoji(heading: string): string {
+  return heading.replace(/^[\p{Extended_Pictographic}\uFE0F\s]+/u, '')
+}
+
 function notesLines(notes: string): NoteLine[] {
   return notes
     .split('\n')
@@ -27,12 +31,13 @@ function notesLines(notes: string): NoteLine[] {
     .map((line): NoteLine => {
       const image = line.match(/^<img\b[^>]*\ssrc="([^"]+)"[^>]*>$/) ?? line.match(/^!\[[^\]]*\]\(([^)\s]+)\)$/)
       if (image) return { text: image[1]!, kind: 'image' }
-      if (/^## /.test(line)) return { text: line.slice(3), kind: 'heading' }
-      if (LEGACY_HEADINGS[line]) return { text: LEGACY_HEADINGS[line], kind: 'heading' }
+      if (/^## /.test(line)) return { text: withoutEmoji(line.slice(3)), kind: 'heading' }
+      if (LEGACY_HEADINGS[line]) return { text: withoutEmoji(LEGACY_HEADINGS[line]), kind: 'heading' }
       if (/^### /.test(line)) return { text: line.slice(4), kind: 'title' }
       if (/^[-*] /.test(line)) return { text: line.slice(2), kind: 'item' }
       return { text: line, kind: 'text' }
     })
+    .filter(line => !(line.kind === 'heading' && line.text === 'Highlights'))
 }
 
 const updating = ref(false)
@@ -177,13 +182,13 @@ async function runUpdate() {
         >Still updating. Check `docker logs knecht-updater` on the server.</span>
         <div
           v-if="changelogStatus === 'pending'"
-          class="k-mono mt-3 text-xs text-dimmed"
+          class="mt-3 text-xs text-dimmed"
         >
           Loading changelog…
         </div>
         <div
           v-else-if="!newReleases.length"
-          class="k-mono mt-3 text-xs text-dimmed"
+          class="mt-3 text-xs text-dimmed"
         >
           Up to date. Nothing to install.
         </div>
@@ -219,10 +224,8 @@ async function runUpdate() {
                 :key="i"
                 class="flex gap-2 leading-normal"
                 :class="{
-                  'k-mono mt-1 text-2xs font-medium text-toned first:mt-0': line.kind === 'heading',
-                  'mt-1 text-xs font-medium text-highlighted': line.kind === 'title',
-                  'k-mono text-2xs text-muted': line.kind === 'item',
-                  'max-w-prose text-xs text-muted': line.kind === 'text',
+                  'mt-2 text-sm font-medium text-highlighted first:mt-0': line.kind === 'heading' || line.kind === 'title',
+                  'max-w-prose text-xs text-muted': line.kind === 'item' || line.kind === 'text',
                 }"
               >
                 <span
@@ -243,7 +246,7 @@ async function runUpdate() {
               </li>
               <li
                 v-if="!notesLines(rel.notes).length"
-                class="k-mono text-2xs text-dimmed"
+                class="text-xs text-dimmed"
               >
                 No notes.
               </li>
