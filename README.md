@@ -63,7 +63,7 @@ As root on the fresh server:
 curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | bash
 ```
 
-The installer asks for your domain and does the rest: Docker, the pinned ddev CLI, a one-time image warm-up, the repo checkout at the latest release under `/opt/knecht`, a generated `.env`, and finally the app plus the Caddy TLS entry point via docker compose. Takes a few minutes, safe to re-run.
+The installer asks for your domain and does the rest: Docker, the repo checkout at the latest release under `/opt/knecht`, a generated `.env`, and finally the app plus the Caddy TLS entry point via docker compose. Takes a few minutes, safe to re-run.
 
 Then:
 
@@ -130,11 +130,9 @@ sed -i 's/^KNECHT_VERSION=.*/KNECHT_VERSION=vX.Y.Z/' .env
 docker compose pull && docker compose up -d
 ```
 
-Host-level changes (Docker, the ddev CLI, the image warm-up) are not covered by the in-app update; release notes call it out when the provisioning script must be re-run:
+The update covers everything Knecht runs on, ddev included: the host only needs Docker, which stays with the operating system's package updates. After an update that brings a new ddev version, the first environment start waits a few minutes while Knecht pulls the new ddev images.
 
-```bash
-sudo KNECHT_UID=1000 KNECHT_GID=1000 /opt/knecht/scripts/provision-host.sh
-```
+Instances installed before v0.14.0 still have a ddev CLI on the host. Knecht never used it and it can stay, or be removed with `sudo apt-get remove ddev`.
 
 ### Pre-releases
 
