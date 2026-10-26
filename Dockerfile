@@ -54,7 +54,7 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings
 #     provisioned host warm-up pulls the matching images, so keep
 #     DDEV_VERSION in step with scripts/provision-host.sh). It drives the
 #     host daemon through the same mounted socket.
-ARG DDEV_VERSION=1.25.2
+ARG DDEV_VERSION=1.25.5
 RUN curl -fsSL https://pkg.ddev.com/apt/gpg.key | gpg --dearmor -o /etc/apt/keyrings/ddev.gpg \
  && echo "deb [signed-by=/etc/apt/keyrings/ddev.gpg] https://pkg.ddev.com/apt/ * *" \
       > /etc/apt/sources.list.d/ddev.list \

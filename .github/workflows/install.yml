@@ -55,7 +55,7 @@ jobs:
       - name: Assert the substrate
         run: |
           docker --version
-          ddev --version | grep -F 1.25.2
+          ddev --version | grep -F 1.25.5
           sudo docker image ls --format '{{.Repository}}' | grep -q 'ddev/ddev-webserver'
           echo "substrate ok"
 

@@ -16,7 +16,7 @@
 #   ./scripts/provision-host.sh
 set -euo pipefail
 
-DDEV_VERSION="1.25.2"
+DDEV_VERSION="1.25.5"
 PROJECTS_DIR="${KNECHT_PROJECTS:-/data/knecht/projects}"
 # Owner of the projects dir. Defaults to the invoking user (the dev VM case).
 # install.sh runs as root and passes 1000/1000 explicitly: the control-plane
