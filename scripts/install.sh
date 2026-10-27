@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Install Knecht on a fresh Ubuntu 24.04 host (amd64 or arm64; a VPS or the
-# Lima VM from scripts/lima-server.yaml on a Mac). Idempotent: re-run it
-# to repair or resume a broken install. Run as root:
+# Install Knecht on a fresh Ubuntu 22.04/24.04/26.04 or Debian 12/13 host
+# (amd64 or arm64; a VPS or the Lima VM from scripts/lima-server.yaml on a
+# Mac). Idempotent: re-run it to repair or resume a broken install. Run as root:
 #
-#   curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/main/scripts/install.sh | sudo bash
 #
 # Non-interactive: KNECHT_DOMAIN=knecht.example.com bash install.sh
 # Settings preset: any further KNECHT_* var (e.g. KNECHT_AUTO_UPDATE_CRON=
@@ -37,11 +37,13 @@ die() { echo "✗ $*" >&2; exit 1; }
 # ── 0. Guards ─────────────────────────────────────────────────────────────────
 [ "$(id -u)" = 0 ] || die "Run as root, e.g. via sudo (the script installs Docker and creates a system user)"
 [ "$(uname -s)" = "Linux" ] || die "Knecht runs on Linux servers only"
-if [ -r /etc/os-release ]; then
-  . /etc/os-release
-  [ "${ID:-}" = "ubuntu" ] || die "This installer targets Ubuntu (found: ${ID:-unknown})"
-  [ "${VERSION_ID:-}" = "24.04" ] || echo "⚠ Tested on Ubuntu 24.04, found $VERSION_ID. Continuing anyway."
-fi
+[ -r /etc/os-release ] || die "No /etc/os-release, cannot tell which distribution this is"
+. /etc/os-release
+case "${ID:-}:${VERSION_ID:-}" in
+  ubuntu:22.04|ubuntu:24.04|ubuntu:26.04|debian:12|debian:13) ;;
+  ubuntu:*|debian:*) echo "⚠ Tested on Ubuntu 22.04/24.04/26.04 and Debian 12/13, found ${PRETTY_NAME:-$ID $VERSION_ID}. Continuing anyway." ;;
+  *) die "This installer targets Ubuntu and Debian (found: ${PRETTY_NAME:-${ID:-unknown}})" ;;
+esac
 case "$(dpkg --print-architecture)" in
   amd64|arm64) ;;
   *) die "Release images are built for amd64 and arm64 only (found: $(dpkg --print-architecture))" ;;
@@ -99,8 +101,8 @@ if command -v docker >/dev/null; then
 else
   say "Installing Docker"
   install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  curl -fsSL "https://download.docker.com/linux/$ID/gpg" -o /etc/apt/keyrings/docker.asc
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/$ID $VERSION_CODENAME stable" \
     > /etc/apt/sources.list.d/docker.list
   apt-get update -qq
   apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
