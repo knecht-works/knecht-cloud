@@ -1,6 +1,6 @@
-# The install smoke (scripts/ci-install-smoke.sh) on a fresh Ubuntu 24.04
-# runner: install the way a new user does, update to an image built from this
-# commit, and assert that the app runs and boots a ddev project.
+# The install smoke (scripts/ci-install-smoke.sh) on every supported
+# distribution: install the way a new user does, update to an image built from
+# this commit, and assert that the app runs and boots a ddev project.
 #
 # The `latest-release` leg starts at the newest stable release instead, with
 # its own installer, so instances on it are proven to survive the update.
@@ -63,16 +63,52 @@ jobs:
           fi
           sudo bash scripts/ci-install-smoke.sh "$GITHUB_REPOSITORY" "$REF" "$FROM_REF"
 
+  # The other supported distributions, each in a fresh VM from its official
+  # cloud image (GitHub only hosts Ubuntu runners). amd64 only: arm64 is
+  # covered by the native legs, and the installer has no arch-specific branch.
+  install-distro:
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [debian-12, debian-13, ubuntu-22.04, ubuntu-26.04]
+    name: install (${{ matrix.distro }} VM)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      REF: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The images pulled and built inside the VM outgrow the runner's free disk.
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - uses: lima-vm/lima-actions/setup@v1
+        id: lima
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/lima
+          key: lima-${{ steps.lima.outputs.version }}-${{ matrix.distro }}
+
+      - name: Boot a fresh ${{ matrix.distro }} VM
+        run: limactl start --plain --name=default --cpus=4 --memory=12 template:${{ matrix.distro }}
+
+      - name: Install, update and assert
+        run: |
+          limactl copy scripts/ci-install-smoke.sh default:/tmp/ci-install-smoke.sh
+          limactl shell default sudo bash /tmp/ci-install-smoke.sh "$GITHUB_REPOSITORY" "$REF"
+
   # The single "install" check the main ruleset requires, so the matrix can
   # change without touching the ruleset. `always()` so a failed leg reaches it
   # (a failed dependency would otherwise skip it, and a skipped check passes).
   install:
-    needs: install-leg
+    needs: [install-leg, install-distro]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: |
-          if [ "${{ needs.install-leg.result }}" != "success" ]; then
-            echo "::error::An install leg failed (${{ needs.install-leg.result }})."
+          if [ "${{ needs.install-leg.result }}" != "success" ] || [ "${{ needs.install-distro.result }}" != "success" ]; then
+            echo "::error::An install leg failed (runners: ${{ needs.install-leg.result }}, VMs: ${{ needs.install-distro.result }})."
             exit 1
           fi
