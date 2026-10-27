@@ -171,8 +171,8 @@ npm run dev:vm
 
 > [!NOTE]
 > The e2e CI runs the same dev container (`scripts/dev-compose.sh`). Details
-> on host setup live in `.env.example` and the provisioning scripts under
-> `scripts/`.
+> on host setup live in `.env.example`, `scripts/install.sh` and
+> `scripts/lima-vm.yaml`.
 
 ## License
 

@@ -19,8 +19,8 @@
 #      does that itself), and both own the shared state dirs.
 #   2. Clones the repo to /opt/knecht at the newest release tag (compose file,
 #      Caddyfile, scripts live there; the app itself runs from the GHCR image).
-#   3. Provisions the host: Docker and the projects dir
-#      (scripts/provision-host.sh). ddev comes with the Knecht image.
+#   3. Installs Docker and creates the state dirs. ddev comes with the
+#      Knecht image.
 #   4. Writes /opt/knecht/.env (asks one question: your domain).
 #   5. Pulls and starts the app + the caddy TLS entry point.
 set -euo pipefail
@@ -93,15 +93,22 @@ fi
 say "Checking out $TAG"
 git -C "$INSTALL_DIR" checkout -qf "$TAG"
 
-# ── 3. Provision the host ─────────────────────────────────────────────────────
-# Docker and the projects dir. Idempotent.
-# < /dev/null: this script arrives via `curl | bash`, so bash reads it from
-# stdin; a provisioning child reading stdin would swallow the rest of the
-# script and the install would end silently right here.
-KNECHT_UID=1000 KNECHT_GID=1000 KNECHT_PROJECTS="$PROJECTS_DIR" \
-  bash "$INSTALL_DIR/scripts/provision-host.sh" < /dev/null
+# ── 3. Docker + state dirs ────────────────────────────────────────────────────
+if command -v docker >/dev/null; then
+  ok "Docker already installed ($(docker --version))"
+else
+  say "Installing Docker"
+  sudo install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+    | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+  sudo apt-get update -qq
+  sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+fi
 
-say "Creating $DATA_DIR"
+say "Creating $PROJECTS_DIR and $DATA_DIR"
+sudo mkdir -p "$PROJECTS_DIR"
+sudo chown 1000:1000 "$PROJECTS_DIR"
 mkdir -p "$DATA_DIR/.ddev"
 chown -R 1000:1000 "$DATA_DIR"
 

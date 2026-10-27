@@ -57,10 +57,9 @@ jobs:
         if: failure() || cancelled()
         run: bash scripts/dev-compose.sh logs --tail 200 knecht
 
-  # The boot e2e: provision the runner as a real Knecht substrate
-  # (provision-host.sh, the same script the VPS and the dev VM run), start the
-  # PR's code as a dev server and let the boot test connect the fixture repo,
-  # boot it with the suite's own bare boot workflow and hit the preview origins.
+  # The boot e2e: on the runner's own Docker, start the PR's code as a dev
+  # server and let the boot test connect the fixture repo, boot it with the
+  # suite's own bare boot workflow and hit the preview origins.
   # One matrix job per fixture repo (test/e2e/boot.test.ts FIXTURES, selected
   # via KNECHT_E2E_FIXTURE): the boots run in parallel on their own runners,
   # and a failing CMS names itself in the check list.
@@ -97,11 +96,8 @@ jobs:
             fi
           done
 
-      # Docker (the runner's own works fine now: no pin, no special runtime)
-      # and the projects dir. Same path as the VPS and the dev VM.
-      - name: Provision the substrate
+      - name: Open the Docker socket
         run: |
-          ./scripts/provision-host.sh
           sudo chmod 666 /var/run/docker.sock
           docker info > /dev/null
 
