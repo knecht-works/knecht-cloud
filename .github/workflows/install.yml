@@ -1,9 +1,6 @@
-# The install smoke: run scripts/install.sh on a fresh Ubuntu 24.04 runner
-# exactly the way a new user does (curl | bash, no checkout), update it to an
-# image built from this commit the way the in-app updater does, then assert:
-# a host with nothing but Docker, the app answering unconfigured and warming
-# up its ddev, and a routerless ddev project booted by the app's ddev with its
-# web container reachable by IP (what every run and preview depends on).
+# The install smoke (scripts/ci-install-smoke.sh) on a fresh Ubuntu 24.04
+# runner: install the way a new user does, update to an image built from this
+# commit, and assert that the app runs and boots a ddev project.
 #
 # The `latest-release` leg starts at the newest stable release instead, with
 # its own installer, so instances on it are proven to survive the update.
@@ -53,7 +50,9 @@ jobs:
           # installer reserves that uid for 'knecht' (free on fresh servers).
           sudo userdel packer 2>/dev/null || true
 
-      - name: Run the installer like a user would
+      - uses: actions/checkout@v4
+
+      - name: Install, update and assert
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -62,72 +61,7 @@ jobs:
             FROM_REF=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
             echo "Starting from $FROM_REF"
           fi
-          curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${FROM_REF}/scripts/install.sh" \
-            | sudo env KNECHT_DOMAIN=knecht.invalid KNECHT_REF="$FROM_REF" bash
-
-      - name: Assert the host has no ddev
-        if: matrix.from == 'this'
-        run: |
-          docker --version
-          if command -v ddev; then echo "::error::ddev is installed on the host"; exit 1; fi
-
-      # What the updater does (server/daemon/update.ts), with a locally built
-      # image in place of the release pull.
-      - name: Update to an image built from this commit
-        run: |
-          cd /opt/knecht
-          sudo git fetch -q origin "$REF"
-          sudo git checkout -qf FETCH_HEAD
-          sudo apt-get install -y -qq docker-buildx-plugin
-          sudo docker build -q -t ghcr.io/knecht-works/knecht-cloud:ci .
-          sudo sed -i 's/^KNECHT_VERSION=.*/KNECHT_VERSION=ci/' .env
-          sudo docker compose up -d
-
-      - name: Assert the app is up and awaiting setup
-        run: |
-          code=""
-          for i in $(seq 1 60); do
-            code=$(curl -s -o /tmp/status.json -w '%{http_code}' http://127.0.0.1:3000/api/_setup/status 2>/dev/null || true)
-            [ "$code" = "200" ] && break
-            sleep 2
-          done
-          if [ "$code" != "200" ]; then
-            echo "::error::App never answered (last probe: HTTP=$code)"
-            sudo docker compose --project-directory /opt/knecht logs --tail 100 knecht || true
-            exit 1
-          fi
-          grep -q '"configured": *false' /tmp/status.json
-          echo "app ok:" && head -c 200 /tmp/status.json && echo
-
-      - name: Assert the app warmed up its ddev
-        run: |
-          for i in $(seq 1 300); do
-            [ -f /data/knecht/data/ddev-warmed ] && break
-            sleep 2
-          done
-          if [ ! -f /data/knecht/data/ddev-warmed ]; then
-            echo "::error::No ddev warm-up"
-            sudo docker compose --project-directory /opt/knecht logs --tail 100 knecht || true
-            exit 1
-          fi
-          want=$(sed -n 's/^ARG DDEV_VERSION=//p' /opt/knecht/Dockerfile)
-          grep -F "v$want" /data/knecht/data/ddev-warmed
-
-      # The core question of the smoke: does a routerless ddev project boot on
-      # this host, with its web container serving any Host header by IP (what
-      # every run and preview depends on)?
-      - name: Boot a routerless ddev project and reach its web container
-        run: |
-          sudo mkdir -p /data/knecht/projects/spike/public
-          echo '<?php echo "spike-ok";' | sudo tee /data/knecht/projects/spike/public/index.php > /dev/null
-          sudo chown -R 1000:1000 /data/knecht/projects/spike
-          ddev() { sudo docker compose --project-directory /opt/knecht exec -T -e DDEV_NONINTERACTIVE=true -w /data/knecht/projects/spike knecht ddev "$@"; }
-          ddev config --project-type=php --docroot=public --project-name=spike --nodejs-version=22
-          ddev start -y
-          IP=$(sudo docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{if $v.IPAddress}}{{$v.IPAddress}} {{end}}{{end}}' ddev-spike-web | awk '{print $1}')
-          curl -fsS -m 10 -H 'Host: whatever.example.com' "http://$IP/" | grep -F spike-ok
-          echo "web container ok at $IP"
-          ddev delete --omit-snapshot -y spike
+          sudo bash scripts/ci-install-smoke.sh "$GITHUB_REPOSITORY" "$REF" "$FROM_REF"
 
   # The single "install" check the main ruleset requires, so the matrix can
   # change without touching the ruleset. `always()` so a failed leg reaches it
