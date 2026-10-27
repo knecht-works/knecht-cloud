@@ -35,7 +35,7 @@ ok()  { echo "✓ $*"; }
 die() { echo "✗ $*" >&2; exit 1; }
 
 # ── 0. Guards ─────────────────────────────────────────────────────────────────
-[ "$(id -u)" = 0 ] || die "Run as root (the script provisions Docker and system users)"
+[ "$(id -u)" = 0 ] || die "Run as root, e.g. via sudo (the script installs Docker and creates a system user)"
 [ "$(uname -s)" = "Linux" ] || die "Knecht runs on Linux servers only"
 if [ -r /etc/os-release ]; then
   . /etc/os-release
@@ -98,18 +98,17 @@ if command -v docker >/dev/null; then
   ok "Docker already installed ($(docker --version))"
 else
   say "Installing Docker"
-  sudo install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo tee /etc/apt/keyrings/docker.asc >/dev/null
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
-    | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-  sudo apt-get update -qq
-  sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    > /etc/apt/sources.list.d/docker.list
+  apt-get update -qq
+  apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
 fi
 
 say "Creating $PROJECTS_DIR and $DATA_DIR"
-sudo mkdir -p "$PROJECTS_DIR"
-sudo chown 1000:1000 "$PROJECTS_DIR"
-mkdir -p "$DATA_DIR/.ddev"
+mkdir -p "$PROJECTS_DIR" "$DATA_DIR/.ddev"
+chown 1000:1000 "$PROJECTS_DIR"
 chown -R 1000:1000 "$DATA_DIR"
 
 # ── 4. .env ───────────────────────────────────────────────────────────────────
