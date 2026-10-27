@@ -1,5 +1,5 @@
 # Knecht: the control plane.
-# Requires a Linux host with Docker (scripts/provision-host.sh): each run
+# Requires a Linux host with Docker (scripts/install.sh): each run
 # boots as a uniquely-named ddev project on the HOST daemon, driven by the
 # ddev CLI inside this container through the mounted socket
 # (server/daemon/sandbox.ts). No Docker-in-Docker, no special runtime.

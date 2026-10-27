@@ -1,10 +1,9 @@
 # The Knecht dev VM: the run substrate (host Docker) is Linux-only, so
 # on macOS development happens inside this Ubuntu VM, the same substrate as
-# the production VPS. Create + provision:
+# the production VPS. Create (the first start installs Docker):
 #
 #   limactl create --name=knecht-dev scripts/lima-vm.yaml
 #   limactl start knecht-dev
-#   limactl shell knecht-dev -- ./scripts/provision-host.sh
 #   npm run dev:vm
 #
 # Lima auto-forwards the dev server port to the Mac, so the UI is at
@@ -29,6 +28,15 @@ mounts:
 - location: "~"
 
 minimumLimaVersion: 2.0.0
+
+provision:
+- mode: system
+  script: |
+    #!/bin/bash
+    set -eux -o pipefail
+    command -v docker >/dev/null 2>&1 && exit 0
+    curl -fsSL https://get.docker.com | sh
+    usermod -aG docker {{.User}}
 
 images:
 - location: "https://cloud-images.ubuntu.com/releases/noble/release/ubuntu-24.04-server-cloudimg-amd64.img"
