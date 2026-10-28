@@ -209,7 +209,7 @@ watch(bootCommands, () => {
 <template>
   <div
     v-if="project"
-    class="grid grid-cols-1 items-start gap-4.5 xl:grid-cols-[2fr_1fr]"
+    class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]"
   >
     <div class="flex flex-col gap-4.5">
       <KPanel

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const props = defineProps<{
   sections: { label: string, icon: string, to: string }[]
+  tabs?: boolean
 }>()
 
 const route = useRoute()
@@ -11,7 +12,34 @@ function isActive(to: string) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-5 lg:flex-row lg:gap-8">
+  <div
+    v-if="tabs"
+    class="flex flex-col gap-5"
+  >
+    <nav class="flex gap-6 overflow-x-auto">
+      <NuxtLink
+        v-for="s in sections"
+        :key="s.to"
+        :to="s.to"
+        class="flex flex-none items-center gap-2.5 border-b pb-2 text-sm font-medium transition-colors"
+        :class="isActive(s.to)
+          ? 'border-primary text-highlighted'
+          : 'border-transparent text-muted hover:text-toned'"
+      >
+        <UIcon
+          :name="s.icon"
+          class="size-4 flex-none"
+          :class="isActive(s.to) ? 'text-primary' : 'text-dimmed'"
+        />
+        {{ s.label }}
+      </NuxtLink>
+    </nav>
+    <slot />
+  </div>
+  <div
+    v-else
+    class="flex flex-col gap-5 lg:flex-row lg:gap-8"
+  >
     <nav class="flex gap-1 overflow-x-auto pb-1 lg:sticky lg:top-4 lg:w-52 lg:flex-none lg:flex-col lg:self-start lg:overflow-visible lg:pb-0">
       <NuxtLink
         v-for="s in sections"
