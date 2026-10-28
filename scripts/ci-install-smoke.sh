@@ -15,9 +15,21 @@ FROM_REF="${3:-$REF}"
 
 logs() { docker compose --project-directory /opt/knecht logs --tail 100 knecht || true; }
 
+if [ -n "${SMOKE_TAKEN_UID:-}" ]; then
+  echo "▶ Handing uid $SMOKE_TAKEN_UID to another user first"
+  useradd --uid "$SMOKE_TAKEN_UID" --no-create-home provisioned
+fi
+
 echo "▶ Installing $FROM_REF"
 curl -fsSL "https://raw.githubusercontent.com/$REPO/$FROM_REF/scripts/install.sh" \
   | KNECHT_DOMAIN=knecht.invalid KNECHT_REF="$FROM_REF" bash
+
+KNECHT_UID=$(sed -n 's/^KNECHT_UID=//p' /opt/knecht/.env)
+KNECHT_UID=${KNECHT_UID:-1000}
+echo "Knecht runs as uid $KNECHT_UID"
+if [ -n "${SMOKE_TAKEN_UID:-}" ] && [ "$KNECHT_UID" = "$SMOKE_TAKEN_UID" ]; then
+  echo "::error::The installer picked the taken uid $SMOKE_TAKEN_UID"; exit 1
+fi
 
 if [ "$FROM_REF" = "$REF" ]; then
   docker --version
@@ -66,7 +78,7 @@ grep -F "v$want" /data/knecht/data/ddev-warmed
 echo "▶ Booting a routerless ddev project"
 mkdir -p /data/knecht/projects/spike/public
 echo '<?php echo "spike-ok";' > /data/knecht/projects/spike/public/index.php
-chown -R 1000:1000 /data/knecht/projects/spike
+chown -R "$KNECHT_UID:$KNECHT_UID" /data/knecht/projects/spike
 ddev() { docker compose --project-directory /opt/knecht exec -T -e DDEV_NONINTERACTIVE=true -w /data/knecht/projects/spike knecht ddev "$@"; }
 ddev config --project-type=php --docroot=public --project-name=spike --nodejs-version=22
 ddev start -y
