@@ -27,11 +27,14 @@ const SECTIONS = [
       </template>
     </KProjectHeader>
     <KProjectHero
-      class="mb-6"
+      class="mb-5"
       :project="project"
     />
 
-    <KSettingsNav :sections="SECTIONS">
+    <KSettingsNav
+      :sections="SECTIONS"
+      tabs
+    >
       <NuxtPage />
     </KSettingsNav>
   </div>
