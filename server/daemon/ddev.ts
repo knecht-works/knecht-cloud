@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { parse, stringify } from 'yaml'
 import { unquote, type EnvVar } from '../../shared/utils/env'
-import { resolveEnv, type EnvOverrides, type ResolvedEnv } from '../../shared/utils/env-spec'
+import { resolveEnv, type DdevDatabase, type EnvOverrides, type ResolvedEnv } from '../../shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT, previewHostname, previewLabel } from '../../shared/utils/preview-host'
 import { checkoutReader, detectEnv, GENERATED_MARKER, parseDdevConfig, type DdevConfigFile } from '../utils/env-detect'
 import { sessionEnv } from '../utils/knecht-env'
@@ -111,7 +111,7 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
       webserver_type: 'generic',
       php_version: env.phpVersion.value,
       nodejs_version: env.nodeVersion.value,
-      omit_containers: ['db'],
+      ...(env.database.value ? { database: ddevDatabaseConfig(env.database.value) } : { omit_containers: ['db'] }),
       corepack_enable: true,
       disable_settings_management: true,
     })) || changed
@@ -164,7 +164,7 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
     sharedMounts: shared ? sharedFolderMounts(shared) : [],
   }))) || changed
   for (const legacy of LEGACY_OVERRIDE_FILES) changed = removeFile(join(ddevDir, legacy)) || changed
-  if (env.hasDb.value) changed = writeLowmemDbConfig(checkoutDir, marker) || changed
+  if (env.hasDb.value && !env.database.value?.startsWith('postgres:')) changed = writeLowmemDbConfig(checkoutDir, marker) || changed
   return { injected: envVars.length, devServerPort: devServer?.port ?? null, changed }
 }
 
@@ -277,6 +277,11 @@ function writeBunImageFile(ddevDir: string, env: ResolvedEnv): boolean {
 }
 
 // `00-` loads first, so a repo's own `.ddev/mysql` tuning overrides this.
+function ddevDatabaseConfig(database: DdevDatabase): { type: string, version: string } {
+  const [type, version] = database.split(':') as [string, string]
+  return { type, version }
+}
+
 function writeLowmemDbConfig(checkoutDir: string, marker: string): boolean {
   const dir = join(checkoutDir, '.ddev', 'mysql')
   mkdirSync(dir, { recursive: true })

@@ -28,6 +28,7 @@ export interface EnvSpec {
   nodeVersion: string
   packageManager: PackageManager
   hasDb: boolean
+  database: DdevDatabase | null
   hosts: string[]
   devServer: string | null
   previewPort: number | null
@@ -54,6 +55,7 @@ export interface EnvOverrides {
   phpVersion: string | null
   nodeVersion: string | null
   packageManager: PackageManagerName | null
+  database: DdevDatabase | null
   devServer: string | null
   previewPort: number | null
 }
@@ -62,6 +64,25 @@ export interface EnvOverrides {
 export const DDEV_PHP_VERSIONS = ['5.6', '7.0', '7.1', '7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3', '8.4'] as const
 export const DDEV_DEFAULT_PHP = '8.4'
 export const DDEV_DEFAULT_NODE = '22'
+
+// Must match the Dockerfile's DDEV_VERSION, like the PHP versions.
+const DDEV_DATABASE_VERSIONS = {
+  mariadb: ['11.8', '11.4', '10.11', '10.6', '10.5', '10.4', '10.3', '10.2', '10.1', '10.0', '5.5'],
+  mysql: ['8.4', '8.0', '5.7', '5.6', '5.5'],
+  postgres: ['18', '17', '16', '15', '14', '13', '12', '11', '10', '9'],
+} as const
+type DatabaseType = keyof typeof DDEV_DATABASE_VERSIONS
+export type DdevDatabase = { [T in DatabaseType]: `${T}:${(typeof DDEV_DATABASE_VERSIONS)[T][number]}` }[DatabaseType]
+export const DDEV_DATABASE_GROUPS = (Object.keys(DDEV_DATABASE_VERSIONS) as DatabaseType[])
+  .map(type => DDEV_DATABASE_VERSIONS[type].map(version => `${type}:${version}` as DdevDatabase))
+export const DDEV_DATABASES = DDEV_DATABASE_GROUPS.flat() as [DdevDatabase, ...DdevDatabase[]]
+
+const DATABASE_NAMES: Record<DatabaseType, string> = { mariadb: 'MariaDB', mysql: 'MySQL', postgres: 'PostgreSQL' }
+
+export function formatDatabase(database: DdevDatabase): string {
+  const [type, version] = database.split(':') as [DatabaseType, string]
+  return `${DATABASE_NAMES[type]} ${version}`
+}
 export const NODE_LTS_MAJORS = ['24', '22', '20', '18'] as const
 
 export const NODE_VERSION_PATTERN = /^\d+(\.\d+)?$/
@@ -71,6 +92,7 @@ export const ENV_DEFAULTS: EnvSpec = {
   nodeVersion: DDEV_DEFAULT_NODE,
   packageManager: { name: 'npm', version: null },
   hasDb: false,
+  database: null,
   hosts: [],
   devServer: null,
   previewPort: null,
@@ -103,7 +125,8 @@ export function resolveEnv(detected: DetectedEnv, overrides: EnvOverrides): Reso
     phpVersion: override('phpVersion', generated),
     nodeVersion: override('nodeVersion', generated),
     packageManager: packageManager(),
-    hasDb: detect('hasDb'),
+    hasDb: generated && overrides.database ? { value: true, source: 'setting' } : detect('hasDb'),
+    database: override('database', generated),
     hosts: detect('hosts'),
     devServer: override('devServer'),
     previewPort: override('previewPort'),
@@ -130,7 +153,7 @@ export function formatEnvSummary(env: ResolvedEnv): string {
     `generated: PHP ${env.phpVersion.value} ${sourceLabel(env.phpVersion.source)}`,
     `Node ${env.nodeVersion.value} ${sourceLabel(env.nodeVersion.source)}`,
     `${formatPackageManager(env.packageManager.value)} ${sourceLabel(env.packageManager.source)}`,
-    env.hasDb.value ? 'database' : 'no database',
+    env.database.value ? formatDatabase(env.database.value) : env.hasDb.value ? 'database' : 'no database',
     devServer,
   ].join(', ')
 }
