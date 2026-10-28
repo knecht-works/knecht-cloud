@@ -64,11 +64,13 @@ RUN curl -fsSL https://pkg.ddev.com/apt/gpg.key | gpg --dearmor -o /etc/apt/keyr
 #    the lockfile the same way the dev machine does. See the build stage note.
 RUN npm i -g npm@${NPM_VERSION}
 
-# 4) Run as non-root: node's built-in `node` user (uid 1000: the sandbox
-#    image bakes its inner user to the same uid so the mounted worktrees stay
-#    writable on both sides). Socket access is granted at RUNTIME via
-#    `group_add` in compose, which keeps the image GID-agnostic (one image per host).
-RUN mkdir -p /app && chown node:node /app
+# 4) Run as non-root: node's built-in `node` user, whose uid compose replaces
+#    with KNECHT_UID (the sandbox image bakes its inner user to the same uid so
+#    the mounted worktrees stay writable on both sides). That uid has no passwd
+#    entry in here, so HOME must be writable for any uid. Socket access is
+#    granted at RUNTIME via `group_add` in compose, which keeps the image
+#    GID-agnostic (one image per host).
+RUN mkdir -p /app && chown node:node /app && chmod 1777 /home/node
 USER node
 
 WORKDIR /app

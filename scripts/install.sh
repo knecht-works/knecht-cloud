@@ -14,9 +14,9 @@
 # image to that tag; any other ref (branch, sha) pins `latest`.
 #
 # What it does:
-#   1. Reserves uid 1000 (the `knecht` user): the control-plane container runs
-#      as uid 1000, each run's web container gets a user baked to match (ddev
-#      does that itself), and both own the shared state dirs.
+#   1. Reserves a uid (the `knecht` user, 8659 or the next free one): the
+#      control-plane container runs as it, each run's web container gets a user
+#      baked to match (ddev does that itself), and both own the shared state dirs.
 #   2. Clones the repo to /opt/knecht at the newest release tag (compose file,
 #      Caddyfile, scripts live there; the app itself runs from the GHCR image).
 #   3. Installs Docker and creates the state dirs. ddev comes with the
@@ -54,20 +54,27 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq git curl ca-certificates openssl >/dev/null
 
-# ── 1. uid 1000 ───────────────────────────────────────────────────────────────
-# The control-plane container's `node` user is uid 1000 and ddev bakes the
-# same uid into each run's web image (it mirrors the invoking user). The
-# host-side `knecht` user exists so uid 1000 is reserved and `ls -l` on the
-# state dirs reads sensibly.
-if id -u knecht >/dev/null 2>&1; then
-  [ "$(id -u knecht)" = 1000 ] || die "User 'knecht' exists but is not uid 1000"
-  ok "User knecht (uid 1000) exists"
-elif getent passwd 1000 >/dev/null; then
-  die "uid 1000 is taken by '$(getent passwd 1000 | cut -d: -f1)'. Knecht needs uid 1000 (fresh servers have it free); use a clean host or free the uid."
+# ── 1. uid ────────────────────────────────────────────────────────────────────
+# The control-plane container runs as KNECHT_UID (.env) and ddev bakes the
+# same uid into each run's web image (it mirrors the invoking user). It is
+# picked once, since the state dirs belong to it; instances installed before
+# KNECHT_UID existed run as 1000. The host-side `knecht` user reserves it.
+if [ -f "$INSTALL_DIR/.env" ]; then
+  KNECHT_UID="$(sed -n 's/^KNECHT_UID=//p' "$INSTALL_DIR/.env")"
+  KNECHT_UID="${KNECHT_UID:-1000}"
+elif id -u knecht >/dev/null 2>&1; then
+  KNECHT_UID="$(id -u knecht)"
 else
-  say "Creating user knecht (uid 1000)"
-  useradd --uid 1000 --create-home --shell /usr/sbin/nologin knecht
+  KNECHT_UID=8659
+  while getent passwd "$KNECHT_UID" >/dev/null || getent group "$KNECHT_UID" >/dev/null; do
+    KNECHT_UID=$((KNECHT_UID + 1))
+  done
+  [ "$KNECHT_UID" = 8659 ] || say "uid 8659 is taken by '$(getent passwd 8659 | cut -d: -f1)', using $KNECHT_UID"
+  say "Creating user knecht (uid $KNECHT_UID)"
+  groupadd --gid "$KNECHT_UID" knecht
+  useradd --uid "$KNECHT_UID" --gid "$KNECHT_UID" --create-home --shell /usr/sbin/nologin knecht
 fi
+ok "Knecht runs as uid $KNECHT_UID"
 
 # ── 2. The repo checkout ──────────────────────────────────────────────────────
 if [ -d "$INSTALL_DIR/.git" ]; then
@@ -110,8 +117,8 @@ fi
 
 say "Creating $PROJECTS_DIR and $DATA_DIR"
 mkdir -p "$PROJECTS_DIR" "$DATA_DIR/.ddev"
-chown 1000:1000 "$PROJECTS_DIR"
-chown -R 1000:1000 "$DATA_DIR"
+chown "$KNECHT_UID:$KNECHT_UID" "$PROJECTS_DIR"
+chown -R "$KNECHT_UID:$KNECHT_UID" "$DATA_DIR"
 
 # ── 4. .env ───────────────────────────────────────────────────────────────────
 if [ -f "$INSTALL_DIR/.env" ]; then
@@ -135,6 +142,7 @@ KNECHT_DATA_DIR=$DATA_DIR
 KNECHT_DB_PATH=$DATA_DIR/knecht.db
 KNECHT_INSTALL_DIR=$INSTALL_DIR
 KNECHT_VERSION=$IMAGE_TAG
+KNECHT_UID=$KNECHT_UID
 COMPOSE_PROFILES=prod
 EOF
 
@@ -144,7 +152,7 @@ EOF
   # is locked in the UI. Installer control vars and keys written above are
   # excluded, so this stays additive.
   env | grep '^KNECHT_' \
-    | grep -vE '^KNECHT_(DOMAIN|REF|BASE_DOMAIN|PROJECTS|DATA_DIR|DB_PATH|INSTALL_DIR|VERSION)=' \
+    | grep -vE '^KNECHT_(DOMAIN|REF|BASE_DOMAIN|PROJECTS|DATA_DIR|DB_PATH|INSTALL_DIR|VERSION|UID)=' \
     | sort >> "$INSTALL_DIR/.env" || true
 
   chmod 600 "$INSTALL_DIR/.env"

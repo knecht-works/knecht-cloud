@@ -30,6 +30,10 @@ jobs:
       matrix:
         runner: [ubuntu-24.04, ubuntu-24.04-arm]
         from: [this, latest-release]
+        include:
+          # A host whose central provisioning already handed out uid 8659.
+          - runner: ubuntu-24.04
+            from: uid-taken
     name: install (${{ matrix.runner }}, from ${{ matrix.from }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -46,8 +50,8 @@ jobs:
           sudo systemctl stop docker.socket docker 2>/dev/null || true
           sudo apt-get purge -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras 2>/dev/null || true
           sudo rm -rf /etc/docker /var/lib/docker
-          # The runner image keeps a leftover 'packer' user on uid 1000; the
-          # installer reserves that uid for 'knecht' (free on fresh servers).
+          # The runner image keeps a leftover 'packer' user on uid 1000, which
+          # the installers up to v0.15.0 reserve (the latest-release leg runs one).
           sudo userdel packer 2>/dev/null || true
 
       - uses: actions/checkout@v4
@@ -61,7 +65,9 @@ jobs:
             FROM_REF=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
             echo "Starting from $FROM_REF"
           fi
-          sudo bash scripts/ci-install-smoke.sh "$GITHUB_REPOSITORY" "$REF" "$FROM_REF"
+          TAKEN=""
+          if [ "${{ matrix.from }}" = uid-taken ]; then TAKEN="SMOKE_TAKEN_UID=8659"; fi
+          sudo $TAKEN bash scripts/ci-install-smoke.sh "$GITHUB_REPOSITORY" "$REF" "$FROM_REF"
 
   # The other supported distributions, each in a fresh VM from its official
   # cloud image (GitHub only hosts Ubuntu runners). amd64 only: arm64 is
