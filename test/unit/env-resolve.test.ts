@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { type DetectedEnv, type EnvOverrides, formatEnvSummary, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '../../shared/utils/env-spec'
 
-const none: EnvOverrides = { phpVersion: null, nodeVersion: null, packageManager: null, devServer: null, previewPort: null }
+const none: EnvOverrides = { phpVersion: null, nodeVersion: null, packageManager: null, database: null, devServer: null, previewPort: null }
 
 const generated: DetectedEnv = {
   source: 'generated',
@@ -31,6 +31,7 @@ describe('resolveEnv', () => {
       nodeVersion: { value: '22', source: 'default' },
       packageManager: { value: { name: 'npm', version: null }, source: 'default' },
       hasDb: { value: false, source: 'default' },
+      database: { value: null, source: 'default' },
       hosts: { value: [], source: 'default' },
       devServer: { value: null, source: 'default' },
       previewPort: { value: null, source: 'default' },
@@ -42,6 +43,13 @@ describe('resolveEnv', () => {
     expect(env.phpVersion).toEqual({ value: '8.1', source: 'setting' })
     expect(env.nodeVersion).toEqual({ value: '20', source: '.nvmrc' })
     expect(env.hasDb).toEqual({ value: false, source: 'default' })
+  })
+
+  it('a generated environment gets a database only when the project picks one', () => {
+    const env = resolveEnv(generated, { ...none, database: 'postgres:17' })
+    expect(env.hasDb).toEqual({ value: true, source: 'setting' })
+    expect(env.database).toEqual({ value: 'postgres:17', source: 'setting' })
+    expect(formatEnvSummary(env)).toContain('PostgreSQL 17')
   })
 
   it('dev server settings are settings too', () => {
@@ -61,7 +69,7 @@ describe('resolveEnv', () => {
   })
 
   it('ignores the version overrides for a ddev project (the committed config is the truth) but keeps its dev server', () => {
-    const env = resolveEnv(tracked, { phpVersion: '8.1', nodeVersion: '18', packageManager: 'bun', devServer: 'npm run dev', previewPort: 3000 })
+    const env = resolveEnv(tracked, { phpVersion: '8.1', nodeVersion: '18', packageManager: 'bun', database: 'mysql:8.0', devServer: 'npm run dev', previewPort: 3000 })
     expect(env.source).toBe('ddev')
     expect(env.phpVersion).toEqual({ value: '8.3', source: '.ddev/config.yaml' })
     expect(env.nodeVersion).toEqual({ value: '22', source: 'default' })

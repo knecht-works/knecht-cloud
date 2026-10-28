@@ -34,6 +34,7 @@ export const getProjectTool = defineTool({
       phpVersion: p.phpVersion,
       nodeVersion: p.nodeVersion,
       packageManager: p.packageManager,
+      database: p.database,
       devServer: p.devServer,
       previewPort: p.previewPort,
       envVarKeys: p.envVars.map(v => v.key),

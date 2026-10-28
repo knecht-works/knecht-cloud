@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm'
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { ENV_STATES, type RunDiagnosis } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
-import { PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
+import { DDEV_DATABASES, PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
 import { INTEGRATION_IDS, OBJECT_KINDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
 import type { Step } from '../../shared/utils/workflow'
 
@@ -53,6 +53,7 @@ export const projects = sqliteTable('projects', {
   phpVersion: text('php_version'),
   nodeVersion: text('node_version'),
   packageManager: text('package_manager', { enum: PACKAGE_MANAGERS }),
+  database: text('database', { enum: DDEV_DATABASES }),
   devServer: text('dev_server'),
   previewPort: integer('preview_port'),
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type PackageManagerName, formatPackageManager, projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
+import { DDEV_DATABASE_GROUPS, DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type DdevDatabase, type PackageManagerName, formatDatabase, formatPackageManager, projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 
 const toast = useToast()
@@ -31,12 +31,14 @@ const ddevSpec = computed(() => {
 const phpOverride = ref<string | null>(project.value?.phpVersion ?? null)
 const nodeOverride = ref<string | null>(project.value?.nodeVersion ?? null)
 const packageManagerOverride = ref<PackageManagerName | null>(project.value?.packageManager ?? null)
+const databaseOverride = ref<DdevDatabase | null>(project.value?.database ?? null)
 const envOverrides = computed(() => ({
   phpVersion: phpOverride.value,
   nodeVersion: nodeOverride.value,
   packageManager: packageManagerOverride.value,
+  database: databaseOverride.value,
 }))
-function overrideItems<K extends keyof typeof envOverrides.value>(field: K, choices: readonly string[], format: (value: EnvSpec[K]) => string) {
+function overrideItems<K extends 'phpVersion' | 'nodeVersion' | 'packageManager'>(field: K, choices: readonly string[], format: (value: EnvSpec[K]) => string) {
   const detected = detectedEnv.value.fields[field]
   const label = detected
     ? `Detected: ${format(detected.value)}`
@@ -46,6 +48,10 @@ function overrideItems<K extends keyof typeof envOverrides.value>(field: K, choi
 const phpItems = computed(() => overrideItems('phpVersion', [...DDEV_PHP_VERSIONS].reverse(), String))
 const nodeItems = computed(() => overrideItems('nodeVersion', NODE_LTS_MAJORS, String))
 const packageManagerItems = computed(() => overrideItems('packageManager', PACKAGE_MANAGERS, formatPackageManager))
+const databaseItems = [
+  [{ label: 'None', value: null as DdevDatabase | null }],
+  ...DDEV_DATABASE_GROUPS.map(group => group.map(value => ({ label: formatDatabase(value), value }))),
+]
 
 const { state: envState, error: envError, schedule: scheduleEnv } = useAutosave(async () => {
   const body = envOverrides.value
@@ -365,6 +371,13 @@ watch(bootCommands, () => {
               :search-input="false"
               class="w-full"
               @update:model-value="(item: { value: string | null } | undefined) => packageManagerOverride = (item?.value ?? null) as PackageManagerName | null"
+            />
+            <span class="k-label">Database</span>
+            <USelectMenu
+              :model-value="databaseItems.flat().find(i => i.value === databaseOverride)"
+              :items="databaseItems"
+              class="w-full"
+              @update:model-value="(item: { value: DdevDatabase | null } | undefined) => databaseOverride = item?.value ?? null"
             />
           </div>
           <p

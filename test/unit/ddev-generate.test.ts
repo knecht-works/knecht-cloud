@@ -14,6 +14,7 @@ const project = (overrides: Partial<SessionEnvProject> = {}): SessionEnvProject 
   phpVersion: null,
   nodeVersion: null,
   packageManager: null,
+  database: null,
   devServer: null,
   previewPort: null,
   ...overrides,
@@ -55,6 +56,21 @@ describe('configureSessionEnv', () => {
     expect(injected).toBe(0)
     expect(existsSync(join(dir, '.ddev', 'mysql'))).toBe(false)
     expect(ddevTree(dir)).toMatchSnapshot()
+  })
+
+  it('a generated environment runs the database the project picked', async () => {
+    const dir = repo({ 'README.md': '# lib' })
+    const { env } = await configureSessionEnv(dir, project({ database: 'mysql:8.0' }), 42, 'env')
+    expect(env.hasDb.value).toBe(true)
+    expect(readDdevConfig(dir)).toMatchObject({ hasDb: true, dbType: 'mysql', dbVersion: '8.0' })
+    expect(existsSync(join(dir, '.ddev', 'mysql'))).toBe(true)
+  })
+
+  it('a postgres database gets no mysql tuning', async () => {
+    const dir = repo({ 'README.md': '# lib' })
+    await configureSessionEnv(dir, project({ database: 'postgres:17' }), 42, 'env')
+    expect(readDdevConfig(dir)).toMatchObject({ hasDb: true, dbType: 'postgres', dbVersion: '17' })
+    expect(existsSync(join(dir, '.ddev', 'mysql'))).toBe(false)
   })
 
   it('generated-with-versions: detected versions and an override land in config.yaml', async () => {

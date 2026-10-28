@@ -15,7 +15,7 @@ function tracked(hosts: string[] = []): ResolvedEnv {
       hasDb: { value: true, source: '.ddev/config.yaml' },
     },
     warnings: [],
-  }, { phpVersion: null, nodeVersion: null, packageManager: null, devServer: null, previewPort: null })
+  }, { phpVersion: null, nodeVersion: null, packageManager: null, database: null, devServer: null, previewPort: null })
 }
 
 function checkout(configYaml?: string): string {

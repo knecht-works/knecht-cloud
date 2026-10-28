@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
-import { DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGERS } from '#shared/utils/env-spec'
+import { DDEV_DATABASES, DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGERS } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 import { updateProjectConfig, requireProject } from '../../stores/projects'
 
@@ -29,6 +29,7 @@ const bodySchema = z.object({
   phpVersion: z.enum(DDEV_PHP_VERSIONS).nullable().optional(),
   nodeVersion: z.string().regex(NODE_VERSION_PATTERN, 'Node version is a major or major.minor').nullable().optional(),
   packageManager: z.enum(PACKAGE_MANAGERS).nullable().optional(),
+  database: z.enum(DDEV_DATABASES).nullable().optional(),
   devServer: z.string().trim().max(500).transform(v => v || null).nullable().optional(),
   previewPort: z.number().int().min(1).max(65535).nullable().optional(),
 })
