@@ -306,6 +306,43 @@ watch(bootCommands, () => {
           </div>
         </div>
       </KPanel>
+      <KPanel
+        title="Dev server"
+        icon="i-lucide-server"
+      >
+        <template #action>
+          <KSaveStatus
+            v-if="devState !== 'idle'"
+            :state="devState"
+            :error-text="devError"
+          />
+        </template>
+        <div>
+          <p class="mb-2.5 text-xs leading-relaxed text-dimmed">
+            The command that starts your dev server, for example
+            <code class="k-code">npm run dev</code> for Vite hot reloading, and
+            the port it listens on. Without a ddev config in the repo this is
+            what the preview shows.
+          </p>
+          <div class="grid grid-cols-[1fr_7rem] gap-2">
+            <div class="k-code-box">
+              <WorkflowCodeEditor
+                v-model="devServer"
+                lang="bash"
+                :rows="1"
+                placeholder="npm run dev"
+              />
+            </div>
+            <UInput
+              v-model="previewPort"
+              placeholder="Port"
+              inputmode="numeric"
+              size="sm"
+              :ui="{ base: 'k-mono text-xs' }"
+            />
+          </div>
+        </div>
+      </KPanel>
     </div>
     <div class="flex flex-col gap-4.5">
       <KPanel
@@ -388,43 +425,6 @@ watch(bootCommands, () => {
           >
             {{ warning }}
           </p>
-        </div>
-      </KPanel>
-      <KPanel
-        title="Dev server"
-        icon="i-lucide-server"
-      >
-        <template #action>
-          <KSaveStatus
-            v-if="devState !== 'idle'"
-            :state="devState"
-            :error-text="devError"
-          />
-        </template>
-        <div>
-          <p class="mb-2.5 text-xs leading-relaxed text-dimmed">
-            The command that starts your dev server, for example
-            <code class="k-code">npm run dev</code> for Vite hot reloading, and
-            the port it listens on. Without a ddev config in the repo this is
-            what the preview shows.
-          </p>
-          <div class="grid grid-cols-[1fr_7rem] gap-2">
-            <div class="k-code-box">
-              <WorkflowCodeEditor
-                v-model="devServer"
-                lang="bash"
-                :rows="1"
-                placeholder="npm run dev"
-              />
-            </div>
-            <UInput
-              v-model="previewPort"
-              placeholder="Port"
-              inputmode="numeric"
-              size="sm"
-              :ui="{ base: 'k-mono text-xs' }"
-            />
-          </div>
         </div>
       </KPanel>
       <KPanel
