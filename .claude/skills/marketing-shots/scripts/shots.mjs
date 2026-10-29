@@ -17,6 +17,19 @@ const onlyIntegration = name => async (p) => {
   await p.getByRole('button', { name: 'Show webhook' }).click()
   await p.waitForTimeout(400)
 }
+const onlyLink = name => async (p) => {
+  const removed = await p.locator('main .gap-4\\.5').first().evaluate((list, name) => {
+    let n = 0
+    for (const card of [...list.children]) {
+      if (card.innerText.trim().split('\n')[0].toLowerCase() !== name.toLowerCase()) {
+        card.remove()
+        n++
+      }
+    }
+    return n
+  }, name)
+  if (removed !== 2) throw new Error(`expected to remove 2 panels, removed ${removed}`)
+}
 export default {
   'dashboard': { url: '/', ...HOME },
   'project': { url: '/projects/3', ...HOME },
@@ -54,11 +67,13 @@ export default {
   } },
   'knecht-settings-user': { url: '/settings', w: 1440, h: 779 },
   'knecht-settings-ai': { url: '/settings/agent', w: 1440, h: 779 },
-  'knecht-project-settings': { url: '/projects/2/settings', w: 1440, h: 900 },
+  'knecht-project-settings': { url: '/projects/2/settings', w: 1440, h: 1080 },
   'knecht-integration-settings-jira': { url: '/settings/integrations', w: 1440, h: 779, act: onlyIntegration('Jira') },
   'knecht-integration-settings-plane': { url: '/settings/integrations', w: 1440, h: 779, act: onlyIntegration('Plane') },
   'knecht-integration-settings-linear': { url: '/settings/integrations', w: 1440, h: 779, act: onlyIntegration('Linear') },
-  'knecht-project-settings-jira': { url: '/projects/2/settings/integrations', w: 1440, h: 779 },
+  'knecht-project-settings-jira': { url: '/projects/2/settings/integrations', w: 1440, h: 620, act: onlyLink('Jira') },
+  'knecht-project-settings-plane': { url: '/projects/2/settings/integrations', w: 1440, h: 620, act: onlyLink('Plane') },
+  'knecht-project-settings-linear': { url: '/projects/2/settings/integrations', w: 1440, h: 620, act: onlyLink('Linear') },
   'knecht-trigger-github': { ...TRIG, act: async (p) => {
     await t.open(p, 'GitHub')
     await t.projects(p, ['knecht-works/test-laravel', 'knecht-works/test-craftcms'])
