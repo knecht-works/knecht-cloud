@@ -7,9 +7,9 @@ import { detectPreviewFavicon } from '../../utils/favicon'
 import { sessionPreviewUrl } from '../../utils/preview-target'
 import { readDdevConfig } from '../../daemon/ddev'
 import { waitForDevServer } from '../../daemon/dev-server'
-import { bootEnv } from '../../daemon/envs'
+import { bootEnv, inTransition, promoteToPreview } from '../../daemon/envs'
 import { defineAction, type ActionRuntime } from './types'
-import { getSessionRow, updateSession } from '../../stores/sessions'
+import { getSessionRow } from '../../stores/sessions'
 
 const yamlParams = z.object({ commands: z.string().optional() })
 
@@ -30,7 +30,7 @@ export const ddevStartAction = defineAction({
   async run(step, rt) {
     rt.log(`\n▶ ddev-start\n`)
     // Boot once per session: re-running the DB import and setup would wipe live state.
-    if (sessionBooted(rt.sessionId)) {
+    if (getSessionRow(rt.sessionId)?.tier === 'preview') {
       await rt.sandbox.ensureUp()
       rt.log(`Environment already booted in this session: nothing to do\n`)
       const port = getSessionRow(rt.sessionId)?.previewPort
@@ -41,14 +41,16 @@ export const ddevStartAction = defineAction({
     if (!hasDb && rt.project.dbDumpPath) {
       throw new Error('A database dump is configured, but this environment has no database container. Remove the dump or give the environment a database.')
     }
-    await bootEnv(rt.sessionId, {
-      dbFile: dumpFile(rt),
-      projectCommands: rt.project.bootCommands,
-      stepCommands: step.commands,
-      log: rt.log,
-      signal: rt.signal,
+    await inTransition(rt.sessionId, 'booting', async () => {
+      await bootEnv(rt.sessionId, {
+        dbFile: dumpFile(rt),
+        projectCommands: rt.project.bootCommands,
+        stepCommands: step.commands,
+        log: rt.log,
+        signal: rt.signal,
+      })
+      promoteToPreview(rt.sessionId)
     })
-    updateSession(rt.sessionId, { previewReady: true })
     const outputs = previewOutputs(rt)
     if (outputs && !rt.project.favicon) void detectPreviewFavicon(rt.sessionId, rt.project)
     return outputs
@@ -59,10 +61,6 @@ function previewOutputs(rt: ActionRuntime): { url: string } | undefined {
   const session = getSessionRow(rt.sessionId)
   const url = session && sessionPreviewUrl(session)
   return url ? { url } : undefined
-}
-
-function sessionBooted(sessionId: number): boolean {
-  return getSessionRow(sessionId)?.previewReady ?? false
 }
 
 function dumpFile(rt: ActionRuntime): string | null {

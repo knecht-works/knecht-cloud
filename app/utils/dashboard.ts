@@ -47,10 +47,12 @@ export const IDLE_STATUS_META: RunStatusMeta = {
 const ENV_LABEL: Partial<Record<EnvState, string>> = { stopped: 'Stopped', archived: 'Archived' }
 
 const TRANSITION_LABEL: Record<EnvTransition, string> = {
+  booting: 'Booting',
   stopping: 'Stopping',
   rebooting: 'Rebooting',
   restoring: 'Restoring',
   archiving: 'Archiving',
+  expiring: 'Expiring',
 }
 
 // A success only stays green while its environment is up to inspect.

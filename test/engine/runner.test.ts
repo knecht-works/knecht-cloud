@@ -12,11 +12,10 @@ vi.mock('../../server/daemon/git', async (importOriginal) => {
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
 const startEnvStack = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('../../server/daemon/sandbox', async () => {
-  const { execInSandbox, copyIntoSandbox, streamInSandbox, spawnInSandbox } = await import('../helpers/local-sandbox')
-  return { execInSandbox, copyIntoSandbox, streamInSandbox, spawnInSandbox, startEnvStack, WEB_PROJECT_DIR: '/var/www/html' }
-})
-vi.mock('../../server/daemon/envs', () => ({ ensureEnvUp: async () => {} }))
+vi.mock('../../server/daemon/sandbox', () => ({ startEnvStack }))
+const removeWorkspace = vi.hoisted(() => vi.fn(async (_sessionId: number) => {}))
+vi.mock('../../server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace }))
+vi.mock('../../server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
 vi.mock('../../server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
@@ -152,11 +151,36 @@ describe('runner', () => {
     expect(steps[1]!.outputs?.stdout).toBe('got: hello')
   })
 
-  it('applies a changed environment definition to a session whose stack is already up', async () => {
+  it('leaves a session without a boot step up as a code session', async () => {
+    const { run } = await execute([{ type: 'bash', id: 'noop', command: 'true' }])
+    const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
+    expect(session.envState).toBe('up')
+    expect(session.tier).toBe('code')
+    expect(startEnvStack).not.toHaveBeenCalled()
+  })
+
+  it('brings a stopped session back up before its steps, so a boot step can promote it', async () => {
+    const step: Step = { type: 'bash', id: 'noop', command: 'true' }
+    const { project, run } = await execute([step])
+    db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, project)
+    expect(db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!.envState).toBe('up')
+  })
+
+  it('applies a changed environment definition to a code session by dropping its workspace', async () => {
+    const step: Step = { type: 'bash', id: 'noop', command: 'true' }
+    const { project, run } = await execute([step])
+    removeWorkspace.mockClear()
+    await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, { ...project, phpVersion: '8.1' })
+    expect(removeWorkspace).toHaveBeenCalledWith(run.sessionId)
+    expect(startEnvStack).not.toHaveBeenCalled()
+  })
+
+  it('applies a changed environment definition to a preview whose stack is already up', async () => {
     const step: Step = { type: 'bash', id: 'noop', command: 'true' }
     const { project, run } = await execute([step])
     expect(startEnvStack).not.toHaveBeenCalled()
-    db.update(schema.sessions).set({ envState: 'up' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    db.update(schema.sessions).set({ envState: 'up', tier: 'preview' }).where(eq(schema.sessions.id, run.sessionId)).run()
     await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, project)
     expect(startEnvStack).not.toHaveBeenCalled()
     await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, { ...project, phpVersion: '8.2' })

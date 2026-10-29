@@ -4,20 +4,20 @@ import { hasPreviewTarget } from '../../server/utils/preview-target'
 const env = { webserver: 'nginx-fpm', phpVersion: null, dbType: null, dbVersion: null, nodeVersion: null, packageManager: null }
 const ddevProject = { ddevEnv: { ...env, detected: { source: 'ddev' as const, fields: {}, warnings: [] } }, devServer: null, previewPort: null }
 const generatedProject = { ddevEnv: { ...env, detected: { source: 'generated' as const, fields: {}, warnings: [] } }, devServer: null, previewPort: null }
-const unbooted = { previewHosts: [], previewPort: null, envState: 'down' as const }
+const unbooted = { previewHosts: [], previewPort: null, tier: 'code' as const }
 
 describe('hasPreviewTarget', () => {
   it('a booted session decides by its pinned hosts or port', () => {
-    expect(hasPreviewTarget({ ...unbooted, previewHosts: ['demo.ddev.site'], envState: 'up' }, generatedProject)).toBe(true)
-    expect(hasPreviewTarget({ ...unbooted, previewPort: 3000, envState: 'up' }, generatedProject)).toBe(true)
-    expect(hasPreviewTarget({ ...unbooted, envState: 'up' }, generatedProject)).toBe(false)
-    expect(hasPreviewTarget({ ...unbooted, envState: 'stopped' }, generatedProject)).toBe(false)
-    expect(hasPreviewTarget({ ...unbooted, envState: 'up' }, { ...generatedProject, devServer: 'npm run dev', previewPort: 3000 })).toBe(false)
+    expect(hasPreviewTarget({ ...unbooted, previewHosts: ['demo.ddev.site'], tier: 'preview' as const }, generatedProject)).toBe(true)
+    expect(hasPreviewTarget({ ...unbooted, previewPort: 3000, tier: 'preview' as const }, generatedProject)).toBe(true)
+    expect(hasPreviewTarget({ ...unbooted, tier: 'preview' as const }, generatedProject)).toBe(false)
+    expect(hasPreviewTarget({ ...unbooted, tier: 'preview' as const }, generatedProject)).toBe(false)
+    expect(hasPreviewTarget({ ...unbooted, tier: 'preview' as const }, { ...generatedProject, devServer: 'npm run dev', previewPort: 3000 })).toBe(false)
   })
 
   it('a booted ddev project serves its site even with no pinned hosts (nameless or unparsable config)', () => {
-    expect(hasPreviewTarget({ ...unbooted, envState: 'up' }, ddevProject)).toBe(true)
-    expect(hasPreviewTarget({ ...unbooted, envState: 'stopped' }, ddevProject)).toBe(true)
+    expect(hasPreviewTarget({ ...unbooted, tier: 'preview' as const }, ddevProject)).toBe(true)
+    expect(hasPreviewTarget({ ...unbooted, tier: 'preview' as const }, ddevProject)).toBe(true)
   })
 
   it('before the first boot the project detection decides', () => {

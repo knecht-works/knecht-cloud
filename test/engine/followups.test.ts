@@ -9,13 +9,16 @@ vi.mock('../../server/utils/github-app', () => ({
     return { url: 'https://x/comment' }
   },
 }))
-vi.mock('../../server/daemon/envs', () => ({ ensureEnvUp: async () => {}, reviveEnv: async () => {} }))
+vi.mock('../../server/daemon/envs', () => ({ reviveEnv: async () => {} }))
 vi.mock('../../server/daemon/git', () => ({ currentBranch: async () => 'main' }))
-vi.mock('../../server/daemon/sandbox', () => ({
-  WEB_PROJECT_DIR: '/var/www/html',
-  copyIntoSandbox: async () => {},
-  spawnInSandbox: () => { throw new Error('not in this test') },
-  streamInSandbox: async () => {},
+vi.mock('../../server/daemon/session-sandbox', () => ({
+  sessionSandbox: () => ({
+    projectDir: '/var/www/html',
+    ensureUp: async () => {},
+    stream: async () => ({ code: 0, tail: '' }),
+    spawn: () => { throw new Error('not in this test') },
+    copyIn: async () => {},
+  }),
 }))
 const agent = vi.hoisted(() => ({ reply: async (): Promise<string> => 'agent reply', messages: [] as string[] }))
 vi.mock('../../server/workflows/actions/ai', async importOriginal => ({

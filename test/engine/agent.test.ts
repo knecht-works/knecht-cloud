@@ -10,11 +10,9 @@ vi.mock('../../server/daemon/git', async (importOriginal) => {
   const { fakeCheckout } = await import('../helpers/local-sandbox')
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
-vi.mock('../../server/daemon/sandbox', async () => {
-  const { execInSandbox, copyIntoSandbox, streamInSandbox, spawnInSandbox } = await import('../helpers/local-sandbox')
-  return { execInSandbox, copyIntoSandbox, streamInSandbox, spawnInSandbox, startEnvStack: async () => {}, WEB_PROJECT_DIR: '/var/www/html' }
-})
-vi.mock('../../server/daemon/envs', () => ({ ensureEnvUp: async () => {}, reviveEnv: async () => {} }))
+vi.mock('../../server/daemon/sandbox', () => ({ startEnvStack: async () => {} }))
+vi.mock('../../server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
+vi.mock('../../server/daemon/envs', () => ({ markCheckedOut: () => {}, reviveEnv: async () => {} }))
 vi.mock('../../server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),

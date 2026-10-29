@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import { ENV_STATES, type RunDiagnosis } from '../../shared/utils/run'
+import { ENV_STATES, SESSION_TIERS, type RunDiagnosis } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import { DDEV_DATABASES, PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
 import { INTEGRATION_IDS, OBJECT_KINDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
@@ -120,9 +120,9 @@ export const sessions = sqliteTable('sessions', {
     .notNull()
     .default(sql`'[]'`),
   // Also the guard against a second run re-importing the dump over the live DB.
-  previewReady: integer('preview_ready', { mode: 'boolean' })
+  tier: text('tier', { enum: SESSION_TIERS })
     .notNull()
-    .default(false),
+    .default('code'),
   // Pinned at checkout: the proxy must match what was baked into the env.
   urlMode: text('url_mode', { enum: ['env', 'rewrite'] }),
   // Pinned at first boot for the same reason.

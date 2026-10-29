@@ -5,6 +5,7 @@ import type { EnvState, EnvTransition } from '#shared/utils/run'
 interface RunSummary {
   status: RunStatus
   envState: EnvState
+  previewReady: boolean
   envTransition?: EnvTransition | null
   workflow: string
   createdAt: string | number | Date | null
@@ -116,7 +117,7 @@ const statusText = computed(() =>
         <span class="k-mono truncate text-2xs text-muted">{{ latest ? timeAgo(latest.createdAt) : '–' }}</span>
       </div>
       <div
-        v-if="latest?.envState === 'up'"
+        v-if="latest?.envState === 'up' && latest.previewReady"
         class="flex items-center gap-1.5 border-l border-muted px-3.5 py-3 text-primary"
       >
         <UIcon

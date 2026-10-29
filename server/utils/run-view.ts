@@ -7,6 +7,7 @@ import { getSessionRow } from '../stores/sessions'
 
 interface SessionEnvRow {
   envState: Session['envState']
+  tier: Session['tier']
   previewHosts: string[]
   previewPort: number | null
   steps: Step[] | null
@@ -15,12 +16,13 @@ interface SessionEnvRow {
   projectPreviewPort: number | null
 }
 
-export function withSessionEnv<R extends SessionEnvRow>(row: R): Omit<R, 'projectEnv' | 'projectDevServer' | 'projectPreviewPort'> & { hasPreviewTarget: boolean, hasEnv: boolean } {
+export function withSessionEnv<R extends SessionEnvRow>(row: R): Omit<R, 'projectEnv' | 'projectDevServer' | 'projectPreviewPort'> & { hasPreviewTarget: boolean, hasEnv: boolean, previewReady: boolean } {
   const { projectEnv, projectDevServer, projectPreviewPort, ...rest } = row
   return {
     ...rest,
     hasPreviewTarget: hasPreviewTarget(row, { ddevEnv: projectEnv, devServer: projectDevServer, previewPort: projectPreviewPort }),
-    hasEnv: runHasEnv(row.envState, row.steps),
+    hasEnv: runHasEnv(row.tier, row.steps),
+    previewReady: row.tier === 'preview',
   }
 }
 
@@ -31,7 +33,7 @@ export function withRunSessionEnv<R extends Run>(run: R, session?: Session) {
     ...run,
     envState: s?.envState ?? 'down' as const,
     previewHosts: s?.previewHosts ?? [],
-    previewReady: s?.previewReady ?? false,
+    tier: s?.tier ?? 'code' as const,
     previewPort: s?.previewPort ?? null,
     projectEnv: project?.ddevEnv ?? null,
     projectDevServer: project?.devServer ?? null,
