@@ -104,6 +104,9 @@ git -C "$INSTALL_DIR" checkout -qf "$TAG"
 
 # ── 3. Docker + state dirs ────────────────────────────────────────────────────
 if command -v docker >/dev/null; then
+  DOCKER_MAJOR="$(docker version -f '{{.Server.Version}}' 2>/dev/null | cut -d. -f1)"
+  [ "${DOCKER_MAJOR:-0}" -ge 28 ] 2>/dev/null \
+    || die "Docker $(docker --version | sed 's/^Docker version //') is installed, Knecht needs Docker 28 or newer. Upgrade Docker, then re-run the installer."
   ok "Docker already installed ($(docker --version))"
 else
   say "Installing Docker"
