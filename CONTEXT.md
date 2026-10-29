@@ -54,6 +54,13 @@ _Avoid_: Repo (in domain language)
 **Session**:
 The durable working context for one object in one project: a checkout, an environment, a preview. Runs and follow-ups on the same object share one session.
 
+**Tier**:
+How much a session has: **code** (a checkout in a workspace) or **preview** (booted by a ddev-start step: database, dev server, preview). Only ever grows; restoring an archived session brings back its tier.
+
+**Workspace**:
+The lightweight container a code session's steps, follow-ups, terminal and IDE run in: the checkout and the project's tools, no database and no preview.
+_Avoid_: Environment (that is the ddev stack of a preview session)
+
 **Follow-up**:
 An additional prompt appended to a finished run's session. Comes from the dashboard or from a mention.
 
