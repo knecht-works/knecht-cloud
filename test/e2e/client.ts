@@ -41,20 +41,23 @@ export interface PreviewResponse {
 // travels in the Host header. node:http because fetch controls the Host header.
 export function previewFetch(
   sessionId: number,
-  opts: { label?: string, path?: string, cookie?: string, accept?: string } = {},
+  opts: { label?: string, path?: string, cookie?: string, accept?: string, json?: unknown } = {},
 ): Promise<PreviewResponse> {
   const base = new URL(BASE_URL)
   const https = base.protocol === 'https:'
+  const body = opts.json === undefined ? null : JSON.stringify(opts.json)
   return new Promise((resolve, reject) => {
     const req = (https ? httpsRequest : httpRequest)(
       {
         hostname: base.hostname,
         port: base.port || (https ? 443 : 80),
+        method: body === null ? 'GET' : 'POST',
         path: opts.path ?? '/',
         headers: {
           host: previewHostname(sessionId, base.host, opts.label),
           accept: opts.accept ?? 'text/html',
           ...(opts.cookie ? { cookie: opts.cookie } : {}),
+          ...(body === null ? {} : { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) }),
         },
       },
       (res) => {
@@ -70,7 +73,7 @@ export function previewFetch(
       },
     )
     req.on('error', reject)
-    req.end()
+    req.end(body ?? undefined)
   })
 }
 
