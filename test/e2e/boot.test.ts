@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { previewLabel } from '../../shared/utils/preview-host'
+import type { DdevDatabase } from '../../shared/utils/env-spec'
 import type { E2eClient, PreviewResponse } from './client'
 import { expectJson, login, previewFetch } from './client'
 
@@ -11,6 +12,10 @@ interface BootFixture {
   bootCommands: string
   devServer?: string
   previewPort?: number
+  /** For a repo without its own ddev config: the database Knecht adds to the generated environment. */
+  database?: DdevDatabase
+  /** A JSON POST to the booted site, then a GET of the same path that must contain every string. */
+  dbProbe?: { path: string, json: Record<string, string>, expect: string[] }
   /** Fetched raw from the fixture repo, so it must be public. */
   seedDbPath?: string
   bootDeadlineMs?: number
@@ -118,6 +123,9 @@ const FIXTURES: BootFixture[] = [
     bootCommands: 'pnpm install',
     devServer: 'pnpm dev',
     previewPort: 3000,
+    database: 'mysql:8.4',
+    envVars: envList({ DATABASE_URL: 'mysql://db:db@db:3306/db' }),
+    dbProbe: { path: '/api/notes', json: { text: 'written by the e2e boot' }, expect: ['"driver":"mysql"', 'written by the e2e boot'] },
   },
 ]
 
@@ -227,11 +235,11 @@ for (const fixture of selected) {
       ownProject = connected.own
 
       if (ownProject) {
-        const { envVars, bootCommands, devServer, previewPort } = fixture
+        const { envVars, bootCommands, devServer, previewPort, database } = fixture
         const patched = await client.fetch(`/api/projects/${projectId}`, {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ envVars, bootCommands, devServer, previewPort }),
+          body: JSON.stringify({ envVars, bootCommands, devServer, previewPort, database }),
         })
         expect(patched.ok).toBe(true)
       }
@@ -275,6 +283,17 @@ for (const fixture of selected) {
       const primary = await previewFetch(run.sessionId, { cookie: client.cookie })
       expect(primary.status, previewFailure('primary origin', primary)).toBe(200)
       expect(primary.body.length).toBeGreaterThan(0)
+
+      if (fixture.dbProbe) {
+        const { path, json, expect: expected } = fixture.dbProbe
+        const written = await previewFetch(run.sessionId, { path, json, cookie: client.cookie, accept: 'application/json' })
+        expect(written.status, previewFailure(`write to ${path}`, written)).toBeLessThan(300)
+        const read = await previewFetch(run.sessionId, { path, cookie: client.cookie, accept: 'application/json' })
+        expect(read.status, previewFailure(`read of ${path}`, read)).toBe(200)
+        // Nitro pretty-prints JSON in dev and not in production.
+        const compact = (text: string) => text.replace(/\s+/g, '')
+        for (const text of expected) expect(compact(read.body)).toContain(compact(text))
+      }
 
       // Not pinned to 200: a CMS may answer a host with a redirect (CP host to login).
       for (const host of fixture.extraHosts ?? []) {
