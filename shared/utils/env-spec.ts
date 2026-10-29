@@ -67,8 +67,8 @@ export const DDEV_DEFAULT_NODE = '22'
 
 // Must match the Dockerfile's DDEV_VERSION, like the PHP versions.
 const DDEV_DATABASE_VERSIONS = {
-  mariadb: ['11.8', '11.4', '10.11', '10.6', '10.5', '10.4', '10.3', '10.2', '10.1', '10.0', '5.5'],
-  mysql: ['8.4', '8.0', '5.7', '5.6', '5.5'],
+  mariadb: ['12.3', '11.8', '11.4', '10.11', '10.8', '10.7', '10.6', '10.5', '10.4', '10.3', '10.2', '10.1', '10.0'],
+  mysql: ['9.7', '8.4', '8.0'],
   postgres: ['18', '17', '16', '15', '14', '13', '12', '11', '10', '9'],
 } as const
 type DatabaseType = keyof typeof DDEV_DATABASE_VERSIONS
