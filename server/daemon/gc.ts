@@ -4,6 +4,7 @@ import { execa } from 'execa'
 import { listProjects } from '../stores/projects'
 import { dataDir, projectsDir } from '../utils/storage'
 import { removeEnvStack } from './sandbox'
+import { removeWorkspace, WORKSPACE_LABEL, workspaceContainerName } from './workspace'
 import { listSessionIds } from '../stores/sessions'
 import { deleteToolCallsBefore } from '../stores/tool-calls'
 
@@ -26,7 +27,7 @@ export async function collectGarbage(): Promise<GcResult> {
   const liveProjects = new Set(projects.map(p => p.id))
 
   const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], sharedDirs: [], memoryDirs: [], dockerPruned: [] }
-  result.sandboxes = await reapOrphanSandboxes(liveSessions)
+  result.sandboxes = [...await reapOrphanSandboxes(liveSessions), ...await reapOrphanWorkspaces(liveSessions)]
   result.checkouts = reapOrphanCheckouts(liveSessions)
   result.archives = reapOrphanArchives(liveSessions)
   result.dumpDirs = reapOrphanDumpDirs(liveProjects)
@@ -56,6 +57,31 @@ async function reapOrphanSandboxes(liveSessions: Set<number>): Promise<string[]>
   for (const [sessionId, name] of orphans) {
     await removeEnvStack(sessionId)
     removed.push(name)
+  }
+  return removed
+}
+
+// The network outlives a container that `--rm` removed on a docker restart.
+async function reapOrphanWorkspaces(liveSessions: Set<number>): Promise<string[]> {
+  const orphans = new Set<number>()
+  try {
+    const format = `{{.Label "${WORKSPACE_LABEL}"}}`
+    const [{ stdout: containers }, { stdout: networks }] = await Promise.all([
+      execa('docker', ['ps', '-a', '--filter', `label=${WORKSPACE_LABEL}`, '--format', format]),
+      execa('docker', ['network', 'ls', '--filter', `label=${WORKSPACE_LABEL}`, '--format', format]),
+    ])
+    for (const line of `${containers}\n${networks}`.split('\n')) {
+      const sessionId = Number(line.trim())
+      if (sessionId && !liveSessions.has(sessionId)) orphans.add(sessionId)
+    }
+  }
+  catch {
+    return []
+  }
+  const removed: string[] = []
+  for (const sessionId of orphans) {
+    await removeWorkspace(sessionId)
+    removed.push(workspaceContainerName(sessionId))
   }
   return removed
 }

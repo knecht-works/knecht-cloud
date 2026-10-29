@@ -18,7 +18,7 @@ function sessionNetwork(sessionId: number): string {
 
 let ownContainer: Promise<string | null> | undefined
 // Null outside a container (tests); dev and production both run Knecht in one.
-function knechtContainer(): Promise<string | null> {
+export function knechtContainer(): Promise<string | null> {
   ownContainer ??= execa('docker', ['inspect', hostname()]).then(() => hostname(), () => null)
   return ownContainer
 }
@@ -87,6 +87,24 @@ async function runDdevWarmUp(): Promise<void> {
   }
   writeFileSync(marker, version)
   console.log(`ddev warmed up (${version})`)
+}
+
+let webImage: Promise<string> | undefined
+
+// The base of ddev's web image, already pulled by the warm-up.
+export function ddevWebImage(): Promise<string> {
+  webImage ??= ddevWarm
+    .then(() => execa('ddev', ['version', '-j'], { env: DDEV_ENV }))
+    .then(({ stdout }) => {
+      const image = (JSON.parse(stdout) as { raw?: { web?: string } }).raw?.web
+      if (!image) throw new Error('`ddev version -j` names no web image')
+      return image
+    })
+    .catch((e: unknown) => {
+      webImage = undefined
+      throw e
+    })
+  return webImage
 }
 
 export async function startEnvStack(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
