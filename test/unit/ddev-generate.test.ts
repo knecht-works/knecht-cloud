@@ -171,6 +171,14 @@ describe('configureSessionEnv', () => {
     expect(knecht.web_environment).toContain('DDEV_PRIMARY_URL=http://7.preview.knecht.test')
   })
 
+  it('a repo running Vite behind its own ddev config gets the preview host as an allowed host', async () => {
+    const dir = repo({ '.ddev/config.yaml': 'name: demo\n' })
+    await configureSessionEnv(dir, project(), 7, 'env')
+    const knecht = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
+    expect(knecht.web_extra_daemons).toBeUndefined()
+    expect(knecht.web_environment).toContain('__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.knecht.test')
+  })
+
   it('a config Knecht generated on an earlier boot is rewritten, not treated as the repo\'s', async () => {
     const dir = repo({ 'composer.json': '{ "require": { "php": "8.2.*" } }' })
     await configureSessionEnv(dir, project(), 42, 'env')

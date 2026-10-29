@@ -147,10 +147,11 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
     .map(([key, value]) => `${key}=${value}`))
   environment.push(...PACKAGE_CACHE_ENV)
   if (env.packageManager.value.name === 'pnpm') environment.push(PNPM_LEGACY_STORE_ENV)
+  // Vite 5.4.12/6.0.9 and up read one extra allowed host from this variable. A repo
+  // that runs Vite itself behind its nginx sees the preview host, so it needs it too.
+  const viteUrl = session.KNECHT_DEV_SERVER_URL ?? session.KNECHT_PREVIEW_URL
+  if (viteUrl) environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(viteUrl).hostname}`)
   if (devServer !== null) {
-    // Vite 5.4.12/6.0.9 and up read extra allowed hosts from this variable.
-    const devUrl = session.KNECHT_DEV_SERVER_URL
-    if (devUrl) environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(devUrl).hostname}`)
     doc.web_extra_daemons = [
       { name: 'knecht-dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR },
       { name: 'knecht-forward', command: `knecht-forward ${PREVIEW_FORWARD_PORT} ${devServer.port}`, directory: WEB_PROJECT_DIR },
