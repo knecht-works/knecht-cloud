@@ -16,10 +16,10 @@ function load() {
 watch(settings, load, { immediate: true })
 
 const ENV_FIELDS: { key: keyof EnvSettings, label: string, unit: string, hint: string }[] = [
-  { key: 'idleStopMinutes', label: 'Live → stopped', unit: 'min', hint: 'Every live preview keeps a full environment running, eating server memory even when nobody looks at it. After this long without a visit it\'s stopped to free that memory. Opening it again brings it back in seconds, nothing is lost.' },
-  { key: 'previewRetentionDays', label: 'Stopped → archived', unit: 'days', hint: 'A stopped preview untouched for this long is archived: the heavy environment is deleted, a small snapshot (database + code changes) is kept. Restoring takes a few minutes. 0 never archives.' },
+  { key: 'idleStopMinutes', label: 'Live → stopped', unit: 'min', hint: 'Every live session keeps a container running: a full environment for a preview, a lightweight one for code. It eats server memory even when nobody uses it. After this long without use it\'s stopped to free that memory. Opening it again brings it back in seconds, nothing is lost.' },
+  { key: 'previewRetentionDays', label: 'Stopped → archived', unit: 'days', hint: 'A stopped session untouched for this long is archived: its checkout and containers are deleted, a small snapshot (code changes, plus the database of a preview) is kept. Restoring brings it back as it was and takes a few minutes for a preview. 0 never archives.' },
   { key: 'archiveRetentionDays', label: 'Archived → deleted', unit: 'days', hint: 'An archive untouched for this long is deleted for good. After that, only running the workflow again boots the run. 0 never deletes.' },
-  { key: 'maxConcurrentRuns', label: 'Parallel runs', unit: 'runs', hint: 'How many workflow runs may execute at the same time. Each boots a full isolated environment, so this caps the server load. Further runs queue and start as slots free up.' },
+  { key: 'maxConcurrentRuns', label: 'Parallel runs', unit: 'runs', hint: 'How many workflow runs may execute at the same time. Each works in its own isolated container, so this caps the server load. Further runs queue and start as slots free up.' },
 ]
 
 // An emptied number input is '' until retyped, so "whole number" catches it.
@@ -63,7 +63,7 @@ watch(form, () => {
       />
     </template>
     <p class="mb-5 text-xs leading-relaxed text-muted">
-      To free up the server, every run's preview steps down a ladder when nobody uses it:
+      To free up the server, every session steps down a ladder when nobody uses it:
       <span class="k-code">live → stopped → archived → deleted</span>.
     </p>
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
