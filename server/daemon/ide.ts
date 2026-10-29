@@ -4,7 +4,8 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { execa } from 'execa'
-import { resolveContainerUser, resolvePreview, webContainerName, WEB_PROJECT_DIR } from './sandbox'
+import { resolveContainerUser, WEB_PROJECT_DIR } from './sandbox'
+import { resolveSessionContainerIp, sessionContainer } from './session-sandbox'
 import { deriveKey } from '../utils/crypto'
 import { toolsDir } from '../utils/storage'
 
@@ -65,7 +66,7 @@ async function doStageIde(): Promise<void> {
 }
 
 export async function ideRunning(sessionId: number): Promise<boolean> {
-  const ip = await resolvePreview(sessionId)
+  const ip = await resolveSessionContainerIp(sessionId)
   if (!ip) return false
   try {
     await fetch(`http://${ip}:${IDE_PORT}/`, { signal: AbortSignal.timeout(1000) })
@@ -78,7 +79,7 @@ export async function ideRunning(sessionId: number): Promise<boolean> {
 
 export async function ideMountMissing(sessionId: number): Promise<boolean> {
   try {
-    await execa('docker', ['exec', webContainerName(sessionId), 'test', '-x', `${IDE_CONTAINER_DIR}/bin/openvscode-server`])
+    await execa('docker', ['exec', sessionContainer(sessionId), 'test', '-x', `${IDE_CONTAINER_DIR}/bin/openvscode-server`])
     return false
   }
   catch {
@@ -102,14 +103,15 @@ export async function startRunIde(sessionId: number): Promise<void> {
     })
   }
 
-  const user = await resolveContainerUser(sessionId)
+  const container = sessionContainer(sessionId)
+  const user = await resolveContainerUser(container)
   await execa('docker', [
     'exec', '-d',
     '-u', `${user.uid}:${user.gid}`,
     '-w', WEB_PROJECT_DIR,
     '-e', `HOME=${user.home}`,
     '-e', `USER=${user.user}`,
-    webContainerName(sessionId),
+    container,
     `${IDE_CONTAINER_DIR}/bin/openvscode-server`,
     '--host', '0.0.0.0',
     '--port', String(IDE_PORT),

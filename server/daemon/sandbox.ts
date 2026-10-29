@@ -46,11 +46,11 @@ export async function listRunServices(sessionId: number): Promise<string[]> {
 }
 
 // Must match EXEC_WRAPPER.
-export async function resolveContainerUser(sessionId: number): Promise<{ uid: number, gid: number, user: string, home: string }> {
+export async function resolveContainerUser(container: string): Promise<{ uid: number, gid: number, user: string, home: string }> {
   const uid = process.getuid?.() ?? 1000
   const gid = process.getgid?.() ?? 1000
   try {
-    const { stdout } = await execa('docker', ['exec', webContainerName(sessionId), 'getent', 'passwd', String(uid)])
+    const { stdout } = await execa('docker', ['exec', container, 'getent', 'passwd', String(uid)])
     const fields = stdout.trim().split(':')
     return { uid, gid, user: fields[0] || 'web', home: fields[5] || '/tmp' }
   }
@@ -118,10 +118,10 @@ export async function startEnvStack(sessionId: number, log: (text: string) => vo
   await wireNetworks(sessionId)
 }
 
-export async function webMountPresent(sessionId: number, dest: string): Promise<boolean> {
+export async function mountPresent(container: string, dest: string): Promise<boolean> {
   try {
     const { stdout } = await execa('docker', [
-      'inspect', '-f', '{{range .Mounts}}{{.Destination}}{{"\\n"}}{{end}}', webContainerName(sessionId),
+      'inspect', '-f', '{{range .Mounts}}{{.Destination}}{{"\\n"}}{{end}}', container,
     ])
     return stdout.split('\n').includes(dest)
   }
@@ -271,14 +271,14 @@ function sessionCache(sessionId: number) {
   return entry
 }
 
-export async function resolveContainerIp(sessionId: number, container: string): Promise<string | null> {
+export async function resolveContainerIp(sessionId: number, container: string, network = sessionNetwork(sessionId)): Promise<string | null> {
   const { ips } = sessionCache(sessionId)
   const cached = ips.get(container)
   if (cached) return cached
   try {
     const { stdout } = await execa('docker', [
       'inspect', '-f',
-      `{{with index .NetworkSettings.Networks "${sessionNetwork(sessionId)}"}}{{.IPAddress}}{{end}}`,
+      `{{with index .NetworkSettings.Networks "${network}"}}{{.IPAddress}}{{end}}`,
       container,
     ])
     const ip = stdout.trim()
