@@ -40,6 +40,9 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
     const iconUrl = new URL(href ?? '/favicon.ico', `http://${primary}/`)
     const icon = await fetchFrom(addr, port, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
     if (!icon?.body.byteLength) return
+    // Nitro's dev server answers /favicon.ico for an app without one with the text
+    // of a 1x1 GIF data URI, labelled image/x-icon: no favicon, try again later.
+    if (icon.body.subarray(0, 5).toString() === 'data:') return
     const mime = icon.contentType?.split(';')[0]?.trim()
       || FAVICON_MIME_BY_EXT[iconUrl.pathname.split('.').pop()?.toLowerCase() ?? '']
     if (!mime?.startsWith('image/')) return
