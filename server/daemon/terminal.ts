@@ -1,5 +1,7 @@
 import Docker from 'dockerode'
 import { resolveContainerUser, serviceContainerName, WEB_PROJECT_DIR } from './sandbox'
+import { sessionContainer } from './session-sandbox'
+import { reviveEnv } from './envs'
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' })
 
@@ -14,9 +16,12 @@ export async function openRunTerminal(
   service: string,
   size: { cols: number, rows: number },
 ): Promise<RunTerminal> {
-  const container = docker.getContainer(serviceContainerName(sessionId, service))
+  // A code session's workspace starts on first use.
+  if (service === 'web') await reviveEnv(sessionId)
+  const name = service === 'web' ? sessionContainer(sessionId) : serviceContainerName(sessionId, service)
+  const container = docker.getContainer(name)
   const identity = service === 'web'
-    ? await resolveContainerUser(sessionId).then(u => ({
+    ? await resolveContainerUser(name).then(u => ({
         User: `${u.uid}:${u.gid}`,
         WorkingDir: WEB_PROJECT_DIR,
         Env: [`HOME=${u.home}`, `USER=${u.user}`],

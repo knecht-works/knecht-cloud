@@ -4,7 +4,8 @@ import { devServerIsPreview } from '../daemon/ddev'
 import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
 import { devServerCorsOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { IDE_DEFAULT_SETTINGS, IDE_PORT, withIdeTokenCookie } from '../daemon/ide'
-import { forgetPreview, resolveContainerIp, resolvePreview, webContainerName } from '../daemon/sandbox'
+import { forgetPreview } from '../daemon/sandbox'
+import { resolveSessionContainerIp, sessionContainer } from '../daemon/session-sandbox'
 import { isMember, memberCount } from '../stores/members'
 import { isForeignOrigin } from './origin'
 import { knownSessionService, type SessionService } from './session-services'
@@ -21,7 +22,7 @@ function bumpPreviewSeen(sessionId: number): void {
 
 export function proxyRunIde(event: H3Event, sessionId: number): Promise<void> {
   return proxyToContainer(event, sessionId, {
-    container: webContainerName(sessionId),
+    container: sessionContainer(sessionId),
     port: IDE_PORT,
     cookie: header => withIdeTokenCookie(header, sessionId),
     html: injectIdeDefaults,
@@ -73,7 +74,7 @@ async function proxyToContainer(event: H3Event, sessionId: number, target: Conta
   if (env.envState !== 'up') {
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
-  const ip = await resolveContainerIp(sessionId, target.container)
+  const ip = await resolveSessionContainerIp(sessionId, target.container)
   if (!ip) throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
 
   bumpPreviewSeen(sessionId)
@@ -235,7 +236,7 @@ const pipeWsHooks = {
     // early frames (a reconnect after a restart) must queue instead of dropping.
     const pipe: Pipe = { backend: null, queue: [], sessionId, lastBump: 0 }
     pipes.set(peer.id, pipe)
-    const ip = await (container ? resolveContainerIp(sessionId, container) : resolvePreview(sessionId))
+    const ip = await resolveSessionContainerIp(sessionId, container)
     if (!ip) {
       pipes.delete(peer.id)
       return peer.close(1011, 'Environment is not running')

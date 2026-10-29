@@ -3,7 +3,9 @@ import { dirname, join } from 'node:path'
 import AdmZip from 'adm-zip'
 import { rebootEnv } from '../../../daemon/envs'
 import { sessionHasActiveWork } from '../../../utils/sessions'
-import { WEB_PROJECT_DIR, webMountPresent } from '../../../daemon/sandbox'
+import { mountPresent, WEB_PROJECT_DIR } from '../../../daemon/sandbox'
+import { sessionContainer } from '../../../daemon/session-sandbox'
+import { workspaceRunning } from '../../../daemon/workspace'
 import { requireProject } from '../../../stores/projects'
 import { listSessionsInEnvState } from '../../../stores/sessions'
 
@@ -52,7 +54,9 @@ export default defineEventHandler(async (event) => {
   const upSessions = listSessionsInEnvState('up', { projectId: id })
   await Promise.all(upSessions.map(async (session) => {
     if (sessionHasActiveWork(session.id)) return
-    if (await webMountPresent(session.id, `${WEB_PROJECT_DIR}/${target}`)) return
+    // A workspace reads its mounts when it next starts.
+    if (session.tier === 'code' && !await workspaceRunning(session.id)) return
+    if (await mountPresent(sessionContainer(session.id), `${WEB_PROJECT_DIR}/${target}`)) return
     await rebootEnv(session.id).catch(() => {})
   }))
 

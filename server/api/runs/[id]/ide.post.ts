@@ -1,5 +1,5 @@
 import { ideMountMissing, ideStaged, startRunIde } from '../../../daemon/ide'
-import { rebootEnv } from '../../../daemon/envs'
+import { rebootEnv, reviveEnv } from '../../../daemon/envs'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { requireSession } from '../../../stores/sessions'
 import { requireRun } from '../../../stores/runs'
@@ -11,6 +11,10 @@ export default defineEventHandler(async (event) => {
   if (session.envState !== 'up') {
     throw createError({ statusCode: 409, statusMessage: 'Boot or reboot the environment first.' })
   }
+
+  await reviveEnv(session.id).catch((e: Error) => {
+    throw createError({ statusCode: 409, statusMessage: e.message })
+  })
 
   // Envs booted before the IDE download finished lack the mount. Not while
   // work is executing: recreating the web container would kill it.
