@@ -322,9 +322,14 @@ async function wireNetworks(sessionId: number): Promise<void> {
 }
 
 async function attachBridgeHost(sessionId: number): Promise<void> {
-  const network = sessionNetwork(sessionId)
+  await attachKnecht(sessionNetwork(sessionId))
+}
+
+// Docker otherwise picks the default gateway by network name: a session network
+// sorting before Knecht's own reroutes its replies and drops every open dashboard connection.
+export async function attachKnecht(network: string): Promise<void> {
   const self = await knechtContainer()
-  if (self) await execa('docker', ['network', 'connect', '--alias', BRIDGE_HOST, network, self]).catch(() => {})
+  if (self) await execa('docker', ['network', 'connect', '--alias', BRIDGE_HOST, '--gw-priority', '-1', network, self]).catch(() => {})
 }
 
 // An attached Knecht keeps ddev from removing the session network on stop.

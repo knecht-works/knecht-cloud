@@ -53,6 +53,7 @@ Knecht is self hosted on your own server. You own your data.
 ### Requirements
 
 - A Linux host used only for Knecht: Ubuntu 22.04, 24.04 or 26.04, or Debian 12 or 13, amd64 or arm64, at least 4 GB RAM and 40 GB disk (8 GB RAM and 80 GB disk are comfortable). A cheap VPS is fine (e.g. a Hetzner CX23 or CX33). A Mac (e.g. a Mac mini) works too, via the Lima VM described below. Keep the host free of other Docker setups: Knecht boots ddev projects on the host daemon and expects ports 80/443 for its own entry point.
+- Docker 28 or newer. The installer installs it on a host without Docker; an existing older Docker must be upgraded first.
 - A domain (or subdomain) for the instance. You will point two DNS records at the server.
 
 ### Install
