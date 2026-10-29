@@ -101,7 +101,12 @@ describe('writeDdevConfig', () => {
         'XDEBUG_MODE=off',
         ...cacheEnv,
         '__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.lvh.me',
+        'VIRTUAL_HOST=knecht-run-7.ddev.site,7.preview.lvh.me,alpha--7.preview.lvh.me',
       ])
+      // The site calls its own preview URL from inside the container: the hostnames point back at it and the dashboard port reaches nginx.
+      expect(doc.web_extra_daemons).toEqual([{ name: 'knecht-loopback', command: 'knecht-forward 3333 80', directory: '/var/www/html' }])
+      const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
+      expect(compose.services.web.extra_hosts).toEqual(['7.preview.lvh.me:127.0.0.1', 'alpha--7.preview.lvh.me:127.0.0.1'])
     }
     finally {
       vi.unstubAllEnvs()
@@ -112,7 +117,9 @@ describe('writeDdevConfig', () => {
     const dir = checkout()
     expect((await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).injected).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
-    expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', 'KNECHT_INTERNAL_URL=http://localhost', ...previewDdevEnv, ...cacheEnv, '__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.knecht.test'])
+    expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', 'KNECHT_INTERNAL_URL=http://localhost', ...previewDdevEnv, ...cacheEnv, '__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.knecht.test', 'VIRTUAL_HOST=knecht-run-7.ddev.site,7.preview.knecht.test'])
+    // A preview URL on the web server's own port needs no forwarder.
+    expect(doc.web_extra_daemons).toBeUndefined()
   })
 
   it('frees pinned host ports with real distinct ports (a shared "0" collides in ddev\'s own port bookkeeping) and switches xdebug off, unless the project says otherwise', async () => {

@@ -151,22 +151,53 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
   // that runs Vite itself behind its nginx sees the preview host, so it needs it too.
   const viteUrl = session.KNECHT_DEV_SERVER_URL ?? session.KNECHT_PREVIEW_URL
   if (viteUrl) environment.push(`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=${new URL(viteUrl).hostname}`)
+  const daemons: { name: string, command: string, directory: string }[] = []
   if (devServer !== null) {
-    doc.web_extra_daemons = [
+    daemons.push(
       { name: 'knecht-dev', command: devDaemonCommand(devServer.command), directory: WEB_PROJECT_DIR },
       { name: 'knecht-forward', command: `knecht-forward ${PREVIEW_FORWARD_PORT} ${devServer.port}`, directory: WEB_PROJECT_DIR },
-    ]
+    )
   }
+  const loopback = urlMode === 'env' ? previewLoopback(session, env.source === 'ddev' ? 80 : devServer?.port ?? null) : null
+  if (loopback) {
+    environment.push(`VIRTUAL_HOST=${[`${name}.ddev.site`, ...loopback.hosts].join(',')}`)
+    if (loopback.forward) daemons.push({ name: 'knecht-loopback', command: `knecht-forward ${loopback.forward.from} ${loopback.forward.to}`, directory: WEB_PROJECT_DIR })
+  }
+  if (daemons.length) doc.web_extra_daemons = daemons
   if (environment.length) doc.web_environment = environment
   const marker = '#ddev-silent-no-warn\n'
   changed = syncKnechtConfig(join(ddevDir, KNECHT_CONFIG_FILE), marker + stringify(doc)) || changed
   changed = syncFile(join(ddevDir, KNECHT_COMPOSE_FILE), marker + stringify(composeOverride({
     hasDb: env.hasDb.value,
     sharedMounts: shared ? sharedFolderMounts(shared) : [],
+    extraHosts: loopback?.hosts.map(host => `${host}:127.0.0.1`) ?? [],
   }))) || changed
   for (const legacy of LEGACY_OVERRIDE_FILES) changed = removeFile(join(ddevDir, legacy)) || changed
   if (env.hasDb.value && !env.database.value?.startsWith('postgres:')) changed = writeLowmemDbConfig(checkoutDir, marker) || changed
   return { injected: envVars.length, devServerPort: devServer?.port ?? null, changed }
+}
+
+interface PreviewLoopback {
+  hosts: string[]
+  forward: { from: number, to: number } | null
+}
+
+// A site that calls its own public URL from inside the container (SSR data fetches,
+// sitemap builders) must land on its own web server, as the ddev.site hostname does
+// locally. The preview hostnames resolve to the container itself (compose extra_hosts),
+// go into ddev's in-container certificate (VIRTUAL_HOST, read by its start script), and a
+// dashboard port other than the web server's is forwarded. The dev origin shares the
+// forward: a TCP forwarder cannot tell hosts apart, and nothing fetches its own dev server.
+function previewLoopback(session: Record<string, string>, webPort: number | null): PreviewLoopback | null {
+  if (!session.KNECHT_PREVIEW_URL || webPort === null) return null
+  const hosts = [...new Set(Object.entries(session)
+    .filter(([key]) => key === 'KNECHT_PREVIEW_URL' || key === 'KNECHT_DEV_SERVER_URL' || key.startsWith('KNECHT_URL_'))
+    .map(([, value]) => new URL(value).hostname))]
+  const url = new URL(session.KNECHT_PREVIEW_URL)
+  const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80))
+  const served = webPort === 80 ? [80, 443] : [webPort]
+  const forward = url.protocol === 'http:' && !served.includes(port) ? { from: port, to: webPort } : null
+  return { hosts, forward }
 }
 
 // ddev leaves DDEV_PRIMARY_URL, DDEV_HOSTNAME and DDEV_SCHEME empty without the
@@ -312,7 +343,7 @@ function sharedFolderMounts(shared: SharedFolderConfig): { host: string, dest: s
 
 // Tool mounts only work because the tools dir is mounted at the same path inside
 // the Knecht container. A db entry without an image is a compose error when ddev omits the db.
-function composeOverride({ hasDb, sharedMounts }: { hasDb: boolean, sharedMounts: { host: string, dest: string }[] }): Record<string, unknown> {
+function composeOverride({ hasDb, sharedMounts, extraHosts }: { hasDb: boolean, sharedMounts: { host: string, dest: string }[], extraHosts: string[] }): Record<string, unknown> {
   const tools = toolsDir()
   const toolMounts = [
     { host: join(tools, 'opencode'), dest: '/usr/local/bin/opencode' },
@@ -337,6 +368,7 @@ function composeOverride({ hasDb, sharedMounts }: { hasDb: boolean, sharedMounts
         mem_limit: WEB_MEM_LIMIT,
         pids_limit: WEB_PIDS_LIMIT,
         ...(volumes.length ? { volumes } : {}),
+        ...(extraHosts.length ? { extra_hosts: extraHosts } : {}),
       },
       ...(hasDb ? { db: { mem_limit: DB_MEM_LIMIT } } : {}),
     },
