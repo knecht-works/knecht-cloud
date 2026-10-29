@@ -65,6 +65,7 @@ describe('writeDdevConfig', () => {
       'KNECHT_INTERNAL_URL=http://localhost',
       ...previewDdevEnv,
       ...cacheEnv,
+      '__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.knecht.test',
     ])
   })
 
@@ -99,6 +100,7 @@ describe('writeDdevConfig', () => {
         'DDEV_HOSTNAME=7.preview.lvh.me,alpha--7.preview.lvh.me',
         'XDEBUG_MODE=off',
         ...cacheEnv,
+        '__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.lvh.me',
       ])
     }
     finally {
@@ -110,7 +112,7 @@ describe('writeDdevConfig', () => {
     const dir = checkout()
     expect((await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).injected).toBe(0)
     const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
-    expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', 'KNECHT_INTERNAL_URL=http://localhost', ...previewDdevEnv, ...cacheEnv])
+    expect(doc.web_environment).toEqual(['KNECHT_PREVIEW_URL=http://7.preview.knecht.test', 'KNECHT_INTERNAL_URL=http://localhost', ...previewDdevEnv, ...cacheEnv, '__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.knecht.test'])
   })
 
   it('frees pinned host ports with real distinct ports (a shared "0" collides in ddev\'s own port bookkeeping) and switches xdebug off, unless the project says otherwise', async () => {
