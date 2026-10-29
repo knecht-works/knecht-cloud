@@ -11,14 +11,20 @@ vi.mock('../../server/daemon/sandbox', () => ({
   stopEnvStack: (runId: number) => stopEnvStack(runId),
 }))
 
+const removeWorkspace = vi.fn(async (_sessionId: number) => {})
+vi.mock('../../server/daemon/workspace', () => ({
+  ensureWorkspaceUp: async () => {},
+  removeWorkspace: (sessionId: number) => removeWorkspace(sessionId),
+}))
+
 const { db, schema } = await import('../../server/db')
 const { reapIdleEnvs } = await import('../../server/daemon/envs')
 
-function makeUpRun(previewLastSeen: Date) {
+function makeUpRun(previewLastSeen: Date, tier: 'code' | 'preview' = 'preview') {
   const project = makeProject()
   const run = makeRun(project, [])
   db.update(schema.sessions)
-    .set({ envState: 'up', previewLastSeen })
+    .set({ envState: 'up', tier, previewLastSeen })
     .where(eq(schema.sessions.id, run.sessionId))
     .run()
   return run
@@ -34,6 +40,15 @@ describe('reapIdleEnvs', () => {
     expect(stopEnvStack).toHaveBeenCalledWith(stale.sessionId)
     expect(getSessionRow(stale.sessionId).envState).toBe('stopped')
     expect(getSessionRow(fresh.sessionId).envState).toBe('up')
+  })
+
+  it('stops a stale code session by removing its workspace, never touching ddev', async () => {
+    const code = makeUpRun(STALE, 'code')
+    stopEnvStack.mockClear()
+    await reapIdleEnvs()
+    expect(removeWorkspace).toHaveBeenCalledWith(code.sessionId)
+    expect(stopEnvStack).not.toHaveBeenCalledWith(code.sessionId)
+    expect(getSessionRow(code.sessionId).envState).toBe('stopped')
   })
 
   it('spares a stale env with a running step and resets its idle clock', async () => {

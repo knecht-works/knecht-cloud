@@ -7,14 +7,13 @@ const noBoot = [{ type: 'create-pr' }] as Step[]
 
 describe('runHasEnv', () => {
   it('a run without a boot step shows the env its session already has', () => {
-    expect(runHasEnv('up', noBoot)).toBe(true)
-    expect(runHasEnv('stopped', noBoot)).toBe(true)
-    expect(runHasEnv('archived', null)).toBe(true)
+    expect(runHasEnv('preview', noBoot)).toBe(true)
+    expect(runHasEnv('preview', null)).toBe(true)
   })
 
   it('with nothing booted only the run that boots counts', () => {
-    expect(runHasEnv('down', boot)).toBe(true)
-    expect(runHasEnv('down', noBoot)).toBe(false)
-    expect(runHasEnv('down', null)).toBe(false)
+    expect(runHasEnv('code', boot)).toBe(true)
+    expect(runHasEnv('code', noBoot)).toBe(false)
+    expect(runHasEnv('code', null)).toBe(false)
   })
 })

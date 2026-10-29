@@ -379,6 +379,20 @@
       "when": 1793131172089,
       "tag": "0053_project-database",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "6",
+      "when": 1793270981410,
+      "tag": "0054_session-tier",
+      "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "6",
+      "when": 1793270981860,
+      "tag": "0055_drop-preview-ready",
+      "breakpoints": true
     }
   ]
 }

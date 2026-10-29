@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { execa, type Options } from 'execa'
 import { toSandboxProcess, type SandboxProcess } from '../../server/daemon/sandbox-process'
 import type { Project } from '../../server/db/schema'
+import type { ActionRuntime } from '../../server/workflows/actions/types'
 
 // Keyed by runId so a resumed run gets the same dir back, marker files included.
 const checkouts = new Map<number, string>()
@@ -69,4 +70,14 @@ export function spawnInSandbox(runId: number, command: string[], env?: Record<st
     env: { ...env },
     stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', buffer: false, reject: false,
   }))
+}
+
+export function sessionSandbox(runId: number, log: (text: string) => void, signal?: AbortSignal): ActionRuntime['sandbox'] {
+  return {
+    projectDir: '/var/www/html',
+    ensureUp: async () => {},
+    stream: (command, opts) => streamInSandbox(runId, command, log, opts?.env, signal),
+    spawn: (command, opts) => spawnInSandbox(runId, command, opts?.env),
+    copyIn: (hostPath, sandboxPath) => copyIntoSandbox(runId, hostPath, sandboxPath),
+  }
 }

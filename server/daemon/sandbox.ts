@@ -204,10 +204,14 @@ export function execInSandbox(sessionId: number, command: string[], options?: Op
   if (command[0] === 'ddev') {
     return execDdev(sessionId, command.slice(1), { ...options, env: { ...(options?.env as Record<string, string> | undefined), ...env } })
   }
-  return execa('docker', dockerExecArgs(sessionId, command, env), options)
+  return execInContainer(webContainerName(sessionId), command, options, env)
 }
 
-function dockerExecArgs(sessionId: number, command: string[], env?: Record<string, string>, flags: string[] = []): string[] {
+function execInContainer(container: string, command: string[], options?: Options, env?: Record<string, string>) {
+  return execa('docker', dockerExecArgs(container, command, env), options)
+}
+
+function dockerExecArgs(container: string, command: string[], env?: Record<string, string>, flags: string[] = []): string[] {
   return [
     'exec', ...flags, '-u', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
     '-w', WEB_PROJECT_DIR,
@@ -215,26 +219,33 @@ function dockerExecArgs(sessionId: number, command: string[], env?: Record<strin
     '-e', `XDG_DATA_HOME=${KNECHT_STATE_DIR}/data`,
     '-e', 'NO_COLOR=1',
     ...Object.entries(env ?? {}).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
-    webContainerName(sessionId),
+    container,
     '/bin/sh', '-c', EXEC_WRAPPER, 'knecht-exec', ...command,
   ]
 }
 
 // `-i` keeps stdin open: the process is a peer that speaks a protocol over stdio.
-export function spawnInSandbox(sessionId: number, command: string[], env?: Record<string, string>): SandboxProcess {
-  return toSandboxProcess(execa('docker', dockerExecArgs(sessionId, command, env, ['-i']), {
+export function spawnInContainer(container: string, command: string[], env?: Record<string, string>): SandboxProcess {
+  return toSandboxProcess(execa('docker', dockerExecArgs(container, command, env, ['-i']), {
     stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', buffer: false, reject: false,
   }))
 }
 
-export async function copyIntoSandbox(sessionId: number, file: string, dest: string): Promise<void> {
-  await execa('docker', ['cp', file, `${webContainerName(sessionId)}:${dest}`])
+export async function copyIntoContainer(container: string, file: string, dest: string): Promise<void> {
+  await execa('docker', ['cp', file, `${container}:${dest}`])
 }
 
 const STREAM_TAIL_CHARS = 128 * 1024
 
 export function streamInSandbox(sessionId: number, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
-  const sub = execInSandbox(sessionId, command, { reject: false, buffer: false, cancelSignal: signal }, env)
+  return streamOutput(execInSandbox(sessionId, command, { reject: false, buffer: false, cancelSignal: signal }, env), log)
+}
+
+export function streamInContainer(container: string, command: string[], log: (text: string) => void, env?: Record<string, string>, signal?: AbortSignal): Promise<{ code: number, tail: string }> {
+  return streamOutput(execInContainer(container, command, { reject: false, buffer: false, cancelSignal: signal }, env), log)
+}
+
+function streamOutput(sub: ReturnType<typeof execa>, log: (text: string) => void): Promise<{ code: number, tail: string }> {
   const chunks: string[] = []
   let size = 0
   const capture = (d: Buffer) => {

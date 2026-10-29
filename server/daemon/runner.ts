@@ -14,8 +14,10 @@ import { getIntegration } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
-import { copyIntoSandbox, spawnInSandbox, startEnvStack, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
-import { ensureEnvUp } from './envs'
+import { startEnvStack } from './sandbox'
+import { removeWorkspace } from './workspace'
+import { markCheckedOut, reviveEnv } from './envs'
+import { sessionSandbox } from './session-sandbox'
 import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession, closeObjectlessSession } from '../stores/sessions'
 import { appendRunLog, claimQueuedRun, finishRun, getRun, runLogBytes, updateRun } from '../stores/runs'
@@ -88,9 +90,15 @@ async function execRun(runId: number, project: Project): Promise<void> {
     }
 
     const sessionId = session.id
+    // A boot step promotes only an up session.
+    if (session.envState === 'archived' || session.envState === 'stopped') {
+      log(`▶ Bringing the session back\n`)
+      await reviveEnv(sessionId, log)
+    }
     log(`▶ Preparing isolated checkout\n`)
     const token = await getInstallationToken(project.owner, project.name)
     const dir = await prepareSessionCheckout(project, sessionId, token, log, session.branch ?? run.branch ?? project.defaultBranch)
+    markCheckedOut(sessionId)
 
     // urlMode is pinned on the first run: the proxy must match the env baked into
     // the environment even if the project setting changes later.
@@ -106,7 +114,8 @@ async function execRun(runId: number, project: Project): Promise<void> {
     for (const warning of warnings) log(`Warning: ${warning}\n`)
     if (changed && session.envState === 'up') {
       log(`Environment definition changed: applying it\n`)
-      await startEnvStack(sessionId, log)
+      if (session.tier === 'preview') await startEnvStack(sessionId, log)
+      else await removeWorkspace(sessionId)
     }
 
     const ctx = createContext(runId, project, run.inputs ?? {})
@@ -119,13 +128,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
       ctx,
       log,
       signal: controller.signal,
-      sandbox: {
-        projectDir: WEB_PROJECT_DIR,
-        ensureUp: () => ensureEnvUp(sessionId, log),
-        stream: (command, opts) => streamInSandbox(sessionId, command, log, opts?.env, controller.signal),
-        spawn: (command, opts) => spawnInSandbox(sessionId, command, opts?.env),
-        copyIn: (hostPath, sandboxPath) => copyIntoSandbox(sessionId, hostPath, sandboxPath),
-      },
+      sandbox: sessionSandbox(sessionId, log, controller.signal),
     }
     await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
@@ -293,10 +296,7 @@ function runActionTimed(
   const timedRt: ActionRuntime = {
     ...rt,
     signal,
-    sandbox: {
-      ...rt.sandbox,
-      stream: (command, opts) => streamInSandbox(rt.sessionId, command, rt.log, opts?.env, signal),
-    },
+    sandbox: sessionSandbox(rt.sessionId, rt.log, signal),
   }
   return new Promise((resolve, reject) => {
     const onTimeout = () => reject(new Error(`Step timed out after ${timeoutSeconds}s`))

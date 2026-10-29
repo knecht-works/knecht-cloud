@@ -11,8 +11,8 @@ import { transcriptSink } from '../utils/agent-items'
 import { emitFollowup } from '../utils/transcript'
 import { notice } from './agent'
 import { currentBranch } from './git'
-import { copyIntoSandbox, spawnInSandbox, streamInSandbox, WEB_PROJECT_DIR } from './sandbox'
-import { ensureEnvUp, reviveEnv } from './envs'
+import { reviveEnv } from './envs'
+import { sessionSandbox } from './session-sandbox'
 import { COMPACT_COMMAND } from '../../shared/utils/followup'
 import { followupAttachmentsDir, SANDBOX_ATTACHMENTS_DIR, sandboxAttachmentPath } from '../utils/attachments'
 import { getProject } from '../stores/projects'
@@ -94,13 +94,7 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
     ctx: createContext(run.id, project, run.inputs ?? {}),
     log,
     signal: controller.signal,
-    sandbox: {
-      projectDir: WEB_PROJECT_DIR,
-      ensureUp: () => ensureEnvUp(session.id),
-      stream: (command, opts) => streamInSandbox(session.id, command, () => {}, opts?.env, controller.signal),
-      spawn: (command, opts) => spawnInSandbox(session.id, command, opts?.env),
-      copyIn: (hostPath, sandboxPath) => copyIntoSandbox(session.id, hostPath, sandboxPath),
-    },
+    sandbox: sessionSandbox(session.id, () => {}, controller.signal),
   }
 
   if (followup.prompt === COMPACT_COMMAND) return compactAgentSession(rt, sink, followup.model)

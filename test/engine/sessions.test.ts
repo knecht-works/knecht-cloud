@@ -149,7 +149,7 @@ describe('withSessionLinks', () => {
     const project = makeProject()
     const run = makeRun(project, [])
     db.update(schema.sessions)
-      .set({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5', previewReady: true })
+      .set({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5', tier: 'preview' })
       .where(eq(schema.sessions.id, run.sessionId))
       .run()
 
@@ -164,7 +164,7 @@ describe('withSessionLinks', () => {
     const project = makeProject()
     const run = makeRun(project, [], { prUrl: 'https://x/pull/9' })
     db.update(schema.sessions)
-      .set({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '9', previewReady: true })
+      .set({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '9', tier: 'preview' })
       .where(eq(schema.sessions.id, run.sessionId))
       .run()
 

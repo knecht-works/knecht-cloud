@@ -71,6 +71,17 @@ export function updateSession(id: number, patch: Partial<NewSession>): void {
   sessionChanged(id)
 }
 
+// Compare-and-set: false when another writer moved the session first.
+export function moveSession(id: number, from: Partial<Pick<Session, 'envState' | 'tier'>>, patch: Partial<NewSession>): boolean {
+  const moved = db.update(schema.sessions).set(patch).where(and(
+    eq(schema.sessions.id, id),
+    from.envState === undefined ? undefined : eq(schema.sessions.envState, from.envState),
+    from.tier === undefined ? undefined : eq(schema.sessions.tier, from.tier),
+  )).run().changes > 0
+  if (moved) sessionChanged(id)
+  return moved
+}
+
 // Silent: it runs on every proxied preview request and changes nothing the dashboard shows.
 export function touchSessionPreview(id: number): void {
   db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, id)).run()

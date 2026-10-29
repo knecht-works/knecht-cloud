@@ -5,6 +5,7 @@ import type { EnvState, EnvTransition } from '#shared/utils/run'
 interface RunSummary {
   status: RunStatus
   envState: EnvState
+  previewReady: boolean
   envTransition?: EnvTransition | null
   workflow: string
   createdAt: string | number | Date | null
@@ -114,7 +115,7 @@ const statusText = computed(() =>
     </div>
 
     <div class="flex w-12 flex-none items-center gap-1.5 text-primary">
-      <template v-if="latest?.envState === 'up'">
+      <template v-if="latest?.envState === 'up' && latest.previewReady">
         <UIcon
           name="i-lucide-globe"
           class="size-3.5"

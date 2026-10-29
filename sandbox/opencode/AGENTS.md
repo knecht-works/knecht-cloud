@@ -13,6 +13,9 @@ may add its own on top of them.
   `ddev npm`, `ddev craft`, `ddev artisan`, `ddev drush`, and the project's own
   commands from `.ddev/commands/web`. `ddev describe` shows the preview URLs and
   the database. Starting, stopping and importing databases are handled by Knecht.
+- If `ddev describe` shows no preview and no database, this session has none:
+  only the code and its tools are here. Do not try to start a server or a
+  database; a workflow gets them with a boot step.
 - To look at the running site yourself (curl, a headless browser, a link
   check), request `$KNECHT_INTERNAL_URL`, the site as served inside this
   container. `KNECHT_PREVIEW_URL` is the address for people: it needs a

@@ -12,13 +12,11 @@ vi.mock('../../server/daemon/git', async (importOriginal) => {
   const { fakeCheckout } = await import('../helpers/local-sandbox')
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
-vi.mock('../../server/daemon/sandbox', async () => {
-  const { execInSandbox, copyIntoSandbox, streamInSandbox, spawnInSandbox } = await import('../helpers/local-sandbox')
-  return { execInSandbox, copyIntoSandbox, streamInSandbox, spawnInSandbox, WEB_PROJECT_DIR: '/var/www/html' }
-})
+vi.mock('../../server/daemon/sandbox', () => ({}))
+vi.mock('../../server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
 const tornDown: number[] = []
 vi.mock('../../server/daemon/envs', () => ({
-  ensureEnvUp: async () => {},
+  markCheckedOut: () => {},
   teardownSession: async (sessionId: number) => { tornDown.push(sessionId) },
 }))
 vi.mock('../../server/utils/github-app', () => ({

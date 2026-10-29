@@ -14,7 +14,7 @@ const ACTIVE: RunStatus[] = ['queued', 'running']
 const runSessionColumns = {
   envState: schema.sessions.envState,
   previewHosts: schema.sessions.previewHosts,
-  previewReady: schema.sessions.previewReady,
+  tier: schema.sessions.tier,
   previewPort: schema.sessions.previewPort,
   projectEnv: schema.projects.ddevEnv,
   projectDevServer: schema.projects.devServer,

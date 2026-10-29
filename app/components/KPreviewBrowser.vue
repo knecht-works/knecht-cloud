@@ -5,7 +5,7 @@ const props = withDefaults(defineProps<{
   sessionId: number
   hosts?: string[]
   online?: boolean
-  busy?: 'booting' | EnvTransition | null
+  busy?: EnvTransition | null
 }>(), {
   hosts: () => [],
   online: false,
@@ -37,6 +37,11 @@ const BUSY_COPY: Record<NonNullable<typeof props.busy>, { label: string, address
     label: 'archiving',
     address: 'Knecht is archiving the environment…',
     text: 'Knecht is archiving the environment. Its code state and database are kept.',
+  },
+  expiring: {
+    label: 'expiring',
+    address: 'Knecht is deleting the archive…',
+    text: 'The archive passed its retention period and is being deleted.',
   },
 }
 const busyCopy = computed(() => props.busy ? BUSY_COPY[props.busy] : null)
