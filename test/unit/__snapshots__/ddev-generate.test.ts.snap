@@ -29,6 +29,7 @@ web_environment:
   - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
   - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
   - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.knecht.test
+  - VIRTUAL_HOST=knecht-run-7.ddev.site,7.preview.knecht.test,alpha--7.preview.knecht.test
 
 === .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
@@ -36,6 +37,9 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    extra_hosts:
+      - 7.preview.knecht.test:127.0.0.1
+      - alpha--7.preview.knecht.test:127.0.0.1
   db:
     mem_limit: 1g
 
@@ -156,6 +160,9 @@ web_extra_daemons:
   - name: knecht-forward
     command: knecht-forward 41000 3000
     directory: /var/www/html
+  - name: knecht-loopback
+    command: knecht-forward 80 3000
+    directory: /var/www/html
 web_environment:
   - KNECHT_PREVIEW_URL=http://42.preview.knecht.test
   - KNECHT_INTERNAL_URL=http://localhost:3000
@@ -171,6 +178,7 @@ web_environment:
   - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
   - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
   - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=42.preview.knecht.test
+  - VIRTUAL_HOST=knecht-run-42.ddev.site,42.preview.knecht.test
 
 === .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
@@ -178,6 +186,8 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    extra_hosts:
+      - 42.preview.knecht.test:127.0.0.1
 "
 `;
 
