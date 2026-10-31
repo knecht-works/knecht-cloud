@@ -228,15 +228,17 @@ export const linear: Integration = {
         const self = requireSelf()
         const { assignee, creator } = await getLinearIssue(object.key)
         // Somebody took the issue from Knecht meanwhile: it is theirs.
-        if (assignee?.id !== self) return `left ${object.key} with ${assignee?.name ?? 'nobody'}`
+        if (assignee?.id !== self) {
+          return { summary: `left ${object.key} with ${assignee?.name ?? 'nobody'}`, holder: assignee ? { id: assignee.id, name: assignee.name ?? '' } : null }
+        }
         const candidates = [to, creator?.id && creator.id !== self ? { id: creator.id, name: creator.name ?? '' } : null]
         for (const person of candidates) {
           if (person && await updateLinearIssue(object.key, { assigneeId: person.id }).then(() => true, () => false)) {
-            return `handed ${object.key} back to ${person.name}`
+            return { summary: `handed ${object.key} back to ${person.name}`, holder: person }
           }
         }
         await updateLinearIssue(object.key, { assigneeId: null })
-        return `left ${object.key} unassigned`
+        return { summary: `left ${object.key} unassigned`, holder: null }
       },
     },
   },

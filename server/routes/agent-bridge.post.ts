@@ -5,7 +5,7 @@ import { z } from 'zod'
 import type { Session } from '../db/schema'
 import { currentBranch, pushBranch } from '../daemon/git'
 import { getIntegration, type Integration } from '../integrations'
-import { applyLabels, moveToStatus } from '../integrations/capabilities'
+import { addressee, applyLabels, moveToStatus } from '../integrations/capabilities'
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { createPullRequest, getInstallationToken } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
@@ -102,7 +102,7 @@ export default defineEventHandler(async (event) => {
       case 'comment': {
         const { integration, object, label } = requireObject(session)
         requireRepliesEnabled(sessionId)
-        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId), getRunningFollowup(sessionId)?.replyTo))
+        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId), getRunningFollowup(sessionId)?.replyTo ?? addressee(getRunningSessionRun(sessionId)?.actor)))
         recordAgentReply(sessionId)
         log(`\nagent-reply: commented on ${label}\n`)
         return reply(event, 200, `posted the reply on ${label}${comment.url ? `: ${comment.url}` : ''}`)

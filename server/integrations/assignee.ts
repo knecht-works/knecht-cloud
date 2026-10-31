@@ -1,7 +1,7 @@
 import type { Project, Session } from '../db/schema'
 import { describeObject, sessionHasActiveWork, sessionObject, type SessionObject } from '../utils/sessions'
 import { getIntegration } from '.'
-import type { Integration } from './types'
+import type { CommentAuthor, Integration } from './types'
 import { getRun, latestSessionActor, updateRun } from '../stores/runs'
 
 type Log = (text: string) => void
@@ -31,13 +31,17 @@ export async function takeObject(session: Session, runId: number, project: Proje
   }
 }
 
-export async function handBackObject(session: Session, runId: number, project: Project, log: Log): Promise<void> {
+// Answers who holds the object afterwards.
+export async function handBackObject(session: Session, runId: number, project: Project, log: Log): Promise<CommentAuthor | null> {
   const target = held(session)
-  if (!target || sessionHasActiveWork(session.id)) return
+  if (!target || sessionHasActiveWork(session.id)) return null
   try {
-    log(`${await target.assignee.handBack(project, target.object, getRun(runId)?.actor ?? null)}\n`)
+    const { summary, holder } = await target.assignee.handBack(project, target.object, getRun(runId)?.actor ?? null)
+    log(`${summary}\n`)
+    return holder
   }
   catch (e) {
     log(`Could not hand back ${describeObject(target.object)}: ${(e as Error).message}\n`)
+    return null
   }
 }

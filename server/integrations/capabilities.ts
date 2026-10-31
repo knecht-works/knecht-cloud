@@ -1,8 +1,12 @@
 import type { Project } from '../db/schema'
 import type { SessionObject } from '../utils/sessions'
-import type { Integration } from './types'
+import type { CommentAuthor, Integration, ReplyTarget } from './types'
 
 const list = (names: string[]) => names.join(', ') || '(none)'
+
+export function addressee(person: CommentAuthor | null | undefined): ReplyTarget | null {
+  return person ? { thread: null, person } : null
+}
 
 export async function applyLabels(integration: Integration, project: Project, object: SessionObject, add: string[], remove: string[]): Promise<string> {
   const labels = integration.capabilities.labels

@@ -247,7 +247,7 @@ export const followups = sqliteTable('followups', {
     .default(sql`'[]'`),
   requestedBy: text('requested_by'),
   // The comment a mention follow-up answers.
-  replyTo: text('reply_to', { mode: 'json' }).$type<{ thread: string | null, author: { id: string, name: string } }>(),
+  replyTo: text('reply_to', { mode: 'json' }).$type<{ thread: string | null, person: { id: string, name: string } }>(),
   origin: text('origin', { enum: ['dashboard', 'mention'] })
     .notNull()
     .default('dashboard'),

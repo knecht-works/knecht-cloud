@@ -198,7 +198,7 @@ export const jira: Integration = {
   capabilities: {
     async comment(_project, object, body, replyTo) {
       const doc = markdownToAdf(body, participants(await getJiraIssueFields(object.key)))
-      return addJiraComment(object.key, replyTo ? addressedTo(doc, replyTo.author) : doc, replyTo?.thread)
+      return addJiraComment(object.key, replyTo ? addressedTo(doc, replyTo.person) : doc, replyTo?.thread)
     },
 
     labels: {
@@ -225,15 +225,17 @@ export const jira: Integration = {
         const self = requireSelf()
         const { assignee, reporter } = await getJiraIssuePeople(object.key)
         // Somebody took the ticket from Knecht meanwhile: it is theirs.
-        if (assignee?.accountId !== self) return `left ${object.key} with ${assignee?.displayName ?? 'nobody'}`
+        if (assignee?.accountId !== self) {
+          return { summary: `left ${object.key} with ${assignee?.displayName ?? 'nobody'}`, holder: assignee?.accountId ? { id: assignee.accountId, name: assignee.displayName ?? '' } : null }
+        }
         const candidates = [to, reporter?.accountId && reporter.accountId !== self ? { id: reporter.accountId, name: reporter.displayName ?? '' } : null]
         for (const person of candidates) {
           if (person && await assignJiraIssue(object.key, person.id).then(() => true, () => false)) {
-            return `handed ${object.key} back to ${person.name}`
+            return { summary: `handed ${object.key} back to ${person.name}`, holder: person }
           }
         }
         await assignJiraIssue(object.key, null)
-        return `left ${object.key} unassigned`
+        return { summary: `left ${object.key} unassigned`, holder: null }
       },
     },
   },

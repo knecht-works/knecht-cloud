@@ -10,8 +10,9 @@ import { sessionSandboxName } from '../utils/storage'
 import { getInstallationToken } from '../utils/github-app'
 import { dashboardOrigin } from '../utils/origin'
 import { agentRepliedSince, describeObject, sessionObject } from '../utils/sessions'
-import { getIntegration } from '../integrations'
+import { getIntegration, type CommentAuthor } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
+import { addressee } from '../integrations/capabilities'
 import { prepareSessionCheckout } from './git'
 import { configureSessionEnv } from './ddev'
 import { startEnvStack } from './sandbox'
@@ -134,8 +135,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     log(`\n✓ Done\n`)
     finishRun(runId, 'success')
     closeObjectlessSession(session.id)
-    await notifyRunFinished(runId, project, session, 'success', log)
-    await handBackObject(session, runId, project, log)
+    await notifyRunFinished(runId, project, session, 'success', log, await handBackObject(session, runId, project, log))
   }
   catch (e) {
     const cancelled = controller.signal.aborted
@@ -143,8 +143,8 @@ async function execRun(runId: number, project: Project): Promise<void> {
     finishRun(runId, cancelled ? 'cancelled' : 'failed')
     if (!cancelled) void diagnoseRunFailure(runId)
     closeObjectlessSession(session.id)
-    if (!cancelled) await notifyRunFinished(runId, project, session, 'failed', log)
-    await handBackObject(session, runId, project, log)
+    const holder = await handBackObject(session, runId, project, log)
+    if (!cancelled) await notifyRunFinished(runId, project, session, 'failed', log, holder)
   }
   finally {
     controllers.delete(runId)
@@ -326,7 +326,7 @@ function capOutputs(outputs: Record<string, unknown> | undefined): Record<string
 
 // The integration's own write-back on the object (a ticket gets the PR link as a comment);
 // the workflow's replies toggle covers it like every other reply.
-async function notifyRunFinished(runId: number, project: Project, session: Session, status: 'success' | 'failed', log: (text: string) => void): Promise<void> {
+async function notifyRunFinished(runId: number, project: Project, session: Session, status: 'success' | 'failed', log: (text: string) => void, holder: CommentAuthor | null): Promise<void> {
   const object = sessionObject(session)
   const run = getRun(runId)
   if (!object || !run) return
@@ -340,8 +340,8 @@ async function notifyRunFinished(runId: number, project: Project, session: Sessi
   try {
     const { noun } = integration.runResult
     await integration.capabilities.comment(project, object, status === 'success'
-      ? `Knecht opened a pull request for this ${noun}: ${run.prUrl}`
-      : `Knecht could not finish the run for this ${noun}: ${dashboardOrigin()}${runWorkspacePath(project.id, run.id)}`)
+      ? `I opened a pull request for this ${noun}: ${run.prUrl}`
+      : `I could not finish the run for this ${noun}: ${dashboardOrigin()}${runWorkspacePath(project.id, run.id)}`, addressee(holder ?? run.actor))
   }
   catch (e) {
     log(`Could not report the result on ${describeObject(object)}: ${(e as Error).message}\n`)

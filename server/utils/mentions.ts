@@ -19,7 +19,7 @@ export async function handleMention(integration: Integration, project: Project, 
   void integration.mentions.acknowledge?.(project, comment).catch(() => {})
 
   const session = resolveSession(project, object, null)
-  const replyTo: ReplyTarget = { thread: comment.thread ?? null, author: comment.author }
+  const replyTo: ReplyTarget = { thread: comment.thread ?? null, person: comment.author }
 
   if (session.envState === 'down' && !sessionHasActiveWork(session.id)) {
     const starter = project.starterWorkflowId ? getWorkflowRow(project.starterWorkflowId) : undefined
@@ -54,13 +54,13 @@ function queueMentionRun(project: Project, session: Session, prompt: string, rep
     kind: 'mention',
     trigger: 'mention',
     branch: session.branch ?? project.defaultBranch,
-    actor: replyTo.author,
+    actor: replyTo.person,
   }).id
   const followup = createFollowup({
     sessionId: session.id,
     runId,
     prompt,
-    requestedBy: replyTo.author.name,
+    requestedBy: replyTo.person.name,
     replyTo,
     origin: 'mention',
   })
