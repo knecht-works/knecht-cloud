@@ -5,7 +5,7 @@ import { linear } from './linear'
 import { plane } from './plane'
 import type { Integration } from './types'
 
-export type { CommentAuthor, DeliveryRecord, Integration, LinkTarget, TriggerMatch, WebhookComment, WebhookDelivery, WebhookHeaders } from './types'
+export type { CommentAuthor, DeliveryRecord, Integration, LinkTarget, ReplyTarget, TriggerMatch, WebhookComment, WebhookDelivery, WebhookHeaders } from './types'
 
 export const INTEGRATIONS: readonly Integration[] = [github, jira, plane, linear]
 

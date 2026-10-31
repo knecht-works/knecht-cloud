@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adfMentionIds, adfToMarkdown, markdownToAdf } from '../../server/integrations/jira/adf'
+import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from '../../server/integrations/jira/adf'
 
 describe('markdownToAdf', () => {
   it('round-trips the subset Knecht replies use', () => {
@@ -61,5 +61,25 @@ describe('adfMentionIds', () => {
     }
     expect(adfMentionIds(doc)).toEqual(['a1', 'b2'])
     expect(adfMentionIds(null)).toEqual([])
+  })
+})
+
+describe('addressedTo', () => {
+  const ann = { id: 'a1', name: 'Ann Example' }
+  const mention = { type: 'mention', attrs: { id: 'a1', text: '@Ann Example' } }
+
+  it('opens the first paragraph with a mention of the person', () => {
+    expect(adfToMarkdown(addressedTo(markdownToAdf('Fixed it.\n\nSee the PR.'), ann))).toBe('@Ann Example Fixed it.\n\nSee the PR.')
+  })
+
+  it('puts the mention in its own paragraph before a heading or list', () => {
+    const doc = addressedTo(markdownToAdf('# Result\n\nDone.'), ann)
+    expect(doc.content?.map(n => n.type)).toEqual(['paragraph', 'heading', 'paragraph'])
+    expect(doc.content?.[0]?.content?.[0]).toEqual(mention)
+  })
+
+  it('leaves a reply that already mentions the person alone', () => {
+    const doc = markdownToAdf('Done, @Ann Example.', [ann])
+    expect(addressedTo(doc, ann)).toBe(doc)
   })
 })

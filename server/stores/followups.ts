@@ -54,6 +54,12 @@ export function sessionHasActiveFollowup(sessionId: number): boolean {
     .get()
 }
 
+export function getRunningFollowup(sessionId: number): Followup | undefined {
+  return db.select().from(schema.followups)
+    .where(and(eq(schema.followups.sessionId, sessionId), eq(schema.followups.status, 'running')))
+    .get()
+}
+
 export function listRunningFollowupSessionIds(): number[] {
   return db.select({ sessionId: schema.followups.sessionId })
     .from(schema.followups)

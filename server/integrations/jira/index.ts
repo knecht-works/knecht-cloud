@@ -6,7 +6,7 @@ import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type Person, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import { adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
+import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
 import { addJiraComment, assignJiraIssue, forgetJiraCache, getJiraComment, getJiraIssuePeople, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
 import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from './credentials'
 
@@ -98,7 +98,7 @@ async function parseComment(object: SessionObject, payload: JiraPayload): Promis
   const id = payload.comment?.id
   if (id === undefined || id === null) return undefined
   const comment = await getJiraComment(object.key, String(id))
-  return trackerComment({
+  const parsed = trackerComment({
     id: comment.id,
     author: { id: comment.author.accountId, name: comment.author.displayName },
     body: adfToMarkdown(comment.body),
@@ -106,6 +106,8 @@ async function parseComment(object: SessionObject, payload: JiraPayload): Promis
     selfId: jiraCredentials()?.accountId,
     mentionedIds: adfMentionIds(comment.body),
   })
+  // A mention inside a thread is answered under the thread's top comment, never nested under the mention.
+  return { ...parsed, thread: comment.parentId ?? comment.id }
 }
 
 function requireSelf(): string {
@@ -194,7 +196,10 @@ export const jira: Integration = {
   },
 
   capabilities: {
-    comment: async (_project, object, body) => addJiraComment(object.key, markdownToAdf(body, participants(await getJiraIssueFields(object.key)))),
+    async comment(_project, object, body, replyTo) {
+      const doc = markdownToAdf(body, participants(await getJiraIssueFields(object.key)))
+      return addJiraComment(object.key, replyTo ? addressedTo(doc, replyTo.author) : doc, replyTo?.thread)
+    },
 
     labels: {
       list: listJiraLabels,

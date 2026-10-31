@@ -121,17 +121,19 @@ export interface JiraComment {
   id: string
   body: AdfNode | null
   author: { accountId: string, displayName: string }
+  parentId: string | null
 }
 
 // Fetched instead of read from the webhook payload: the REST v3 body is ADF, always.
 export async function getJiraComment(issueKey: string, commentId: string): Promise<JiraComment> {
-  const res = await jiraFetch<{ id?: string, body?: AdfNode | null, author?: { accountId?: string, displayName?: string } }>(
+  const res = await jiraFetch<{ id?: string, body?: AdfNode | null, author?: { accountId?: string, displayName?: string }, parentId?: number | string }>(
     `/issue/${encodeURIComponent(issueKey)}/comment/${encodeURIComponent(commentId)}`,
   )
   return {
     id: res.id ?? commentId,
     body: res.body ?? null,
     author: { accountId: res.author?.accountId ?? '', displayName: res.author?.displayName ?? '' },
+    parentId: res.parentId === undefined ? null : String(res.parentId),
   }
 }
 
@@ -167,10 +169,11 @@ export async function assignJiraIssue(issueKey: string, accountId: string | null
   await jiraFetch(`/issue/${encodeURIComponent(issueKey)}/assignee`, { method: 'PUT', body: { accountId } })
 }
 
-export async function addJiraComment(issueKey: string, body: AdfNode): Promise<{ url: string }> {
+// `parentId` makes a threaded reply; Jira accepts it although the REST docs do not list it.
+export async function addJiraComment(issueKey: string, body: AdfNode, parentId?: string | null): Promise<{ url: string }> {
   const res = await jiraFetch<{ id?: string }>(`/issue/${encodeURIComponent(issueKey)}/comment`, {
     method: 'POST',
-    body: { body },
+    body: parentId ? { body, parentId: Number(parentId) } : { body },
   })
   return { url: `${jiraIssueUrl(issueKey)}${res.id ? `?focusedCommentId=${res.id}` : ''}` }
 }

@@ -22,6 +22,14 @@ export interface WebhookComment {
   fromSelf: boolean
   mentionsKnecht: boolean
   object: SessionObject
+  // Where a reply goes; unset on tools whose comments have no threads.
+  thread?: string
+}
+
+// The comment a reply answers: posted in its thread, addressed to its author.
+export interface ReplyTarget {
+  thread: string | null
+  author: CommentAuthor
 }
 
 // One delivery can carry several things: an `issues closed` event is both a
@@ -101,7 +109,7 @@ export interface Integration {
   }
 
   capabilities: {
-    comment(project: Project, object: SessionObject, body: string): Promise<{ url?: string }>
+    comment(project: Project, object: SessionObject, body: string, replyTo?: ReplyTarget | null): Promise<{ url?: string }>
     labels?: {
       // Knecht never creates labels: only names on this list are applied.
       list(project: Project, object: SessionObject): Promise<string[]>

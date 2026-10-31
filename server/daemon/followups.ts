@@ -112,7 +112,7 @@ async function postMentionReply(followup: Followup, session: Session, project: P
   if (followup.origin !== 'mention' || !object) return
   if (agentRepliedSince(session.id, followup.startedAt ?? followup.createdAt)) return
   try {
-    await getIntegration(object.integration).capabilities.comment(project, object, withSessionLinks(text, session.id))
+    await getIntegration(object.integration).capabilities.comment(project, object, withSessionLinks(text, session.id), followup.replyTo)
   }
   catch (e) {
     transcriptSink(session.id, followup.id).item(notice(`Could not post the reply on the thread: ${(e as Error).message}`))

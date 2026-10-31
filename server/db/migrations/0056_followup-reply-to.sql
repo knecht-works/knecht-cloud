@@ -1,0 +1,1 @@
+ALTER TABLE `followups` ADD `reply_to` text;
