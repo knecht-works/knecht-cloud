@@ -12,7 +12,7 @@ const KNECHT_ACCOUNT = 'knecht-account-id'
 
 const api = vi.hoisted(() => ({
   projects: [] as { id: string, identifier: string, name: string }[],
-  comments: [] as { projectId: string, workItemId: string, html: string }[],
+  comments: [] as { projectId: string, workItemId: string, html: string, parent?: string | null }[],
   assignees: new Map<string, string[]>(),
   assigned: [] as string[][],
   fetched: {
@@ -20,6 +20,7 @@ const api = vi.hoisted(() => ({
     comment_html: '',
     actor: 'user-1',
     created_at: '2026-01-01T00:00:00Z',
+    parent: null as string | null,
   },
 }))
 const workItem = vi.hoisted(() => (id: string) => ({
@@ -57,8 +58,8 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
   listPlaneLabels: async () => [{ id: 'l-knecht', name: 'knecht' }, { id: 'l-bug', name: 'bug' }],
   listPlaneMembers: async () => [{ id: 'user-1', displayName: 'Ann Example' }, { id: 'user-2', displayName: 'Bob' }, { id: KNECHT_ACCOUNT, displayName: 'Knecht' }],
   getPlaneComment: async () => api.fetched,
-  addPlaneComment: async (projectId: string, workItemId: string, html: string) => {
-    api.comments.push({ projectId, workItemId, html })
+  addPlaneComment: async (projectId: string, workItemId: string, html: string, parent?: string | null) => {
+    api.comments.push({ projectId, workItemId, html, parent })
   },
   updatePlaneWorkItem: async (_projectId: string, workItemId: string, patch: { assignees?: string[] }) => {
     if (!patch.assignees) return
@@ -129,9 +130,9 @@ function updated(project: PlaneProject, previous: Record<string, unknown>, overr
   return { event: 'workitem.updated', entity_id: `wi-${project.identifier}`, data: item(project, overrides), previous_attributes: previous }
 }
 
-function commented(project: PlaneProject, fetched: typeof api.fetched) {
+function commented(project: PlaneProject, fetched: Omit<typeof api.fetched, 'parent'> & { parent?: string }) {
   const commentId = fetched.id
-  api.fetched = fetched
+  api.fetched = { parent: null, ...fetched }
   return {
     event: 'workitem.comment.created',
     entity_id: `wi-${project.identifier}`,
@@ -335,5 +336,14 @@ describe('plane webhook route, vendor specifics', () => {
     const project = makePlaneProject()
     const res = await deliver(commented(project, { id: '78', comment_html: '<p>@knecht have a look</p>', actor: 'user-2', created_at: '' }))
     expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
+  })
+
+  it('replies under the top comment of the thread the mention is in, addressed to its author', async () => {
+    const project = makePlaneProject()
+    await deliver(commented(project, { id: '90', comment_html: '<p>@knecht have a look</p>', actor: 'user-2', created_at: '' }))
+    expect(api.comments.at(-1)).toMatchObject({ parent: '90', html: expect.stringMatching(/^<p><mention-component [^>]*entity_identifier="user-2"[^>]*><\/mention-component> I can pick this up/) })
+
+    await deliver(commented(project, { id: '91', comment_html: '<p>@knecht and now?</p>', actor: 'user-2', created_at: '', parent: '90' }))
+    expect(api.comments.at(-1)).toMatchObject({ parent: '90' })
   })
 })

@@ -163,6 +163,7 @@ export interface PlaneComment {
   comment_html?: string | null
   // The user id only; the name comes from the project members.
   actor?: string | null
+  parent?: string | null
   created_at?: string
 }
 
@@ -175,10 +176,10 @@ export async function listPlaneComments(projectId: string, workItemId: string): 
   return listAll<PlaneComment>(workspacePath(`/projects/${projectId}/work-items/${workItemId}/comments/`))
 }
 
-export async function addPlaneComment(projectId: string, workItemId: string, html: string): Promise<void> {
+export async function addPlaneComment(projectId: string, workItemId: string, html: string, parent?: string | null): Promise<void> {
   await planeFetch(workspacePath(`/projects/${projectId}/work-items/${workItemId}/comments/`), {
     method: 'POST',
-    body: { comment_html: html },
+    body: parent ? { comment_html: html, parent } : { comment_html: html },
   })
 }
 

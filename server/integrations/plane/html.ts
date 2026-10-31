@@ -42,10 +42,18 @@ const marked = new Marked({
   },
 })
 
+const mentionElement = (userId: string) => `<mention-component id="${randomUUID()}" entity_identifier="${userId}" entity_name="user_mention"></mention-component>`
+
 export function markdownToHtml(markdown: string, members: PlaneMember[] = []): string {
   // Plane's editor shows the newlines marked puts between blocks as empty paragraphs.
   const html = marked.parse(markdown, { async: false }).trim().replace(/>\n+</g, '><') || '<p></p>'
   return splitMentions(html, members.map(m => ({ id: m.id, name: m.displayName })))
-    .map(part => typeof part === 'string' ? part : `<mention-component id="${randomUUID()}" entity_identifier="${part.id}" entity_name="user_mention"></mention-component>`)
+    .map(part => typeof part === 'string' ? part : mentionElement(part.id))
     .join('')
+}
+
+// A reply opens with a mention of whoever it answers, unless the text names them already.
+export function addressedTo(html: string, userId: string): string {
+  if (htmlMentionIds(html).includes(userId)) return html
+  return html.startsWith('<p>') ? `<p>${mentionElement(userId)} ${html.slice(3)}` : `<p>${mentionElement(userId)}</p>${html}`
 }
