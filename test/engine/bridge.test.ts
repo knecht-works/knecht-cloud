@@ -24,14 +24,14 @@ vi.mock('../../server/utils/github-app', () => ({
   getIssueContext: async (_o: string, _r: string, n: number) => `# Issue #${n}: Broken build\n\nIt fails.`,
 }))
 const jiraApi = vi.hoisted(() => ({
-  comments: [] as { key: string, body: unknown }[],
+  comments: [] as { key: string, body: unknown, parentId?: string | null }[],
   labels: [] as { key: string, add: string[], remove: string[] }[],
   transitions: [] as { key: string, id: string }[],
 }))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
-  addJiraComment: async (key: string, body: unknown) => {
-    jiraApi.comments.push({ key, body })
+  addJiraComment: async (key: string, body: unknown, parentId?: string | null) => {
+    jiraApi.comments.push({ key, body, parentId })
     return { url: `https://acme.atlassian.net/browse/${key}?focusedCommentId=1` }
   },
   updateJiraLabels: async (key: string, add: string[], remove: string[]) => {
@@ -169,6 +169,27 @@ describe('agent bridge on a Jira ticket', () => {
     expect(res.status).toBe(200)
     expect(res.text).toBe('posted the reply on ticket PROJ-1: https://acme.atlassian.net/browse/PROJ-1?focusedCommentId=1\n')
     expect(jiraApi.comments.at(-1)).toMatchObject({ key: 'PROJ-1', body: { type: 'doc' } })
+  })
+
+  it('answers a mention in its thread and addresses whoever asked', async () => {
+    const { run, sessionId } = ticketSession()
+    db.insert(schema.followups).values({
+      sessionId,
+      runId: run.id,
+      prompt: '@Knecht fix it',
+      origin: 'mention',
+      status: 'running',
+      replyTo: { thread: '10398', author: { id: 'user-1', name: 'Ann Example' } },
+    }).run()
+    await call(sessionId, { op: 'comment', body: 'Fixed.' })
+    expect(jiraApi.comments.at(-1)).toMatchObject({
+      parentId: '10398',
+      body: { content: [{ type: 'paragraph', content: [
+        { type: 'mention', attrs: { id: 'user-1', text: '@Ann Example' } },
+        { type: 'text', text: ' ' },
+        { type: 'text', text: 'Fixed.' },
+      ] }] },
+    })
   })
 
   it('applies only labels that exist in Jira', async () => {

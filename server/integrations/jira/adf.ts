@@ -95,6 +95,17 @@ export function markdownToAdf(markdown: string, people: Person[] = []): AdfNode 
   return doc
 }
 
+// A reply opens with a mention of whoever it answers, unless the text names them already.
+export function addressedTo(doc: AdfNode, person: Person): AdfNode {
+  if (adfMentionIds(doc).includes(person.id)) return doc
+  const mention: AdfNode[] = [{ type: 'mention', attrs: { id: person.id, text: `@${person.name}` } }, { type: 'text', text: ' ' }]
+  const [first, ...rest] = doc.content ?? []
+  const content = first?.type === 'paragraph'
+    ? [{ ...first, content: [...mention, ...(first.content ?? [])] }, ...rest]
+    : [{ type: 'paragraph', content: mention }, ...doc.content ?? []]
+  return { ...doc, content }
+}
+
 function withMentions(nodes: AdfNode[], people: Person[]): AdfNode[] {
   return nodes.flatMap((node) => {
     if (node.type === 'codeBlock') return [node]

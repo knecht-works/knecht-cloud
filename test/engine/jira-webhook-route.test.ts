@@ -7,12 +7,13 @@ import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } 
 import { allOf } from '../helpers/trigger-conditions'
 
 const api = vi.hoisted(() => ({
-  comments: [] as { key: string, body: unknown }[],
+  comments: [] as { key: string, body: unknown, parentId?: string | null }[],
   statusCategories: {} as Record<string, string>,
   fetched: {
     id: '77',
     body: null as unknown,
     author: { accountId: 'user-1', displayName: 'Ann Example' },
+    parentId: null as string | null,
   },
 }))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
@@ -20,8 +21,8 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   getJiraComment: async () => api.fetched,
   getJiraIssueFields: async () => ({ reporter: { accountId: 'user-1', displayName: 'Ann Example' } }),
   getJiraStatusCategory: async (id: string) => api.statusCategories[id] ?? null,
-  addJiraComment: async (key: string, body: unknown) => {
-    api.comments.push({ key, body })
+  addJiraComment: async (key: string, body: unknown, parentId?: string | null) => {
+    api.comments.push({ key, body, parentId })
     return { url: `https://acme.atlassian.net/browse/${key}` }
   },
 }))
@@ -84,8 +85,8 @@ function updated(project: { jiraProjectKey: string | null }, items: object[], fi
   return { webhookEvent: 'jira:issue_updated', issue: issue(project, fields), changelog: { items } }
 }
 
-function commented(project: JiraProject, fetched: typeof api.fetched) {
-  api.fetched = fetched
+function commented(project: JiraProject, fetched: Omit<typeof api.fetched, 'parentId'> & { parentId?: string }) {
+  api.fetched = { parentId: null, ...fetched }
   return { webhookEvent: 'comment_created', issue: issue(project), comment: { id: Number(fetched.id) } }
 }
 
@@ -292,5 +293,17 @@ describe('jira webhook route, vendor specifics', () => {
     const project = makeJiraProject()
     const res = await deliver(commented(project, { id: '78', body: doc('@knecht have a look'), author: { accountId: 'user-2', displayName: 'Bob' } }))
     expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
+  })
+
+  it('replies under the top comment of the thread the mention is in, addressed to its author', async () => {
+    const project = makeJiraProject()
+    const bob = { accountId: 'user-2', displayName: 'Bob' }
+    await deliver(commented(project, { id: '81', body: doc('@knecht have a look'), author: bob }))
+    expect(api.comments.at(-1)).toMatchObject({ parentId: '81' })
+
+    await deliver(commented(project, { id: '83', body: doc('@knecht and now?'), author: bob, parentId: '81' }))
+    const reply = api.comments.at(-1) as { parentId: string, body: { content: { content: unknown[] }[] } }
+    expect(reply.parentId).toBe('81')
+    expect(reply.body.content[0]!.content[0]).toEqual({ type: 'mention', attrs: { id: 'user-2', text: '@Bob' } })
   })
 })

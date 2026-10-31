@@ -14,6 +14,7 @@ import { sessionCheckoutDir } from '../utils/storage'
 import { getProject } from '../stores/projects'
 import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession } from '../stores/sessions'
+import { getRunningFollowup } from '../stores/followups'
 import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from '../stores/runs'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
@@ -101,7 +102,7 @@ export default defineEventHandler(async (event) => {
       case 'comment': {
         const { integration, object, label } = requireObject(session)
         requireRepliesEnabled(sessionId)
-        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId)))
+        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId), getRunningFollowup(sessionId)?.replyTo))
         recordAgentReply(sessionId)
         log(`\nagent-reply: commented on ${label}\n`)
         return reply(event, 200, `posted the reply on ${label}${comment.url ? `: ${comment.url}` : ''}`)
