@@ -186,12 +186,12 @@ export interface Person {
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // The agent writes "@Display Name" as it saw it in the thread; a tracker turns each match into its own mention node.
-export function splitMentions(text: string, people: Person[]): (string | Person)[] {
+export function splitMentions<P extends Person>(text: string, people: P[]): (string | P)[] {
   const named = people.filter(p => p.name)
   if (!named.length) return [text]
   const names = [...new Set(named.map(p => p.name))].sort((a, b) => b.length - a.length).map(escapeRegExp).join('|')
   const re = new RegExp(`@(${names})(?![\\p{L}\\p{N}])`, 'gu')
-  const parts: (string | Person)[] = []
+  const parts: (string | P)[] = []
   let last = 0
   for (const match of text.matchAll(re)) {
     if (match.index > last) parts.push(text.slice(last, match.index))

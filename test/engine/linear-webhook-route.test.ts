@@ -16,12 +16,14 @@ const STATES = [
   { id: 's-done', name: 'Done', type: 'completed' },
 ]
 const USERS: Record<string, string> = { 'user-1': 'Ann Example', 'user-2': 'Bob', [KNECHT_ACCOUNT]: 'Knecht' }
+const handle = vi.hoisted(() => (name: string) => name.toLowerCase().replace(/\s+/g, ''))
 
 type Fetched = Record<string, unknown> & { id: string, identifier: string }
 const api = vi.hoisted(() => ({
   issues: new Map<string, Record<string, unknown>>(),
   comment: {} as Record<string, unknown>,
-  replies: [] as { issueId: string, body: string }[],
+  replies: [] as { issueId: string, body: string, parentId?: string | null }[],
+  comments: [] as { id: string, user: { id: string, name: string, displayName: string } }[],
   assigned: [] as (string | null)[],
 }))
 vi.mock('../../server/integrations/linear/api', async importOriginal => ({
@@ -33,8 +35,10 @@ vi.mock('../../server/integrations/linear/api', async importOriginal => ({
   },
   listLinearStates: async () => STATES,
   getLinearComment: async () => api.comment,
-  addLinearComment: async (issueId: string, body: string) => {
-    api.replies.push({ issueId, body })
+  getLinearHandle: async (id: string) => handle(USERS[id] ?? id),
+  listLinearComments: async () => api.comments,
+  addLinearComment: async (issueId: string, body: string, parentId?: string | null) => {
+    api.replies.push({ issueId, body, parentId })
     return {}
   },
   updateLinearIssue: async (id: string, input: { assigneeId?: string | null }) => {
@@ -95,7 +99,7 @@ function item(project: LinearProject, { stateId = 's-todo', labelIds = ['l-knech
     url: issueUrl(project),
     priority,
     state: STATES.find(s => s.id === stateId),
-    creator: { id: 'user-1', name: USERS['user-1'] },
+    creator: { id: 'user-1', name: USERS['user-1'], displayName: handle(USERS['user-1']!) },
     assignee: assigneeId ? { id: assigneeId, name: USERS[assigneeId] } : null,
     labels: { nodes: labelIds.map(id => ({ id, name: LABELS[id] })) },
   }
@@ -111,13 +115,14 @@ function updated(project: LinearProject, updatedFrom: Record<string, unknown>, o
   return { action: 'update', type: 'Issue', data: item(project, overrides), updatedFrom }
 }
 
-function commented(project: LinearProject, comment: { id: string, body: string, userId: string, mentions?: string[] }) {
+function commented(project: LinearProject, comment: { id: string, body: string, userId: string, mentions?: string[], parentId?: string }) {
   const data = item(project)
   api.comment = {
     id: comment.id,
     body: comment.body,
     bodyData: JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: (comment.mentions ?? []).map(id => ({ type: 'suggestion_userMentions', attrs: { id } })) }] }),
     user: { id: comment.userId, name: USERS[comment.userId] ?? 'Bob' },
+    parent: comment.parentId ? { id: comment.parentId } : null,
     issue: api.issues.get(data.id),
   }
   return { action: 'create', type: 'Comment', data: { id: comment.id, body: comment.body, issueId: data.id, userId: comment.userId } }
@@ -308,6 +313,25 @@ describe('linear webhook route, vendor specifics', () => {
     const project = makeLinearProject()
     const res = await deliver(commented(project, { id: 'c-78', body: '@knecht have a look', userId: 'user-2' }))
     expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
+  })
+
+  it('replies under the top comment of the thread the mention is in, addressed to its author by handle', async () => {
+    const project = makeLinearProject()
+    await deliver(commented(project, { id: 'c-90', body: '@knecht have a look', userId: 'user-2' }))
+    expect(api.replies.at(-1)).toMatchObject({ parentId: 'c-90', body: expect.stringMatching(/^@bob I can pick this up/) })
+
+    await deliver(commented(project, { id: 'c-91', body: '@knecht and now?', userId: 'user-1', parentId: 'c-90' }))
+    expect(api.replies.at(-1)).toMatchObject({ parentId: 'c-90', body: expect.stringMatching(/^@annexample /) })
+  })
+
+  it('turns the full names the agent writes into the handles Linear mentions by', async () => {
+    const project = makeLinearProject()
+    item(project)
+    api.comments = [{ id: 'c-1', user: { id: 'user-2', name: 'Bob', displayName: 'bob' } }]
+    const object = { integration: 'linear', kind: 'issue', key: `${project.teamKey}-12` } as const
+    await linear.capabilities.comment(project, object, 'Thanks @Ann Example, and @Bob: done.', null)
+    expect(api.replies.at(-1)!.body).toBe('Thanks @annexample, and @bob: done.')
+    api.comments = []
   })
 
   it('skips comments that are not on an issue and events Knecht does not use', async () => {

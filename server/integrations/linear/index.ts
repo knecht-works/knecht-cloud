@@ -5,9 +5,9 @@ import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookDelivery } from '../types'
-import { addLinearComment, forgetLinearCache, getLinearComment, getLinearIssue, linearMyself, listLinearComments, listLinearLabels, listLinearStates, listLinearTeams, updateLinearIssue, type LinearIssue, type LinearState } from './api'
+import { addLinearComment, forgetLinearCache, getLinearComment, getLinearHandle, getLinearIssue, type LinearComment, linearMyself, listLinearComments, listLinearLabels, listLinearStates, listLinearTeams, updateLinearIssue, type LinearIssue, type LinearState } from './api'
 import { LINEAR_CONNECTION_FORM, linearConnection, linearCredentials } from './credentials'
-import { bodyDataMentionIds } from './mentions'
+import { addressedTo, bodyDataMentionIds, withHandles, type LinearPerson } from './mentions'
 
 export const LINEAR_STATE_TYPES = { triage: 'Triage', backlog: 'Backlog', unstarted: 'Unstarted', started: 'Started', completed: 'Completed', canceled: 'Canceled' } as const
 
@@ -92,6 +92,11 @@ function linearChange(payload: LinearPayload, fetched: LinearIssue, states: Line
   }
 }
 
+function participants(issue: LinearIssue, comments: LinearComment[]): LinearPerson[] {
+  const users = [issue.creator, issue.assignee, ...comments.map(c => c.user)]
+  return users.flatMap(u => u?.id && u.name && u.displayName ? [{ id: u.id, name: u.name, handle: u.displayName }] : [])
+}
+
 function requireSelf(): string {
   const accountId = linearCredentials()?.accountId
   if (!accountId) throw new Error('the Linear connection does not know its own account: connect Linear again')
@@ -106,14 +111,17 @@ async function parseComment(commentId: string, name: string): Promise<WebhookDel
   return {
     project,
     summary: `${name} ${object.key}`,
-    comment: trackerComment({
-      id: comment.id,
-      author: { id: comment.user?.id ?? '', name: comment.user?.name ?? '' },
-      body: comment.body ?? '',
-      object,
-      selfId: linearCredentials()?.accountId,
-      mentionedIds: bodyDataMentionIds(comment.bodyData),
-    }),
+    comment: {
+      ...trackerComment({
+        id: comment.id,
+        author: { id: comment.user?.id ?? '', name: comment.user?.name ?? '' },
+        body: comment.body ?? '',
+        object,
+        selfId: linearCredentials()?.accountId,
+        mentionedIds: bodyDataMentionIds(comment.bodyData),
+      }),
+      thread: comment.parent?.id ?? comment.id,
+    },
   }
 }
 
@@ -196,7 +204,13 @@ export const linear: Integration = {
   },
 
   capabilities: {
-    comment: async (_project, object, body) => addLinearComment((await getLinearIssue(object.key)).id, body),
+    async comment(_project, object, body, replyTo) {
+      const [issue, comments] = await Promise.all([getLinearIssue(object.key), listLinearComments(object.key)])
+      const people = participants(issue, comments)
+      const text = withHandles(body, people)
+      const handle = replyTo && (people.find(p => p.id === replyTo.person.id)?.handle ?? await getLinearHandle(replyTo.person.id))
+      return addLinearComment(issue.id, handle ? addressedTo(text, handle) : text, replyTo?.thread)
+    },
 
     labels: {
       list: async (_project, object) => (await listLinearLabels(teamKeyOf(object.key))).map(l => l.name),

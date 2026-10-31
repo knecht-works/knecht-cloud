@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { htmlToMarkdown, markdownToHtml } from '../../server/integrations/plane/html'
+import { addressedTo, htmlToMarkdown, markdownToHtml } from '../../server/integrations/plane/html'
 
 describe('markdownToHtml', () => {
   it('round-trips the subset Knecht replies use', () => {
@@ -62,5 +62,19 @@ describe('mentions in replies', () => {
 
   it('leaves a name that continues as text alone', () => {
     expect(markdownToHtml('@Annette', members)).toBe('<p>@Annette</p>')
+  })
+})
+
+describe('addressedTo', () => {
+  const mention = (id: string) => new RegExp(`^<p><mention-component [^>]*entity_identifier="${id}"[^>]*></mention-component>`)
+
+  it('opens the first paragraph with a mention, or puts one before a heading', () => {
+    expect(addressedTo('<p>Fixed it.</p>', 'u1')).toMatch(new RegExp(`${mention('u1').source} Fixed it\\.</p>$`))
+    expect(addressedTo('<h2>Plan</h2>', 'u1')).toMatch(new RegExp(`${mention('u1').source}</p><h2>Plan</h2>$`))
+  })
+
+  it('leaves a reply that mentions the person already', () => {
+    const html = markdownToHtml('Done, @Ann.', [{ id: 'u1', displayName: 'Ann' }] as never)
+    expect(addressedTo(html, 'u1')).toBe(html)
   })
 })

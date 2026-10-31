@@ -83,8 +83,8 @@ export function listLinearLabels(teamKey: string): Promise<LinearLabel[]> {
 const ISSUE_FIELDS = `
   id identifier title description url priority
   state { name type }
-  creator { id name }
-  assignee { id name }
+  creator { id name displayName }
+  assignee { id name displayName }
   labels { nodes { id name } }
 `
 
@@ -96,8 +96,8 @@ export interface LinearIssue {
   url: string
   priority?: number | null
   state?: { name: string, type: string } | null
-  creator?: { id?: string, name?: string } | null
-  assignee?: { id: string, name?: string } | null
+  creator?: { id?: string, name?: string, displayName?: string } | null
+  assignee?: { id: string, name?: string, displayName?: string } | null
   labels?: { nodes: LinearLabel[] } | null
 }
 
@@ -111,7 +111,8 @@ export interface LinearComment {
   body?: string | null
   bodyData?: string | null
   createdAt?: string
-  user?: { id: string, name?: string } | null
+  user?: { id: string, name?: string, displayName?: string } | null
+  parent?: { id: string } | null
   // Null for a comment on a project update or a document.
   issue?: LinearIssue | null
 }
@@ -119,25 +120,33 @@ export interface LinearComment {
 // Fetched instead of read from the webhook payload: the delivery names neither the mentioned users nor the issue's identifier.
 export async function getLinearComment(id: string): Promise<LinearComment> {
   return (await linearQuery<{ comment: LinearComment }>(
-    `query($id: String!) { comment(id: $id) { id body bodyData user { id name } issue { ${ISSUE_FIELDS} } } }`,
+    `query($id: String!) { comment(id: $id) { id body bodyData user { id name } parent { id } issue { ${ISSUE_FIELDS} } } }`,
     { id },
   )).comment
 }
 
 export async function listLinearComments(issueId: string): Promise<LinearComment[]> {
   const { issue } = await linearQuery<{ issue: { comments: { nodes: LinearComment[] } } }>(
-    'query($id: String!) { issue(id: $id) { comments(first: 250) { nodes { id body createdAt user { id name } } } } }',
+    'query($id: String!) { issue(id: $id) { comments(first: 250) { nodes { id body createdAt user { id name displayName } } } } }',
     { id: issueId },
   )
   return issue.comments.nodes.sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
 }
 
-export async function addLinearComment(issueId: string, body: string): Promise<{ url?: string }> {
+export async function addLinearComment(issueId: string, body: string, parentId?: string | null): Promise<{ url?: string }> {
   const { commentCreate } = await linearMutate<{ commentCreate: { comment?: { url?: string } } }>(
     'mutation($input: CommentCreateInput!) { commentCreate(input: $input) { comment { url } } }',
-    { input: { issueId, body } },
+    { input: { issueId, body, ...(parentId ? { parentId } : {}) } },
   )
   return { url: commentCreate.comment?.url }
+}
+
+// The handle ("samuelreichor"), not the full name: Linear turns "@handle" in a markdown body into a mention.
+export function getLinearHandle(userId: string): Promise<string> {
+  return cached(`handle:${userId}`, async () => (await linearQuery<{ user: { displayName?: string } }>(
+    'query($id: String!) { user(id: $id) { displayName } }',
+    { id: userId },
+  )).user.displayName ?? '')
 }
 
 export async function updateLinearIssue(id: string, input: { stateId?: string, assigneeId?: string | null, addedLabelIds?: string[], removedLabelIds?: string[] }): Promise<void> {
