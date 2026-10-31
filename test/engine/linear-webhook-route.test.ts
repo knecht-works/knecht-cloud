@@ -270,19 +270,19 @@ describe('linear webhook route, vendor specifics', () => {
     item(project, { assigneeId: 'user-2' })
     expect(await take(project, object)).toEqual({ id: 'user-2', name: 'Bob' })
     expect(await take(project, object)).toBeNull()
-    expect(await handBack(project, object, { id: 'user-3', name: 'Sam' })).toBe(`handed ${object.key} back to Sam`)
+    expect(await handBack(project, object, { id: 'user-3', name: 'Sam' })).toEqual({ summary: `handed ${object.key} back to Sam`, holder: { id: 'user-3', name: 'Sam' } })
     expect(api.assigned).toEqual([KNECHT_ACCOUNT, 'user-3'])
 
     api.assigned.length = 0
     item(project)
     expect(await take(project, object)).toBeNull()
-    expect(await handBack(project, object, null)).toBe(`handed ${object.key} back to Ann Example`)
+    expect((await handBack(project, object, null)).summary).toBe(`handed ${object.key} back to Ann Example`)
     expect(api.assigned).toEqual([KNECHT_ACCOUNT, 'user-1'])
 
     // Somebody took it from Knecht meanwhile: it stays theirs.
     api.assigned.length = 0
     item(project, { assigneeId: 'user-2' })
-    expect(await handBack(project, object, null)).toBe(`left ${object.key} with Bob`)
+    expect(await handBack(project, object, null)).toEqual({ summary: `left ${object.key} with Bob`, holder: { id: 'user-2', name: 'Bob' } })
     expect(api.assigned).toEqual([])
   })
 

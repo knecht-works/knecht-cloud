@@ -307,19 +307,20 @@ export const plane: Integration = {
         const holders = item.assignees ?? []
         const others = holders.filter(id => id !== self)
         const names = others.map(id => memberName(members, id)).filter(Boolean).join(', ') || 'nobody'
-        if (!holders.includes(self)) return `left ${object.key} with ${names}`
+        const holder = others.length === 1 ? { id: others[0]!, name: memberName(members, others[0]!) } : null
+        if (!holders.includes(self)) return { summary: `left ${object.key} with ${names}`, holder }
         if (others.length) {
           await updatePlaneWorkItem(planeProject.id, workItemId, { assignees: others })
-          return `left ${object.key} with ${names}`
+          return { summary: `left ${object.key} with ${names}`, holder }
         }
         const creator = item.created_by && item.created_by !== self ? { id: item.created_by, name: memberName(members, item.created_by) } : null
         for (const person of [to, creator]) {
           if (person && await updatePlaneWorkItem(planeProject.id, workItemId, { assignees: [person.id] }).then(() => true, () => false)) {
-            return `handed ${object.key} back to ${person.name}`
+            return { summary: `handed ${object.key} back to ${person.name}`, holder: person }
           }
         }
         await updatePlaneWorkItem(planeProject.id, workItemId, { assignees: [] })
-        return `left ${object.key} unassigned`
+        return { summary: `left ${object.key} unassigned`, holder: null }
       },
     },
   },

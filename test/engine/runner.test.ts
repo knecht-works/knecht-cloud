@@ -20,7 +20,7 @@ vi.mock('../../server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
-const jiraComments = vi.hoisted(() => [] as { key: string, text: string }[])
+const jiraComments = vi.hoisted(() => [] as { key: string, text: string, first?: unknown }[])
 const jira = vi.hoisted(() => ({ assignee: null as { accountId: string, displayName: string } | null, assigned: [] as (string | null)[] }))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
@@ -31,7 +31,8 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
     jira.assignee = accountId ? { accountId, displayName: accountId } : null
   },
   addJiraComment: async (key: string, body: { content?: { content?: { text?: string, marks?: unknown }[] }[] }) => {
-    jiraComments.push({ key, text: (body.content?.[0]?.content ?? []).map(n => n.text ?? '').join('') })
+    const nodes = body.content?.[0]?.content ?? []
+    jiraComments.push({ key, text: nodes.map(n => n.text ?? '').join(''), first: nodes[0] })
     return { url: 'https://x' }
   },
 }))
@@ -57,7 +58,7 @@ describe('runner', () => {
     }
 
     await startRun(ticket({ prUrl: 'https://x/pull/4' }).id, project)
-    expect(jiraComments.at(-1)).toEqual({ key: 'PROJ-1', text: 'Knecht opened a pull request for this ticket: https://x/pull/4' })
+    expect(jiraComments.at(-1)).toMatchObject({ key: 'PROJ-1', text: 'I opened a pull request for this ticket: https://x/pull/4' })
 
     jiraComments.length = 0
     await startRun(ticket({}).id, project)
@@ -76,7 +77,7 @@ describe('runner', () => {
     const failed = ticket({ status: 'failed' })
     await startRun(failed.id, project)
     expect(getRun(failed.id).status).toBe('failed')
-    expect(jiraComments.at(-1)?.text).toContain(`Knecht could not finish the run for this ticket: http://knecht.test/projects/${project.id}?run=${failed.id}`)
+    expect(jiraComments.at(-1)?.text).toContain(`I could not finish the run for this ticket: http://knecht.test/projects/${project.id}?run=${failed.id}`)
 
     const silent = db.insert(schema.workflows).values({ name: 'silent-jira', steps: [], repliesEnabled: false }).returning().get()
     jiraComments.length = 0
@@ -134,6 +135,41 @@ describe('runner', () => {
     await running
     expect(jira.assigned).toEqual(['knecht'])
     expect(getRun(taken.id).log).toContain('left PROJ-5 with Bob')
+    jiraConnection.remove()
+  })
+
+  it('reports the result after handing the ticket back, addressed to whoever got it', async () => {
+    jiraConnection.save({ siteUrl: 'https://acme.atlassian.net', email: 'knecht@acme.test', apiToken: 't' }, { accountName: 'Knecht', accountId: 'knecht' })
+    const project = makeProject()
+    const sam = { type: 'mention', attrs: { id: 'user-3', text: '@Sam' } }
+    const ticket = (key: string, command: string, prUrl?: string) => {
+      const run = makeRun(project, [{ type: 'bash', id: 'work', command }], { actor: { id: 'user-3', name: 'Sam' }, prUrl })
+      db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: key }).where(eq(schema.sessions.id, run.sessionId)).run()
+      return run
+    }
+
+    jira.assignee = null
+    jira.assigned.length = 0
+    await startRun(ticket('PROJ-8', 'true', 'https://x/pull/8').id, project)
+    expect(jira.assigned).toEqual(['knecht', 'user-3'])
+    expect(jiraComments.at(-1)).toEqual({ key: 'PROJ-8', text: ' I opened a pull request for this ticket: https://x/pull/8', first: sam })
+
+    jira.assignee = null
+    jira.assigned.length = 0
+    await startRun(ticket('PROJ-9', 'exit 1').id, project)
+    expect(jira.assigned).toEqual(['knecht', 'user-3'])
+    expect(jiraComments.at(-1)).toMatchObject({
+      key: 'PROJ-9',
+      text: expect.stringContaining(' I could not finish the run for this ticket:'),
+      first: sam,
+    })
+
+    // Knecht keeps the ticket while more work is queued: whoever gave it to Knecht is addressed.
+    jira.assignee = null
+    const busy = ticket('PROJ-10', 'exit 1')
+    makeRun(project, [], { sessionId: busy.sessionId, status: 'queued' })
+    await startRun(busy.id, project)
+    expect(jiraComments.at(-1)).toMatchObject({ key: 'PROJ-10', first: sam })
     jiraConnection.remove()
   })
 

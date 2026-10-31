@@ -26,10 +26,10 @@ export interface WebhookComment {
   thread?: string
 }
 
-// The comment a reply answers: posted in its thread, addressed to its author.
+// Who a comment is addressed to, and the thread it goes in when it answers a comment.
 export interface ReplyTarget {
   thread: string | null
-  author: CommentAuthor
+  person: CommentAuthor
 }
 
 // One delivery can carry several things: an `issues closed` event is both a
@@ -124,8 +124,9 @@ export interface Integration {
     assignee?: {
       // Answers who held the object before, when that was somebody other than Knecht.
       take(project: Project, object: SessionObject): Promise<CommentAuthor | null>
-      // Falls back on its own when `to` is null or cannot take the object; answers what it did.
-      handBack(project: Project, object: SessionObject, to: CommentAuthor | null): Promise<string>
+      // Falls back on its own when `to` is null or cannot take the object; answers what it did,
+      // and who holds the object afterwards when that is exactly one person.
+      handBack(project: Project, object: SessionObject, to: CommentAuthor | null): Promise<{ summary: string, holder: CommentAuthor | null }>
     }
   }
 

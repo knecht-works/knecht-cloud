@@ -171,6 +171,14 @@ describe('agent bridge on a Jira ticket', () => {
     expect(jiraApi.comments.at(-1)).toMatchObject({ key: 'PROJ-1', body: { type: 'doc' } })
   })
 
+  it('addresses whoever gave Knecht the ticket when the agent comments during a run', async () => {
+    const { sessionId } = ticketSession()
+    db.update(schema.runs).set({ status: 'running', actor: { id: 'user-2', name: 'Bob' } }).where(eq(schema.runs.sessionId, sessionId)).run()
+    await call(sessionId, { op: 'comment', body: 'Here is my plan.' })
+    expect(jiraApi.comments.at(-1)).toMatchObject({ parentId: null })
+    expect((jiraApi.comments.at(-1)!.body as { content: { content: unknown[] }[] }).content[0]!.content[0]).toEqual({ type: 'mention', attrs: { id: 'user-2', text: '@Bob' } })
+  })
+
   it('answers a mention in its thread and addresses whoever asked', async () => {
     const { run, sessionId } = ticketSession()
     db.insert(schema.followups).values({
@@ -179,7 +187,7 @@ describe('agent bridge on a Jira ticket', () => {
       prompt: '@Knecht fix it',
       origin: 'mention',
       status: 'running',
-      replyTo: { thread: '10398', author: { id: 'user-1', name: 'Ann Example' } },
+      replyTo: { thread: '10398', person: { id: 'user-1', name: 'Ann Example' } },
     }).run()
     await call(sessionId, { op: 'comment', body: 'Fixed.' })
     expect(jiraApi.comments.at(-1)).toMatchObject({

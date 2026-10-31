@@ -298,22 +298,22 @@ describe('plane webhook route, vendor specifics', () => {
     api.assignees.set(id, ['user-2'])
     expect(await take(project, object)).toEqual({ id: 'user-2', name: 'Bob' })
     expect(await take(project, object)).toBeNull()
-    expect(await handBack(project, object, { id: 'user-3', name: 'Sam' })).toBe(`left ${object.key} with Bob`)
+    expect((await handBack(project, object, { id: 'user-3', name: 'Sam' })).summary).toBe(`left ${object.key} with Bob`)
     expect(api.assigned).toEqual([['user-2', KNECHT_ACCOUNT], ['user-2']])
 
     api.assigned.length = 0
     api.assignees.set(id, [])
     expect(await take(project, object)).toBeNull()
-    expect(await handBack(project, object, { id: 'user-3', name: 'Sam' })).toBe(`handed ${object.key} back to Sam`)
+    expect((await handBack(project, object, { id: 'user-3', name: 'Sam' })).summary).toBe(`handed ${object.key} back to Sam`)
     expect(await take(project, object)).toEqual({ id: 'user-3', name: '' })
     api.assignees.set(id, [KNECHT_ACCOUNT])
-    expect(await handBack(project, object, null)).toBe(`handed ${object.key} back to Ann Example`)
+    expect((await handBack(project, object, null)).summary).toBe(`handed ${object.key} back to Ann Example`)
     expect(api.assigned).toEqual([[KNECHT_ACCOUNT], ['user-3'], ['user-3', KNECHT_ACCOUNT], ['user-1']])
 
     // Somebody took it from Knecht meanwhile: it stays theirs.
     api.assigned.length = 0
     api.assignees.set(id, ['user-2'])
-    expect(await handBack(project, object, null)).toBe(`left ${object.key} with Bob`)
+    expect((await handBack(project, object, null)).summary).toBe(`left ${object.key} with Bob`)
     expect(api.assigned).toEqual([])
   })
 
