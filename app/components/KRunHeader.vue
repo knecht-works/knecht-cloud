@@ -94,10 +94,13 @@ async function envAction(action: keyof typeof ENV_ACTIONS) {
 // await) and navigates once the server confirms the IDE is up.
 async function openInVscode() {
   const tab = window.open('about:blank', '_blank')
+  // Opened before the await or the popup blocker steps in, so noopener cannot be passed:
+  // the IDE host runs session code, which must not be able to redirect this tab.
+  if (tab) tab.opener = null
   try {
     const { url } = await $fetch<{ url: string }>(`/api/runs/${props.runId}/ide`, { method: 'POST' })
     if (tab) tab.location.href = url
-    else window.open(url, '_blank')
+    else window.open(url, '_blank', 'noopener')
   }
   catch (e) {
     tab?.close()
