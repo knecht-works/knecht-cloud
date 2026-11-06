@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { lstatSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -8,7 +8,7 @@ import { writeBridgeCredentialHelper } from '../utils/agent-bridge'
 import { sessionCheckoutDir, sessionSandboxName } from '../utils/storage'
 import { getProject } from '../stores/projects'
 import { getSessionRow } from '../stores/sessions'
-import { KNECHT_COMPOSE_FILE, KNECHT_CONFIG_FILE } from './ddev'
+import { KNECHT_CONFIG_FILE, WEB_MEM_LIMIT, WEB_PIDS_LIMIT, webVolumes } from './ddev'
 import { attachKnecht, ddevWebImage, forgetPreview, knechtContainer, WEB_PROJECT_DIR } from './sandbox'
 
 export const WORKSPACE_LABEL = 'works.knecht.workspace'
@@ -47,14 +47,15 @@ async function startWorkspace(sessionId: number): Promise<void> {
   const dir = sessionCheckoutDir(sessionId)
   const session = getSessionRow(sessionId)
   const project = session && getProject(session.projectId)
-  const web = readWebOverrides(dir, new Set(project?.envVars.map(e => e.key)))
+  const environment = readWebEnvironment(dir, new Set(project?.envVars.map(e => e.key)))
+  const volumes = webVolumes(project ? { projectId: project.id, folders: project.sharedFolders } : undefined)
   await execa('docker', ['rm', '-f', name]).catch(() => {})
   await createNetwork(sessionId, name)
   const envDir = await mkdtemp(join(tmpdir(), 'knecht-workspace-'))
   try {
     // A file, not `-e`: the project's env vars hold secrets.
     const envFile = join(envDir, 'env')
-    await writeFile(envFile, web.environment.map(e => `${e}\n`).join(''), { mode: 0o600 })
+    await writeFile(envFile, environment.map(e => `${e}\n`).join(''), { mode: 0o600 })
     await execa('docker', [
       'run', '-d', '--rm',
       '--name', name,
@@ -63,13 +64,13 @@ async function startWorkspace(sessionId: number): Promise<void> {
       '--user', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
       '--workdir', WEB_PROJECT_DIR,
       '--env-file', envFile,
-      ...(web.memLimit ? ['--memory', web.memLimit] : []),
-      ...(web.pidsLimit ? ['--pids-limit', String(web.pidsLimit)] : []),
+      '--memory', WEB_MEM_LIMIT,
+      '--pids-limit', String(WEB_PIDS_LIMIT),
       '-v', `${dir}:${WEB_PROJECT_DIR}`,
       // Where the ddev shim looks up the project's own web commands.
       '-v', `${join(dir, '.ddev')}:/mnt/ddev_config:ro`,
       '-v', 'ddev-global-cache:/mnt/ddev-global-cache',
-      ...web.volumes.flatMap(v => ['-v', v]),
+      ...volumes.flatMap(v => ['-v', v]),
       '--entrypoint', 'sleep',
       await workspaceImage(),
       'infinity',
@@ -122,13 +123,6 @@ export async function removeWorkspace(sessionId: number): Promise<void> {
   await execa('docker', ['network', 'rm', name]).catch(() => {})
 }
 
-interface WebOverrides {
-  environment: string[]
-  volumes: string[]
-  memLimit?: string
-  pidsLimit?: number
-}
-
 interface DdevProjectConfig {
   name?: string
   type?: string
@@ -140,25 +134,16 @@ interface DdevProjectConfig {
   web_environment?: string[]
 }
 
-// The web service's mounts and env as Knecht last wrote them for this checkout.
+// The web service's env as Knecht last wrote it for this checkout.
 // `projectKeys` are the project's own env vars, which win over Knecht's preview values.
-export function readWebOverrides(checkoutDir: string, projectKeys: Set<string> = new Set()): WebOverrides {
-  const repo = readYaml(join(checkoutDir, '.ddev', 'config.yaml')) as DdevProjectConfig | null
-  const knecht = readYaml(join(checkoutDir, '.ddev', KNECHT_CONFIG_FILE)) as DdevProjectConfig | null
-  const compose = readYaml(join(checkoutDir, '.ddev', KNECHT_COMPOSE_FILE)) as {
-    services?: { web?: { volumes?: string[], mem_limit?: string, pids_limit?: number } }
-  } | null
-  if (!knecht || !compose) throw new Error(`The checkout has no Knecht environment config in ${join(checkoutDir, '.ddev')}`)
-  const web = compose.services?.web
+export function readWebEnvironment(checkoutDir: string, projectKeys: Set<string> = new Set()): string[] {
+  const repo = readCheckoutYaml(checkoutDir, 'config.yaml') as DdevProjectConfig | null
+  const knecht = readCheckoutYaml(checkoutDir, KNECHT_CONFIG_FILE) as DdevProjectConfig | null
+  if (!knecht) throw new Error(`The checkout has no Knecht environment config in ${join(checkoutDir, '.ddev')}`)
   const environment = [...repo?.web_environment ?? [], ...knecht.web_environment ?? []]
     .filter(e => !PREVIEW_ENV.test(e) || projectKeys.has(e.slice(0, e.indexOf('='))))
-  return {
-    // Compose escapes `$` as `$$`; an env file takes values literally.
-    environment: [...ddevProjectEnv({ ...repo, ...knecht }), ...environment].map(e => e.replaceAll('$$', '$')),
-    volumes: web?.volumes ?? [],
-    memLimit: web?.mem_limit,
-    pidsLimit: web?.pids_limit,
-  }
+  // Compose escapes `$` as `$$`; an env file takes values literally.
+  return [...ddevProjectEnv({ ...repo, ...knecht }), ...environment].map(e => e.replaceAll('$$', '$'))
 }
 
 // What ddev sets in every web container; the shim and CMS settings files read it.
@@ -176,6 +161,16 @@ function ddevProjectEnv(cfg: DdevProjectConfig): string[] {
   return Object.entries(entries).filter(([, v]) => v !== undefined).map(([k, v]) => `${k}=${v}`)
 }
 
-function readYaml(path: string): unknown {
-  return existsSync(path) ? parse(readFileSync(path, 'utf8')) : null
+// No session code runs while its workspace starts, so lstat cannot be raced here. A link
+// could point at another session's Knecht config and hand this sandbox that project's secrets.
+function readCheckoutYaml(checkoutDir: string, name: string): unknown {
+  const ddevDir = join(checkoutDir, '.ddev')
+  const path = join(ddevDir, name)
+  const dirStat = lstatSync(ddevDir, { throwIfNoEntry: false })
+  if (!dirStat) return null
+  if (!dirStat.isDirectory()) throw new Error(`${ddevDir} is not a directory`)
+  const stat = lstatSync(path, { throwIfNoEntry: false })
+  if (!stat) return null
+  if (!stat.isFile()) throw new Error(`${path} is not a regular file`)
+  return parse(readFileSync(path, 'utf8'))
 }

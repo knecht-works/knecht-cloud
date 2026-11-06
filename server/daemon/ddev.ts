@@ -14,9 +14,9 @@ import { WEB_PROJECT_DIR } from './sandbox'
 
 export type UrlMode = 'env' | 'rewrite'
 
-const WEB_MEM_LIMIT = '2g'
+export const WEB_MEM_LIMIT = '2g'
 const DB_MEM_LIMIT = '1g'
-const WEB_PIDS_LIMIT = 2048
+export const WEB_PIDS_LIMIT = 2048
 
 export const DEV_DAEMON_GROUP = 'webextradaemons'
 
@@ -169,7 +169,7 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
   changed = syncKnechtConfig(join(ddevDir, KNECHT_CONFIG_FILE), marker + stringify(doc)) || changed
   changed = syncFile(join(ddevDir, KNECHT_COMPOSE_FILE), marker + stringify(composeOverride({
     hasDb: env.hasDb.value,
-    sharedMounts: shared ? sharedFolderMounts(shared) : [],
+    volumes: webVolumes(shared),
     extraHosts: loopback?.hosts.map(host => `${host}:127.0.0.1`) ?? [],
   }))) || changed
   for (const legacy of LEGACY_OVERRIDE_FILES) changed = removeFile(join(ddevDir, legacy)) || changed
@@ -342,8 +342,9 @@ function sharedFolderMounts(shared: SharedFolderConfig): { host: string, dest: s
 }
 
 // Tool mounts only work because the tools dir is mounted at the same path inside
-// the Knecht container. A db entry without an image is a compose error when ddev omits the db.
-function composeOverride({ hasDb, sharedMounts, extraHosts }: { hasDb: boolean, sharedMounts: { host: string, dest: string }[], extraHosts: string[] }): Record<string, unknown> {
+// the Knecht container. Built from Knecht's own inputs only: the compose file that
+// carries them sits in the sandbox-writable checkout, so nothing may read them back from there.
+export function webVolumes(shared?: SharedFolderConfig): string[] {
   const tools = toolsDir()
   const toolMounts = [
     { host: join(tools, 'opencode'), dest: '/usr/local/bin/opencode' },
@@ -358,10 +359,14 @@ function composeOverride({ hasDb, sharedMounts, extraHosts }: { hasDb: boolean, 
     { host: join(tools, 'ddev-shim'), dest: '/usr/local/bin/ddev' },
     { host: join(tools, 'openvscode-server'), dest: '/usr/local/lib/openvscode-server' },
   ].filter(m => existsSync(m.host))
-  const volumes = [
+  return [
     ...toolMounts.map(m => `${m.host}:${m.dest}:ro`),
-    ...sharedMounts.map(m => `${m.host}:${m.dest}`),
+    ...(shared ? sharedFolderMounts(shared) : []).map(m => `${m.host}:${m.dest}`),
   ]
+}
+
+// A db entry without an image is a compose error when ddev omits the db.
+function composeOverride({ hasDb, volumes, extraHosts }: { hasDb: boolean, volumes: string[], extraHosts: string[] }): Record<string, unknown> {
   return {
     services: {
       web: {
