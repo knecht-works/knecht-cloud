@@ -19,7 +19,8 @@ agent({ name: 'stub' })
   }))
   .onRequest(methods.agent.session.new, () => ({ sessionId: `ses_stub_${++counter}` }))
   .onRequest(methods.agent.session.load, ({ params }) => {
-    if (params.sessionId !== KNOWN_SESSION) throw new Error(`unknown session ${params.sessionId}`)
+    // Each turn is a new process, so a session an earlier one created counts as known too.
+    if (params.sessionId !== KNOWN_SESSION && !/^ses_stub_\d+$/.test(params.sessionId)) throw new Error(`unknown session ${params.sessionId}`)
     currentModel = KNOWN_SESSION_MODEL
     return { configOptions: [modelOption()] }
   })

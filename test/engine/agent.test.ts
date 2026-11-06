@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
 import type { Step } from '../../shared/utils/workflow'
 import { checkoutDirOf } from '../helpers/local-sandbox'
-import { getRun, getSteps, makeProject, makeRun } from '../helpers/db'
+import { getRun, getSessionRow, getSteps, makeProject, makeRun } from '../helpers/db'
 
 vi.mock('../../server/daemon/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../server/daemon/git')>()
@@ -68,6 +68,24 @@ describe('ai step over ACP', () => {
     expect(step.outputs).toMatchObject({ json: { title: 'hi', tags: ['a'] } })
   })
 
+  it('runs every step of the run in the session\'s one agent session', async () => {
+    const project = makeProject()
+    const run = makeRun(project, [{ type: 'ai', id: 'first', prompt: 'one' }, { type: 'ai', id: 'second', prompt: 'two' }])
+    await startRun(run.id, project)
+    expect(getRun(run.id).status).toBe('success')
+    expect(getRun(run.id).log).not.toContain('Could not resume')
+    expect(getSessionRow(run.sessionId).agentSessionId).toBe('ses_stub_1')
+  })
+
+  it('continues the chat\'s agent session and consumes a pending hand-over', async () => {
+    const project = makeProject()
+    const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'do the thing' }])
+    db.update(schema.sessions).set({ agentSessionId: 'ses_stub_known', agentHandover: 'summary' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    await startRun(run.id, project)
+    expect(getRun(run.id).log).not.toContain('Could not resume')
+    expect(getSessionRow(run.sessionId)).toMatchObject({ agentSessionId: 'ses_stub_known', agentHandover: null })
+  })
+
   it('fails the step when the agent process dies', async () => {
     const { run, step } = await runAi({ prompt: 'EXIT' })
     expect(run.status).toBe('failed')
@@ -87,12 +105,11 @@ describe('ai step over ACP', () => {
 })
 
 describe('follow-ups over ACP', () => {
-  it('opens one agent session for the chat and resumes it on the next message', async () => {
+  it('resumes the workflow\'s agent session in the chat', async () => {
     const { run } = await runAi({})
     const sessionId = run.sessionId
     const session = () => db.select().from(schema.sessions).where(eq(schema.sessions.id, sessionId)).get()!
-    // The workflow step's own agent session is never the chat's.
-    expect(session().agentSessionId).toBeNull()
+    expect(session().agentSessionId).toBe('ses_stub_1')
     const followup = (prompt: string) => db.insert(schema.followups).values({ sessionId, runId: run.id, prompt }).returning().get()
 
     await startFollowup(followup('first').id)
