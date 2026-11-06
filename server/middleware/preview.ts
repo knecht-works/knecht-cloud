@@ -11,12 +11,15 @@ export default defineEventHandler(async (event) => {
   await getUserSession(event)
   removeResponseHeader(event, 'set-cookie')
   const { headers } = event.node.req
+  // Read, then dropped: no proxy may hand the token to session code.
+  const internal = isPreviewAuthToken(getRequestHeader(event, PREVIEW_AUTH_HEADER), ref.sessionId)
+  delete headers['x-knecht-preview-auth']
   const original = headers.cookie
   const cookie = withoutDashboardCookie(original)
   if (cookie) headers.cookie = cookie
   else delete headers.cookie
   try {
-    await dispatch(event, ref)
+    await dispatch(event, ref, internal)
   }
   finally {
     if (original === undefined) delete headers.cookie
@@ -24,9 +27,9 @@ export default defineEventHandler(async (event) => {
   }
 })
 
-async function dispatch(event: H3Event, ref: { sessionId: number, label?: string }): Promise<void> {
+async function dispatch(event: H3Event, ref: { sessionId: number, label?: string }, internal: boolean): Promise<void> {
   if (isIdeLabel(ref.label)) return proxyRunIde(event, ref.sessionId)
   const service = ref.label ? await findSessionService(ref.sessionId, ref.label) : undefined
   if (service) return proxyRunService(event, ref.sessionId, service)
-  await proxyRunPreview(event, ref.sessionId, ref.label)
+  await proxyRunPreview(event, ref.sessionId, ref.label, internal)
 }

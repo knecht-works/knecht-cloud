@@ -22,7 +22,7 @@ export const linkCheckAction = defineAction({
     }
     else if (step.sitemap?.trim()) {
       rt.log(`\n▶ link-check: ${step.sitemap}\n`)
-      urls = await collectPageUrls(step.sitemap, rt.signal, rt.log)
+      urls = await collectPageUrls(step.sitemap, rt.sessionId, rt.signal, rt.log)
       if (!urls.length) {
         throw new ActionError(`No page URLs found in ${step.sitemap}`, { checked: 0, broken: 0, brokenUrls: [] })
       }
@@ -42,7 +42,7 @@ export const linkCheckAction = defineAction({
       while (next < urls.length) {
         if (rt.signal.aborted) return
         const url = urls[next++]!
-        const status = await checkPage(url, rt.signal)
+        const status = await checkPage(url, rt.sessionId, rt.signal)
         if (typeof status !== 'number' || status >= 400) {
           broken.push({ url, status })
           rt.log(`✗ ${status} ${url}\n`)
@@ -87,28 +87,28 @@ function listedUrls(value: unknown): string[] | null {
   return [...new Set(urls)]
 }
 
-async function collectPageUrls(sitemapUrl: string, signal: AbortSignal, log: (text: string) => void): Promise<string[]> {
-  const xml = await fetchSitemap(sitemapUrl, signal)
+async function collectPageUrls(sitemapUrl: string, sessionId: number, signal: AbortSignal, log: (text: string) => void): Promise<string[]> {
+  const xml = await fetchSitemap(sitemapUrl, sessionId, signal)
   if (!/<sitemapindex[\s>]/i.test(xml)) return [...new Set(extractLocs(xml))]
 
   const subs = extractLocs(xml)
   log(`Sitemap index with ${subs.length} sitemaps\n`)
   const urls = new Set<string>()
   for (const sub of subs) {
-    for (const url of extractLocs(await fetchSitemap(sub, signal))) urls.add(url)
+    for (const url of extractLocs(await fetchSitemap(sub, sessionId, signal))) urls.add(url)
   }
   return [...urls]
 }
 
-async function fetchSitemap(url: string, signal: AbortSignal): Promise<string> {
-  const res = await previewAwareFetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
+async function fetchSitemap(url: string, sessionId: number, signal: AbortSignal): Promise<string> {
+  const res = await previewAwareFetch(url, sessionId, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
   if (!res.ok) throw new ActionError(`HTTP ${res.status} fetching sitemap ${url}`)
   return await res.text()
 }
 
-async function checkPage(url: string, signal: AbortSignal): Promise<number | string> {
+async function checkPage(url: string, sessionId: number, signal: AbortSignal): Promise<number | string> {
   try {
-    const res = await previewAwareFetch(url, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
+    const res = await previewAwareFetch(url, sessionId, { signal: AbortSignal.any([signal, AbortSignal.timeout(FETCH_TIMEOUT_MS)]) })
     await res.body?.cancel()
     return res.status
   }
