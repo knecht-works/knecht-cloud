@@ -29,3 +29,13 @@ export function previewLabel(ddevHost: string): string {
 
 // A project must not use this as its preview port, or the forwarder would forward to itself.
 export const PREVIEW_FORWARD_PORT = 41000
+
+// A framed preview reports its address by postMessage: only a web URL may become a dashboard link.
+export function isWebUrl(value: string): boolean {
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol)
+  }
+  catch {
+    return false
+  }
+}

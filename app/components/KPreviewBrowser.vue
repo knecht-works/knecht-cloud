@@ -72,7 +72,7 @@ const canForward = computed(() => pos.value < stack.value.length - 1)
 
 function onMessage(e: MessageEvent) {
   const data = e.data as { knecht?: string, href?: string } | null
-  if (data?.knecht !== 'nav' || typeof data.href !== 'string') return
+  if (data?.knecht !== 'nav' || typeof data.href !== 'string' || !isWebUrl(data.href)) return
   if (e.source !== frame.value?.contentWindow) return
   if (parsePreviewHost(new URL(e.origin).host)?.sessionId !== props.sessionId) return
 
