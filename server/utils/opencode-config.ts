@@ -38,11 +38,13 @@ export function agentModelRef(provider: AiProviderId, bareModel: string): string
   return `${key}/${bareModel}`
 }
 
+const RULES_PRECEDENCE = '# Rules\n\nThese apply to every step and message, also where the request does not mention them. On conflict, the request of the step or message wins, then the project rules, then the instance rules.'
+
 export function buildAgentRules(instance: string, project: string): string {
   const sections: string[] = []
+  if (project.trim()) sections.push(`# Project rules\n\n${project.trim()}`)
   if (instance.trim()) sections.push(`# Instance rules\n\n${instance.trim()}`)
-  if (project.trim()) sections.push(`# Project rules\n\nOn conflict these override the instance rules.\n\n${project.trim()}`)
-  return sections.length ? `${sections.join('\n\n')}\n` : ''
+  return sections.length ? `${[RULES_PRECEDENCE, ...sections].join('\n\n')}\n` : ''
 }
 
 export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig {
