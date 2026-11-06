@@ -152,6 +152,23 @@ describe('chat commands and options', () => {
     expect(png.headers.get('content-disposition')).toBeNull()
   })
 
+  it('serves an SVG as a download however its type is spelled', async () => {
+    const run = liveRun('success')
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>'
+    const part = (name: string, type: string) => `--b\r\nContent-Disposition: form-data; name="files"; filename="${name}"\r\nContent-Type: ${type}\r\n\r\n${svg}\r\n`
+    const body = `--b\r\nContent-Disposition: form-data; name="prompt"\r\n\r\nlook\r\n${part('a.svg', 'image/SVG+xml')}${part('b.svg', 'image/svg+xml,image/png')}${part('c.svg', 'IMAGE/PNG;x=svg')}${part('d.html', 'image/png,text/html')}--b--\r\n`
+    const created = (await callRoute(handler, { route: '/runs/:id/followups', path: `/runs/${run.id}/followups`, body, headers: { 'content-type': 'multipart/form-data; boundary=b' } })).json as { id: number }
+    const get = (name: string) => callRoute(attachmentHandler, { method: 'GET', route: '/followups/:id/attachments/:name', path: `/followups/${created.id}/attachments/${name}` })
+
+    for (const name of ['a.svg', 'b.svg']) {
+      const res = await get(name)
+      expect(res.headers.get('content-type')).toBe('application/octet-stream')
+      expect(res.headers.get('content-disposition')).toBe(`attachment; filename="${name}"`)
+    }
+    expect((await get('c.svg')).headers.get('content-type')).toBe('image/png')
+    expect((await get('d.html')).headers.get('content-type')).toBe('image/png')
+  })
+
   it('removing a queued turn removes its attachments from disk', async () => {
     const run = liveRun('running')
     const form = new FormData()
