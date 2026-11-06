@@ -15,7 +15,8 @@ export interface SnapshotFile {
   type: string
   // Unknown until downloaded for trackers that only link their uploads.
   size?: number
-  download(): Promise<Buffer>
+  // Name and type may come with the download when only the id is known up front.
+  download(): Promise<Buffer | { content: Buffer, name: string, type: string }>
 }
 
 export interface SnapshotLink {
@@ -104,14 +105,15 @@ export async function writeObjectSnapshot(sandbox: Sandbox, snapshot: ObjectSnap
     const lines = new Map<string, string>()
     await Promise.all(snapshot.files.filter(f => !kept.has(f.id)).map(async (file) => {
       if (file.size !== undefined && file.size > MAX_SNAPSHOT_FILE_BYTES) return lines.set(file.id, tooLarge(file.name, file.size))
-      let name = sanitizeFilename(file.name)
-      for (let n = 2; taken.has(name); n++) name = sanitizeFilename(file.name).replace(/(\.[^.]*)?$/, `-${n}$1`)
-      taken.add(name)
       try {
-        const content = await file.download()
-        if (content.length > MAX_SNAPSHOT_FILE_BYTES) return lines.set(file.id, tooLarge(file.name, content.length))
+        const downloaded = await file.download()
+        const { content, name: original, type } = Buffer.isBuffer(downloaded) ? { content: downloaded, name: file.name, type: file.type } : downloaded
+        if (content.length > MAX_SNAPSHOT_FILE_BYTES) return lines.set(file.id, tooLarge(original, content.length))
+        let name = sanitizeFilename(original)
+        for (let n = 2; taken.has(name); n++) name = sanitizeFilename(original).replace(/(\.[^.]*)?$/, `-${n}$1`)
+        taken.add(name)
         await writeFile(join(staging, 'attachments', name), content)
-        current.push({ id: file.id, name, type: file.type, size: content.length })
+        current.push({ id: file.id, name, type, size: content.length })
       }
       catch (e) {
         lines.set(file.id, `- ${file.name} not downloaded: ${(e as Error).message}`)

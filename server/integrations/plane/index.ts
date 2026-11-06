@@ -6,7 +6,7 @@ import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import { addPlaneComment, downloadPlaneAttachment, forgetPlaneCache, getPlaneAsset, getPlaneComment, getPlaneRelations, getPlaneWorkItemRaw, listPlaneAttachments, listPlaneLinks, listPlaneWorkItems, planeMyself, planeUserName, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
+import { addPlaneComment, downloadPlaneAsset, downloadPlaneAttachment, forgetPlaneCache, getPlaneComment, getPlaneRelations, getPlaneWorkItemRaw, listPlaneAttachments, listPlaneLinks, listPlaneWorkItems, planeMyself, planeUserName, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
 import { PLANE_CONNECTION_FORM, planeConnection, planeCredentials } from './credentials'
 import { addressedTo, htmlMentionIds, htmlToMarkdown, markdownToHtml } from './html'
 import { findObjectSession } from '../../stores/sessions'
@@ -48,6 +48,7 @@ export interface PlaneRecord {
   label_ids?: string[]
   assignee_ids?: string[]
   created_by_id?: string | null
+  updated_by_id?: string | null
   updated_at?: string | null
   comment?: { id?: string, actor_id?: string }
 }
@@ -220,7 +221,9 @@ export const plane: Integration = {
       const sequenceId = nil(record.sequence_id) ?? item?.sequence_id
       if (!sequenceId) return null
       const object = planeObject(located.planeProject.identifier, sequenceId, record.name ?? item?.name)
-      const delivery: WebhookDelivery = { project, summary: `${name} ${object.key}` }
+      const self = planeCredentials()?.accountId
+      const bySelf = !!self && (record.comment?.actor_id ?? record.updated_by_id) === self
+      const delivery: WebhookDelivery = { project, object: bySelf ? undefined : object, summary: `${name} ${object.key}` }
 
       if (name === 'workitem.comment.created') {
         delivery.comment = await parseComment(located, object, record)
@@ -270,8 +273,6 @@ export const plane: Integration = {
         const linked = id ? byId.get(id) : undefined
         return linked ? [{ key: `${planeProject.identifier}-${linked.sequence_id}`, relation, title: linked.name ?? '' }] : []
       }
-      const pasted = (await Promise.all(pastedImageIds([item.description_html, ...comments.map(c => c.comment_html)])
-        .map(id => getPlaneAsset(id).catch(() => null)))).filter(a => a !== null)
       const parentId = typeof item.parent === 'string' ? item.parent : item.parent?.id
       const assignees = (item.assignees ?? []).map(planeUserName).filter(Boolean)
       return {
@@ -289,7 +290,12 @@ export const plane: Integration = {
             size: a.attributes?.size,
             download: () => downloadPlaneAttachment(p, workItemId, a.id),
           })),
-          ...pasted.map(({ id, name, type, download }) => ({ id, name, type, download })),
+          ...pastedImageIds([item.description_html, ...comments.map(c => c.comment_html)]).map(id => ({
+            id,
+            name: `pasted image ${id}`,
+            type: '',
+            download: () => downloadPlaneAsset(id),
+          })),
         ],
         links: [
           ...ref(parentId, 'parent'),

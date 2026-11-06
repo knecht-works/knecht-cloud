@@ -20,9 +20,11 @@ vi.mock('../../server/utils/github-app', () => ({
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
   createIssueComment: async () => {},
 }))
+const jiraFetches = vi.hoisted(() => ({ count: 0 }))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
   getJiraIssueRaw: async (key: string) => {
+    jiraFetches.count++
     if (key === 'DOWN-1') throw new Error('Jira is unreachable')
     return { key, fields: { summary: 'Login broken', attachment: [{ id: '10', filename: 'shot.png', mimeType: 'image/png', size: 3 }] } }
   },
@@ -105,6 +107,33 @@ describe('ai step over ACP', () => {
     const dir = join(checkoutDirOf(run.sessionId), '.knecht', 'objects', 'PROJ-1')
     expect(readFileSync(join(dir, 'ticket.md'), 'utf8')).toContain('# PROJ-1: Login broken')
     expect(readFileSync(join(dir, 'attachments', 'shot.png'), 'utf8')).toBe('png')
+  })
+
+  it('fetches the ticket again only after a webhook reported a change while webhooks arrive', async () => {
+    const { jiraConnection } = await import('../../server/integrations/jira/credentials')
+    const { ticketChanged } = await import('../../server/utils/object-freshness')
+    const project = makeProject()
+    const steps = (prefix: string) => [{ type: 'ai' as const, id: `${prefix}1`, prompt: 'one' }, { type: 'ai' as const, id: `${prefix}2`, prompt: 'two' }]
+    const run = makeRun(project, steps('a'))
+    db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: 'PROJ-2' }).where(eq(schema.sessions.id, run.sessionId)).run()
+
+    jiraFetches.count = 0
+    await startRun(run.id, project)
+    expect(jiraFetches.count).toBe(2)
+
+    jiraConnection.save({ siteUrl: 'https://acme.atlassian.net', email: 'k@acme.test', apiToken: 't' }, { webhookSecret: 's' })
+    jiraConnection.recordDelivery({ ok: true, summary: 'jira:issue_updated PROJ-2' })
+    const quiet = makeRun(project, steps('b'), { sessionId: run.sessionId })
+    jiraFetches.count = 0
+    await startRun(quiet.id, project)
+    expect(jiraFetches.count).toBe(0)
+
+    ticketChanged(run.sessionId)
+    const changed = makeRun(project, steps('c'), { sessionId: run.sessionId })
+    jiraFetches.count = 0
+    await startRun(changed.id, project)
+    expect(jiraFetches.count).toBe(1)
+    jiraConnection.remove()
   })
 
   it('still runs the step when the ticket cannot be refreshed', async () => {

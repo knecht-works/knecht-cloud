@@ -122,8 +122,10 @@ async function parseComment(commentId: string, name: string): Promise<WebhookDel
   const project = comment.issue ? linkedProject('linear', teamKeyOf(comment.issue.identifier)) : undefined
   if (!comment.issue || !project) return null
   const { object } = linearIssue(comment.issue)
+  const bySelf = !!comment.user?.id && comment.user.id === linearCredentials()?.accountId
   return {
     project,
+    object: bySelf ? undefined : object,
     summary: `${name} ${object.key}`,
     comment: {
       ...trackerComment({
@@ -181,7 +183,8 @@ export const linear: Integration = {
       const project = linkedProject('linear', teamKey)
       if (!project) return null
 
-      const delivery: WebhookDelivery = { project, summary: `${name} ${data.identifier}` }
+      const bySelf = !!payload.actor?.id && payload.actor.id === linearCredentials()?.accountId
+      const delivery: WebhookDelivery = { project, object: bySelf ? undefined : { integration: 'linear', kind: 'issue', key: data.identifier }, summary: `${name} ${data.identifier}` }
       if (payload.action === 'remove' || data.archivedAt || data.trashed) {
         delivery.statusChange = { object: { integration: 'linear', kind: 'issue', key: data.identifier, url: data.url, title: data.title }, status: 'closed' }
         return delivery

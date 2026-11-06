@@ -37,6 +37,8 @@ export interface ReplyTarget {
 // status change and a trigger event.
 export interface WebhookDelivery {
   project: Project
+  // The ticket someone other than Knecht changed, so its snapshot is fetched again on the next turn.
+  object?: SessionObject
   comment?: WebhookComment
   statusChange?: { object: SessionObject, status: 'open' | 'closed' }
   event?: { name: string, payload: unknown }

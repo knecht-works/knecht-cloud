@@ -228,6 +228,13 @@ describe('jira webhook route, vendor specifics', () => {
     expect(runsOf(trigger.id)[0]).toMatchObject({ actor: { id: 'user-2', name: 'Bob' } })
   })
 
+  it('reports the ticket as changed unless Knecht changed it itself', async () => {
+    const project = makeJiraProject()
+    const parse = (user: string) => jira.webhook.parse(JSON.stringify({ ...updated(project, [{ field: 'assignee', from: null, to: 'someone-else' }]), user: { accountId: user } }), () => undefined)
+    expect((await parse('user-2'))?.object).toMatchObject({ key: `${project.jiraProjectKey}-12` })
+    expect((await parse(KNECHT_ACCOUNT))?.object).toBeUndefined()
+  })
+
   // A triage workflow labels the ticket and moves it, and the next workflow picks it up from there.
   it('a label or status the agent sets itself starts the next workflow, without Knecht as the actor', async () => {
     const project = makeJiraProject()
