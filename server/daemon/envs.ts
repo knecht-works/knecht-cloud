@@ -11,6 +11,7 @@ import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
 import { ensureWorkspaceUp, removeWorkspace } from './workspace'
 import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
+import { warmPreviewCertificates } from '../utils/preview-certs'
 import { getProject } from '../stores/projects'
 import { getSessionRow, listSessionsInEnvState, moveSession, sessionChanged, updateSession, touchSessionPreview } from '../stores/sessions'
 import { listRunSessionIds, sessionHasActiveRun } from '../stores/runs'
@@ -82,6 +83,7 @@ export interface BootPlan {
 export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> {
   const log = plan.log ?? (() => {})
   const exec = async (command: string[]) => (await streamInSandbox(sessionId, command, log, undefined, plan.signal)).code
+  warmPreviewCertificates(sessionId)
   try {
     await removeWorkspace(sessionId)
     await startEnvStack(sessionId, log)
