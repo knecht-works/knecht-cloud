@@ -90,11 +90,6 @@ export async function commitAll(
   return (await sandbox.exec(['git', 'rev-parse', 'HEAD'])).trim()
 }
 
-export async function hasUncommittedChanges(dir: string): Promise<boolean> {
-  const { stdout } = await git(['-C', dir, 'status', '--porcelain'])
-  return Boolean(stdout.trim())
-}
-
 export async function pushBranch(sandbox: Sandbox, branch: string, token: string): Promise<void> {
   const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
   const env = {
