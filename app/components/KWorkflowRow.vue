@@ -102,19 +102,20 @@ const rateColor = computed(() => {
           Success
         </div>
       </div>
-      <div class="hidden w-14.5 flex-none text-right sm:block">
-        <div class="k-mono text-base text-toned">
+      <div class="hidden w-20 flex-none text-right sm:block">
+        <div class="k-mono whitespace-nowrap text-base text-toned">
           {{ avg ?? '–' }}
         </div>
         <div class="k-label !text-3xs">
           Avg run
         </div>
       </div>
-      <div class="hidden w-37.5 flex-none flex-wrap justify-end gap-1.5 xl:flex">
+      <div class="hidden w-37.5 flex-none flex-wrap justify-end gap-1.5 overflow-hidden xl:flex">
         <span
           v-for="p in projects"
           :key="p"
-          class="k-code whitespace-nowrap text-2xs"
+          class="k-code max-w-full truncate text-2xs"
+          :title="p"
         >{{ p }}</span>
       </div>
     </div>
