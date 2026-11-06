@@ -154,7 +154,8 @@ export const jira: Integration = {
       const issue = jiraIssue(key, payload.issue?.fields ?? {})
       const { object } = issue
       const name = payload.webhookEvent ?? ''
-      const delivery: WebhookDelivery = { project, summary: `${name} ${object.key}` }
+      const bySelf = !!payload.user?.accountId && payload.user.accountId === jiraCredentials()?.accountId
+      const delivery: WebhookDelivery = { project, object: bySelf ? undefined : object, summary: `${name} ${object.key}` }
       if (name === 'comment_created') {
         delivery.comment = await parseComment(object, payload)
         return delivery

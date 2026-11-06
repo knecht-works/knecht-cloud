@@ -251,24 +251,9 @@ export async function downloadPlaneAttachment(projectId: string, workItemId: str
   return downloadPresigned(location, auth.siteUrl)
 }
 
-export interface PlaneAsset {
-  id: string
-  name: string
-  type: string
-  download(): Promise<Buffer>
-}
-
 // An image pasted into a description or comment is a workspace asset, not an attachment of the work item.
-export async function getPlaneAsset(assetId: string): Promise<PlaneAsset> {
+export async function downloadPlaneAsset(assetId: string): Promise<{ content: Buffer, name: string, type: string }> {
   const asset = await planeFetch<{ asset_url?: string, asset_name?: string, asset_type?: string }>(workspacePath(`/assets/${encodeURIComponent(assetId)}/`))
-  const siteUrl = planeCredentials()?.siteUrl ?? ''
-  return {
-    id: assetId,
-    name: asset.asset_name || assetId,
-    type: asset.asset_type ?? '',
-    download: async () => {
-      if (!asset.asset_url) throw new Error('Plane sent no download link')
-      return downloadPresigned(asset.asset_url, siteUrl)
-    },
-  }
+  if (!asset.asset_url) throw new Error('Plane sent no download link')
+  return { content: await downloadPresigned(asset.asset_url, planeCredentials()?.siteUrl ?? ''), name: asset.asset_name || assetId, type: asset.asset_type ?? '' }
 }

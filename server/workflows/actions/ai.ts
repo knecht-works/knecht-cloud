@@ -13,6 +13,7 @@ import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 import { getSessionRow, updateSession } from '../../stores/sessions'
 import { getIntegration } from '../../integrations'
+import { freshTicketSince, ticketFetched } from '../../utils/object-freshness'
 import { snapshotDir, writeObjectSnapshot } from '../../utils/object-snapshot'
 import { describeObject, sessionObject } from '../../utils/sessions'
 
@@ -141,18 +142,25 @@ export function handoverPreamble(summary: string): string {
   return `Hand-over from the previous conversation in this session, read it before acting:\n\n${summary}\n\n---\n\n`
 }
 
-// Refreshed before every turn: in the session's one conversation the agent would otherwise trust an older read.
+// Refreshed before a turn when the ticket changed: in the session's one conversation the agent would otherwise trust an older read.
 async function refreshTicket(rt: ActionRuntime): Promise<string> {
   const session = getSessionRow(rt.sessionId)
   const object = session && sessionObject(session)
   if (!object) return ''
   const integration = getIntegration(object.integration)
   const dir = snapshotDir(object.key)
+  const dig = 'Run `knecht-object <KEY>` to dig into a linked ticket.'
+  const since = freshTicketSince(rt.sessionId, integration)
+  if (since && await rt.sandbox.exec(['sh', '-c', 'test -f "$1" && echo yes || true', 'sh', `${dir}/ticket.md`]).then(out => out.trim() === 'yes')) {
+    return `The ${describeObject(object)} as fetched at ${since.toISOString()}, unchanged since, with all comments and attachments: ${dir}/ticket.md. ${dig}\n\n`
+  }
   try {
     const context = await integration.objects.context(rt.project, object)
     if (typeof context === 'string') return `Run \`knecht-object\` for the current state of the ${describeObject(object)}, comments included.\n\n`
-    await writeObjectSnapshot(rt.sandbox, context)
-    return `The ${describeObject(object)} as of now, with all comments and attachments: ${dir}/ticket.md. Run \`knecht-object <KEY>\` to dig into a linked ticket.\n\n`
+    const fetchedAt = new Date()
+    await writeObjectSnapshot(rt.sandbox, context, fetchedAt)
+    ticketFetched(rt.sessionId, fetchedAt)
+    return `The ${describeObject(object)} as of now, with all comments and attachments: ${dir}/ticket.md. ${dig}\n\n`
   }
   catch (e) {
     rt.log(`\nCould not refresh ${describeObject(object)}: ${(e as Error).message}\n`)

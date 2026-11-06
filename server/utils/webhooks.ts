@@ -7,6 +7,7 @@ import { sessionHasActiveWork, syncObjectStatus } from './sessions'
 import { fireTrigger } from './triggers'
 import { listActiveTriggers } from '../stores/triggers'
 import { findObjectSession } from '../stores/sessions'
+import { ticketChanged } from './object-freshness'
 
 // No session gate: the integration authenticates the delivery with its signature over the raw body.
 export async function handleWebhook(integration: Integration, event: H3Event) {
@@ -36,6 +37,8 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
   }
   record({ ok: true, summary: delivery.summary })
   const { project } = delivery
+  const changed = delivery.object && !delivery.comment?.fromSelf && findObjectSession(project.id, delivery.object)
+  if (changed) ticketChanged(changed.id)
 
   let outcome: string | undefined
   if (delivery.comment) {

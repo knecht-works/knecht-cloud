@@ -92,7 +92,7 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
     assignees: [{ first_name: 'Ann' }],
   }),
   listPlaneComments: async () => [{ id: 'c1', comment_html: '<p>hi</p><image-component src="22222222-2222-2222-2222-222222222222"></image-component>', actor: 'u1' }],
-  getPlaneAsset: async (id: string) => ({ id, name: id.startsWith('1') ? 'mockup.png' : 'error.png', type: 'image/png', download: async () => Buffer.from('png') }),
+  downloadPlaneAsset: async (id: string) => ({ content: Buffer.from('png'), name: id.startsWith('1') ? 'mockup.png' : 'error.png', type: 'image/png' }),
   listPlaneAttachments: async () => [
     { id: 'a1', attributes: { name: 'mock.png', size: 3, type: 'image/png' }, is_uploaded: true },
     { id: 'a2', attributes: { name: 'half.png', size: 3, type: 'image/png' }, is_uploaded: false },
