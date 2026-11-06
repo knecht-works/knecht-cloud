@@ -40,8 +40,7 @@ export function withoutDashboardCookie(header: string | undefined): string | und
   return header?.split(';').map(c => c.trim()).filter(c => c && !c.startsWith(`${DASHBOARD_COOKIE}=`)).join('; ') || undefined
 }
 
-export async function proxyRunPreview(event: H3Event, sessionId: number, label?: string): Promise<void> {
-  const internal = isPreviewAuthToken(getRequestHeader(event, PREVIEW_AUTH_HEADER))
+export async function proxyRunPreview(event: H3Event, sessionId: number, label: string | undefined, internal: boolean): Promise<void> {
   const devOrigin = looksLikeDevServerLabel(label)
   if (devOrigin && !verifyDevServerLabel(sessionId, label)) {
     throw createError({ statusCode: 404, statusMessage: 'Unknown preview host' })
