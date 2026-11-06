@@ -1,6 +1,3 @@
-import { existsSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { z } from 'zod'
 import { logSink, openAgent, type AgentSession, type TranscriptSink } from '../../daemon/agent'
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '../../../shared/utils/workflow'
@@ -9,15 +6,12 @@ import { getSettings } from '../../utils/settings'
 import { decrypt } from '../../utils/crypto'
 import { tryParseJson } from '../../utils/json'
 import { bridgeEnv } from '../../utils/knecht-env'
-import { persistAgentMemory, seedAgentMemory } from '../../utils/agent-memory'
+import { agentMemoryFiles, installAgentFiles, persistAgentMemory } from '../../utils/agent-memory'
 import { AGENT_KEY_ENV, agentModelRef, buildAgentRules, buildOpencodeConfig } from '../../utils/opencode-config'
 import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 import { getSessionRow, updateSession } from '../../stores/sessions'
-
-// workflow.md is always (over)written so one ai step's prompt never leaks into a later one.
-const AGENT_CONFIG_SUBDIR = join('.knecht', 'opencode')
 
 const MAX_OUTPUT_ATTEMPTS = 3
 
@@ -51,7 +45,7 @@ export const aiAction = defineAction({
     }
     finally {
       await agent.close()
-      await persistAgentMemory(rt.project.id, rt.checkoutDir, rt.log)
+      await persistAgentMemory(rt.project.id, rt.sandbox, rt.log)
     }
   },
 })
@@ -111,7 +105,7 @@ export async function runFollowupPrompt(rt: ActionRuntime, prompt: string, sink:
   }
   finally {
     await agent.close()
-    await persistAgentMemory(rt.project.id, rt.checkoutDir, rt.log)
+    await persistAgentMemory(rt.project.id, rt.sandbox, rt.log)
   }
 }
 
@@ -192,21 +186,21 @@ async function readOutputFile(
 
 async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareModel: string): Promise<void> {
   const settings = getSettings()
-  const dir = join(rt.checkoutDir, AGENT_CONFIG_SUBDIR)
-  await mkdir(dir, { recursive: true })
+  const files: Record<string, string | Uint8Array> = {}
   const agents = await readSandboxAsset('opencode/AGENTS.md')
-  if (agents) await writeFile(join(dir, 'AGENTS.md'), agents)
+  if (agents) files['AGENTS.md'] = agents
   // Always written, empty when unset, so the static path in the generated config resolves.
-  await writeFile(join(dir, 'rules.md'), buildAgentRules(settings.agentInstructions, rt.project.agentInstructions))
-  await writeFile(join(dir, 'opencode.json'), JSON.stringify(buildOpencodeConfig({
+  files['rules.md'] = buildAgentRules(settings.agentInstructions, rt.project.agentInstructions)
+  files['opencode.json'] = JSON.stringify(buildOpencodeConfig({
     provider: settings.aiProvider as AiProviderId,
     region: settings.aiRegion,
     model: bareModel,
     subtaskModel: settings.aiSubtaskModel,
-  }), null, 2))
-  if (system !== null) await writeFile(join(dir, 'workflow.md'), system)
-  else if (!existsSync(join(dir, 'workflow.md'))) await writeFile(join(dir, 'workflow.md'), '')
-  await seedAgentMemory(rt.project.id, rt.checkoutDir)
+  }), null, 2)
+  // A step always (over)writes workflow.md so one ai step's prompt never leaks into a later one.
+  if (system !== null) files['workflow.md'] = system
+  for (const [name, text] of Object.entries(await agentMemoryFiles(rt.project.id))) files[`memory/${name}`] = text
+  await installAgentFiles(rt.sandbox, files)
 }
 
 function isValidOutputSpec(text: string): boolean {

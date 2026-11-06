@@ -20,7 +20,7 @@ export function sessionSandbox(sessionId: number, log: (text: string) => void, s
     projectDir: WEB_PROJECT_DIR,
     ensureUp: () => reviveEnv(sessionId, log),
     stream: (command, opts) => streamInContainer(sessionContainer(sessionId), command, log, opts?.env, signal),
-    exec: async (command, opts) => String((await execInContainer(sessionContainer(sessionId), command, { cancelSignal: signal }, opts?.env)).stdout),
+    exec: async (command, opts) => String((await execInContainer(sessionContainer(sessionId), command, { cancelSignal: signal, input: opts?.input, stripFinalNewline: false }, opts?.env)).stdout),
     spawn: (command, opts) => spawnInContainer(sessionContainer(sessionId), command, opts?.env),
     copyIn: (hostPath, sandboxPath) => copyIntoContainer(sessionContainer(sessionId), hostPath, sandboxPath),
   }

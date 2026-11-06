@@ -208,7 +208,7 @@ export function execInSandbox(sessionId: number, command: string[], options?: Op
 }
 
 export function execInContainer(container: string, command: string[], options?: Options, env?: Record<string, string>) {
-  return execa('docker', dockerExecArgs(container, command, env), options)
+  return execa('docker', dockerExecArgs(container, command, env, options?.input === undefined ? [] : ['-i']), options)
 }
 
 function dockerExecArgs(container: string, command: string[], env?: Record<string, string>, flags: string[] = []): string[] {
