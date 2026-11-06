@@ -83,8 +83,16 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
   planeProjectByIdentifier: async (identifier: string) => ({ id: 'p1', identifier, name: identifier }),
   getPlaneWorkItemByKey: async () => ({ id: 'w2', sequence_id: 2, name: 'Dark mode' }),
-  getPlaneWorkItemRaw: async () => ({ name: 'Dark mode', priority: 'high', parent: { id: 'w1' }, state: { name: 'In Review' }, assignees: [{ first_name: 'Ann' }] }),
-  listPlaneComments: async () => [{ id: 'c1', comment_html: '<p>hi</p>', actor: 'u1' }],
+  getPlaneWorkItemRaw: async () => ({
+    name: 'Dark mode',
+    description_html: '<image-component src="11111111-1111-1111-1111-111111111111" status="uploaded"></image-component><p>Make it dark.</p>',
+    priority: 'high',
+    parent: { id: 'w1' },
+    state: { name: 'In Review' },
+    assignees: [{ first_name: 'Ann' }],
+  }),
+  listPlaneComments: async () => [{ id: 'c1', comment_html: '<p>hi</p><image-component src="22222222-2222-2222-2222-222222222222"></image-component>', actor: 'u1' }],
+  getPlaneAsset: async (id: string) => ({ id, name: id.startsWith('1') ? 'mockup.png' : 'error.png', type: 'image/png', download: async () => Buffer.from('png') }),
   listPlaneAttachments: async () => [
     { id: 'a1', attributes: { name: 'mock.png', size: 3, type: 'image/png' }, is_uploaded: true },
     { id: 'a2', attributes: { name: 'half.png', size: 3, type: 'image/png' }, is_uploaded: false },
@@ -347,6 +355,8 @@ describe('agent bridge on a Plane work item', () => {
     expect(res.text).toContain('In Review · priority high · assigned to Ann')
     expect(res.text).toContain('- .knecht/objects/CRAFT-2/attachments/mock.png (image/png, 1 KB)')
     expect(res.text).not.toContain('half.png')
+    expect(res.text).toContain('- .knecht/objects/CRAFT-2/attachments/mockup.png (image/png, 1 KB)')
+    expect(res.text).toContain('- .knecht/objects/CRAFT-2/attachments/error.png (image/png, 1 KB)')
     expect(res.text).toContain('- CRAFT-1 (parent): Theming\n- CRAFT-4 (sub-work item): Toggle\n- CRAFT-3 (blocked by): Tokens')
     const dir = join(sessionCheckoutDir(sessionId), '.knecht', 'objects', 'CRAFT-2')
     expect(JSON.parse(readFileSync(join(dir, 'ticket.json'), 'utf8'))).toMatchObject({ name: 'Dark mode', comments: [{ id: 'c1' }], relations: { relates_to: ['elsewhere'] } })

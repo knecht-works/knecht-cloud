@@ -6,7 +6,7 @@ import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import { addPlaneComment, downloadPlaneAttachment, forgetPlaneCache, getPlaneComment, getPlaneRelations, getPlaneWorkItemRaw, listPlaneAttachments, listPlaneLinks, listPlaneWorkItems, planeMyself, planeUserName, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
+import { addPlaneComment, downloadPlaneAttachment, forgetPlaneCache, getPlaneAsset, getPlaneComment, getPlaneRelations, getPlaneWorkItemRaw, listPlaneAttachments, listPlaneLinks, listPlaneWorkItems, planeMyself, planeUserName, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
 import { PLANE_CONNECTION_FORM, planeConnection, planeCredentials } from './credentials'
 import { addressedTo, htmlMentionIds, htmlToMarkdown, markdownToHtml } from './html'
 import { findObjectSession } from '../../stores/sessions'
@@ -155,6 +155,12 @@ function planeChange(created: boolean, held: boolean, data: PlaneRecord, previou
   }
 }
 
+const IMAGE_COMPONENT_RE = /<image-component\b[^>]*\ssrc="([0-9a-f-]{36})"/g
+
+function pastedImageIds(htmls: (string | null | undefined)[]): string[] {
+  return [...new Set(htmls.flatMap(html => [...(html ?? '').matchAll(IMAGE_COMPONENT_RE)].map(m => m[1]!)))]
+}
+
 const planeProjectOf = (object: SessionObject) => planeProjectByIdentifier(object.key.replace(/-\d+$/, ''))
 
 function requireSelf(): string {
@@ -264,6 +270,8 @@ export const plane: Integration = {
         const linked = id ? byId.get(id) : undefined
         return linked ? [{ key: `${planeProject.identifier}-${linked.sequence_id}`, relation, title: linked.name ?? '' }] : []
       }
+      const pasted = (await Promise.all(pastedImageIds([item.description_html, ...comments.map(c => c.comment_html)])
+        .map(id => getPlaneAsset(id).catch(() => null)))).filter(a => a !== null)
       const parentId = typeof item.parent === 'string' ? item.parent : item.parent?.id
       const assignees = (item.assignees ?? []).map(planeUserName).filter(Boolean)
       return {
@@ -271,14 +279,17 @@ export const plane: Integration = {
         heading: `${object.key}: ${item.name ?? ''}`,
         url: planeWorkItemUrl(object.key),
         facts: [item.state?.name ?? '', item.priority && item.priority !== 'none' ? `priority ${item.priority}` : '', assignees.length ? `assigned to ${assignees.join(', ')}` : ''],
-        contents: `Plane work item with every field (state, labels, assignees expanded), the description in description_html and all ${comments.length} comments under "comments" as HTML (an actor is a member id, see "members"), plus "attachments", "relations" (work item ids per type) and "links"`,
+        contents: `Plane work item with every field (state, labels, assignees expanded), the description in description_html and all ${comments.length} comments under "comments" as HTML (an actor is a member id, see "members"; a pasted image is an <image-component> whose src is the asset id, downloaded under its filename), plus "attachments", "relations" (work item ids per type) and "links"`,
         data: { ...item, comments, attachments, relations, links, members },
-        files: attachments.filter(a => a.is_uploaded !== false).map(a => ({
-          name: a.attributes?.name || a.id,
-          type: a.attributes?.type ?? '',
-          size: a.attributes?.size,
-          download: () => downloadPlaneAttachment(p, workItemId, a.id),
-        })),
+        files: [
+          ...attachments.filter(a => a.is_uploaded !== false).map(a => ({
+            name: a.attributes?.name || a.id,
+            type: a.attributes?.type ?? '',
+            size: a.attributes?.size,
+            download: () => downloadPlaneAttachment(p, workItemId, a.id),
+          })),
+          ...pasted.map(({ name, type, download }) => ({ name, type, download })),
+        ],
         links: [
           ...ref(parentId, 'parent'),
           ...items.filter(i => i.parent === workItemId).flatMap(i => ref(i.id, 'sub-work item')),
