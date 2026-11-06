@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { getFollowup } from '../../../../stores/followups'
 import { followupAttachmentsDir } from '../../../../utils/attachments'
 
+const INLINE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif'])
+
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
   const name = getRouterParam(event, 'name') ?? ''
@@ -12,9 +14,10 @@ export default defineEventHandler((event) => {
   if (!attachment || !path || !existsSync(path)) {
     throw createError({ statusCode: 404, statusMessage: 'Attachment not found' })
   }
-  // Uploaders pick the type: only images are ever rendered by the browser, anything else is a download.
-  const image = attachment.type.startsWith('image/') && !attachment.type.includes('svg')
-  setHeader(event, 'content-type', image ? attachment.type : 'application/octet-stream')
+  // Uploaders pick the type: only raster images are ever rendered by the browser, anything else is a download.
+  const type = attachment.type.split(/[;,]/)[0]!.trim().toLowerCase()
+  const image = INLINE_IMAGE_TYPES.has(type)
+  setHeader(event, 'content-type', image ? type : 'application/octet-stream')
   setHeader(event, 'x-content-type-options', 'nosniff')
   if (!image) setHeader(event, 'content-disposition', `attachment; filename="${attachment.name}"`)
   setHeader(event, 'content-length', attachment.size)
