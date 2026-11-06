@@ -149,7 +149,7 @@ async function refreshTicket(rt: ActionRuntime): Promise<string> {
   if (!object) return ''
   const integration = getIntegration(object.integration)
   const dir = snapshotDir(object.key)
-  const dig = 'Run `knecht-object <KEY>` to dig into a linked ticket.'
+  const dig = 'Read it from there instead of running `knecht-object`; use `knecht-object <KEY>` only to dig into a linked ticket.'
   const since = freshTicketSince(rt.sessionId, integration)
   if (since && await rt.sandbox.exec(['sh', '-c', 'test -f "$1" && echo yes || true', 'sh', `${dir}/ticket.md`]).then(out => out.trim() === 'yes')) {
     return `The ${describeObject(object)} as fetched at ${since.toISOString()}, unchanged since, with all comments and attachments: ${dir}/ticket.md. ${dig}\n\n`
