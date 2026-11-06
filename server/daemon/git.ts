@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import type { Project } from '../db/schema'
+import type { ActionRuntime } from '../workflows/actions/types'
 import { KNECHT_COMPOSE_FILE, KNECHT_CONFIG_FILE } from './ddev'
 import { writeBridgeCredentialHelper } from '../utils/agent-bridge'
 import { checkoutReader, repoShipsDdevConfig } from '../utils/env-detect'
@@ -53,14 +54,17 @@ function authFlags(token: string): string[] {
   return ['-c', `http.https://github.com/.extraheader=Authorization: Basic ${basic}`]
 }
 
-export async function createBranch(dir: string, name: string): Promise<void> {
-  await git(['-C', dir, 'checkout', '-b', name])
+// Everything below runs inside the sandbox: the sandbox can write .git, and git
+// on the host would run its hooks, fsmonitor and filters with Knecht's privileges.
+type Sandbox = ActionRuntime['sandbox']
+
+export async function createBranch(sandbox: Sandbox, name: string): Promise<void> {
+  await sandbox.exec(['git', 'checkout', '-b', name])
 }
 
 // The agent creates branches with plain git, so a DB-tracked branch would go stale.
-export async function currentBranch(dir: string): Promise<string> {
-  const { stdout } = await git(['-C', dir, 'rev-parse', '--abbrev-ref', 'HEAD'])
-  return stdout.trim()
+export async function currentBranch(sandbox: Sandbox): Promise<string> {
+  return (await sandbox.exec(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])).trim()
 }
 
 export interface CommitIdentity { name: string, email: string }
@@ -68,23 +72,22 @@ export interface CommitIdentity { name: string, email: string }
 const FALLBACK_IDENTITY: CommitIdentity = { name: 'Knecht', email: 'noreply@knecht.works' }
 
 export async function commitAll(
-  dir: string,
+  sandbox: Sandbox,
   message: string,
   opts?: { identity?: CommitIdentity | null, paths?: string[] },
 ): Promise<string | null> {
-  if (opts?.paths?.length) await git(['-C', dir, 'add', '--', ...opts.paths])
-  else await git(['-C', dir, 'add', '-A'])
-  const { stdout: staged } = await git(['-C', dir, 'diff', '--cached', '--name-only'])
+  if (opts?.paths?.length) await sandbox.exec(['git', 'add', '--', ...opts.paths])
+  else await sandbox.exec(['git', 'add', '-A'])
+  const staged = await sandbox.exec(['git', 'diff', '--cached', '--name-only'])
   if (!staged.trim()) return null
   const identity = opts?.identity ?? FALLBACK_IDENTITY
-  await git([
-    '-C', dir,
+  await sandbox.exec([
+    'git',
     '-c', `user.name=${identity.name}`,
     '-c', `user.email=${identity.email}`,
     'commit', '-m', message,
   ])
-  const { stdout } = await git(['-C', dir, 'rev-parse', 'HEAD'])
-  return stdout.trim()
+  return (await sandbox.exec(['git', 'rev-parse', 'HEAD'])).trim()
 }
 
 export async function hasUncommittedChanges(dir: string): Promise<boolean> {
@@ -92,9 +95,15 @@ export async function hasUncommittedChanges(dir: string): Promise<boolean> {
   return Boolean(stdout.trim())
 }
 
-export async function pushBranch(dir: string, branch: string, token: string): Promise<void> {
+export async function pushBranch(sandbox: Sandbox, branch: string, token: string): Promise<void> {
+  const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
+  const env = {
+    GIT_CONFIG_COUNT: '1',
+    GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
+    GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}`,
+  }
   try {
-    await git(['-C', dir, ...authFlags(token), 'push', 'origin', `HEAD:refs/heads/${branch}`])
+    await sandbox.exec(['git', 'push', 'origin', `HEAD:refs/heads/${branch}`], { env })
   }
   catch (e) {
     throw new Error(redact(String((e as Error).message), token), { cause: e })

@@ -18,6 +18,8 @@ export interface ActionRuntime {
     ensureUp: () => Promise<void>
     /** `env` never appears in the command line (secrets). */
     stream: (command: string[], opts?: { env?: Record<string, string> }) => Promise<{ code: number, tail: string }>
+    /** Resolves to stdout, rejects on a non-zero exit. */
+    exec: (command: string[], opts?: { env?: Record<string, string> }) => Promise<string>
     spawn: (command: string[], opts?: { env?: Record<string, string> }) => SandboxProcess
     copyIn: (hostPath: string, sandboxPath: string) => Promise<void>
   }

@@ -11,7 +11,8 @@ export const createCommitAction = defineAction({
   legacyKey: 'commit',
   async run(step, rt) {
     rt.log(`\n▶ create-commit: ${step.message}\n`)
-    const sha = await commitAll(rt.checkoutDir, step.message, { identity: await getBotIdentity() })
+    await rt.sandbox.ensureUp()
+    const sha = await commitAll(rt.sandbox, step.message, { identity: await getBotIdentity() })
     if (sha) {
       rt.log(`Committed ${sha.slice(0, 8)}\n`)
       return { sha, created: true }

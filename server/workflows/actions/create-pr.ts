@@ -21,7 +21,8 @@ export const createPrAction = defineAction({
     rt.log(`\n▶ create-pr: ${step.title}\n`)
     // Fresh token: the run may have outlived the 1h token from checkout.
     const token = await getInstallationToken(rt.project.owner, rt.project.name)
-    await pushBranch(rt.checkoutDir, branch, token)
+    await rt.sandbox.ensureUp()
+    await pushBranch(rt.sandbox, branch, token)
     let pr: { url: string, number: number, existing: boolean } | null
     try {
       pr = await createPullRequest(rt.project.owner, rt.project.name, {
