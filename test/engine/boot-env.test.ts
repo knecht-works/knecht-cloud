@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import type { ActionRuntime } from '../../server/workflows/actions'
 import type { Project } from '../../server/db/schema'
-import { getSessionRow, makeProject, makeSession } from '../helpers/db'
+import { getSessionRow, makeProject, makeRun, makeSession } from '../helpers/db'
 
 const calls: string[] = []
 const failing = new Set<string>()
@@ -153,6 +153,21 @@ describe('reviveEnv', () => {
     await reviveEnv(session.id)
     expect(calls).toEqual(['workspace up'])
     expect(startEnvStack).not.toHaveBeenCalled()
+  })
+
+  function sessionThatBooted(envState: 'up' | 'stopped') {
+    const project = makeProject({ bootCommands: 'pnpm install' })
+    const session = makeSession(project, { envState })
+    const run = makeRun(project, [{ type: 'ddev-start', commands: 'pnpm run build' }], { sessionId: session.id })
+    db.insert(schema.runSteps).values({ runId: run.id, stepIndex: 0, stepId: 'boot', type: 'ddev-start', status: 'success', params: { commands: 'pnpm run build' } }).run()
+    return session
+  }
+
+  it.each(['up', 'stopped'] as const)('boots the lost preview of an %s code session that once had one', async (envState) => {
+    const session = sessionThatBooted(envState)
+    await reviveEnv(session.id)
+    expect(calls).toEqual(['workspace removed', 'ddev start', 'bash -lc pnpm install', 'bash -lc pnpm run build'])
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'up', tier: 'preview' })
   })
 
   it('refuses a session without a checkout', async () => {

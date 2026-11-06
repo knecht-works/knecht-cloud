@@ -4,6 +4,7 @@ import type { EnvState } from '#shared/utils/run'
 defineProps<{
   envState: EnvState
   workflowId: number | null
+  previewLost: boolean
   reviving: boolean
   restarting: boolean
 }>()
@@ -55,6 +56,18 @@ defineEmits<{
         @click="$emit('runAgain')"
       />
     </UTooltip>
+  </template>
+  <template v-else-if="previewLost">
+    <p class="max-w-100 text-2sm text-muted">
+      The preview of this session is not running. Boot it to bring it back with the
+      project's database and boot commands.
+    </p>
+    <UButton
+      color="primary"
+      label="Boot preview"
+      :loading="reviving"
+      @click="$emit('revive')"
+    />
   </template>
   <template v-else>
     <p class="max-w-70 text-2sm text-muted">

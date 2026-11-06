@@ -1,4 +1,4 @@
-import { envTransition } from '../../daemon/envs'
+import { envTransition, previewLost } from '../../daemon/envs'
 import { getRunView } from '../../stores/runs'
 import { withSessionEnv } from '../../utils/run-view'
 
@@ -11,5 +11,5 @@ export default defineEventHandler((event) => {
     throw createError({ statusCode: 404, statusMessage: 'Run not found' })
   }
 
-  return { ...withSessionEnv(run), envTransition: envTransition(run.sessionId) }
+  return { ...withSessionEnv(run), envTransition: envTransition(run.sessionId), previewLost: previewLost(run.sessionId) }
 })

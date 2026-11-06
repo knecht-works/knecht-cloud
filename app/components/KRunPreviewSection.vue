@@ -10,6 +10,7 @@ const props = defineProps<{
   hasPreviewTarget: boolean
   envState: EnvState
   hasEnv: boolean
+  previewLost: boolean
   previewOnline: boolean
   isLive: boolean
   busy: EnvTransition | null
@@ -22,7 +23,7 @@ const emit = defineEmits<{
 }>()
 
 const toastError = useToastError()
-const reviving = computed(() => props.busy === 'rebooting' || props.busy === 'restoring')
+const reviving = computed(() => props.busy === 'booting' || props.busy === 'rebooting' || props.busy === 'restoring')
 
 async function reboot() {
   const restoring = props.envState === 'archived'
@@ -69,6 +70,7 @@ async function runAgain() {
     <KEnvLifecycle
       :env-state="envState"
       :workflow-id="workflowId"
+      :preview-lost="previewLost"
       :reviving="reviving"
       :restarting="restarting"
       @revive="reboot"

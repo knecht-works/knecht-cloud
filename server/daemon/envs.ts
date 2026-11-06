@@ -189,8 +189,8 @@ async function restoreFromArchive(sessionId: number): Promise<void> {
   }
   pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
 
-  if (session.tier === 'preview') {
-    const bootStep = lastBootStep(sessionId)
+  const bootStep = lastBootStep(sessionId)
+  if (session.tier === 'preview' || bootStep) {
     await bootEnv(sessionId, {
       dbFile: archivedDbFile(sessionId, project),
       projectCommands: bootStep ? project.bootCommands : '',
@@ -201,6 +201,7 @@ async function restoreFromArchive(sessionId: number): Promise<void> {
     await ensureWorkspaceUp(sessionId)
   }
   moveEnv(sessionId, 'archived', 'up')
+  if (session.tier === 'code' && bootStep) promoteToPreview(sessionId)
 }
 
 export async function reviveEnv(sessionId: number, log?: (text: string) => void): Promise<void> {
@@ -209,9 +210,33 @@ export async function reviveEnv(sessionId: number, log?: (text: string) => void)
   const running = transitions.get(sessionId)
   if (running) throw new Error(`The environment is ${running}`)
   if (session.envState === 'archived') return rehydrateEnv(sessionId)
+  if (previewLost(sessionId)) return rebootLostPreview(sessionId, log)
   if (session.envState === 'stopped') return rebootEnv(sessionId)
   await startSandbox(sessionId, session.tier, false, log)
   touchSessionPreview(sessionId)
+}
+
+// An expired archive resets the tier, so a later checkout comes back as a bare workspace.
+export function previewLost(sessionId: number): boolean {
+  return getSessionRow(sessionId)?.tier === 'code' && !!lastBootStep(sessionId)
+}
+
+async function rebootLostPreview(sessionId: number, log?: (text: string) => void): Promise<void> {
+  await inTransition(sessionId, 'booting', async () => {
+    const session = getSessionRow(sessionId)
+    const project = session && getProject(session.projectId)
+    if (!session || !project) throw new Error('Session or project not found')
+    const dir = sessionCheckoutDir(sessionId)
+    if (existsSync(dir)) pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
+    await bootEnv(sessionId, {
+      dbFile: archivedDbFile(sessionId, project),
+      projectCommands: project.bootCommands,
+      stepCommands: lastBootStep(sessionId)?.commands,
+      log,
+    })
+    if (session.envState === 'stopped') moveEnv(sessionId, 'stopped', 'up')
+    promoteToPreview(sessionId)
+  })
 }
 
 function lastBootStep(sessionId: number): { commands?: string } | null {
