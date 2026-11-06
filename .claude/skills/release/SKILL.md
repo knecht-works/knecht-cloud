@@ -34,7 +34,7 @@ it up.
 3. **Draft the notes** in this shape:
 
    ```markdown
-   ## ✨ Highlights
+   ## Highlights
 
    ### Linear and Plane are connected
 
@@ -45,15 +45,15 @@ it up.
 
    ...
 
-   ## ⚠️ Breaking changes
+   ## Breaking changes
 
    - What breaks and what to do about it.
 
-   ## 🚀 New
+   ## New
 
    - One sentence per remaining feature.
 
-   ## 🐛 Fixed
+   ## Fixed
 
    - One sentence per fix.
    ```
@@ -71,7 +71,7 @@ it up.
    - Every bullet is one sentence about visible behavior, under 120
      characters where possible, and starts with the thing that changed
      ("Trigger filters accept * wildcards"), not with "Fixed" or "Added".
-   - Keep the section headings with their emoji exactly as above. Omit empty sections. No commit hashes, no PR links, no Co-Authored
+   - Keep the section headings exactly as above, without emoji. Omit empty sections. No commit hashes, no PR links, no Co-Authored
      lines.
    - No em-dashes anywhere (CLAUDE.md §5).
 
