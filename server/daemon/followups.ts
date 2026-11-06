@@ -132,8 +132,7 @@ async function stageAttachments(rt: ActionRuntime, followup: Followup): Promise<
 function followupMessage(followup: Followup, session: Session): string {
   const publish = 'Publishing: if this session already has an open pull request, commit your changes (in logical chunks with proper messages) and push when you are done; never open a second PR. Otherwise leave your changes in the working tree for review in the preview, unless the request above asks you to commit, push or open a PR.'
   const object = followup.origin === 'mention' ? sessionObject(session) : null
-  // A mention rarely repeats the ticket; the state stays out of the prompt and is read on demand.
-  const thread = object ? `This session belongs to ${describeObject(object)}; run \`knecht-object\` for its current state, comments included.\n\n` : ''
+  const thread = object ? `This session belongs to ${describeObject(object)}.\n\n` : ''
   const attached = followup.attachments.length
     ? `\n\nThe user attached these files; they are in the sandbox, read them as needed:\n${followup.attachments.map(a => `- ${sandboxAttachmentPath(followup.id, a.name)} (${a.type || 'unknown type'}, ${Math.max(1, Math.round(a.size / 1024))} KB)`).join('\n')}`
     : ''

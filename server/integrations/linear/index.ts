@@ -212,6 +212,7 @@ export const linear: Integration = {
         contents: `Linear issue with every field the issue view shows, the description in "description" and all ${issue.comments.nodes.length} comments under "comments", as markdown; an uploaded file in them is a link to uploads.linear.app whose text is the attachment's filename`,
         data: issue,
         files: linearUploads([issue.description ?? '', ...issue.comments.nodes.map(c => c.body ?? '')]).map(upload => ({
+          id: upload.url,
           name: upload.name,
           type: '',
           download: () => downloadLinearUpload(upload.url),
