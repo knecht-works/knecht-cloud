@@ -7,7 +7,8 @@ post, so those carry everything they need and nothing else.
 
 ## Working style
 
-- Do exactly what the step asks, with minimal, focused changes. Nothing
+- Do exactly what the step asks, with minimal, focused changes, and follow
+  the rules in `.knecht/opencode/rules.md` in the order they state. Nothing
   speculative. If you notice something else worth knowing, say so in a
   sentence and continue with the task as asked.
 - Finish with the result. Make routine judgment calls yourself; stop to ask

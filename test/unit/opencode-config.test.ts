@@ -95,16 +95,15 @@ describe('agentModelRef', () => {
 })
 
 describe('buildAgentRules', () => {
-  it('renders both layers with the project section last', () => {
+  it('states the precedence and orders the layers by it', () => {
     const rules = buildAgentRules('Instance rule.', 'Project rule.')
-    expect(rules).toBe(
-      '# Instance rules\n\nInstance rule.\n\n'
-      + '# Project rules\n\nOn conflict these override the instance rules.\n\nProject rule.\n',
-    )
+    expect(rules).toMatch(/^# Rules\n\nThese apply to every step and message, also where the request does not mention them\. On conflict, the request of the step or message wins, then the project rules, then the instance rules\.\n\n/)
+    expect(rules).toContain('# Project rules\n\nProject rule.\n\n# Instance rules\n\nInstance rule.\n')
   })
 
   it('omits empty layers entirely', () => {
-    expect(buildAgentRules('Only instance.', '  ')).toBe('# Instance rules\n\nOnly instance.\n')
+    expect(buildAgentRules('Only instance.', '  ')).toMatch(/# Instance rules\n\nOnly instance\.\n$/)
+    expect(buildAgentRules('Only instance.', '  ')).not.toContain('# Project rules')
     expect(buildAgentRules('', 'Only project.')).toContain('# Project rules')
     expect(buildAgentRules('', '')).toBe('')
   })
