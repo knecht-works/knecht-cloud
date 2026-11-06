@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isPreviewHost, parsePreviewHost, previewHostname, previewLabel, stripPreviewPrefix } from '../../shared/utils/preview-host'
+import { isPreviewHost, isWebUrl, parsePreviewHost, previewHostname, previewLabel, stripPreviewPrefix } from '../../shared/utils/preview-host'
 
 describe('preview host scheme', () => {
   it('builds and parses primary and labeled origins symmetrically', () => {
@@ -26,5 +26,17 @@ describe('preview host scheme', () => {
     expect(previewLabel('demo.ddev.site')).toBe('demo')
     expect(previewLabel('knaus.kta.ddev.site')).toBe('knaus-kta')
     expect(previewLabel('www.example.com')).toBe('www-example-com')
+  })
+})
+
+describe('isWebUrl', () => {
+  it('accepts only http and https addresses from a framed preview', () => {
+    expect(isWebUrl('https://5.preview.knecht.test/about')).toBe(true)
+    expect(isWebUrl('http://5.preview.lvh.me:3333/')).toBe(true)
+    expect(isWebUrl('javascript:alert(document.domain)')).toBe(false)
+    expect(isWebUrl('JaVaScRiPt:alert(1)')).toBe(false)
+    expect(isWebUrl(' javascript:alert(1)')).toBe(false)
+    expect(isWebUrl('data:text/html,<script>alert(1)</script>')).toBe(false)
+    expect(isWebUrl('/relative')).toBe(false)
   })
 })
