@@ -190,6 +190,7 @@ export async function updatePlaneWorkItem(projectId: string, workItemId: string,
 
 export interface PlaneWorkItemRaw {
   name?: string
+  description_html?: string | null
   priority?: string
   parent?: { id?: string } | string | null
   state?: { name?: string } | null
@@ -230,7 +231,13 @@ export function listPlaneLinks(projectId: string, workItemId: string): Promise<u
   return listAll<unknown>(workspacePath(`/projects/${projectId}/work-items/${workItemId}/links/`))
 }
 
-// Plane answers with a redirect to presigned storage, which must not get the API key.
+// Presigned storage, which must not get the API key.
+async function downloadPresigned(link: string, siteUrl: string): Promise<Buffer> {
+  const url = new URL(link, siteUrl)
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(`Plane sent an unexpected download link: ${url.protocol}`)
+  return Buffer.from(await ofetch<ArrayBuffer, 'arrayBuffer'>(url.href, { responseType: 'arrayBuffer', timeout: 60_000 }))
+}
+
 export async function downloadPlaneAttachment(projectId: string, workItemId: string, attachmentId: string): Promise<Buffer> {
   const auth = planeCredentials()
   if (!auth) throw new Error('Plane is not connected')
@@ -241,7 +248,27 @@ export async function downloadPlaneAttachment(projectId: string, workItemId: str
   })
   const location = res.headers.get('location')
   if (res.status < 300 || res.status >= 400 || !location) throw new Error(`Plane answered ${res.status} instead of a download link`)
-  const url = new URL(location, auth.siteUrl)
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(`Plane sent an unexpected download link: ${url.protocol}`)
-  return Buffer.from(await ofetch<ArrayBuffer, 'arrayBuffer'>(url.href, { responseType: 'arrayBuffer', timeout: 60_000 }))
+  return downloadPresigned(location, auth.siteUrl)
+}
+
+export interface PlaneAsset {
+  id: string
+  name: string
+  type: string
+  download(): Promise<Buffer>
+}
+
+// An image pasted into a description or comment is a workspace asset, not an attachment of the work item.
+export async function getPlaneAsset(assetId: string): Promise<PlaneAsset> {
+  const asset = await planeFetch<{ asset_url?: string, asset_name?: string, asset_type?: string }>(workspacePath(`/assets/${encodeURIComponent(assetId)}/`))
+  const siteUrl = planeCredentials()?.siteUrl ?? ''
+  return {
+    id: assetId,
+    name: asset.asset_name || assetId,
+    type: asset.asset_type ?? '',
+    download: async () => {
+      if (!asset.asset_url) throw new Error('Plane sent no download link')
+      return downloadPresigned(asset.asset_url, siteUrl)
+    },
+  }
 }
