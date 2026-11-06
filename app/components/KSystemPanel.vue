@@ -17,7 +17,7 @@ function changeCount(notes: string): string {
 
 type NoteLine = { text: string, kind: 'heading' | 'title' | 'item' | 'text' | 'image' }
 
-const LEGACY_HEADINGS: Record<string, string> = { 'Breaking:': '⚠️ Breaking changes', 'New:': '🚀 New', 'Fixed:': '🐛 Fixed' }
+const LEGACY_HEADINGS: Record<string, string> = { 'Breaking:': 'Breaking changes', 'New:': 'New', 'Fixed:': 'Fixed' }
 
 function withoutEmoji(heading: string): string {
   return heading.replace(/^[\p{Extended_Pictographic}\uFE0F\s]+/u, '')
@@ -32,7 +32,7 @@ function notesLines(notes: string): NoteLine[] {
       const image = line.match(/^<img\b[^>]*\ssrc="([^"]+)"[^>]*>$/) ?? line.match(/^!\[[^\]]*\]\(([^)\s]+)\)$/)
       if (image) return { text: image[1]!, kind: 'image' }
       if (/^## /.test(line)) return { text: withoutEmoji(line.slice(3)), kind: 'heading' }
-      if (LEGACY_HEADINGS[line]) return { text: withoutEmoji(LEGACY_HEADINGS[line]), kind: 'heading' }
+      if (LEGACY_HEADINGS[line]) return { text: LEGACY_HEADINGS[line], kind: 'heading' }
       if (/^### /.test(line)) return { text: line.slice(4), kind: 'title' }
       if (/^[-*] /.test(line)) return { text: line.slice(2), kind: 'item' }
       return { text: line, kind: 'text' }

@@ -123,7 +123,7 @@ jobs:
           IMAGE_RE='^[[:space:]]*(<img[^>]*>|!\[[^]]*\]\([^)]*\))[[:space:]]*$'
           IMAGE="$(grep -E "$IMAGE_RE" /tmp/notes.md | head -1 | sed -E 's/.*src="([^"]*)".*/\1/; s/.*\]\(([^)]*)\).*/\1/' || true)"
           BODY="$(grep -vE "$IMAGE_RE" /tmp/notes.md | cat -s | sed -E -e 's/^### (.*)$/**\1**/' -e 's/^## /### /' | head -c 3800)"
-          jq -n --arg content "🚀 **Knecht $GITHUB_REF_NAME** is out! Here is what changed:" --arg url "$URL" --arg body "$BODY" --arg image "$IMAGE" \
+          jq -n --arg content "**Knecht $GITHUB_REF_NAME** is out! Here is what changed:" --arg url "$URL" --arg body "$BODY" --arg image "$IMAGE" \
             '{content: $content, embeds: [{title: "Release notes", url: $url, description: $body, color: 12056738,
               footer: {text: "Update from the System page in your dashboard, or read the full release on GitHub."},
               timestamp: (now | todate)} + (if $image == "" then {} else {image: {url: $image}} end)]}' \

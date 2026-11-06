@@ -5,8 +5,7 @@
 # up its stable tag) has a body, that body is the release notes, images
 # included. The /release skill drafts it. Otherwise the notes are built from
 # conventional commits (CLAUDE.md §6): only feat/fix subjects make it in, oldest first, grouped
-# under Breaking changes / New / Fixed with the emoji headings every reader
-# (GitHub, dashboard, Discord) shows as they are. A commit with a
+# under Breaking changes / New / Fixed. A commit with a
 # "Changelog: skip" trailer stays out.
 #
 # The release pipeline (.github/workflows/release.yml) uses this to build the
@@ -50,9 +49,9 @@ git log ${from:+$from..}"$to" --no-merges --reverse \
   }
   END {
     out = ""
-    if (breaking) out = out "## ⚠️ Breaking changes\n\n" breaking
-    if (features) out = out (out ? "\n" : "") "## 🚀 New\n\n" features
-    if (fixes)    out = out (out ? "\n" : "") "## 🐛 Fixed\n\n" fixes
+    if (breaking) out = out "## Breaking changes\n\n" breaking
+    if (features) out = out (out ? "\n" : "") "## New\n\n" features
+    if (fixes)    out = out (out ? "\n" : "") "## Fixed\n\n" fixes
     if (!out)     out = "Maintenance release.\n"
     printf "%s", out
   }'
