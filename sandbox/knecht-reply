@@ -14,11 +14,19 @@ usage() {
 usage:
   knecht-reply <text>     post a comment on this session's ticket/issue/PR
   echo <text> | knecht-reply    same, reading the text from stdin
+  knecht-reply --new-thread <text>    start a new comment instead of
+                                      answering in the mention's thread
 EOF
   exit 2
 }
 
 require_bridge knecht-reply
+
+new_thread=false
+if [ "${1:-}" = "--new-thread" ]; then
+  new_thread=true
+  shift
+fi
 
 if [ "$#" -gt 0 ]; then
   text="$*"
@@ -27,4 +35,4 @@ else
 fi
 [ -n "$text" ] || usage
 
-bridge_post "{\"op\":\"comment\",\"body\":$(json_escape "$text")}"
+bridge_post "{\"op\":\"comment\",\"newThread\":$new_thread,\"body\":$(json_escape "$text")}"

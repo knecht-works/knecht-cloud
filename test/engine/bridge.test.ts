@@ -322,6 +322,12 @@ describe('agent bridge on a Jira ticket', () => {
         { type: 'text', text: 'Fixed.' },
       ] }] },
     })
+
+    await call(sessionId, { op: 'comment', body: 'PR is up.', newThread: true })
+    expect(jiraApi.comments.at(-1)).toMatchObject({
+      parentId: null,
+      body: { content: [{ type: 'paragraph', content: [{ type: 'mention', attrs: { id: 'user-1' } }, { type: 'text', text: ' ' }, { type: 'text', text: 'PR is up.' }] }] },
+    })
   })
 
   it('applies only labels that exist in Jira', async () => {

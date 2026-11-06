@@ -49,7 +49,7 @@ import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from 
 const bodySchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('credential') }),
   z.object({ op: z.literal('open-pr'), title: z.string().min(1), body: z.string().optional() }),
-  z.object({ op: z.literal('comment'), body: z.string().min(1) }),
+  z.object({ op: z.literal('comment'), body: z.string().min(1), newThread: z.boolean().optional() }),
   z.object({ op: z.literal('label'), add: z.array(z.string().min(1)).optional(), remove: z.array(z.string().min(1)).optional() }),
   z.object({ op: z.literal('status'), status: z.string().min(1) }),
   z.object({ op: z.literal('context'), key: z.string().min(1).optional() }),
@@ -117,7 +117,10 @@ export default defineEventHandler(async (event) => {
       case 'comment': {
         const { integration, object, label } = requireObject(session)
         requireRepliesEnabled(sessionId)
-        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId), getRunningFollowup(sessionId)?.replyTo ?? addressee(getRunningSessionRun(sessionId)?.actor)))
+        const target = getRunningFollowup(sessionId)?.replyTo ?? addressee(getRunningSessionRun(sessionId)?.actor)
+        // Still addressed to whoever asked, only no longer under their comment.
+        const replyTo = body.newThread && target ? { ...target, thread: null } : target
+        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId), replyTo))
         recordAgentReply(sessionId)
         log(`\nagent-reply: commented on ${label}\n`)
         return reply(event, 200, `posted the reply on ${label}${comment.url ? `: ${comment.url}` : ''}`)
