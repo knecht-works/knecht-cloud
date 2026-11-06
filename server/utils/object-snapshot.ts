@@ -25,11 +25,20 @@ export interface SnapshotLink {
   title: string
 }
 
+export interface SnapshotComment {
+  author: string
+  at: string
+  body: string
+}
+
 export interface ObjectSnapshot {
   key: string
   heading: string
   url: string
   facts: string[]
+  // Readable copies of what ticket.json holds raw, so one file answers most questions.
+  body: string
+  comments: SnapshotComment[]
   // What the raw file holds, for the agent to know where to look.
   contents: string
   data: unknown
@@ -131,6 +140,13 @@ export async function writeObjectSnapshot(sandbox: Sandbox, snapshot: ObjectSnap
       `Full ${snapshot.contents}: ${join(rel, 'ticket.json')}`,
       ...(files.length ? ['', 'Attachments:', ...files] : []),
       ...(snapshot.links.length ? ['', 'Linked, load one with `knecht-object <KEY>`:', ...snapshot.links.map(l => `- ${l.key} (${l.relation}): ${l.title}`)] : []),
+      '',
+      '## Description',
+      '',
+      snapshot.body.trim() || '(empty)',
+      '',
+      `## Comments (${snapshot.comments.length}, oldest first)`,
+      ...[...snapshot.comments].sort((a, b) => a.at.localeCompare(b.at)).flatMap(c => ['', `### ${c.author || 'unknown'} · ${c.at}`, '', c.body.trim()]),
     ].join('\n')
     await writeFile(join(staging, 'ticket.md'), `${index}\n`)
     await writeFile(join(staging, MANIFEST), JSON.stringify(current))

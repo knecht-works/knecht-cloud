@@ -188,6 +188,8 @@ export const jira: Integration = {
         heading: `${object.key}: ${fields.summary ?? ''}`,
         url: jiraIssueUrl(object.key),
         facts: [fields.issuetype?.name ?? '', fields.status?.name ?? '', fields.assignee?.displayName ? `assigned to ${fields.assignee.displayName}` : ''],
+        body: adfToMarkdown(fields.description),
+        comments: comments.map(c => ({ author: c.author?.displayName ?? '', at: c.created ?? '', body: adfToMarkdown(c.body) })),
         contents: `Jira issue with every field (custom field names under "names"), the description in fields.description and all ${comments.length} comments under "comments", as ADF; an image in them is a media node whose attrs.alt is the attachment's filename`,
         data: { ...issue, comments },
         files: (fields.attachment ?? []).filter(a => a.id && a.filename).map(a => ({

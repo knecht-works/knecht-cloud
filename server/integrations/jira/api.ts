@@ -188,9 +188,15 @@ export async function getJiraIssueRaw(issueKey: string): Promise<JiraRawIssue> {
   return jiraFetch<JiraRawIssue>(`/issue/${encodeURIComponent(issueKey)}?fields=*all,-comment&expand=names`)
 }
 
-export async function listJiraIssueComments(issueKey: string): Promise<unknown[]> {
-  const comments: unknown[] = []
-  let page: { comments?: unknown[], total?: number }
+export interface JiraRawComment {
+  author?: { displayName?: string }
+  created?: string
+  body?: AdfNode | null
+}
+
+export async function listJiraIssueComments(issueKey: string): Promise<JiraRawComment[]> {
+  const comments: JiraRawComment[] = []
+  let page: { comments?: JiraRawComment[], total?: number }
   do {
     page = await jiraFetch(`/issue/${encodeURIComponent(issueKey)}/comment?startAt=${comments.length}&maxResults=100&orderBy=created`)
     comments.push(...(page.comments ?? []))

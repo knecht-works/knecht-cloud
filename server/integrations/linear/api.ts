@@ -124,7 +124,7 @@ export interface LinearIssueRaw {
   children: { nodes: LinearRef[] }
   relations: { nodes: { type: string, relatedIssue: LinearRef }[] }
   inverseRelations: { nodes: { type: string, issue: LinearRef }[] }
-  comments: { nodes: { body?: string | null }[] }
+  comments: { nodes: { body?: string | null, createdAt?: string, user?: { name?: string } | null }[] }
 }
 
 // GraphQL has no "every field": this is what the issue view in Linear shows.
