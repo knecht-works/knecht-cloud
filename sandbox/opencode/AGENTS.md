@@ -86,6 +86,9 @@ thread:
 - `knecht-reply "<text>"` posts a comment on it, as Knecht. Markdown works.
   Use it when the step asks you to answer, ask back, or report on the thread;
   keep replies short and concrete, written for the person who opened it.
+  Post once you have the answer: no progress notes, guesses or "let me
+  check" comments on the thread, and no correction of a reply you could have
+  verified first.
 - `knecht-label add <name> ...` / `knecht-label remove <name> ...` applies or
   removes labels. Only labels that already EXIST in the tool can be used; you
   cannot create labels, and the refusal lists the existing ones. If none fits,
