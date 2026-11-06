@@ -149,20 +149,23 @@ async function refreshTicket(rt: ActionRuntime): Promise<string> {
   if (!object) return ''
   const integration = getIntegration(object.integration)
   const dir = snapshotDir(object.key)
+  // Read up front, the rules slip by the end of a task: a "fix it and open a PR" left the status as it was.
+  const hasRules = !!(getSettings().agentInstructions.trim() || rt.project.agentInstructions.trim())
+  const finish = hasRules ? ` Before your last reply, do what .knecht/opencode/rules.md asks for the ${describeObject(object)} at this point, such as moving its status.` : ''
   const since = freshTicketSince(rt.sessionId, integration)
   if (since && await rt.sandbox.exec(['sh', '-c', 'test -f "$1" && echo yes || true', 'sh', `${dir}/ticket.md`]).then(out => out.trim() === 'yes')) {
-    return `The ${describeObject(object)} is current in ${dir}/ticket.md (fetched ${since.toISOString()}, unchanged since).\n\n`
+    return `The ${describeObject(object)} is current in ${dir}/ticket.md (fetched ${since.toISOString()}, unchanged since).${finish}\n\n`
   }
   try {
     const context = await integration.objects.context(rt.project, object)
     const fetchedAt = new Date()
     await writeObjectSnapshot(rt.sandbox, context, fetchedAt)
     ticketFetched(rt.sessionId, fetchedAt)
-    return `The ${describeObject(object)} is current in ${dir}/ticket.md (fetched just now).\n\n`
+    return `The ${describeObject(object)} is current in ${dir}/ticket.md (fetched just now).${finish}\n\n`
   }
   catch (e) {
     rt.log(`\nCould not refresh ${describeObject(object)}: ${(e as Error).message}\n`)
-    return `Refreshing the ${describeObject(object)} failed, so ${dir}/ may be out of date: run \`knecht-object\` to retry.\n\n`
+    return `Refreshing the ${describeObject(object)} failed, so ${dir}/ may be out of date: run \`knecht-object\` to retry.${finish}\n\n`
   }
 }
 
