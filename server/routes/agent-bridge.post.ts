@@ -108,7 +108,6 @@ export default defineEventHandler(async (event) => {
         }
         return reply(event, 200, await viaIntegration(async () => {
           const context = await integration.objects.context(project, target)
-          if (typeof context === 'string') return context
           const fetchedAt = new Date()
           const index = await writeObjectSnapshot(sessionSandbox(sessionId, log), context, fetchedAt)
           if (target === object) ticketFetched(sessionId, fetchedAt)

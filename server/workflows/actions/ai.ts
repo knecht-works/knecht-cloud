@@ -155,7 +155,6 @@ async function refreshTicket(rt: ActionRuntime): Promise<string> {
   }
   try {
     const context = await integration.objects.context(rt.project, object)
-    if (typeof context === 'string') return `Run \`knecht-object\` for the current state of the ${describeObject(object)}, comments included.\n\n`
     const fetchedAt = new Date()
     await writeObjectSnapshot(rt.sandbox, context, fetchedAt)
     ticketFetched(rt.sessionId, fetchedAt)
