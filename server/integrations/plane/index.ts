@@ -280,6 +280,8 @@ export const plane: Integration = {
         heading: `${object.key}: ${item.name ?? ''}`,
         url: planeWorkItemUrl(object.key),
         facts: [item.state?.name ?? '', item.priority && item.priority !== 'none' ? `priority ${item.priority}` : '', assignees.length ? `assigned to ${assignees.join(', ')}` : ''],
+        body: htmlToMarkdown(item.description_html, members),
+        comments: comments.map(c => ({ author: memberName(members, c.actor), at: c.created_at ?? '', body: htmlToMarkdown(c.comment_html, members) })),
         contents: `Plane work item with every field (state, labels, assignees expanded), the description in description_html and all ${comments.length} comments under "comments" as HTML (an actor is a member id, see "members"; a pasted image is an <image-component> whose src is the asset id, downloaded under its filename), plus "attachments", "relations" (work item ids per type) and "links"`,
         data: { ...item, comments, attachments, relations, links, members },
         files: [

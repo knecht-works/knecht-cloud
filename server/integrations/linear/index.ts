@@ -212,6 +212,8 @@ export const linear: Integration = {
         heading: `${issue.identifier}: ${issue.title}`,
         url: issue.url,
         facts: [issue.state?.name ?? '', issue.priorityLabel && issue.priorityLabel !== 'No priority' ? issue.priorityLabel : '', issue.assignee?.name ? `assigned to ${issue.assignee.name}` : ''],
+        body: issue.description ?? '',
+        comments: issue.comments.nodes.map(c => ({ author: c.user?.name ?? '', at: c.createdAt ?? '', body: c.body ?? '' })),
         contents: `Linear issue with every field the issue view shows, the description in "description" and all ${issue.comments.nodes.length} comments under "comments", as markdown; an uploaded file in them is a link to uploads.linear.app whose text is the attachment's filename`,
         data: issue,
         files: linearUploads([issue.description ?? '', ...issue.comments.nodes.map(c => c.body ?? '')]).map(upload => ({

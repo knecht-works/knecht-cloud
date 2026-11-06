@@ -17,7 +17,7 @@ function file(id: string, name: string, content = name): SnapshotFile & { downlo
 }
 
 function snapshot(key: string, files: SnapshotFile[]): ObjectSnapshot {
-  return { key, heading: `${key}: Login`, url: '', facts: [], contents: 'ticket', data: { key }, files, links: [] }
+  return { key, heading: `${key}: Login`, url: '', facts: [], body: '', comments: [], contents: 'ticket', data: { key }, files, links: [] }
 }
 
 describe('writeObjectSnapshot', () => {
@@ -52,5 +52,20 @@ describe('writeObjectSnapshot', () => {
     const again = file('a1', 'log.txt')
     await writeObjectSnapshot(sandbox, snapshot('PROJ-1', [again]))
     expect(again.download).toHaveBeenCalledOnce()
+  })
+
+  it('puts the description and the comments, oldest first, into ticket.md', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'knecht-snapshot-'))
+    await writeObjectSnapshot(localSandbox(dir), {
+      ...snapshot('PROJ-1', []),
+      body: 'It fails on submit.',
+      comments: [
+        { author: 'Bob', at: '2026-11-06T12:00:00Z', body: 'The code word is HAWK.' },
+        { author: 'Ann', at: '2026-11-05T09:00:00Z', body: 'Cannot reproduce.' },
+      ],
+    })
+    const md = readFileSync(join(dir, '.knecht', 'objects', 'PROJ-1', 'ticket.md'), 'utf8')
+    expect(md).toContain('## Description\n\nIt fails on submit.')
+    expect(md).toContain('## Comments (2, oldest first)\n\n### Ann · 2026-11-05T09:00:00Z\n\nCannot reproduce.\n\n### Bob · 2026-11-06T12:00:00Z\n\nThe code word is HAWK.')
   })
 })
