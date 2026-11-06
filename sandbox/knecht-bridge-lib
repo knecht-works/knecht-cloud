@@ -21,7 +21,7 @@ require_bridge() {
 # json_escape <text>: the text as a JSON string literal (node is in the image
 # for the js step).
 json_escape() {
-  node -e 'console.log(JSON.stringify(process.argv[1] ?? ""))' "$1"
+  node -e 'console.log(JSON.stringify(process.argv[1] ?? ""))' -- "$1"
 }
 
 # bridge_post <json>: POST the payload to the bridge, print the response, exit
