@@ -61,6 +61,56 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   downloadJiraAttachment: async () => Buffer.from('png'),
 }))
 
+vi.mock('../../server/integrations/linear/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
+  getLinearIssueRaw: async (id: string) => ({
+    identifier: id,
+    title: 'Footer missing',
+    description: 'See ![footer.png](https://uploads.linear.app/a/b/c)',
+    url: `https://linear.app/acme/issue/${id}`,
+    priorityLabel: 'High',
+    state: { name: 'Todo' },
+    assignee: null,
+    parent: { identifier: 'CRA-1', title: 'Layout' },
+    children: { nodes: [{ identifier: 'CRA-3', title: 'Imprint link' }] },
+    relations: { nodes: [{ type: 'blocks', relatedIssue: { identifier: 'CRA-4', title: 'Launch' } }] },
+    inverseRelations: { nodes: [{ type: 'blocks', issue: { identifier: 'CRA-5', title: 'Design' } }] },
+    comments: { nodes: [{ body: 'Also [log.txt](https://uploads.linear.app/a/b/d)' }] },
+  }),
+  downloadLinearUpload: async (url: string) => Buffer.from(url.endsWith('/c') ? 'png' : 'log'),
+}))
+vi.mock('../../server/integrations/plane/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
+  planeProjectByIdentifier: async (identifier: string) => ({ id: 'p1', identifier, name: identifier }),
+  getPlaneWorkItemByKey: async () => ({ id: 'w2', sequence_id: 2, name: 'Dark mode' }),
+  getPlaneWorkItemRaw: async () => ({ name: 'Dark mode', priority: 'high', parent: { id: 'w1' }, state: { name: 'In Review' }, assignees: [{ first_name: 'Ann' }] }),
+  listPlaneComments: async () => [{ id: 'c1', comment_html: '<p>hi</p>', actor: 'u1' }],
+  listPlaneAttachments: async () => [
+    { id: 'a1', attributes: { name: 'mock.png', size: 3, type: 'image/png' }, is_uploaded: true },
+    { id: 'a2', attributes: { name: 'half.png', size: 3, type: 'image/png' }, is_uploaded: false },
+  ],
+  getPlaneRelations: async () => ({ blocked_by: ['w3'], relates_to: ['elsewhere'] }),
+  listPlaneLinks: async () => [],
+  listPlaneWorkItems: async () => [
+    { id: 'w1', sequence_id: 1, name: 'Theming', parent: null },
+    { id: 'w2', sequence_id: 2, name: 'Dark mode', parent: 'w1' },
+    { id: 'w3', sequence_id: 3, name: 'Tokens', parent: null },
+    { id: 'w4', sequence_id: 4, name: 'Toggle', parent: 'w2' },
+  ],
+  listPlaneMembers: async () => [{ id: 'u1', displayName: 'Ann' }],
+  downloadPlaneAttachment: async () => Buffer.from('png'),
+}))
+// The bridge writes through the session's container; here that is the checkout itself.
+vi.mock('../../server/daemon/session-sandbox', async () => {
+  const { execa } = await import('execa')
+  const { sessionCheckoutDir } = await import('../../server/utils/storage')
+  return {
+    sessionSandbox: (sessionId: number) => ({
+      exec: async ([cmd, ...args]: string[], opts?: { input?: string | Uint8Array }) => (await execa(cmd!, args, { cwd: sessionCheckoutDir(sessionId), input: opts?.input })).stdout,
+    }),
+  }
+})
+
 const { db, schema } = await import('../../server/db')
 const { bridgeToken } = await import('../../server/utils/agent-bridge')
 const { sessionCheckoutDir } = await import('../../server/utils/storage')
@@ -83,11 +133,11 @@ function objectSession(overrides: Parameters<typeof makeRun>[2] = {}) {
   return { project, run, sessionId: run.sessionId }
 }
 
-function ticketSession() {
+function ticketSession(integration: 'jira' | 'linear' | 'plane' = 'jira', key = 'PROJ-1') {
   const project = makeProject()
   const run = makeRun(project, [], { status: 'success' })
   mkdirSync(join(sessionCheckoutDir(run.sessionId), '.git'), { recursive: true })
-  db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: 'PROJ-1' }).where(eq(schema.sessions.id, run.sessionId)).run()
+  db.update(schema.sessions).set({ objectIntegration: integration, objectKind: 'issue', objectKey: key }).where(eq(schema.sessions.id, run.sessionId)).run()
   return { project, run, sessionId: run.sessionId }
 }
 
@@ -186,6 +236,8 @@ describe('agent bridge on a Jira ticket', () => {
     const dir = join(sessionCheckoutDir(sessionId), '.knecht', 'objects', 'PROJ-1')
     expect(JSON.parse(readFileSync(join(dir, 'ticket.json'), 'utf8'))).toMatchObject({ key: 'PROJ-1', comments: [{ id: '1' }] })
     expect(readFileSync(join(dir, 'attachments', 'login_error.png'), 'utf8')).toBe('png')
+    expect(readFileSync(join(dir, 'ticket.md'), 'utf8')).toContain('# PROJ-1: Login broken\n')
+    expect(res.text).toContain('This index is saved as .knecht/objects/PROJ-1/ticket.md.')
   })
 
   it('loads a ticket of a linked project by key and refuses any other', async () => {
@@ -262,5 +314,48 @@ describe('agent bridge on a Jira ticket', () => {
     const unknown = await call(sessionId, { op: 'status', status: 'Shipped' })
     expect(unknown.status).toBe(400)
     expect(unknown.text).toContain('Reachable: In Progress, In Review')
+  })
+})
+
+describe('agent bridge on a Linear issue', () => {
+  it('writes the raw issue, its uploads and the linked issues', async () => {
+    const { sessionId } = ticketSession('linear', 'CRA-2')
+    const res = await call(sessionId, { op: 'context' })
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('# CRA-2: Footer missing\nhttps://linear.app/acme/issue/CRA-2\nTodo · High\n')
+    expect(res.text).toContain('- .knecht/objects/CRA-2/attachments/footer.png (unknown type, 1 KB)')
+    expect(res.text).toContain('- .knecht/objects/CRA-2/attachments/log.txt (unknown type, 1 KB)')
+    expect(res.text).toContain('- CRA-1 (parent): Layout\n- CRA-3 (sub-issue): Imprint link\n- CRA-4 (blocks): Launch\n- CRA-5 (blocked by): Design')
+    const dir = join(sessionCheckoutDir(sessionId), '.knecht', 'objects', 'CRA-2')
+    expect(JSON.parse(readFileSync(join(dir, 'ticket.json'), 'utf8'))).toMatchObject({ identifier: 'CRA-2', priorityLabel: 'High' })
+  })
+
+  it('loads an issue of a linked team by key and refuses any other', async () => {
+    const { project, sessionId } = ticketSession('linear', 'CRA-2')
+    setProjectLink(project.id, 'linear', 'CRA')
+    expect((await call(sessionId, { op: 'context', key: 'CRA-4' })).text).toContain('# CRA-4: ')
+    expect((await call(sessionId, { op: 'context', key: 'ENG-1' })).status).toBe(400)
+  })
+})
+
+describe('agent bridge on a Plane work item', () => {
+  it('writes the raw work item, its uploaded attachments and the linked work items', async () => {
+    const { sessionId } = ticketSession('plane', 'CRAFT-2')
+    const res = await call(sessionId, { op: 'context' })
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('# CRAFT-2: Dark mode\n')
+    expect(res.text).toContain('In Review · priority high · assigned to Ann')
+    expect(res.text).toContain('- .knecht/objects/CRAFT-2/attachments/mock.png (image/png, 1 KB)')
+    expect(res.text).not.toContain('half.png')
+    expect(res.text).toContain('- CRAFT-1 (parent): Theming\n- CRAFT-4 (sub-work item): Toggle\n- CRAFT-3 (blocked by): Tokens')
+    const dir = join(sessionCheckoutDir(sessionId), '.knecht', 'objects', 'CRAFT-2')
+    expect(JSON.parse(readFileSync(join(dir, 'ticket.json'), 'utf8'))).toMatchObject({ name: 'Dark mode', comments: [{ id: 'c1' }], relations: { relates_to: ['elsewhere'] } })
+  })
+
+  it('loads a work item of a linked project by key and refuses any other', async () => {
+    const { project, sessionId } = ticketSession('plane', 'CRAFT-2')
+    setProjectLink(project.id, 'plane', 'CRAFT')
+    expect((await call(sessionId, { op: 'context', key: 'CRAFT-3' })).status).toBe(200)
+    expect((await call(sessionId, { op: 'context', key: 'OTHER-1' })).status).toBe(400)
   })
 })

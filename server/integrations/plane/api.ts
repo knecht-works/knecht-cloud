@@ -1,3 +1,4 @@
+import { ofetch } from 'ofetch'
 import { createVendorCache, createVendorFetch } from '../vendor-fetch'
 import { planeCredentials } from './credentials'
 
@@ -185,4 +186,62 @@ export async function addPlaneComment(projectId: string, workItemId: string, htm
 
 export async function updatePlaneWorkItem(projectId: string, workItemId: string, patch: { labels?: string[], state?: string, assignees?: string[] }): Promise<void> {
   await planeFetch(workspacePath(`/projects/${projectId}/work-items/${workItemId}/`), { method: 'PATCH', body: patch })
+}
+
+export interface PlaneWorkItemRaw {
+  name?: string
+  priority?: string
+  parent?: { id?: string } | string | null
+  state?: { name?: string } | null
+  assignees?: PlaneUser[]
+}
+
+export function getPlaneWorkItemRaw(projectId: string, workItemId: string): Promise<PlaneWorkItemRaw> {
+  return planeFetch<PlaneWorkItemRaw>(`${workspacePath(`/projects/${projectId}/work-items/${workItemId}/`)}?expand=state,labels,assignees,parent,type`)
+}
+
+export interface PlaneWorkItemRef {
+  id: string
+  sequence_id: number
+  name?: string
+  parent?: string | null
+}
+
+export function listPlaneWorkItems(projectId: string): Promise<PlaneWorkItemRef[]> {
+  return listAll<PlaneWorkItemRef>(workspacePath(`/projects/${projectId}/work-items/`))
+}
+
+export interface PlaneAttachment {
+  id: string
+  attributes?: { name?: string, size?: number, type?: string }
+  is_uploaded?: boolean
+}
+
+export function listPlaneAttachments(projectId: string, workItemId: string): Promise<PlaneAttachment[]> {
+  return planeFetch<PlaneAttachment[]>(workspacePath(`/projects/${projectId}/work-items/${workItemId}/attachments/`))
+}
+
+// Work item ids per relation type: blocking, blocked_by, relates_to, duplicate, ...
+export function getPlaneRelations(projectId: string, workItemId: string): Promise<Record<string, string[]>> {
+  return planeFetch<Record<string, string[]>>(workspacePath(`/projects/${projectId}/work-items/${workItemId}/relations/`))
+}
+
+export function listPlaneLinks(projectId: string, workItemId: string): Promise<unknown[]> {
+  return listAll<unknown>(workspacePath(`/projects/${projectId}/work-items/${workItemId}/links/`))
+}
+
+// Plane answers with a redirect to presigned storage, which must not get the API key.
+export async function downloadPlaneAttachment(projectId: string, workItemId: string, attachmentId: string): Promise<Buffer> {
+  const auth = planeCredentials()
+  if (!auth) throw new Error('Plane is not connected')
+  const res = await fetch(`${planeApiOrigin(auth.siteUrl)}/api/v1${workspacePath(`/projects/${projectId}/work-items/${workItemId}/attachments/${attachmentId}/`, auth)}`, {
+    headers: { 'X-API-Key': auth.apiKey },
+    redirect: 'manual',
+    signal: AbortSignal.timeout(15_000),
+  })
+  const location = res.headers.get('location')
+  if (res.status < 300 || res.status >= 400 || !location) throw new Error(`Plane answered ${res.status} instead of a download link`)
+  const url = new URL(location, auth.siteUrl)
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error(`Plane sent an unexpected download link: ${url.protocol}`)
+  return Buffer.from(await ofetch<ArrayBuffer, 'arrayBuffer'>(url.href, { responseType: 'arrayBuffer', timeout: 60_000 }))
 }

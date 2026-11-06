@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef } from '../../server/integrations/tracker'
+import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef } from '../../server/integrations/tracker'
 import { htmlMentionIds } from '../../server/integrations/plane/html'
 import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
@@ -138,23 +138,6 @@ describe('trackerComment', () => {
     expect(comment('@knecht done', 'knecht').fromSelf).toBe(true)
     expect(comment('@knecht done', 'ann').fromSelf).toBe(false)
     expect(comment('@knecht done', '', [], '').fromSelf).toBe(false)
-  })
-})
-
-describe('trackerContext', () => {
-  it('prints the same facts for every tracker', () => {
-    const text = trackerContext({ ...change().issue, facts: [['Type', 'Bug']] }, [{ author: 'Ann', at: new Date('2026-01-02'), body: 'any news?' }])
-    expect(text).toBe([
-      '# P-1: Login broken',
-      'https://x/P-1',
-      'Type: Bug · Status: Todo · Author: Ann · Assignees: Bob, Knecht · Labels: bug',
-      '',
-      'It fails.',
-      '',
-      '## Comments (newest last)',
-      '',
-      '**Ann** (2026-01-02):\nany news?',
-    ].join('\n'))
   })
 })
 

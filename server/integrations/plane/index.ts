@@ -4,9 +4,9 @@ import { verifySha256Signature } from '../../utils/signature'
 import { sessionHasActiveWork, type SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
-import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
+import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import { addPlaneComment, forgetPlaneCache, getPlaneComment, planeMyself, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
+import { addPlaneComment, downloadPlaneAttachment, forgetPlaneCache, getPlaneComment, getPlaneRelations, getPlaneWorkItemRaw, listPlaneAttachments, listPlaneLinks, listPlaneWorkItems, planeMyself, planeUserName, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
 import { PLANE_CONNECTION_FORM, planeConnection, planeCredentials } from './credentials'
 import { addressedTo, htmlMentionIds, htmlToMarkdown, markdownToHtml } from './html'
 import { findObjectSession } from '../../stores/sessions'
@@ -247,14 +247,50 @@ export const plane: Integration = {
     kinds: ['issue'],
     describe: object => `work item ${object.key}`,
     async context(_project, object) {
-      const { planeProject, item } = await locateObject(object)
-      const [lookups, comments] = await Promise.all([planeLookups(planeProject.id), listPlaneComments(planeProject.id, item.id)])
-      const issue = planeIssue(planeObject(planeProject.identifier, item.sequence_id, item.name), item, lookups)
-      return trackerContext(issue, comments.map(c => ({
-        author: memberName(lookups.members, c.actor) || 'unknown',
-        at: new Date(c.created_at || 0),
-        body: htmlToMarkdown(c.comment_html, lookups.members),
-      })))
+      const { planeProject, workItemId } = await locateObject(object)
+      const p = planeProject.id
+      const [item, comments, attachments, relations, links, items, members] = await Promise.all([
+        getPlaneWorkItemRaw(p, workItemId),
+        listPlaneComments(p, workItemId),
+        listPlaneAttachments(p, workItemId),
+        getPlaneRelations(p, workItemId),
+        listPlaneLinks(p, workItemId),
+        listPlaneWorkItems(p),
+        listPlaneMembers(p),
+      ])
+      // Relations name work items by id only; one in another Plane project stays in ticket.json alone.
+      const byId = new Map(items.map(i => [i.id, i]))
+      const ref = (id: string | undefined, relation: string) => {
+        const linked = id ? byId.get(id) : undefined
+        return linked ? [{ key: `${planeProject.identifier}-${linked.sequence_id}`, relation, title: linked.name ?? '' }] : []
+      }
+      const parentId = typeof item.parent === 'string' ? item.parent : item.parent?.id
+      const assignees = (item.assignees ?? []).map(planeUserName).filter(Boolean)
+      return {
+        key: object.key,
+        heading: `${object.key}: ${item.name ?? ''}`,
+        url: planeWorkItemUrl(object.key),
+        facts: [item.state?.name ?? '', item.priority && item.priority !== 'none' ? `priority ${item.priority}` : '', assignees.length ? `assigned to ${assignees.join(', ')}` : ''],
+        contents: `Plane work item with every field (state, labels, assignees expanded), the description in description_html and all ${comments.length} comments under "comments" as HTML (an actor is a member id, see "members"), plus "attachments", "relations" (work item ids per type) and "links"`,
+        data: { ...item, comments, attachments, relations, links, members },
+        files: attachments.filter(a => a.is_uploaded !== false).map(a => ({
+          name: a.attributes?.name || a.id,
+          type: a.attributes?.type ?? '',
+          size: a.attributes?.size,
+          download: () => downloadPlaneAttachment(p, workItemId, a.id),
+        })),
+        links: [
+          ...ref(parentId, 'parent'),
+          ...items.filter(i => i.parent === workItemId).flatMap(i => ref(i.id, 'sub-work item')),
+          ...Object.entries(relations).flatMap(([type, ids]) => (Array.isArray(ids) ? ids : []).flatMap(id => ref(id, type.replaceAll('_', ' ')))),
+        ],
+      }
+    },
+
+    find(project, key) {
+      const identifier = /^([A-Z][A-Z0-9]*)-\d+$/.exec(key)?.[1]
+      if (!identifier || linkedProject('plane', identifier)?.id !== project.id) return null
+      return { integration: 'plane', kind: 'issue', key }
     },
   },
 

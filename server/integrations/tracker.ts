@@ -1,5 +1,4 @@
 import { emptyInputs, type TriggerInputs } from '../utils/inputs'
-import { formatObjectContext, type ObjectContext } from '../utils/object-context'
 import type { SessionObject } from '../utils/sessions'
 import type { IntegrationId } from '../../shared/utils/integrations'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../shared/utils/trigger-form'
@@ -34,7 +33,6 @@ export interface TrackerIssue {
   author: string
   assignees: string[]
   labels: string[]
-  facts?: [string, string][]
 }
 
 export interface TrackerChange {
@@ -141,22 +139,6 @@ export function trackerInputs(issue: TrackerIssue): TriggerInputs {
     labels: issue.labels.join(', '),
     author: issue.author,
   }
-}
-
-export function trackerContext(issue: TrackerIssue, comments: ObjectContext['comments']): string {
-  return formatObjectContext({
-    heading: `${issue.object.key}: ${issue.object.title ?? ''}`,
-    url: issue.object.url ?? '',
-    facts: [
-      ...(issue.facts ?? []),
-      ['Status', issue.status.name],
-      ['Author', issue.author],
-      ['Assignees', issue.assignees.join(', ')],
-      ['Labels', issue.labels.join(', ')],
-    ],
-    body: issue.body,
-    comments,
-  })
 }
 
 interface TrackerCommentInput {

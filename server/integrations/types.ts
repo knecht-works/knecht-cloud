@@ -5,6 +5,7 @@ import type { TriggerFormDef } from '../../shared/utils/trigger-form'
 import type { TriggerInputs } from '../utils/inputs'
 import type { SessionObject } from '../utils/sessions'
 import type { ConnectionStore } from './connections'
+import type { ObjectSnapshot } from '../utils/object-snapshot'
 
 export type WebhookHeaders = (name: string) => string | undefined
 
@@ -99,9 +100,8 @@ export interface Integration {
   objects: {
     kinds: readonly ObjectKind[]
     describe(object: SessionObject): string
-    // Live state for the agent (`knecht-object`). Jira writes the raw ticket and its attachments
-    // into the checkout and answers an index; the others answer markdown.
-    context(project: Project, object: SessionObject, checkoutDir: string): Promise<string>
+    // Live state for the agent (`knecht-object`): a tracker's raw ticket with its attachments, or markdown.
+    context(project: Project, object: SessionObject): Promise<ObjectSnapshot | string>
     // Another object of the same project the agent may load by key (`knecht-object <KEY>`).
     find?(project: Project, key: string): SessionObject | null
   }

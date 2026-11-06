@@ -3,9 +3,9 @@ import { linkedProject } from '../../stores/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
-import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
+import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookDelivery } from '../types'
-import { addLinearComment, forgetLinearCache, getLinearComment, getLinearHandle, getLinearIssue, type LinearComment, linearMyself, listLinearComments, listLinearLabels, listLinearStates, listLinearTeams, updateLinearIssue, type LinearIssue, type LinearState } from './api'
+import { addLinearComment, downloadLinearUpload, forgetLinearCache, getLinearComment, getLinearHandle, getLinearIssue, getLinearIssueRaw, type LinearComment, linearMyself, listLinearComments, listLinearLabels, listLinearStates, listLinearTeams, updateLinearIssue, type LinearIssue, type LinearState } from './api'
 import { LINEAR_CONNECTION_FORM, linearConnection, linearCredentials } from './credentials'
 import { addressedTo, bodyDataMentionIds, withHandles, type LinearPerson } from './mentions'
 
@@ -58,6 +58,21 @@ export interface LinearPayload {
 // An identifier is the team key and the issue number: ENG-12.
 const teamKeyOf = (identifier: string) => identifier.replace(/-\d+$/, '')
 
+// Linear keeps an upload as a markdown link to it, the filename as the link text.
+const UPLOAD_LINK_RE = /\[([^\]]*)\]\(<?(https:\/\/uploads\.linear\.app\/[^)\s>]+)>?\)/g
+
+function linearUploads(texts: string[]): { name: string, url: string }[] {
+  const seen = new Map<string, string>()
+  for (const text of texts) {
+    for (const [, name, url] of text.matchAll(UPLOAD_LINK_RE)) {
+      if (!seen.has(url!)) seen.set(url!, name || url!.split('/').at(-1)!)
+    }
+  }
+  return [...seen].map(([url, name]) => ({ name, url }))
+}
+
+const INVERSE_RELATIONS: Record<string, string> = { blocks: 'blocked by', duplicate: 'duplicated by' }
+
 function linearIssue(issue: LinearIssue): TrackerIssue {
   return {
     object: { integration: 'linear', kind: 'issue', key: issue.identifier, url: issue.url, title: issue.title },
@@ -66,7 +81,6 @@ function linearIssue(issue: LinearIssue): TrackerIssue {
     author: issue.creator?.name ?? '',
     assignees: issue.assignee?.name ? [issue.assignee.name] : [],
     labels: (issue.labels?.nodes ?? []).map(l => l.name),
-    facts: [['Priority', LINEAR_PRIORITIES[issue.priority ?? 0] ?? '']],
   }
 }
 
@@ -189,12 +203,31 @@ export const linear: Integration = {
     kinds: ['issue'],
     describe: object => `issue ${object.key}`,
     async context(_project, object) {
-      const [issue, comments] = await Promise.all([getLinearIssue(object.key), listLinearComments(object.key)])
-      return trackerContext(linearIssue(issue), comments.map(c => ({
-        author: c.user?.name || 'unknown',
-        at: new Date(c.createdAt || 0),
-        body: c.body ?? '',
-      })))
+      const issue = await getLinearIssueRaw(object.key)
+      return {
+        key: issue.identifier,
+        heading: `${issue.identifier}: ${issue.title}`,
+        url: issue.url,
+        facts: [issue.state?.name ?? '', issue.priorityLabel && issue.priorityLabel !== 'No priority' ? issue.priorityLabel : '', issue.assignee?.name ? `assigned to ${issue.assignee.name}` : ''],
+        contents: `Linear issue with every field the issue view shows, the description in "description" and all ${issue.comments.nodes.length} comments under "comments", as markdown; an uploaded file in them is a link to uploads.linear.app whose text is the attachment's filename`,
+        data: issue,
+        files: linearUploads([issue.description ?? '', ...issue.comments.nodes.map(c => c.body ?? '')]).map(upload => ({
+          name: upload.name,
+          type: '',
+          download: () => downloadLinearUpload(upload.url),
+        })),
+        links: [
+          ...(issue.parent ? [{ key: issue.parent.identifier, relation: 'parent', title: issue.parent.title }] : []),
+          ...issue.children.nodes.map(c => ({ key: c.identifier, relation: 'sub-issue', title: c.title })),
+          ...issue.relations.nodes.map(r => ({ key: r.relatedIssue.identifier, relation: r.type, title: r.relatedIssue.title })),
+          ...issue.inverseRelations.nodes.map(r => ({ key: r.issue.identifier, relation: INVERSE_RELATIONS[r.type] ?? r.type, title: r.issue.title })),
+        ],
+      }
+    },
+
+    find(project, key) {
+      if (!/^[A-Z][A-Z0-9_]*-\d+$/.test(key) || linkedProject('linear', teamKeyOf(key))?.id !== project.id) return null
+      return { integration: 'linear', kind: 'issue', key }
     },
   },
 
