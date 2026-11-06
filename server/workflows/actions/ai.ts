@@ -149,10 +149,9 @@ async function refreshTicket(rt: ActionRuntime): Promise<string> {
   if (!object) return ''
   const integration = getIntegration(object.integration)
   const dir = snapshotDir(object.key)
-  const dig = 'Read it from there instead of running `knecht-object`; use `knecht-object <KEY>` only to dig into a linked ticket.'
   const since = freshTicketSince(rt.sessionId, integration)
   if (since && await rt.sandbox.exec(['sh', '-c', 'test -f "$1" && echo yes || true', 'sh', `${dir}/ticket.md`]).then(out => out.trim() === 'yes')) {
-    return `The ${describeObject(object)} as fetched at ${since.toISOString()}, unchanged since, with all comments and attachments: ${dir}/ticket.md. ${dig}\n\n`
+    return `The ${describeObject(object)} is current in ${dir}/ticket.md (fetched ${since.toISOString()}, unchanged since).\n\n`
   }
   try {
     const context = await integration.objects.context(rt.project, object)
@@ -160,7 +159,7 @@ async function refreshTicket(rt: ActionRuntime): Promise<string> {
     const fetchedAt = new Date()
     await writeObjectSnapshot(rt.sandbox, context, fetchedAt)
     ticketFetched(rt.sessionId, fetchedAt)
-    return `The ${describeObject(object)} as of now, with all comments and attachments: ${dir}/ticket.md. ${dig}\n\n`
+    return `The ${describeObject(object)} is current in ${dir}/ticket.md (fetched just now).\n\n`
   }
   catch (e) {
     rt.log(`\nCould not refresh ${describeObject(object)}: ${(e as Error).message}\n`)

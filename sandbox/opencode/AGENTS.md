@@ -43,19 +43,14 @@ when the step or a follow-up asks you to publish; `knecht-git open-pr -t
 When `KNECHT_OBJECT` is set, the session belongs to one and these tools talk
 to it:
 
-- On Jira, Linear and Plane, Knecht keeps the session's ticket current
-  before every step and message: the raw ticket in
-  `.knecht/objects/<KEY>/ticket.json` (all fields and comments), its
-  attachments in `attachments/` next to it, and an index of the paths and
-  the linked tickets in `ticket.md`. Read `ticket.md` first and open the
-  attachments that bear on the work, screenshots above all. Trust these
-  files over what you remember from earlier in the session. They are
-  already up to date when your turn starts, so do not fetch them again.
-- `knecht-object <KEY>` loads a linked ticket the same way, to dig into a
-  parent, sub-ticket or related one. `knecht-object` without a key fetches
-  the session's ticket again; use it only after a long task, for comments
-  posted since your turn started. On a GitHub issue or pull request it is
-  the only source of its state.
+- On Jira, Linear and Plane, `.knecht/objects/<KEY>/` holds the ticket,
+  current at the start of every turn: `ticket.md` (overview, attachments,
+  linked tickets), `ticket.json` (all fields and comments) and
+  `attachments/`. Read `ticket.md` first, trust it over your memory and do
+  not fetch it again.
+- `knecht-object <KEY>` loads a linked ticket the same way; do it when one
+  bears on the work. `knecht-object` alone fetches the ticket itself: on
+  GitHub, or for comments posted during a long task.
 - `knecht-reply "<text>"` posts a markdown comment as Knecht, when the step
   asks you to answer, ask back or report. Everyone on the ticket gets it as a
   notification, so post once, when you have the answer. Lead with the answer
