@@ -54,19 +54,18 @@ const updateTarget = computed(() =>
 
     <aside
       class="relative z-20 flex h-full flex-none flex-col border-r border-default transition-[width] duration-200"
-      :class="collapsed ? 'w-18' : 'w-62'"
-      style="background: color-mix(in oklab, var(--surface-elevated) 60%, transparent); backdrop-filter: blur(12px)"
+      :class="collapsed ? 'w-16' : 'w-56'"
     >
       <div
-        class="flex items-center border-b border-muted py-4"
-        :class="collapsed ? 'justify-center px-2' : 'justify-between px-5'"
+        class="flex items-center border-b border-muted py-3"
+        :class="collapsed ? 'justify-center px-2' : 'justify-between px-4'"
       >
         <NuxtLink
           v-if="!collapsed"
           to="/projects"
           class="flex"
         >
-          <KLogo :height="26" />
+          <KLogo :height="24" />
         </NuxtLink>
         <UButton
           :icon="collapsed ? 'i-lucide-panel-left-open' : 'i-lucide-panel-left-close'"
@@ -92,7 +91,7 @@ const updateTarget = computed(() =>
         >
           <NuxtLink
             :to="item.to"
-            class="group relative flex items-center gap-3 rounded-md border py-2.5 text-sm font-medium transition-colors"
+            class="group relative flex items-center gap-3 rounded-md border py-2 text-sm font-medium transition-colors"
             :class="[
               isActive(item)
                 ? 'border-default bg-(--surface-glass) text-highlighted'
@@ -107,7 +106,7 @@ const updateTarget = computed(() =>
             />
             <UIcon
               :name="item.icon"
-              class="size-4.5 flex-none"
+              class="size-4 flex-none"
               :class="isActive(item) ? 'text-primary' : 'text-dimmed'"
             />
             <span v-if="!collapsed">{{ item.label }}</span>
@@ -115,7 +114,7 @@ const updateTarget = computed(() =>
         </UTooltip>
       </nav>
 
-      <div class="mt-auto flex flex-col gap-3 p-4">
+      <div class="mt-auto flex flex-col gap-3 p-3">
         <template v-if="updateTarget">
           <NuxtLink
             v-if="!collapsed"
