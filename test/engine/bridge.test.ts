@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
@@ -43,11 +43,28 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
     jiraApi.transitions.push({ key, id })
   },
   getJiraIssueFields: async () => ({ summary: 'Login broken', status: { name: 'To Do' } }),
+  getJiraIssueRaw: async (key: string) => ({
+    key,
+    fields: {
+      summary: 'Login broken',
+      status: { name: 'To Do' },
+      issuetype: { name: 'Bug' },
+      attachment: [
+        { id: '10', filename: 'login error.png', mimeType: 'image/png', size: 3 },
+        { id: '11', filename: 'dump.sql', mimeType: 'application/sql', size: 50 * 1024 * 1024 },
+      ],
+      parent: { key: 'PROJ-0', fields: { summary: 'Auth epic' } },
+      issuelinks: [{ type: { inward: 'is blocked by', outward: 'blocks' }, inwardIssue: { key: 'PROJ-7', fields: { summary: 'Session store' } } }],
+    },
+  }),
+  listJiraIssueComments: async () => [{ id: '1', body: { type: 'doc', content: [] } }],
+  downloadJiraAttachment: async () => Buffer.from('png'),
 }))
 
 const { db, schema } = await import('../../server/db')
 const { bridgeToken } = await import('../../server/utils/agent-bridge')
 const { sessionCheckoutDir } = await import('../../server/utils/storage')
+const { setProjectLink } = await import('../../server/stores/project-links')
 const handler = (await import('../../server/routes/agent-bridge.post')).default
 
 function call(sessionId: number, body: object, token = bridgeToken(sessionId)) {
@@ -156,11 +173,31 @@ describe('agent bridge', () => {
 })
 
 describe('agent bridge on a Jira ticket', () => {
-  it('hands the agent the current state of the ticket', async () => {
+  it('writes the raw ticket and its attachments into the checkout and answers an index', async () => {
     const { sessionId } = ticketSession()
     const res = await call(sessionId, { op: 'context' })
     expect(res.status).toBe(200)
-    expect(res.text).toBe('# PROJ-1: Login broken\n/browse/PROJ-1\nStatus: To Do\n\n(no description)\n')
+    expect(res.text).toContain('# PROJ-1: Login broken\n/browse/PROJ-1\nBug · To Do\n')
+    expect(res.text).toContain(': .knecht/objects/PROJ-1/ticket.json')
+    expect(res.text).toContain('- .knecht/objects/PROJ-1/attachments/login_error.png (image/png, 1 KB)')
+    expect(res.text).toContain('- dump.sql (50.0 MB) not downloaded: over the 20.0 MB limit')
+    expect(res.text).toContain('- PROJ-0 (parent): Auth epic\n- PROJ-7 (is blocked by): Session store')
+
+    const dir = join(sessionCheckoutDir(sessionId), '.knecht', 'objects', 'PROJ-1')
+    expect(JSON.parse(readFileSync(join(dir, 'ticket.json'), 'utf8'))).toMatchObject({ key: 'PROJ-1', comments: [{ id: '1' }] })
+    expect(readFileSync(join(dir, 'attachments', 'login_error.png'), 'utf8')).toBe('png')
+  })
+
+  it('loads a ticket of a linked project by key and refuses any other', async () => {
+    const { project, sessionId } = ticketSession()
+    setProjectLink(project.id, 'jira', 'PROJ')
+    const linked = await call(sessionId, { op: 'context', key: 'PROJ-7' })
+    expect(linked.status).toBe(200)
+    expect(linked.text).toContain('.knecht/objects/PROJ-7/ticket.json')
+
+    const foreign = await call(sessionId, { op: 'context', key: 'OTHER-1' })
+    expect(foreign.status).toBe(400)
+    expect(foreign.text).toContain('OTHER-1 is not in a Jira project linked to this Knecht project')
   })
 
   it('posts the comment as ADF', async () => {

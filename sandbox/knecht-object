@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Print the current state of the session's ticket, issue or pull request:
-# description, facts and the newest comments, fetched live by the Knecht host
+# Print the current state of the session's ticket, issue or pull request, or
+# with a key of another one in the same project, fetched live by the Knecht host
 # (server/routes/agent-bridge.post.ts). See sandbox/opencode/AGENTS.md.
 set -euo pipefail
 
@@ -10,4 +10,8 @@ LIB=/usr/local/lib/knecht-bridge-lib
 
 require_bridge knecht-object
 
-bridge_post '{"op":"context"}'
+if [ $# -gt 0 ]; then
+  bridge_post "{\"op\":\"context\",\"key\":$(json_escape "$1")}"
+else
+  bridge_post '{"op":"context"}'
+fi

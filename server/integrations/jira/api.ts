@@ -160,6 +160,48 @@ export async function getJiraIssueFields(issueKey: string): Promise<JiraIssueFie
   return res.fields ?? {}
 }
 
+export interface JiraIssueRef {
+  key?: string
+  fields?: { summary?: string }
+}
+
+export interface JiraAttachment {
+  id?: string
+  filename?: string
+  mimeType?: string
+  size?: number
+}
+
+export interface JiraRawIssue {
+  key?: string
+  fields?: JiraIssueFields & {
+    attachment?: JiraAttachment[]
+    issuelinks?: { type?: { inward?: string, outward?: string }, inwardIssue?: JiraIssueRef, outwardIssue?: JiraIssueRef }[]
+    subtasks?: JiraIssueRef[]
+    parent?: JiraIssueRef
+  }
+  names?: Record<string, string>
+}
+
+// Every field, custom ones named through `names`; comments come separately, all pages of them.
+export async function getJiraIssueRaw(issueKey: string): Promise<JiraRawIssue> {
+  return jiraFetch<JiraRawIssue>(`/issue/${encodeURIComponent(issueKey)}?fields=*all,-comment&expand=names`)
+}
+
+export async function listJiraIssueComments(issueKey: string): Promise<unknown[]> {
+  const comments: unknown[] = []
+  let page: { comments?: unknown[], total?: number }
+  do {
+    page = await jiraFetch(`/issue/${encodeURIComponent(issueKey)}/comment?startAt=${comments.length}&maxResults=100&orderBy=created`)
+    comments.push(...(page.comments ?? []))
+  } while (page.comments?.length && comments.length < (page.total ?? 0))
+  return comments
+}
+
+export async function downloadJiraAttachment(id: string): Promise<Buffer> {
+  return Buffer.from(await jiraFetch<ArrayBuffer>(`/attachment/content/${encodeURIComponent(id)}`, { binary: true }))
+}
+
 export async function getJiraIssuePeople(issueKey: string): Promise<Pick<JiraIssueFields, 'assignee' | 'reporter'>> {
   const res = await jiraFetch<{ fields?: JiraIssueFields }>(`/issue/${encodeURIComponent(issueKey)}?fields=assignee,reporter`)
   return res.fields ?? {}

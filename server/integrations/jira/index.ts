@@ -1,13 +1,14 @@
 import { tryParseJson } from '../../utils/json'
 import { linkedProject } from '../../stores/project-links'
+import { writeObjectSnapshot } from '../../utils/object-snapshot'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { labelFilter, objectVersion } from '../trigger-config'
-import { matchTrackerEvent, trackerComment, trackerContext, trackerStatusChange, trackerTriggerForm, type Person, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
+import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type Person, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
-import { addJiraComment, assignJiraIssue, forgetJiraCache, getJiraComment, getJiraIssuePeople, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraStatusCategory, jiraIssueUrl, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
+import { addJiraComment, assignJiraIssue, downloadJiraAttachment, forgetJiraCache, getJiraComment, getJiraIssuePeople, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraIssueRaw, getJiraStatusCategory, jiraIssueUrl, listJiraIssueComments, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
 import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from './credentials'
 
 export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
@@ -180,13 +181,36 @@ export const jira: Integration = {
   objects: {
     kinds: ['issue'],
     describe: object => `ticket ${object.key}`,
-    async context(_project, object) {
-      const fields = await getJiraIssueFields(object.key)
-      return trackerContext(jiraIssue(object.key, fields), (fields.comment?.comments ?? []).map(c => ({
-        author: c.author?.displayName ?? 'unknown',
-        at: new Date(c.created ?? 0),
-        body: adfToMarkdown(c.body),
-      })))
+    async context(_project, object, checkoutDir) {
+      const [issue, comments] = await Promise.all([getJiraIssueRaw(object.key), listJiraIssueComments(object.key)])
+      const fields = issue.fields ?? {}
+      return writeObjectSnapshot(checkoutDir, {
+        key: object.key,
+        heading: `${object.key}: ${fields.summary ?? ''}`,
+        url: jiraIssueUrl(object.key),
+        facts: [fields.issuetype?.name ?? '', fields.status?.name ?? '', fields.assignee?.displayName ? `assigned to ${fields.assignee.displayName}` : ''],
+        contents: `Jira issue with every field (custom field names under "names"), the description in fields.description and all ${comments.length} comments under "comments", as ADF; an image in them is a media node whose attrs.alt is the attachment's filename`,
+        data: { ...issue, comments },
+        files: (fields.attachment ?? []).filter(a => a.id && a.filename).map(a => ({
+          name: a.filename!,
+          type: a.mimeType ?? '',
+          size: a.size ?? 0,
+          download: () => downloadJiraAttachment(a.id!),
+        })),
+        links: [
+          ...(fields.parent?.key ? [{ key: fields.parent.key, relation: 'parent', title: fields.parent.fields?.summary ?? '' }] : []),
+          ...(fields.subtasks ?? []).map(t => ({ key: t.key ?? '', relation: 'subtask', title: t.fields?.summary ?? '' })),
+          ...(fields.issuelinks ?? []).map(l => l.outwardIssue
+            ? { key: l.outwardIssue.key ?? '', relation: l.type?.outward ?? 'linked', title: l.outwardIssue.fields?.summary ?? '' }
+            : { key: l.inwardIssue?.key ?? '', relation: l.type?.inward ?? 'linked', title: l.inwardIssue?.fields?.summary ?? '' }),
+        ].filter(l => l.key),
+      })
+    },
+
+    find(project, key) {
+      const projectKey = /^([A-Z][A-Z0-9_]*)-\d+$/.exec(key)?.[1]
+      if (!projectKey || linkedProject('jira', projectKey)?.id !== project.id) return null
+      return { integration: 'jira', kind: 'issue', key }
     },
   },
 
