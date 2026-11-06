@@ -59,7 +59,9 @@ to it:
   `/imprint` while the entry lives at `/legal/imprint`. Please check the
   privacy link in the preview, its target was never set." Knecht appends the
   preview and PR links itself; never paste them, and never post
-  `KNECHT_DEV_SERVER_URL`, secrets or file contents.
+  `KNECHT_DEV_SERVER_URL`, secrets or file contents. An answer to a mention
+  goes into its thread; `knecht-reply --new-thread "<text>"` starts a new
+  comment instead, when the person asks for that.
 - `knecht-label add|remove <name> ...` uses existing labels only; if none
   fits, say so in your reply.
 - `knecht-status "<status>"` moves the ticket; a refusal lists the reachable
