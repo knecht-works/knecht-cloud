@@ -207,7 +207,7 @@ export function execInSandbox(sessionId: number, command: string[], options?: Op
   return execInContainer(webContainerName(sessionId), command, options, env)
 }
 
-function execInContainer(container: string, command: string[], options?: Options, env?: Record<string, string>) {
+export function execInContainer(container: string, command: string[], options?: Options, env?: Record<string, string>) {
   return execa('docker', dockerExecArgs(container, command, env), options)
 }
 

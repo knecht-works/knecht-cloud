@@ -12,7 +12,8 @@ export const createBranchAction = defineAction({
   legacyKey: 'branch',
   async run(step, rt) {
     rt.log(`\n▶ create-branch: ${step.name}\n`)
-    await createBranch(rt.checkoutDir, step.name)
+    await rt.sandbox.ensureUp()
+    await createBranch(rt.sandbox, step.name)
     updateRun(rt.runId, { branch: step.name })
     updateSession(rt.sessionId, { branch: step.name })
     return { name: step.name }

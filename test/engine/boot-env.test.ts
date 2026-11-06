@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import type { ActionRuntime } from '../../server/workflows/actions'
@@ -38,7 +41,8 @@ vi.mock('../../server/daemon/dev-server', () => ({
 }))
 
 const { db, schema } = await import('../../server/db')
-const { archiveEnv, bootEnv, reviveEnv } = await import('../../server/daemon/envs')
+const { archiveEnv, bootEnv, rehydrateEnv, reviveEnv } = await import('../../server/daemon/envs')
+const { sessionCheckoutDir } = await import('../../server/utils/storage')
 const { ddevStartAction } = await import('../../server/workflows/actions/ddev-start')
 
 function freshSession(project: Project) {
@@ -155,6 +159,64 @@ describe('reviveEnv', () => {
     const session = makeSession(makeProject())
     await expect(reviveEnv(session.id)).rejects.toThrow('no checkout')
     expect(calls).toEqual([])
+  })
+})
+
+describe('archive and restore', () => {
+  function git(dir: string, ...args: string[]) {
+    return execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' }).trim()
+  }
+
+  function stoppedCheckout(gitignore: string) {
+    const session = makeSession(makeProject(), { envState: 'stopped' })
+    const dir = sessionCheckoutDir(session.id)
+    mkdirSync(join(dir, 'vendor'), { recursive: true })
+    execFileSync('git', ['init', '-q', dir])
+    git(dir, 'config', 'user.email', 'test@knecht.test')
+    git(dir, 'config', 'user.name', 'test')
+    writeFileSync(join(dir, '.gitignore'), gitignore)
+    writeFileSync(join(dir, 'tracked.txt'), 'v1\n')
+    writeFileSync(join(dir, 'vendor', 'lib.php'), 'lib\n')
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-qm', 'unpushed')
+    return { session, dir }
+  }
+
+  it('restores the checkout byte for byte without running anything the sandbox planted in .git', async () => {
+    const { session, dir } = stoppedCheckout('/vendor\n')
+    const head = git(dir, 'rev-parse', 'HEAD')
+    writeFileSync(join(dir, 'tracked.txt'), 'v2 uncommitted\n')
+    writeFileSync(join(dir, 'untracked.txt'), 'new\n')
+    mkdirSync(join(dir, '.knecht'))
+    writeFileSync(join(dir, '.knecht', 'state.json'), '{}')
+
+    const marker = join(dir, '..', `planted-${session.id}`)
+    const plant = `#!/bin/sh\necho ran >> ${marker}\n`
+    writeFileSync(join(dir, '.git', 'hooks', 'pre-commit'), plant, { mode: 0o755 })
+    writeFileSync(join(dir, '.git', 'fsmonitor'), plant, { mode: 0o755 })
+    git(dir, 'config', 'core.fsmonitor', join(dir, '.git', 'fsmonitor'))
+    git(dir, 'config', 'filter.planted.clean', `sh -c 'echo ran >> ${marker}; cat'`)
+    writeFileSync(join(dir, '.gitattributes'), '* filter=planted\n')
+    rmSync(marker, { force: true })
+
+    await archiveEnv(session.id)
+    expect(getSessionRow(session.id).envState).toBe('archived')
+    expect(existsSync(dir)).toBe(false)
+
+    await rehydrateEnv(session.id)
+    expect(existsSync(marker)).toBe(false)
+    expect(readFileSync(join(dir, 'tracked.txt'), 'utf8')).toBe('v2 uncommitted\n')
+    expect(readFileSync(join(dir, 'untracked.txt'), 'utf8')).toBe('new\n')
+    expect(readFileSync(join(dir, '.knecht', 'state.json'), 'utf8')).toBe('{}')
+    expect(existsSync(join(dir, 'vendor'))).toBe(false)
+    expect(git(dir, '-c', 'core.fsmonitor=false', 'rev-parse', 'HEAD')).toBe(head)
+  })
+
+  it('keeps a vendor directory the repo commits', async () => {
+    const { session, dir } = stoppedCheckout('/vendor/*\n!/vendor/lib.php\n')
+    await archiveEnv(session.id)
+    await rehydrateEnv(session.id)
+    expect(readFileSync(join(dir, 'vendor', 'lib.php'), 'utf8')).toBe('lib\n')
   })
 })
 

@@ -4,6 +4,7 @@ import type { H3Event } from 'h3'
 import { z } from 'zod'
 import type { Session } from '../db/schema'
 import { currentBranch, pushBranch } from '../daemon/git'
+import { sessionSandbox } from '../daemon/session-sandbox'
 import { getIntegration, type Integration } from '../integrations'
 import { addressee, applyLabels, moveToStatus } from '../integrations/capabilities'
 import { verifyBridgeToken } from '../utils/agent-bridge'
@@ -128,7 +129,8 @@ export default defineEventHandler(async (event) => {
         return reply(event, 200, `${did} on ${label}`)
       }
       case 'open-pr': {
-        const branch = await currentBranch(dir)
+        const sandbox = sessionSandbox(sessionId, log)
+        const branch = await currentBranch(sandbox)
         if (branch === 'HEAD') {
           throw new BridgeError('refusing to open a PR from a detached HEAD: check out a work branch first (git checkout -b <name>)')
         }
@@ -136,7 +138,7 @@ export default defineEventHandler(async (event) => {
           throw new BridgeError(`refusing to open a PR from the default branch '${project.defaultBranch}': create a work branch first (git checkout -b <name>)`)
         }
         const ghToken = await getInstallationToken(project.owner, project.name)
-        await pushBranch(dir, branch, ghToken)
+        await pushBranch(sandbox, branch, ghToken)
         const pr = await createPullRequest(project.owner, project.name, {
           title: body.title,
           body: withPreviewFooter(body.body ?? '', sessionId),

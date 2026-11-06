@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
 import type { NewSession, Project } from '../db/schema'
@@ -166,12 +166,11 @@ async function restoreFromArchive(sessionId: number): Promise<void> {
   if (!session || !project) throw new Error('Session or project not found')
 
   const dir = sessionCheckoutDir(sessionId)
-  const gitArchive = join(sessionArchiveDir(sessionId), 'git.tar.gz')
-  if (existsSync(gitArchive)) {
-    // Unpack and reset on every attempt: a crash in between must not look like a finished restore.
+  const checkoutArchive = join(sessionArchiveDir(sessionId), 'checkout.tar.gz')
+  if (existsSync(checkoutArchive)) {
+    // Unpack on every attempt: a crash in between must not look like a finished restore.
     mkdirSync(dir, { recursive: true })
-    await execa('tar', ['-xzf', gitArchive, '-C', dir])
-    await execa('git', ['-C', dir, 'reset', '--hard'])
+    await execa('tar', ['-xzf', checkoutArchive, '-C', dir])
   }
   else if (existsSync(join(dir, '.git'))) {
     // Keep the prior fallback clone.
@@ -179,13 +178,6 @@ async function restoreFromArchive(sessionId: number): Promise<void> {
   else {
     const token = await getInstallationToken(project.owner, project.name)
     await prepareSessionCheckout(project, sessionId, token, () => {}, session.branch ?? project.defaultBranch)
-  }
-
-  // Only onto a clean checkout, or a retry applies it twice.
-  const patch = join(sessionArchiveDir(sessionId), 'checkout.patch')
-  if (existsSync(patch)) {
-    const { stdout: status } = await execa('git', ['-C', dir, 'status', '--porcelain'])
-    if (!status.trim()) await execa('git', ['-C', dir, 'apply', patch])
   }
 
   // Only when the checkout has none yet: a retry must keep the live state.
@@ -326,26 +318,31 @@ export async function archiveEnv(sessionId: number): Promise<void> {
   })
 }
 
-// The .git tarball keeps unpushed commits; a branch-tip clone would lose them.
-// The knecht ddev config sits in info/exclude, so no secrets enter the patch.
+const REINSTALLABLE_DIRS = ['vendor', 'node_modules']
+
+// Only when the repo ignores them: a committed vendor/ must survive the restore.
+function ignoredReinstallableDirs(dir: string): string[] {
+  const gitignore = join(dir, '.gitignore')
+  const lines = existsSync(gitignore) ? readFileSync(gitignore, 'utf8').split('\n').map(l => l.trim()) : []
+  return REINSTALLABLE_DIRS.filter(name => [name, `${name}/`, `/${name}`, `/${name}/`].some(p => lines.includes(p)))
+}
+
+// Plain tar, never git: the sandbox can write .git, and host-side git would run its hooks and config.
+// The whole tree keeps unpushed commits and uncommitted work; a branch-tip clone would lose them.
 async function snapshotCheckout(sessionId: number): Promise<void> {
   const dir = sessionCheckoutDir(sessionId)
-  const gitDir = join(dir, '.git')
-  if (!existsSync(gitDir)) return
+  if (!existsSync(join(dir, '.git'))) return
+  const archiveDir = sessionArchiveDir(sessionId)
   try {
-    const { stdout: sha } = await execa('git', ['-C', dir, 'rev-parse', 'HEAD'])
-    updateSession(sessionId, { commitSha: sha.trim() })
-    await execa('git', ['-C', dir, 'add', '-A'])
-    mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
-    // .git first: a diff that blows maxBuffer below must still leave a restorable object store.
-    await execa('tar', ['-czf', join(sessionArchiveDir(sessionId), 'git.tar.gz'), '-C', dir, '.git'])
+    mkdirSync(archiveDir, { recursive: true })
+    // .knecht is separate so a retried restore keeps the live agent state.
+    const excludes = ['.knecht', ...ignoredReinstallableDirs(dir)].map(name => `--exclude=./${name}`)
+    // Renamed into place: a half-written archive must not look restorable.
+    const partial = join(archiveDir, 'checkout.tar.gz.partial')
+    await execa('tar', ['-czf', partial, ...excludes, '-C', dir, '.'])
+    renameSync(partial, join(archiveDir, 'checkout.tar.gz'))
     if (existsSync(join(dir, '.knecht'))) {
-      await execa('tar', ['-czf', join(sessionArchiveDir(sessionId), 'knecht-state.tar.gz'), '-C', dir, '.knecht'])
-    }
-    // execa strips the final newline by default and `git apply` then rejects the patch.
-    const { stdout: patch } = await execa('git', ['-C', dir, 'diff', '--cached', '--binary'], { maxBuffer: 256 * 1024 * 1024, stripFinalNewline: false })
-    if (patch.trim()) {
-      writeFileSync(join(sessionArchiveDir(sessionId), 'checkout.patch'), patch)
+      await execa('tar', ['-czf', join(archiveDir, 'knecht-state.tar.gz'), '-C', dir, '.knecht'])
     }
   }
   catch {

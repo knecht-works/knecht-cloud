@@ -143,7 +143,7 @@ function followupMessage(followup: Followup, session: Session): string {
 
 async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRuntime): Promise<void> {
   try {
-    const branch = await currentBranch(rt.checkoutDir)
+    const branch = await currentBranch(rt.sandbox)
     // 'HEAD' is a detached checkout, not a branch name.
     if (branch !== rt.project.defaultBranch && branch !== 'HEAD') {
       updateSession(sessionId, { branch })
