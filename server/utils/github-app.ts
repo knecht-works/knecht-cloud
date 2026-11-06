@@ -1,7 +1,7 @@
 import type { Octokit } from 'octokit'
 import { App } from 'octokit'
 import { githubAppCredentials } from './github-credentials'
-import { formatObjectContext } from './object-context'
+import { ofetch } from 'ofetch'
 
 let cachedApp: App | null = null
 let cachedForAppId: string | null = null
@@ -105,22 +105,38 @@ export async function createIssueComment(owner: string, repo: string, issueNumbe
   return { url: data.html_url }
 }
 
-export async function getIssueContext(owner: string, repo: string, issueNumber: number): Promise<string> {
+export interface GithubIssueSnapshot {
+  issue: Awaited<ReturnType<Octokit['rest']['issues']['get']>>['data']
+  comments: Awaited<ReturnType<Octokit['rest']['issues']['listComments']>>['data']
+  pull: Awaited<ReturnType<Octokit['rest']['pulls']['get']>>['data'] | null
+  reviews: Awaited<ReturnType<Octokit['rest']['pulls']['listReviews']>>['data']
+  reviewComments: Awaited<ReturnType<Octokit['rest']['pulls']['listReviewComments']>>['data']
+  parent: { number: number, title: string } | null
+  subIssues: { number: number, title: string }[]
+}
+
+// The full media type adds body_html, where GitHub signs the links of images in private repositories.
+export async function getIssueSnapshot(owner: string, repo: string, issueNumber: number): Promise<GithubIssueSnapshot> {
   const octokit = await getInstallationClient(owner, repo)
-  const { data: issue } = await octokit.rest.issues.get({ owner, repo, issue_number: issueNumber })
-  const comments = await octokit.paginate(octokit.rest.issues.listComments, { owner, repo, issue_number: issueNumber, per_page: 100 })
-  return formatObjectContext({
-    heading: `${issue.pull_request ? 'Pull request' : 'Issue'} #${issue.number}: ${issue.title}`,
-    url: issue.html_url,
-    facts: [
-      ['State', issue.state],
-      ['Author', issue.user?.login ?? ''],
-      ['Assignees', (issue.assignees ?? []).map(a => a.login).join(', ')],
-      ['Labels', issue.labels.map(l => (typeof l === 'string' ? l : l.name ?? '')).filter(Boolean).join(', ')],
-    ],
-    body: issue.body ?? '',
-    comments: comments.map(c => ({ author: c.user?.login ?? 'unknown', at: new Date(c.created_at), body: c.body ?? '' })),
-  })
+  const full = { mediaType: { format: 'full' } }
+  const { data: issue } = await octokit.rest.issues.get({ owner, repo, issue_number: issueNumber, ...full })
+  const isPull = !!issue.pull_request
+  const [comments, pull, reviews, reviewComments, parent, subIssues] = await Promise.all([
+    octokit.paginate(octokit.rest.issues.listComments, { owner, repo, issue_number: issueNumber, per_page: 100, ...full }),
+    isPull ? octokit.rest.pulls.get({ owner, repo, pull_number: issueNumber, ...full }).then(r => r.data) : null,
+    isPull ? octokit.paginate(octokit.rest.pulls.listReviews, { owner, repo, pull_number: issueNumber, per_page: 100, ...full }) : [],
+    isPull ? octokit.paginate(octokit.rest.pulls.listReviewComments, { owner, repo, pull_number: issueNumber, per_page: 100, ...full }) : [],
+    octokit.request('GET /repos/{owner}/{repo}/issues/{issue_number}/parent', { owner, repo, issue_number: issueNumber })
+      .then(r => ({ number: r.data.number as number, title: r.data.title as string }), () => null),
+    octokit.request('GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues', { owner, repo, issue_number: issueNumber, per_page: 100 })
+      .then(r => (r.data as { number: number, title: string }[]).map(i => ({ number: i.number, title: i.title })), () => []),
+  ])
+  return { issue, comments, pull, reviews, reviewComments, parent, subIssues }
+}
+
+// Signed or public links: the installation token must not go along.
+export async function downloadGithubUpload(url: string): Promise<Buffer> {
+  return Buffer.from(await ofetch<ArrayBuffer, 'arrayBuffer'>(url, { responseType: 'arrayBuffer', timeout: 60_000 }))
 }
 
 export async function listRepoLabels(owner: string, repo: string): Promise<string[]> {

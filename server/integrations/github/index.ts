@@ -1,6 +1,6 @@
 import { getGithubAppRow } from '../../stores/github-app'
 import { getProjectByGithubId } from '../../stores/projects'
-import { addCommentReaction, addIssueLabels, createIssueComment, getIssueContext, listRepoAssignees, listRepoBranches, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
+import { addCommentReaction, addIssueLabels, createIssueComment, listRepoAssignees, listRepoBranches, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
 import { isMember } from '../../stores/members'
@@ -8,6 +8,7 @@ import { verifySha256Signature } from '../../utils/signature'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
 import { githubObject, githubTriggerForm, matchGithubEvent, type GithubPayload } from './webhook'
+import { githubSnapshot } from './snapshot'
 
 const MENTION_HANDLE = 'knecht-works'
 
@@ -76,6 +77,8 @@ export const github: Integration = {
         project,
         summary: `${name}${action ? `/${action}` : ''}`,
       }
+      const subject = name === 'pull_request' ? githubObject('pull_request', payload.pull_request) : githubObject(payload.issue?.pull_request ? 'pull_request' : 'issue', payload.issue)
+      if (subject && payload.sender?.login !== `${appSlug()}[bot]`) delivery.object = subject
       if (name === 'issue_comment') {
         delivery.comment = parseComment(payload)
         return delivery
@@ -97,7 +100,12 @@ export const github: Integration = {
   objects: {
     kinds: ['issue', 'pull_request'],
     describe: object => `${object.kind === 'issue' ? 'issue' : 'pull request'} #${object.key}`,
-    context: (project, object) => getIssueContext(project.owner, project.name, Number(object.key)),
+    context: githubSnapshot,
+    // Issues and pull requests share their numbers, and the issues API serves both.
+    find: (_project, key) => {
+      const number = /^#?(\d+)$/.exec(key)?.[1]
+      return number ? { integration: 'github', kind: 'issue', key: number } : null
+    },
   },
 
   mentions: {

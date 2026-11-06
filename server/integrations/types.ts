@@ -102,8 +102,8 @@ export interface Integration {
   objects: {
     kinds: readonly ObjectKind[]
     describe(object: SessionObject): string
-    // Live state for the agent (`knecht-object`): a tracker's raw ticket with its attachments, or markdown.
-    context(project: Project, object: SessionObject): Promise<ObjectSnapshot | string>
+    // The raw ticket with its attachments, written into the sandbox for the agent.
+    context(project: Project, object: SessionObject): Promise<ObjectSnapshot>
     // Another object of the same project the agent may load by key (`knecht-object <KEY>`).
     find?(project: Project, key: string): SessionObject | null
   }

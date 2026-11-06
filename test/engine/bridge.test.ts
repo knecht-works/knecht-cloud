@@ -21,7 +21,29 @@ vi.mock('../../server/utils/github-app', () => ({
     labels.removed.push(name)
   },
   createPullRequest: async () => null,
-  getIssueContext: async (_o: string, _r: string, n: number) => `# Issue #${n}: Broken build\n\nIt fails.`,
+  getIssueSnapshot: async (_o: string, _r: string, n: number) => ({
+    issue: {
+      number: n,
+      title: 'Broken build',
+      html_url: `https://github.com/acme/app/issues/${n}`,
+      state: 'open',
+      user: { login: 'ann' },
+      labels: [{ name: 'bug' }],
+      assignees: [],
+      body: 'It fails.\n\n<img src="https://github.com/user-attachments/assets/aaaaaaaa-1111-2222-3333-444444444444" />',
+      body_html: '<p>It fails.</p><img src="https://private-user-images.githubusercontent.com/1/9-aaaaaaaa-1111-2222-3333-444444444444.png?jwt=x&amp;y=1">',
+    },
+    comments: [{ user: { login: 'bob' }, created_at: '2026-11-06T10:00:00Z', body: 'Log attached', body_html: '<a href="https://github.com/user-attachments/files/77/build.log">build.log</a>' }],
+    pull: null,
+    reviews: [],
+    reviewComments: [],
+    parent: null,
+    subIssues: [{ number: 8, title: 'Pin node' }],
+  }),
+  downloadGithubUpload: async (url: string) => {
+    if (url.includes('/files/')) throw new Error('404')
+    return Buffer.from(url.includes('jwt=x&y=1') ? 'png' : 'wrong')
+  },
 }))
 const jiraApi = vi.hoisted(() => ({
   comments: [] as { key: string, body: unknown, parentId?: string | null }[],
@@ -207,7 +229,12 @@ describe('agent bridge', () => {
     const { sessionId } = objectSession()
     const res = await call(sessionId, { op: 'context' })
     expect(res.status).toBe(200)
-    expect(res.text).toBe('# Issue #5: Broken build\n\nIt fails.\n')
+    expect(res.text).toContain('# Issue #5: Broken build\nhttps://github.com/acme/app/issues/5\nopen · by ann · labels bug\n')
+    expect(res.text).toContain('- .knecht/objects/5/attachments/aaaaaaaa-1111-2222-3333-444444444444.png (image/png, 1 KB)')
+    expect(res.text).toContain('- build.log not downloaded: GitHub serves a file uploaded to a private repository only to a signed-in browser')
+    expect(res.text).toContain('- #8 (sub-issue): Pin node')
+    expect(res.text).toContain('### bob · 2026-11-06T10:00:00Z\n\nLog attached')
+    expect(readFileSync(join(sessionCheckoutDir(sessionId), '.knecht', 'objects', '5', 'attachments', 'aaaaaaaa-1111-2222-3333-444444444444.png'), 'utf8')).toBe('png')
 
     const bare = makeRun(makeProject(), [])
     mkdirSync(join(sessionCheckoutDir(bare.sessionId), '.git'), { recursive: true })
