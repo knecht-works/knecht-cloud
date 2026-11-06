@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
@@ -17,6 +19,15 @@ vi.mock('../../server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
   createIssueComment: async () => {},
+}))
+vi.mock('../../server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+  getJiraIssueRaw: async (key: string) => {
+    if (key === 'DOWN-1') throw new Error('Jira is unreachable')
+    return { key, fields: { summary: 'Login broken', attachment: [{ id: '10', filename: 'shot.png', mimeType: 'image/png', size: 3 }] } }
+  },
+  listJiraIssueComments: async () => [],
+  downloadJiraAttachment: async () => Buffer.from('png'),
 }))
 // Nitro's useStorage does not exist in the engine tests.
 vi.mock('../../server/utils/sandbox-assets', () => ({ readSandboxAsset: async () => Buffer.from('# Knecht sandbox instructions\n') }))
@@ -84,6 +95,25 @@ describe('ai step over ACP', () => {
     await startRun(run.id, project)
     expect(getRun(run.id).log).not.toContain('Could not resume')
     expect(getSessionRow(run.sessionId)).toMatchObject({ agentSessionId: 'ses_stub_known', agentHandover: null })
+  })
+
+  it('refreshes the session\'s ticket into the checkout before the step', async () => {
+    const project = makeProject()
+    const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'do the thing' }])
+    db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: 'PROJ-1' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    await startRun(run.id, project)
+    const dir = join(checkoutDirOf(run.sessionId), '.knecht', 'objects', 'PROJ-1')
+    expect(readFileSync(join(dir, 'ticket.md'), 'utf8')).toContain('# PROJ-1: Login broken')
+    expect(readFileSync(join(dir, 'attachments', 'shot.png'), 'utf8')).toBe('png')
+  })
+
+  it('still runs the step when the ticket cannot be refreshed', async () => {
+    const project = makeProject()
+    const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'do the thing' }])
+    db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: 'DOWN-1' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    await startRun(run.id, project)
+    expect(getRun(run.id)).toMatchObject({ status: 'success' })
+    expect(getRun(run.id).log).toContain('Could not refresh ticket DOWN-1: Jira is unreachable')
   })
 
   it('fails the step when the agent process dies', async () => {

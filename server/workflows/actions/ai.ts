@@ -12,6 +12,9 @@ import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 import { getSessionRow, updateSession } from '../../stores/sessions'
+import { getIntegration } from '../../integrations'
+import { snapshotDir, writeObjectSnapshot } from '../../utils/object-snapshot'
+import { describeObject, sessionObject } from '../../utils/sessions'
 
 const MAX_OUTPUT_ATTEMPTS = 3
 
@@ -33,7 +36,7 @@ export const aiAction = defineAction({
     await writeAgentConfig(rt, step.system ?? '', bareModel)
 
     const handover = getSessionRow(rt.sessionId)?.agentHandover
-    const prompt = handover ? `${handoverPreamble(handover)}${step.prompt}` : step.prompt
+    const prompt = `${handover ? handoverPreamble(handover) : ''}${await refreshTicket(rt)}${step.prompt}`
     const agent = await startSessionAgent(rt, env, logSink(rt.log), model)
     try {
       if (!step.output) {
@@ -96,9 +99,10 @@ export async function runFollowupPrompt(rt: ActionRuntime, prompt: string, sink:
   const { model: modelRef, bareModel, env } = await resolveAgentEnv(rt.sessionId, model ?? undefined)
   await rt.sandbox.ensureUp()
   await writeAgentConfig(rt, null, bareModel)
+  const ticket = await refreshTicket(rt)
   const agent = await startSessionAgent(rt, env, sink, modelRef)
   try {
-    const { text } = await agent.prompt(prompt)
+    const { text } = await agent.prompt(`${ticket}${prompt}`)
     if (!text) throw new Error('the agent produced no output')
     return text
   }
@@ -135,6 +139,25 @@ export async function compactAgentSession(rt: ActionRuntime, sink: TranscriptSin
 
 export function handoverPreamble(summary: string): string {
   return `Hand-over from the previous conversation in this session, read it before acting:\n\n${summary}\n\n---\n\n`
+}
+
+// Refreshed before every turn: in the session's one conversation the agent would otherwise trust an older read.
+async function refreshTicket(rt: ActionRuntime): Promise<string> {
+  const session = getSessionRow(rt.sessionId)
+  const object = session && sessionObject(session)
+  if (!object) return ''
+  const integration = getIntegration(object.integration)
+  const dir = snapshotDir(object.key)
+  try {
+    const context = await integration.objects.context(rt.project, object)
+    if (typeof context === 'string') return `Run \`knecht-object\` for the current state of the ${describeObject(object)}, comments included.\n\n`
+    await writeObjectSnapshot(rt.sandbox, context)
+    return `The ${describeObject(object)} as of now, with all comments and attachments: ${dir}/ticket.md. Run \`knecht-object <KEY>\` to dig into a linked ticket.\n\n`
+  }
+  catch (e) {
+    rt.log(`\nCould not refresh ${describeObject(object)}: ${(e as Error).message}\n`)
+    return `Refreshing the ${describeObject(object)} failed, so ${dir}/ may be out of date: run \`knecht-object\` to retry.\n\n`
+  }
 }
 
 // Workflow steps and the chat share one agent session per Knecht session, resumed when the agent still has it.

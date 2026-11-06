@@ -190,6 +190,7 @@ export const jira: Integration = {
         contents: `Jira issue with every field (custom field names under "names"), the description in fields.description and all ${comments.length} comments under "comments", as ADF; an image in them is a media node whose attrs.alt is the attachment's filename`,
         data: { ...issue, comments },
         files: (fields.attachment ?? []).filter(a => a.id && a.filename).map(a => ({
+          id: a.id!,
           name: a.filename!,
           type: a.mimeType ?? '',
           size: a.size ?? 0,

@@ -86,16 +86,16 @@ describe('follow-up replies on the thread', () => {
     expect(comments).toHaveLength(0)
   })
 
-  it('points a mention at knecht-object for the thread state, a dashboard follow-up not', async () => {
+  it('names the session\'s object for a mention, not for a dashboard follow-up', async () => {
     agent.reply = async () => 'ok'
     const mention = objectFollowup('mention')
     await startFollowup(mention.followup.id)
-    expect(agent.messages.at(-1)).toContain('This session belongs to issue #5; run `knecht-object` for its current state, comments included.')
+    expect(agent.messages.at(-1)).toContain('This session belongs to issue #5.')
     expect(agent.messages.at(-1)).toContain('more')
 
     const dashboard = objectFollowup('dashboard')
     await startFollowup(dashboard.followup.id)
-    expect(agent.messages.at(-1)).not.toContain('knecht-object')
+    expect(agent.messages.at(-1)).not.toContain('This session belongs to')
   })
 
   it('does not double-post when the agent already replied through the bridge', async () => {

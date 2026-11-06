@@ -283,12 +283,13 @@ export const plane: Integration = {
         data: { ...item, comments, attachments, relations, links, members },
         files: [
           ...attachments.filter(a => a.is_uploaded !== false).map(a => ({
+            id: a.id,
             name: a.attributes?.name || a.id,
             type: a.attributes?.type ?? '',
             size: a.attributes?.size,
             download: () => downloadPlaneAttachment(p, workItemId, a.id),
           })),
-          ...pasted.map(({ name, type, download }) => ({ name, type, download })),
+          ...pasted.map(({ id, name, type, download }) => ({ id, name, type, download })),
         ],
         links: [
           ...ref(parentId, 'parent'),
