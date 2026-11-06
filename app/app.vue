@@ -1,5 +1,5 @@
 <template>
-  <UApp :tooltip="{ delayDuration: 300 }">
+  <UApp :tooltip="{ delayDuration: 300, ignoreNonKeyboardFocus: true }">
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
