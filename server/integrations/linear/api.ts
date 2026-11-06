@@ -1,3 +1,4 @@
+import { ofetch } from 'ofetch'
 import { createGraphqlClient, createVendorCache, createVendorFetch } from '../vendor-fetch'
 import { linearCredentials } from './credentials'
 
@@ -104,6 +105,51 @@ export interface LinearIssue {
 // `id` is the UUID of a delivery or the identifier the dashboard shows: ENG-12.
 export async function getLinearIssue(id: string): Promise<LinearIssue> {
   return (await linearQuery<{ issue: LinearIssue }>(`query($id: String!) { issue(id: $id) { ${ISSUE_FIELDS} } }`, { id })).issue
+}
+
+interface LinearRef {
+  identifier: string
+  title: string
+}
+
+export interface LinearIssueRaw {
+  identifier: string
+  title: string
+  description?: string | null
+  url: string
+  priorityLabel?: string | null
+  state?: { name: string } | null
+  assignee?: { name?: string } | null
+  parent?: LinearRef | null
+  children: { nodes: LinearRef[] }
+  relations: { nodes: { type: string, relatedIssue: LinearRef }[] }
+  inverseRelations: { nodes: { type: string, issue: LinearRef }[] }
+  comments: { nodes: { body?: string | null }[] }
+}
+
+// GraphQL has no "every field": this is what the issue view in Linear shows.
+export async function getLinearIssueRaw(id: string): Promise<LinearIssueRaw> {
+  return (await linearQuery<{ issue: LinearIssueRaw }>(`query($id: String!) { issue(id: $id) {
+    id identifier title description url priority priorityLabel estimate dueDate createdAt updatedAt startedAt completedAt canceledAt
+    state { name type } team { key name } project { name } cycle { number name } projectMilestone { name }
+    creator { name displayName } assignee { name displayName } subscribers { nodes { name displayName } }
+    labels { nodes { name } }
+    parent { identifier title } children { nodes { identifier title } }
+    relations { nodes { type relatedIssue { identifier title } } }
+    inverseRelations { nodes { type issue { identifier title } } }
+    attachments { nodes { title subtitle url sourceType createdAt } }
+    comments(first: 250) { nodes { id body createdAt updatedAt user { name displayName } parent { id } } }
+  } }`, { id })).issue
+}
+
+const UPLOAD_ORIGIN = 'https://uploads.linear.app/'
+
+// Uploads live on their own host and take the same key.
+export async function downloadLinearUpload(url: string): Promise<Buffer> {
+  const auth = linearCredentials()
+  if (!auth) throw new Error('Linear is not connected')
+  if (!url.startsWith(UPLOAD_ORIGIN)) throw new Error(`not a Linear upload: ${url}`)
+  return Buffer.from(await ofetch<ArrayBuffer, 'arrayBuffer'>(url, { headers: { Authorization: auth.apiKey }, responseType: 'arrayBuffer', timeout: 60_000 }))
 }
 
 export interface LinearComment {

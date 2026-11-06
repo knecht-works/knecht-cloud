@@ -11,6 +11,7 @@ import { verifyBridgeToken } from '../utils/agent-bridge'
 import { createPullRequest, getInstallationToken } from '../utils/github-app'
 import { withPreviewFooter } from '../utils/origin'
 import { describeObject, recordAgentReply, sessionObject, withSessionLinks, type SessionObject } from '../utils/sessions'
+import { writeObjectSnapshot } from '../utils/object-snapshot'
 import { sessionCheckoutDir } from '../utils/storage'
 import { getProject } from '../stores/projects'
 import { getWorkflowRow } from '../stores/workflows'
@@ -104,7 +105,10 @@ export default defineEventHandler(async (event) => {
             ? `${body.key} is not in a ${integration.name} project linked to this Knecht project`
             : `loading another object by key is not supported for ${integration.name} yet`)
         }
-        return reply(event, 200, await viaIntegration(() => integration.objects.context(project, target, dir)))
+        return reply(event, 200, await viaIntegration(async () => {
+          const context = await integration.objects.context(project, target)
+          return typeof context === 'string' ? context : writeObjectSnapshot(sessionSandbox(sessionId, log), context)
+        }))
       }
       case 'comment': {
         const { integration, object, label } = requireObject(session)

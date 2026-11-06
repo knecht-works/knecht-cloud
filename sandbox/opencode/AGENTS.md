@@ -44,11 +44,12 @@ When `KNECHT_OBJECT` is set, the session belongs to one and these tools talk
 to it:
 
 - `knecht-object` prints its live state. Run it before you work on a mention
-  or follow-up, and again for the latest comments. On Jira it writes the raw
-  ticket to `.knecht/objects/<KEY>/ticket.json` (all fields and comments) and
-  the attachments next to it, and prints an index of the paths and the
-  linked tickets. Open the attachments that bear on the work, screenshots
-  above all. `knecht-object <KEY>` loads a linked ticket the same way.
+  or follow-up, and again for the latest comments. On Jira, Linear and Plane
+  it writes the raw ticket to `.knecht/objects/<KEY>/ticket.json` (all fields
+  and comments), the attachments to `attachments/` next to it, and an index
+  of the paths and the linked tickets to `ticket.md`, which it also prints.
+  Open the attachments that bear on the work, screenshots above all.
+  `knecht-object <KEY>` loads a linked ticket the same way.
 - `knecht-reply "<text>"` posts a markdown comment as Knecht, when the step
   asks you to answer, ask back or report. Everyone on the ticket gets it as a
   notification, so post once, when you have the answer. Lead with the answer

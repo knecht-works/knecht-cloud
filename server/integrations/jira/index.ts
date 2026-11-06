@@ -1,6 +1,5 @@
 import { tryParseJson } from '../../utils/json'
 import { linkedProject } from '../../stores/project-links'
-import { writeObjectSnapshot } from '../../utils/object-snapshot'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
@@ -57,7 +56,6 @@ function jiraIssue(key: string, fields: JiraIssueFields): TrackerIssue {
     author: fields.reporter?.displayName ?? '',
     assignees: fields.assignee?.displayName ? [fields.assignee.displayName] : [],
     labels: fields.labels ?? [],
-    facts: [['Type', fields.issuetype?.name ?? '']],
   }
 }
 
@@ -181,10 +179,10 @@ export const jira: Integration = {
   objects: {
     kinds: ['issue'],
     describe: object => `ticket ${object.key}`,
-    async context(_project, object, checkoutDir) {
+    async context(_project, object) {
       const [issue, comments] = await Promise.all([getJiraIssueRaw(object.key), listJiraIssueComments(object.key)])
       const fields = issue.fields ?? {}
-      return writeObjectSnapshot(checkoutDir, {
+      return {
         key: object.key,
         heading: `${object.key}: ${fields.summary ?? ''}`,
         url: jiraIssueUrl(object.key),
@@ -204,7 +202,7 @@ export const jira: Integration = {
             ? { key: l.outwardIssue.key ?? '', relation: l.type?.outward ?? 'linked', title: l.outwardIssue.fields?.summary ?? '' }
             : { key: l.inwardIssue?.key ?? '', relation: l.type?.inward ?? 'linked', title: l.inwardIssue?.fields?.summary ?? '' }),
         ].filter(l => l.key),
-      })
+      }
     },
 
     find(project, key) {
