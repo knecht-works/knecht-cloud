@@ -72,13 +72,13 @@ const groups = computed(() => [
     <button
       type="button"
       aria-label="Search"
-      class="flex w-full cursor-pointer items-center gap-3 rounded-md border border-default bg-(--surface-inset) py-2.5 text-sm text-dimmed transition-colors hover:border-accented hover:text-muted"
+      class="flex w-full cursor-pointer items-center gap-3 rounded-md border border-default bg-(--surface-inset) py-2 text-sm text-dimmed transition-colors hover:border-accented hover:text-muted"
       :class="collapsed ? 'justify-center px-0' : 'px-3'"
       @click="() => { open = true }"
     >
       <UIcon
         name="i-lucide-search"
-        class="size-4.5 flex-none text-dimmed"
+        class="size-4 flex-none text-dimmed"
       />
       <template v-if="!collapsed">
         Search
