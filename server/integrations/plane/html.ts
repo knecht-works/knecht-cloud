@@ -33,12 +33,24 @@ export function htmlMentionIds(html: string | null | undefined): string[] {
   return [...(html ?? '').matchAll(MENTION_RE)].flatMap(([, attrs]) => [...attrs!.matchAll(/="([^"]*)"/g)].map(m => m[1]!))
 }
 
+const escapeHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// Agent replies can be steered by ticket text, so a link may only lead to the web or a mail address.
+// Any other ':' or an '&' could spell a script scheme, entities included, once the browser decodes the href.
+function isSafeHref(href: string): boolean {
+  return /^(?:https?:\/\/|mailto:)/i.test(href) || !/[:&]/.test(href)
+}
+
 // Raw HTML in an agent's reply is text, not markup to hand to Plane.
 const marked = new Marked({
   gfm: true,
   breaks: true,
   renderer: {
-    html: ({ text }) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+    html: ({ text }) => escapeHtml(text),
+    link({ href, tokens }) {
+      return isSafeHref(href) ? false : this.parser.parseInline(tokens)
+    },
+    image: ({ href, text }) => isSafeHref(href) ? false : escapeHtml(text),
   },
 })
 

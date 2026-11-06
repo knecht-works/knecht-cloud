@@ -78,3 +78,28 @@ describe('addressedTo', () => {
     expect(addressedTo(html, 'u1')).toBe(html)
   })
 })
+
+describe('links in replies', () => {
+  it.each([
+    '[a](javascript:alert(1))',
+    '[a](JaVaScRiPt:alert(1))',
+    '[a](javascript&#58;alert(1))',
+    '[a](java&#x73;cript:alert(1))',
+    '<javascript:alert(1)>',
+    '[a](data:text/html,x)',
+  ])('keeps only the text of %s', (markdown) => {
+    const html = markdownToHtml(markdown)
+    expect(html).not.toContain('href=')
+  })
+
+  it('keeps only the alt text of an image with a script source', () => {
+    expect(markdownToHtml('![shot](javascript:alert(1))')).toBe('<p>shot</p>')
+  })
+
+  it('keeps web, mail and relative links', () => {
+    expect(markdownToHtml('[ok](https://x.dev/a?b=1&c=2)')).toContain('<a href="https://x.dev/a?b=1&c=2">ok</a>')
+    expect(markdownToHtml('[m](mailto:a@b.c)')).toContain('<a href="mailto:a@b.c">m</a>')
+    expect(markdownToHtml('[rel](/docs/a)')).toContain('<a href="/docs/a">rel</a>')
+    expect(markdownToHtml('see https://x.dev')).toContain('<a href="https://x.dev">https://x.dev</a>')
+  })
+})
