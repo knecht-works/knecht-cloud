@@ -27,8 +27,8 @@ import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from 
 //     a pull request (a GitHub API call the sandbox has no other path to),
 //     and syncs the session's branch (+ the newest run's branch/prUrl) so
 //     the dashboard shows them.
-//   - `context` (knecht-object): the live state of the session's object, for
-//     the agent to read before it works on a mention.
+//   - `context` (knecht-object): the live state of the session's object, or
+//     of a linked one by key, for the agent to read before it works on a mention.
 //   - `comment` (knecht-reply), `label` (knecht-label), `status`
 //     (knecht-status): act on the session's object through the capabilities
 //     of its integration (ADR 0007). Object sessions only; a workflow can opt
@@ -49,7 +49,7 @@ const bodySchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('comment'), body: z.string().min(1) }),
   z.object({ op: z.literal('label'), add: z.array(z.string().min(1)).optional(), remove: z.array(z.string().min(1)).optional() }),
   z.object({ op: z.literal('status'), status: z.string().min(1) }),
-  z.object({ op: z.literal('context') }),
+  z.object({ op: z.literal('context'), key: z.string().min(1).optional() }),
 ])
 
 // Replies are plain text: the CLI prints the body verbatim to the agent, and
@@ -97,7 +97,13 @@ export default defineEventHandler(async (event) => {
       }
       case 'context': {
         const { integration, object } = requireObject(session)
-        return reply(event, 200, await viaIntegration(() => integration.objects.context(project, object)))
+        const target = body.key ? integration.objects.find?.(project, body.key) : object
+        if (!target) {
+          throw new BridgeError(integration.objects.find
+            ? `${body.key} is not in a ${integration.name} project linked to this Knecht project`
+            : `loading another object by key is not supported for ${integration.name} yet`)
+        }
+        return reply(event, 200, await viaIntegration(() => integration.objects.context(project, target, dir)))
       }
       case 'comment': {
         const { integration, object, label } = requireObject(session)

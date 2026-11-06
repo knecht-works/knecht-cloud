@@ -14,6 +14,8 @@ export interface VendorRequest<A> {
   auth?: A
   // Safe to repeat. Defaults to GET only; a GraphQL query is a read sent as POST.
   idempotent?: boolean
+  // The raw bytes of a download instead of JSON.
+  binary?: boolean
 }
 
 // A webhook delivery waits for these calls, so a tool that hangs or throttles must not hold it for long.
@@ -33,16 +35,17 @@ export function createVendorFetch<A>(def: VendorFetchDef<A>) {
     const auth = opts.auth ?? def.credentials()
     if (!auth) throw new Error(`${def.name} is not connected`)
     const method = opts.method ?? 'GET'
-    return await ofetch<T>(`${def.baseUrl(auth)}${path}`, {
+    return await ofetch<T, 'json' | 'arrayBuffer'>(`${def.baseUrl(auth)}${path}`, {
       method,
       body: opts.body,
-      headers: { Accept: 'application/json', ...def.headers(auth) },
+      headers: { Accept: opts.binary ? '*/*' : 'application/json', ...def.headers(auth) },
+      responseType: opts.binary ? 'arrayBuffer' : 'json',
       timeout: TIMEOUT_MS,
       // Only reads are repeated: a repeated write could post a comment twice.
       retry: (opts.idempotent ?? method === 'GET') ? 2 : 0,
       retryStatusCodes: [429, 502, 503, 504],
       retryDelay: ({ response }) => retryDelay(response),
-    })
+    }) as T
   }
 }
 

@@ -73,10 +73,16 @@ When this session belongs to a ticket, issue or pull request (the
 environment variable `KNECHT_OBJECT` names it), extra tools talk to that
 thread:
 
-- `knecht-object` prints its current state: description, status, labels and
-  the newest comments. Run it before you work on a mention or a follow-up
-  that refers to "this" without saying what; it is always live, so run it
-  again when you need the latest comments.
+- `knecht-object` prints its current state. Run it before you work on a
+  mention or a follow-up that refers to "this" without saying what; it is
+  always live, so run it again when you need the latest comments. For a Jira
+  ticket it prints a short index instead: the full raw ticket is written to
+  `.knecht/objects/<KEY>/ticket.json` (every field, the description and all
+  comments) and its attachments to `.knecht/objects/<KEY>/attachments/`. Read
+  the JSON for whatever the task needs and open the attachments, screenshots
+  above all, when they bear on the work. The index lists linked tickets
+  (parent, subtasks, links); `knecht-object <KEY>` loads one the same way when
+  it matters.
 - `knecht-reply "<text>"` posts a comment on it, as Knecht. Markdown works.
   Use it when the step asks you to answer, ask back, or report on the thread;
   keep replies short and concrete, written for the person who opened it.
