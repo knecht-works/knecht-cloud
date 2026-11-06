@@ -2,7 +2,9 @@ import { INTEGRATIONS } from '../integrations'
 import { addMember, isMember, memberCount } from '../stores/members'
 
 export default defineEventHandler(async (event) => {
-  const { pathname } = getRequestURL(event)
+  // The router matches the percent-decoded path, so the gate must classify that
+  // one: the raw URL lets /%61pi/... skip the gate and still reach /api handlers.
+  const pathname = event.path.split('?')[0] ?? '/'
 
   const host = (event.node.req.headers.host ?? '').split(':')[0] ?? ''
   if (isPreviewHost(host)) return
