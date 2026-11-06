@@ -32,18 +32,20 @@ export const aiAction = defineAction({
     await rt.sandbox.ensureUp()
     await writeAgentConfig(rt, step.system ?? '', bareModel)
 
-    // A workflow step never inherits a conversation: every step is its own agent session.
-    const agent = await startAgent(rt, env, null, logSink(rt.log))
+    const handover = getSessionRow(rt.sessionId)?.agentHandover
+    const prompt = handover ? `${handoverPreamble(handover)}${step.prompt}` : step.prompt
+    const agent = await startSessionAgent(rt, env, logSink(rt.log), model)
     try {
       if (!step.output) {
-        const { text } = await agent.prompt(step.prompt)
+        const { text } = await agent.prompt(prompt)
         if (!text) throw new Error('the agent produced no output')
         const json = tryParseJson(stripFences(text))
         return json === undefined ? { text } : { text, json }
       }
-      return await runWithOutput(rt, agent, step.prompt, step.output)
+      return await runWithOutput(rt, agent, prompt, step.output)
     }
     finally {
+      if (handover) updateSession(rt.sessionId, { agentHandover: null })
       await agent.close()
       await persistAgentMemory(rt.project.id, rt.sandbox, rt.log)
     }
@@ -90,15 +92,12 @@ async function resolveAgentEnv(
   }
 }
 
-// The chat is one agent session per Knecht session: resumed when the agent still has it.
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string, sink: TranscriptSink, model?: string | null): Promise<string> {
   const { model: modelRef, bareModel, env } = await resolveAgentEnv(rt.sessionId, model ?? undefined)
   await rt.sandbox.ensureUp()
   await writeAgentConfig(rt, null, bareModel)
-  // The config only seeds new sessions; a resumed one is switched explicitly.
-  const agent = await startAgent(rt, env, getSessionRow(rt.sessionId)?.agentSessionId ?? null, sink, modelRef)
+  const agent = await startSessionAgent(rt, env, sink, modelRef)
   try {
-    rememberAgentSession(rt.sessionId, agent)
     const { text } = await agent.prompt(prompt)
     if (!text) throw new Error('the agent produced no output')
     return text
@@ -138,9 +137,12 @@ export function handoverPreamble(summary: string): string {
   return `Hand-over from the previous conversation in this session, read it before acting:\n\n${summary}\n\n---\n\n`
 }
 
-function rememberAgentSession(sessionId: number, agent: AgentSession): void {
-  if (agent.loaded) return
-  updateSession(sessionId, { agentSessionId: agent.sessionId })
+// Workflow steps and the chat share one agent session per Knecht session, resumed when the agent still has it.
+// The config only seeds new sessions; a resumed one is switched to the model explicitly.
+async function startSessionAgent(rt: ActionRuntime, env: Record<string, string>, sink: TranscriptSink, model: string): Promise<AgentSession> {
+  const agent = await startAgent(rt, env, getSessionRow(rt.sessionId)?.agentSessionId ?? null, sink, model)
+  if (!agent.loaded) updateSession(rt.sessionId, { agentSessionId: agent.sessionId })
+  return agent
 }
 
 async function runWithOutput(
