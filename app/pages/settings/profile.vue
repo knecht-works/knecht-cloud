@@ -29,13 +29,20 @@ async function upload(event: Event) {
   }
 }
 
+const confirmingRemove = ref(false)
+const removing = ref(false)
 async function removePicture() {
+  removing.value = true
   try {
     await $fetch('/api/me/avatar', { method: 'DELETE' })
     await refreshSession()
+    confirmingRemove.value = false
   }
   catch (e) {
     toastError('Could not remove the picture', e)
+  }
+  finally {
+    removing.value = false
   }
 }
 
@@ -94,14 +101,19 @@ async function saveName() {
                 :loading="uploading"
                 @click="fileInput?.click()"
               />
-              <UButton
+              <UTooltip
                 v-if="user?.avatarUrl"
-                label="Remove"
-                color="neutral"
-                variant="outline"
-                size="sm"
-                @click="removePicture"
-              />
+                text="Remove picture"
+              >
+                <UButton
+                  icon="i-lucide-x"
+                  color="error"
+                  variant="outline"
+                  size="sm"
+                  aria-label="Remove picture"
+                  @click="confirmingRemove = true"
+                />
+              </UTooltip>
             </div>
             <p class="text-xs text-muted">
               PNG, JPEG or WebP. Cropped to a square.
@@ -151,6 +163,15 @@ async function saveName() {
         </div>
       </div>
     </KPanel>
+
+    <KConfirmModal
+      v-model:open="confirmingRemove"
+      title="Remove your picture?"
+      description="Members see your initials instead. You can upload a new picture any time."
+      confirm-label="Remove"
+      :loading="removing"
+      @confirm="removePicture"
+    />
 
     <KPanel
       title="Sign-in methods"
