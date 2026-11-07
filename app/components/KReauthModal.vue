@@ -4,7 +4,8 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 
-const methods = ref<{ password: boolean, github: { username: string | null } } | null>(null)
+// The cache of useSignInMethods: loaded here only when no page has loaded it yet.
+const { data: methods } = useNuxtData<{ password: boolean, github: { username: string | null } }>('me:sign-in')
 const password = ref('')
 const error = ref<string | undefined>()
 const confirming = ref(false)
@@ -13,7 +14,7 @@ watch(open, async (isOpen) => {
   if (!isOpen) return
   password.value = ''
   error.value = undefined
-  methods.value = await $fetch('/api/me/sign-in')
+  methods.value ??= await $fetch('/api/me/sign-in')
 })
 watch(password, () => {
   error.value = undefined
