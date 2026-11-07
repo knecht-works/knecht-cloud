@@ -28,7 +28,7 @@ async function logout() {
 
 const userMenu: DropdownMenuItem[][] = [
   [
-    { label: 'Profile', icon: 'i-lucide-user-round', to: '/settings/profile' },
+    { label: 'Profile', icon: 'i-lucide-user-round', to: '/profile' },
     { label: 'Settings', icon: 'i-lucide-settings-2', to: '/settings' },
     { label: 'Logout', icon: 'i-lucide-log-out', onSelect: logout },
   ],

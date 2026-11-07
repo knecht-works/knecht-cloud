@@ -91,8 +91,8 @@ export default defineEventHandler(async (event) => {
         if (own) await elevateSession(event)
         return sendRedirect(event, withQuery(returnTo, { reauth: own ? 'done' : 'mismatch' }))
       }
-      if (!isElevated(session.elevatedAt)) return sendRedirect(event, '/settings/profile?github=reauth')
-      return sendRedirect(event, `/settings/profile?github=${linkIdentity(current.id, 'github', account)}`)
+      if (!isElevated(session.elevatedAt)) return sendRedirect(event, '/profile?github=reauth')
+      return sendRedirect(event, `/profile?github=${linkIdentity(current.id, 'github', account)}`)
     }
     let member = loginWithIdentity('github', account, profile)
     if (!member && inviteToken) {
