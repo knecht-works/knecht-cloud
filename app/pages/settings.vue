@@ -15,7 +15,10 @@ const SECTIONS = [
       sub="Profile, members, agent, integrations and advanced configuration."
     />
 
-    <KSettingsNav :sections="SECTIONS">
+    <KSettingsNav
+      :sections="SECTIONS"
+      tabs
+    >
       <NuxtPage />
     </KSettingsNav>
   </div>
