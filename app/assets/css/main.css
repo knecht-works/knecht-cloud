@@ -1,6 +1,13 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+/* Tailwind v4 resets buttons to the default cursor. */
+@layer base {
+  :where(button, [role="button"], [role="menuitem"], [role="option"], [role="tab"], [role="radio"], [role="checkbox"], [role="switch"], summary, select, label[for], input[type="checkbox"], input[type="radio"]):not(:disabled, [aria-disabled="true"], [data-disabled]) {
+    cursor: pointer;
+  }
+}
+
 /* ============================================================
    Knecht webfonts (Geist + Geist Mono, Fontsource CDN woff2)
    ============================================================ */
