@@ -98,6 +98,8 @@ describe('password login', () => {
     expect((await fetch(`${BASE_URL}/api/me/identities/nope`, { method: 'DELETE', headers: { cookie } })).status).toBe(404)
 
     const link = await fetch(`${BASE_URL}/auth/github?link=1`, { headers: { cookie }, redirect: 'manual' })
+    // CI's GitHub App comes from the dev env fallback, which has no OAuth client.
+    if (link.headers.get('location') === '/setup') return
     expect(link.headers.get('location')).toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize/)
     expect(link.headers.getSetCookie().join()).toContain('knecht-link=link')
   })
