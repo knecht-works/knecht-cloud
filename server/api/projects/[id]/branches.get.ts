@@ -1,9 +1,9 @@
-import { listRepoBranches } from '../../../utils/github-app'
+import { gitProvider } from '../../../git'
 import { requireProject } from '../../../stores/projects'
 
 export default defineEventHandler(async (event) => {
   const project = requireProject(requireIntParam(event))
-  const names = await listRepoBranches(project.owner, project.name)
+  const names = await gitProvider(project).listBranches(project)
 
   return [
     ...names.filter(n => n === project.defaultBranch),

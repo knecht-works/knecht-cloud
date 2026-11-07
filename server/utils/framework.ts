@@ -5,7 +5,7 @@ import type { DdevEnv, Project } from '../db/schema'
 import { setProjectMeta } from '../stores/projects'
 import { detectEnv, parseDdevConfig, repoShipsDdevConfig, type ReadFile } from './env-detect'
 import { fetchFavicon, fetchFrameworkVersion, fetchPackageManager, repoReader } from './github'
-import { getInstallationClient } from './github-app'
+import { gitProvider } from '../git'
 
 export interface ProjectMeta {
   framework: string | null
@@ -96,8 +96,7 @@ export async function backfillFrameworks(projects: Project[]): Promise<void> {
   await Promise.all(missing.map(async (p) => {
     attemptedAt.set(p.id, now)
     try {
-      const octokit = await getInstallationClient(p.owner, p.name)
-      const meta = await resolveProjectMeta(octokit, p.owner, p.name, p.defaultBranch)
+      const meta = await gitProvider(p).projectMeta(p, p.defaultBranch)
       const patch = { ...meta, favicon: p.favicon || meta.favicon }
       setProjectMeta(p.id, patch)
       Object.assign(p, patch)

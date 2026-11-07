@@ -10,6 +10,7 @@ vi.mock('execa', () => ({
 }))
 
 const { commitAll, createBranch, currentBranch, pushBranch } = await import('../../server/daemon/git')
+const credentials = { cloneUrl: 'https://github.com/acme/app.git', username: 'x-access-token', token: 'secret-token' }
 
 function recordingSandbox() {
   const calls: { command: string[], env?: Record<string, string> }[] = []
@@ -29,7 +30,7 @@ describe('git on a session checkout', () => {
     await createBranch(sandbox, 'work')
     await currentBranch(sandbox)
     await commitAll(sandbox, 'msg')
-    await pushBranch(sandbox, 'work', 'secret-token')
+    await pushBranch(sandbox, 'work', credentials)
     expect(hostSpawns).toEqual([])
     expect(calls.every(c => c.command[0] === 'git')).toBe(true)
     expect(calls.map(c => c.command.slice(1).find(a => !a.startsWith('-') && !a.includes('=')))).toEqual(
@@ -39,9 +40,9 @@ describe('git on a session checkout', () => {
 
   it('hands the push token over in the environment, not the command line', async () => {
     const { sandbox, calls } = recordingSandbox()
-    await pushBranch(sandbox, 'work', 'secret-token')
+    await pushBranch(sandbox, 'work', credentials)
     const basic = Buffer.from('x-access-token:secret-token').toString('base64')
     expect(JSON.stringify(calls[0]!.command)).not.toContain(basic)
-    expect(calls[0]!.env).toMatchObject({ GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}` })
+    expect(calls[0]!.env).toMatchObject({ GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}` })
   })
 })
