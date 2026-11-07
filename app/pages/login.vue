@@ -18,15 +18,13 @@ const error = computed(() => {
 </script>
 
 <template>
-  <div class="k-card overflow-hidden p-8">
-    <div class="flex flex-col items-center text-center">
-      <img
-        src="/mascot/mascotMain.png"
-        alt="Knecht"
-        class="h-32 w-auto drop-shadow-mascot"
-      >
-      <p class="mt-4 text-2sm text-muted">
-        Boot. Fix. Test. Fully automatic.
+  <div class="k-card flex flex-col gap-6 overflow-hidden p-8">
+    <div>
+      <h1 class="text-xl font-semibold text-highlighted">
+        Welcome back
+      </h1>
+      <p class="mt-1 text-sm text-muted">
+        Sign in to your Knecht instance.
       </p>
     </div>
 
@@ -34,23 +32,19 @@ const error = computed(() => {
       v-if="error"
       color="error"
       variant="subtle"
-      class="mt-6"
       :title="error.title"
       :description="error.description"
     />
-
-    <UButton
-      to="/auth/github"
-      external
-      icon="i-simple-icons-github"
-      color="neutral"
-      size="lg"
-      block
-      class="mt-6"
-    >
-      Sign in with GitHub
-    </UButton>
-
-    <p class="k-mono mt-4 flex items-center justify-center gap-1.5 text-2xs text-dimmed" />
+    <div class="flex flex-col gap-3">
+      <KAuthForm
+        endpoint="/auth/password"
+        github-url="/auth/github"
+        github-label="Sign in with GitHub"
+        submit-label="Sign in"
+      />
+      <p class="text-xs text-dimmed">
+        Forgot your password? Ask an owner for a reset link.
+      </p>
+    </div>
   </div>
 </template>

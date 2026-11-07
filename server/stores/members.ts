@@ -1,4 +1,4 @@
-import { and, asc, count, eq, isNull } from 'drizzle-orm'
+import { and, asc, count, eq, getTableColumns, isNull } from 'drizzle-orm'
 import { db } from '../db'
 import { memberIdentities, members, type Member, type MemberIdentity } from '../db/schema'
 import type { RepoProvider } from '../../shared/utils/integrations'
@@ -18,8 +18,10 @@ export interface ProviderAccount {
   username: string
 }
 
-export function listMembers(): Member[] {
-  return db.select().from(members).orderBy(asc(members.createdAt)).all()
+const { passwordHash: _, ...publicColumns } = getTableColumns(members)
+
+export function listMembers(): Omit<Member, 'passwordHash'>[] {
+  return db.select(publicColumns).from(members).orderBy(asc(members.createdAt)).all()
 }
 
 export function getMember(login: string): Member | undefined {
@@ -46,7 +48,7 @@ export function hasVerifiedIdentity(provider: RepoProvider, username: string): b
 }
 
 // The identity stays pending until its first login.
-export function addMember(p: Profile & { isOwner?: boolean, invitedBy?: string | null, identity: { provider: RepoProvider, username: string } }): Member {
+export function addMember(p: Profile & { isOwner?: boolean, invitedBy?: string | null, passwordHash?: string, identity?: { provider: RepoProvider, username: string } }): Member {
   const member = db.insert(members)
     .values({
       login: norm(p.login),
@@ -54,12 +56,15 @@ export function addMember(p: Profile & { isOwner?: boolean, invitedBy?: string |
       avatarUrl: p.avatarUrl ?? null,
       isOwner: p.isOwner ?? false,
       invitedBy: p.invitedBy ?? null,
+      passwordHash: p.passwordHash ?? null,
     })
     .returning()
     .get()
-  db.insert(memberIdentities)
-    .values({ memberId: member.id, provider: p.identity.provider, username: norm(p.identity.username) })
-    .run()
+  if (p.identity) {
+    db.insert(memberIdentities)
+      .values({ memberId: member.id, provider: p.identity.provider, username: norm(p.identity.username) })
+      .run()
+  }
   emitTopics(liveTopics.members)
   return member
 }

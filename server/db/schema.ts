@@ -448,6 +448,7 @@ export const members = sqliteTable('members', {
 
   name: text('name'),
   avatarUrl: text('avatar_url'),
+  passwordHash: text('password_hash'),
 
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
   invitedBy: text('invited_by'),
@@ -480,6 +481,19 @@ export const memberIdentities = sqliteTable('member_identities', {
 ])
 
 export type MemberIdentity = typeof memberIdentities.$inferSelect
+
+export const invites = sqliteTable('invites', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  tokenHash: text('token_hash').notNull().unique(),
+  createdBy: text('created_by'),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+export type Invite = typeof invites.$inferSelect
 
 export const toolCalls = sqliteTable('tool_calls', {
   id: integer('id').primaryKey({ autoIncrement: true }),
