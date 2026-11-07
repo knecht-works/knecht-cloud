@@ -4,6 +4,7 @@ const toast = useToast()
 const toastError = useToastError()
 
 const { data: members } = await useMembers()
+const { data: signIn, refresh: refreshSignIn } = await useFetch('/api/me/sign-in')
 
 const me = computed(() => members.value?.find(m => m.id === user.value?.id))
 const others = computed(() => members.value?.filter(m => m.id !== user.value?.id) ?? [])
@@ -245,6 +246,13 @@ async function remove() {
         </button>
       </template>
     </div>
+
+    <KSignInMethods
+      v-if="signIn"
+      :methods="signIn"
+      class="mt-6"
+      @changed="refreshSignIn"
+    />
 
     <KConfirmModal
       v-model:open="confirmingRemove"

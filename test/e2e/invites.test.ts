@@ -92,5 +92,13 @@ describe('password login', () => {
     const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
     expect(cookie).toContain('knecht-last-login=password')
     expect((await fetch(`${BASE_URL}/api/members`, { headers: { cookie } })).status).toBe(200)
+
+    const methods = await expectJson<{ password: boolean, github: { username: string | null } }>(await fetch(`${BASE_URL}/api/me/sign-in`, { headers: { cookie } }))
+    expect(methods).toMatchObject({ password: true, github: { username: null } })
+    expect((await fetch(`${BASE_URL}/api/me/identities/nope`, { method: 'DELETE', headers: { cookie } })).status).toBe(404)
+
+    const link = await fetch(`${BASE_URL}/auth/github?link=1`, { headers: { cookie }, redirect: 'manual' })
+    expect(link.headers.get('location')).toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize/)
+    expect(link.headers.getSetCookie().join()).toContain('knecht-link=1')
   })
 })
