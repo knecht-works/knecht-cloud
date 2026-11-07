@@ -3,7 +3,9 @@ import type { H3Event } from 'h3'
 import { withQuery } from 'ufo'
 import { dashboardOrigin } from '../../utils/origin'
 import { githubAppCredentials } from '../../utils/github-credentials'
-import { loginWithIdentity } from '../../stores/members'
+import { consumeInvite } from '../../stores/invites'
+import { rememberLoginMethod } from '../../utils/last-login'
+import { addMember, getMember, loginWithIdentity } from '../../stores/members'
 
 // Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
 export default defineEventHandler(async (event) => {
@@ -24,6 +26,9 @@ export default defineEventHandler(async (event) => {
       path: '/',
       maxAge: 600,
     })
+    if (typeof query.invite === 'string') {
+      setCookie(event, 'knecht-invite', query.invite, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600 })
+    }
     return sendRedirect(event, withQuery('https://github.com/login/oauth/authorize', {
       client_id: creds.clientId,
       redirect_uri: redirectUri,
@@ -34,6 +39,8 @@ export default defineEventHandler(async (event) => {
 
   const expected = getCookie(event, 'knecht-oauth-state')
   deleteCookie(event, 'knecht-oauth-state', { path: '/' })
+  const inviteToken = getCookie(event, 'knecht-invite')
+  deleteCookie(event, 'knecht-invite', { path: '/' })
   if (!expected || query.state !== expected) {
     console.error('GitHub OAuth error: state mismatch')
     return sendRedirect(event, '/login?error=oauth')
@@ -60,13 +67,23 @@ export default defineEventHandler(async (event) => {
       { headers: { 'Authorization': `Bearer ${tokens.access_token}`, 'User-Agent': 'knecht' } },
     )
 
-    const member = loginWithIdentity('github', { subject: String(user.id), username: user.login }, { name: user.name, avatarUrl: user.avatar_url })
+    const account = { subject: String(user.id), username: user.login }
+    const profile = { name: user.name, avatarUrl: user.avatar_url }
+    let member = loginWithIdentity('github', account, profile)
+    if (!member && inviteToken) {
+      if (getMember(user.login)) return sendRedirect(event, `/join/${encodeURIComponent(inviteToken)}?error=username`)
+      const invite = consumeInvite(inviteToken)
+      if (!invite) return sendRedirect(event, `/join/${encodeURIComponent(inviteToken)}`)
+      addMember({ login: user.login, invitedBy: invite.createdBy, identity: { provider: 'github', username: user.login } })
+      member = loginWithIdentity('github', account, profile)
+    }
     if (!member) {
       console.warn(`Login denied for @${user.login}: not a member of this instance.`)
       return sendRedirect(event, '/login?error=forbidden')
     }
 
     await setUserSession(event, { user: { id: member.id, login: member.login, name: member.name, avatarUrl: member.avatarUrl } })
+    rememberLoginMethod(event, 'github')
     return sendRedirect(event, popRedirect(event))
   }
   catch (error) {
