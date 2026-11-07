@@ -149,13 +149,15 @@ describe('owner role', () => {
 describe('own password', () => {
   it('changes without the current one while the session is fresh', async () => {
     const signIn = (pw: string) => fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: pw }) })
-    const res = await signIn('a brand new password')
-    const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
-    const change = (body: unknown) => fetch(`${BASE_URL}/api/me/password`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify(body) })
+    const sessionCookie = (res: Response) => res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+    const cookie = sessionCookie(await signIn('a brand new password'))
+    const change = (cookie: string, body: unknown) => fetch(`${BASE_URL}/api/me/password`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify(body) })
 
-    expect((await change({ password: 'short' })).status).toBe(400)
-    expect((await change({ password: 'the third password' })).status).toBe(200)
-    expect((await change({ password: 'the third password' })).status).toBe(200)
+    expect((await change(cookie, { password: 'short' })).status).toBe(400)
+    const changed = await change(cookie, { password: 'the third password' })
+    expect(changed.status).toBe(200)
+    expect((await change(cookie, { password: 'the third password' })).status).toBe(401)
+    expect((await change(sessionCookie(changed), { password: 'the third password' })).status).toBe(200)
 
     expect((await signIn('a brand new password')).status).toBe(401)
     expect((await signIn('the third password')).status).toBe(200)
