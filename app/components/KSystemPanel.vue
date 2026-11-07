@@ -40,6 +40,7 @@ function notesLines(notes: string): NoteLine[] {
     .filter(line => !(line.kind === 'heading' && line.text === 'Highlights'))
 }
 
+const { withElevation } = useElevation()
 const updating = ref(false)
 const updateError = ref('')
 const updateStale = ref(false)
@@ -50,7 +51,7 @@ async function runUpdate() {
   updating.value = true
   updateError.value = ''
   try {
-    await $fetch('/api/system/update', { method: 'POST' })
+    await withElevation(() => $fetch('/api/system/update', { method: 'POST' }))
   }
   catch (err) {
     updating.value = false
