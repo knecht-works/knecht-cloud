@@ -1,4 +1,4 @@
-import { and, asc, count, eq, getTableColumns, isNull } from 'drizzle-orm'
+import { and, asc, count, eq, getTableColumns, isNull, or } from 'drizzle-orm'
 import { db } from '../db'
 import { memberIdentities, members, type Member, type MemberIdentity } from '../db/schema'
 import type { RepoProvider } from '../../shared/utils/integrations'
@@ -108,4 +108,32 @@ export function loginWithIdentity(provider: RepoProvider, account: ProviderAccou
 export function removeMember(login: string): void {
   db.delete(members).where(eq(members.login, norm(login))).run()
   emitTopics(liveTopics.members)
+}
+
+export function listIdentities(memberId: number): MemberIdentity[] {
+  return db.select().from(memberIdentities).where(eq(memberIdentities.memberId, memberId)).all()
+}
+
+// Never moves an identity between members: an account linked elsewhere answers 'taken'.
+export function linkIdentity(memberId: number, provider: RepoProvider, account: ProviderAccount): 'linked' | 'taken' {
+  const username = norm(account.username)
+  const holders = db.select().from(memberIdentities)
+    .where(and(eq(memberIdentities.provider, provider), or(eq(memberIdentities.subject, account.subject), eq(memberIdentities.username, username))))
+    .all()
+  if (holders.some(h => h.memberId !== memberId)) return 'taken'
+
+  db.delete(memberIdentities).where(and(eq(memberIdentities.memberId, memberId), eq(memberIdentities.provider, provider))).run()
+  db.insert(memberIdentities).values({ memberId, provider, subject: account.subject, username, verified: true }).run()
+  emitTopics(liveTopics.members)
+  return 'linked'
+}
+
+// Answers false when the identity is the member's last way to log in.
+export function unlinkIdentity(memberId: number, provider: RepoProvider): boolean {
+  const member = getMemberById(memberId)
+  const others = listIdentities(memberId).filter(i => i.provider !== provider && i.verified)
+  if (!member || (!member.passwordHash && !others.length)) return false
+  db.delete(memberIdentities).where(and(eq(memberIdentities.memberId, memberId), eq(memberIdentities.provider, provider))).run()
+  emitTopics(liveTopics.members)
+  return true
 }

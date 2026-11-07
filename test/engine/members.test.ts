@@ -40,3 +40,31 @@ describe('getMemberById', () => {
     expect(getMemberById(undefined)).toBeUndefined()
   })
 })
+
+describe('linkIdentity and unlinkIdentity', () => {
+  it('links GitHub to a password member, and unlinks it while the password remains', async () => {
+    const { linkIdentity, listIdentities, unlinkIdentity } = await import('../../server/stores/members')
+    const member = addMember({ login: 'pw-only', passwordHash: 'hash' })
+
+    expect(linkIdentity(member.id, 'github', { subject: '50', username: 'PwGithub' })).toBe('linked')
+    expect(listIdentities(member.id)).toMatchObject([{ provider: 'github', subject: '50', username: 'pwgithub', verified: true }])
+    expect(loginWithIdentity('github', { subject: '50', username: 'pwgithub' }, profile)?.id).toBe(member.id)
+
+    expect(unlinkIdentity(member.id, 'github')).toBe(true)
+    expect(listIdentities(member.id)).toEqual([])
+  })
+
+  it('never takes an account that belongs to another member', async () => {
+    const { linkIdentity } = await import('../../server/stores/members')
+    const member = addMember({ login: 'thief', passwordHash: 'hash' })
+    expect(linkIdentity(member.id, 'github', { subject: '1', username: 'whatever' })).toBe('taken')
+    expect(linkIdentity(member.id, 'github', { subject: '99', username: 'owner' })).toBe('taken')
+  })
+
+  it('keeps the last way to sign in', async () => {
+    const { unlinkIdentity } = await import('../../server/stores/members')
+    const owner = loginWithIdentity('github', { subject: '1', username: 'owner' }, profile)!
+    expect(unlinkIdentity(owner.id, 'github')).toBe(false)
+    expect(hasVerifiedIdentity('github', 'owner')).toBe(true)
+  })
+})
