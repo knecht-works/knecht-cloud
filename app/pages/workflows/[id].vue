@@ -211,6 +211,7 @@ const menuItems = computed(() => [
       ? [{
           label: 'Discard incomplete edits',
           icon: 'i-lucide-undo-2',
+          color: 'error' as const,
           onSelect: () => { void discardDraft() },
         }]
       : []),
