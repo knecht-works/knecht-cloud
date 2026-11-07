@@ -191,6 +191,7 @@ export const runs = sqliteTable('runs', {
   index('runs_status_idx').on(table.status),
   index('runs_workflow_id_idx').on(table.workflowId),
   index('runs_session_id_idx').on(table.sessionId),
+  index('runs_workflow_version_idx').on(table.workflowId, table.sessionId, table.objectVersion),
 ])
 
 export type Run = typeof runs.$inferSelect

@@ -9,7 +9,7 @@ import { getTriggerSource } from './trigger-sources'
 import { getWorkflowRow, getWorkflowRows } from '../stores/workflows'
 import { getProjects } from '../stores/projects'
 import { recordTriggerFired } from '../stores/triggers'
-import { appendRunLog, createRun, finishRun, ranOnVersion } from '../stores/runs'
+import { appendRunLog, createRun, finishRun, workflowRanOnVersion } from '../stores/runs'
 
 export interface TriggerSummary {
   id: number
@@ -72,8 +72,9 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   const runIds: number[] = []
   for (const project of projects) {
     const session = resolveSession(project, opts.object ?? null, opts.branch ?? null)
-    // One action reaches us as several deliveries of the same object version (see `objectVersion`).
-    if (opts.version && ranOnVersion(t.id, session.id, opts.version)) continue
+    // One action reaches us as several deliveries of the same object version (see `objectVersion`),
+    // and several triggers of one workflow can match the same version.
+    if (opts.version && workflowRanOnVersion(workflow.id, session.id, opts.version)) continue
     const run = createRun({
       projectId: project.id,
       sessionId: session.id,
