@@ -495,6 +495,17 @@ export const invites = sqliteTable('invites', {
 
 export type Invite = typeof invites.$inferSelect
 
+export const passwordResets = sqliteTable('password_resets', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  memberId: integer('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
 export const toolCalls = sqliteTable('tool_calls', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   // null = the system; otherwise the member's login.

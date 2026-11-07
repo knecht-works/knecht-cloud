@@ -8,13 +8,15 @@ const props = defineProps<{
   submitLabel: string
   // A new account: checks the username and password rules before submitting.
   newAccount?: boolean
+  // Shown read-only, for setting a new password of a known member.
+  fixedUsername?: string
 }>()
 
 const lastUsed = useCookie<LoginMethod | null>(LAST_LOGIN_COOKIE)
 const showLastUsed = (method: LoginMethod) => !props.newAccount && lastUsed.value === method
 
 const { fetch: refreshSession } = useUserSession()
-const username = ref('')
+const username = ref(props.fixedUsername ?? '')
 const password = ref('')
 const showPassword = ref(false)
 const submitting = ref(false)
@@ -102,7 +104,8 @@ async function submit() {
           v-model="username"
           :placeholder="newAccount ? 'Choose a username' : 'Your username'"
           size="lg"
-          autofocus
+          :readonly="!!fixedUsername"
+          :autofocus="!fixedUsername"
           autocomplete="username"
           autocapitalize="off"
           spellcheck="false"
@@ -117,6 +120,7 @@ async function submit() {
           v-model="password"
           :placeholder="newAccount ? 'Choose a password' : 'Your password'"
           size="lg"
+          :autofocus="!!fixedUsername"
           :type="showPassword ? 'text' : 'password'"
           :autocomplete="newAccount ? 'new-password' : 'current-password'"
           class="w-full"

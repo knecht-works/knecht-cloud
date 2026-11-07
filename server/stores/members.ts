@@ -137,3 +137,8 @@ export function unlinkIdentity(memberId: number, provider: RepoProvider): boolea
   emitTopics(liveTopics.members)
   return true
 }
+
+export function setPasswordHash(memberId: number, passwordHash: string): void {
+  db.update(members).set({ passwordHash }).where(eq(members.id, memberId)).run()
+  emitTopics(liveTopics.members)
+}

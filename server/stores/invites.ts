@@ -1,16 +1,14 @@
-import { createHash, randomBytes } from 'node:crypto'
 import { and, asc, eq, gt } from 'drizzle-orm'
 import { db } from '../db'
 import { invites, type Invite } from '../db/schema'
+import { hashLinkToken as hash, newLinkToken } from '../utils/link-token'
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-// Only the hash is stored: the link is shown once, when the invite is created.
-const hash = (token: string) => createHash('sha256').update(token).digest('hex')
 const open = () => gt(invites.expiresAt, new Date())
 
 export function createInvite(createdBy: string): { invite: Omit<Invite, 'tokenHash'>, token: string } {
-  const token = randomBytes(32).toString('base64url')
+  const token = newLinkToken()
   const { tokenHash: _, ...invite } = db.insert(invites)
     .values({ tokenHash: hash(token), createdBy, expiresAt: new Date(Date.now() + INVITE_TTL_MS) })
     .returning()
