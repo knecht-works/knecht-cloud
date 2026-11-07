@@ -16,6 +16,12 @@ onMounted(() => {
   if (result) router.replace({ query: { ...route.query, github: undefined } })
 })
 
+const editingPassword = ref(false)
+function passwordSaved() {
+  emit('changed')
+  toast.add({ title: 'Password saved', color: 'success' })
+}
+
 const disconnecting = ref(false)
 async function disconnect() {
   disconnecting.value = true
@@ -52,6 +58,13 @@ async function disconnect() {
             {{ methods.password ? 'set' : 'not set' }}
           </div>
         </div>
+        <UButton
+          :label="methods.password ? 'Change' : 'Set'"
+          color="neutral"
+          :variant="methods.password ? 'ghost' : 'subtle'"
+          size="xs"
+          @click="editingPassword = true"
+        />
       </div>
 
       <div
@@ -95,5 +108,11 @@ async function disconnect() {
         />
       </div>
     </div>
+
+    <KPasswordModal
+      v-model:open="editingPassword"
+      :has-password="methods.password"
+      @saved="passwordSaved"
+    />
   </div>
 </template>
