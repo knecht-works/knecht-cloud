@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { previewTargetPort, readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
 import { credentialDevServerTags, devServerCorsOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
-import { getMemberById } from '../stores/members'
+import { sessionMember } from './member-session'
 import { sessionCheckoutDir } from './storage'
 import { getSessionRow, touchSessionPreview } from '../stores/sessions'
 
@@ -71,7 +71,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
     }
 
     // Same re-check as server/middleware/auth.ts: a removed member's cookie is still valid.
-    if (!getMemberById(session.user.id)) {
+    if (!sessionMember(session)) {
       await clearUserSession(event)
       throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
     }

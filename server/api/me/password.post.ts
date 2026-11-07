@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { setPasswordHash } from '../../stores/members'
-import { requireElevated } from '../../utils/member-session'
+import { requireElevated, updateMemberSession } from '../../utils/member-session'
 import { passwordProblem } from '../../../shared/utils/account'
 
 const bodySchema = z.object({
@@ -16,6 +16,6 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({ statusCode: 400, statusMessage: result.error.issues[0]!.message, data: { field: 'password' } })
   }
-  setPasswordHash(user.id, await hashPassword(result.data.password))
+  await updateMemberSession(event, setPasswordHash(user.id, await hashPassword(result.data.password)))
   return { ok: true }
 })

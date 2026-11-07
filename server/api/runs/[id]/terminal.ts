@@ -1,5 +1,5 @@
 import { openRunTerminal, type RunTerminal } from '../../../daemon/terminal'
-import { getMemberById } from '../../../stores/members'
+import { sessionMember } from '../../../utils/member-session'
 import { requireSession, touchSessionPreview } from '../../../stores/sessions'
 import { getRun, requireRun } from '../../../stores/runs'
 
@@ -42,7 +42,7 @@ export default defineWebSocketHandler({
     if (!session?.user) {
       throw createError({ statusCode: 401, statusMessage: 'Login required' })
     }
-    if (!getMemberById(session.user.id)) {
+    if (!sessionMember(session)) {
       throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
     }
     const target = parseTerminalUrl(request.url)

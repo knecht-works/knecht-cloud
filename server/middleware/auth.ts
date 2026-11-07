@@ -1,5 +1,5 @@
 import { INTEGRATIONS } from '../integrations'
-import { getMemberById } from '../stores/members'
+import { sessionMember } from '../utils/member-session'
 
 export default defineEventHandler(async (event) => {
   // The router matches the percent-decoded path, so the gate must classify that
@@ -21,10 +21,8 @@ export default defineEventHandler(async (event) => {
 
   if (INTEGRATIONS.some(i => pathname === `/api/${i.id}/webhook`)) return
 
-  const { user } = await requireUserSession(event)
-
-  // Re-checked per request so removing a member revokes access immediately.
-  if (!getMemberById(user.id)) {
+  // Re-checked per request so removing a member or changing the password revokes access immediately.
+  if (!sessionMember(await requireUserSession(event))) {
     await clearUserSession(event)
     throw createError({ statusCode: 401, statusMessage: 'Membership revoked' })
   }

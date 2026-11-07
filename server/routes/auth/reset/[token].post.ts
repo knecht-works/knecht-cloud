@@ -28,9 +28,7 @@ export default defineEventHandler(async (event) => {
   if (!member) {
     throw createError({ statusCode: 404, statusMessage: 'This reset link is invalid or has expired.' })
   }
-  setPasswordHash(member.id, passwordHash)
-
-  await startMemberSession(event, member)
+  await startMemberSession(event, setPasswordHash(member.id, passwordHash))
   rememberLoginMethod(event, 'password')
   return { ok: true }
 })

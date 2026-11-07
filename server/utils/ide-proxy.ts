@@ -6,7 +6,7 @@ import { devServerCorsOrigin, looksLikeDevServerLabel, verifyDevServerLabel } fr
 import { IDE_DEFAULT_SETTINGS, IDE_PORT, withIdeTokenCookie } from '../daemon/ide'
 import { forgetPreview } from '../daemon/sandbox'
 import { resolveSessionContainerIp, sessionContainer } from '../daemon/session-sandbox'
-import { getMemberById } from '../stores/members'
+import { sessionMember } from './member-session'
 import { isForeignOrigin } from './origin'
 import { knownSessionService, type SessionService } from './session-services'
 import { getSessionRow, touchSessionPreview } from '../stores/sessions'
@@ -64,7 +64,7 @@ async function proxyToContainer(event: H3Event, sessionId: number, target: Conta
     })
     return sendRedirect(event, `${reqUrl.protocol}//${baseHost}/login`, 302)
   }
-  if (!getMemberById(session.user.id)) {
+  if (!sessionMember(session)) {
     await clearUserSession(event)
     throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
   }
@@ -217,7 +217,7 @@ const pipeWsHooks = {
     if (!session?.user) {
       throw createError({ statusCode: 401, statusMessage: 'Login required' })
     }
-    if (!getMemberById(session.user.id)) {
+    if (!sessionMember(session)) {
       throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
     }
     const env = target === null

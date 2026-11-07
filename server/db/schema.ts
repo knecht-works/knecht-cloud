@@ -452,6 +452,8 @@ export const members = sqliteTable('members', {
   // An uploaded picture as a data URL; avatar_url then points to the route that serves it.
   avatarImage: text('avatar_image'),
   passwordHash: text('password_hash'),
+  // Sessions carry the version they started with; a password change bumps it to end the others.
+  sessionVersion: integer('session_version').notNull().default(0),
 
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
   invitedBy: text('invited_by'),
