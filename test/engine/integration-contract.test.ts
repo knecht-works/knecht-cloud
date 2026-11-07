@@ -64,7 +64,7 @@ const FIXTURES: Record<string, Fixture> = {
     project: () => makeProject(),
     body: p => ({ action: 'opened', issue: { number: 1, title: 'T', body: 'B', html_url: 'https://x/1' }, repository: { id: Number(p.repoId) } }),
     unknownBody: { action: 'opened', repository: { id: 424242 } },
-    triggerConfig: { kind: 'issue', on: [{ type: 'opened' }], conditions: [] },
+    triggerConfig: { kind: 'issue', event: { type: 'opened' }, conditions: [] },
   },
   jira: {
     configure: () => jiraConnection.save({ siteUrl: 'https://acme.atlassian.net', email: 'k@acme.test', apiToken: 't' }, { accountId: 'acc' }),
@@ -79,7 +79,7 @@ const FIXTURES: Record<string, Fixture> = {
     },
     body: p => ({ webhookEvent: 'jira:issue_created', issue: { key: `${p.jiraProjectKey}-1`, fields: { summary: 'T', project: { key: p.jiraProjectKey } } } }),
     unknownBody: { webhookEvent: 'jira:issue_created', issue: { key: 'X-1', fields: { project: { key: 'X' } } } },
-    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    triggerConfig: { kind: 'issue', event: { type: 'created' }, conditions: [] },
   },
   plane: {
     configure: () => planeConnection.save({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k' }, { webhookSecret: 'plane-secret', accountId: 'acc' }),
@@ -97,7 +97,7 @@ const FIXTURES: Record<string, Fixture> = {
     },
     body: p => ({ event: 'workitem.created', data: { id: 'wi-1', name: 'T', sequence_id: 1, project_id: p.planeProjectId, state_id: 's1', label_ids: [], assignee_ids: [], created_by_id: 'u1' }, previous_attributes: {} }),
     unknownBody: { event: 'workitem.created', data: { id: 'wi-1', sequence_id: 1, project_id: 'pp-NOPE' }, previous_attributes: {} },
-    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    triggerConfig: { kind: 'issue', event: { type: 'created' }, conditions: [] },
   },
   linear: {
     configure: () => linearConnection.save({ apiKey: 'k' }, { webhookSecret: 'linear-secret', accountId: 'acc' }),
@@ -113,7 +113,7 @@ const FIXTURES: Record<string, Fixture> = {
     },
     body: p => ({ action: 'create', type: 'Issue', data: { id: `li-${p.linearTeamKey}-1`, identifier: `${p.linearTeamKey}-1`, title: 'T' } }),
     unknownBody: { action: 'create', type: 'Issue', data: { id: 'li-NOPE-1', identifier: 'NOPE-1' } },
-    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    triggerConfig: { kind: 'issue', event: { type: 'created' }, conditions: [] },
   },
 }
 
@@ -172,11 +172,11 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
     const source = getTriggerSource(role, tracker)!
     const form = integration.trigger?.form ?? gitTriggerForm
     expect(source.configSchema.safeParse(fixture.triggerConfig).success).toBe(true)
-    expect(source.configSchema.safeParse({ ...fixture.triggerConfig, on: [] }).success).toBe(false)
+    expect(source.configSchema.safeParse({ ...fixture.triggerConfig, event: { type: 'unknown' } }).success).toBe(false)
     expect(triggerEventLabel(triggerSummary(form, fixture.triggerConfig))).toMatch(/^On /)
     for (const kind of form) {
       expect(integration.objects.kinds).toContain(kind.kind)
-      expect(source.configSchema.safeParse(defaultTriggerConfig(form, kind.kind)).success).toBe(kind.events.some(e => e.default))
+      expect(source.configSchema.safeParse(defaultTriggerConfig(form, kind.kind)).success).toBe(true)
     }
   })
 

@@ -14,7 +14,7 @@ export interface TrackerDef {
   name: string
   noun: string
   status: {
-    // Stored in trigger configs, so each tracker keeps its own word and prefix.
+    // The tracker's own word for a status and prefix for its groups; the prefixed values are stored in trigger configs.
     event: string
     groupPrefix: string
     groupHeading: string
@@ -71,21 +71,13 @@ export function trackerTriggerForm(def: TrackerDef): TriggerFormDef {
           label: 'Assigned to Knecht',
           summary: 'assigned to Knecht',
           default: true,
-          hint: `Fires when a ${def.noun} is assigned to the account the ${def.name} connection uses, so "give it to Knecht" is a normal assignment in ${def.name}.`,
+          hint: `Fires when the ${def.noun} is assigned to the account Knecht uses in ${def.name}.`,
         },
         labeledEvent(integrationLabelsUrl(def.id)),
-        {
-          type: status.event,
-          label: `${capitalize(status.event)} reached`,
-          summary: `${status.event} {value}`,
-          value: {
-            default: `${status.groupPrefix}${status.closedGroups[0]}`,
-            ...statusOptions,
-          },
-        },
+        { type: 'entered', label: `${capitalize(status.event)} reached`, summary: `${status.event} {value}` },
       ],
+      scope: { label: capitalize(status.event), requiredBy: ['entered'], placeholder: `Pick a ${status.event}`, ...statusOptions },
       filters: [
-        { key: status.event, label: capitalize(status.event), placeholder: `Pick a ${status.event}`, ...statusOptions },
         { key: 'assignee', label: 'Assignee', listedOnly: true, placeholder: 'Pick an assignee', options: [{ label: 'Knecht', value: 'self' }] },
         ...def.filters,
       ],
@@ -98,13 +90,12 @@ export function matchTrackerEvent(def: TrackerDef, c: TriggerConfig, change: Tra
   const fields = {
     ...change.filterValues,
     label: issue.labels,
-    [def.status.event]: [issue.status.name, `${def.status.groupPrefix}${issue.status.group}`],
     assignee: change.assignedToSelf ? ['self'] : [],
   }
   if (!conditionsPass(c, fields, listedOnlyKeys(trackerTriggerForm(def)[0]!.filters))) return null
 
-  const labels = triggerEvent(c, 'labeled')?.values ?? []
-  const wantsSelf = !!triggerEvent(c, 'assigned')
+  const scope = c.scope?.values ?? []
+  const status = [issue.status.name, `${def.status.groupPrefix}${issue.status.group}`]
   const reached = (target: string) => {
     const group = target.startsWith(def.status.groupPrefix) ? target.slice(def.status.groupPrefix.length) : undefined
     const inTarget = group === undefined ? issue.status.name === target : issue.status.group === group
@@ -115,10 +106,11 @@ export function matchTrackerEvent(def: TrackerDef, c: TriggerConfig, change: Tra
 
   // An object born with the label or assigned to Knecht has nothing to gain them from.
   const fires = (change.created && !!triggerEvent(c, 'created'))
-    || labels.some(l => (change.created ? issue.labels : change.gainedLabels).includes(l))
-    || (wantsSelf && (change.created ? change.assignedToSelf : change.gainedSelf))
-    || (triggerEvent(c, def.status.event)?.values ?? []).some(reached)
+    || (triggerEvent(c, 'labeled')?.values ?? []).some(l => (change.created ? issue.labels : change.gainedLabels).includes(l))
+    || (!!triggerEvent(c, 'assigned') && (change.created ? change.assignedToSelf : change.gainedSelf))
+    || (!!triggerEvent(c, 'entered') && scope.some(reached))
   if (!fires) return null
+  if (!triggerEvent(c, 'entered') && scope.length && !scope.some(v => status.includes(v))) return null
   return { branch: null, inputs: trackerInputs(issue), object: issue.object, version: change.version, actor: change.actor ?? null }
 }
 

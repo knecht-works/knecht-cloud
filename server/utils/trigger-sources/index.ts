@@ -1,18 +1,27 @@
 import { z } from 'zod'
 import type { Trigger } from '../../db/schema'
 import type { TrackerId, TriggerSource } from '../../../shared/utils/integrations'
-import { triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerDescription, type TriggerFormDef } from '../../../shared/utils/trigger-form'
+import { triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerFormDef, type TriggerSegment } from '../../../shared/utils/trigger-form'
 import { INTEGRATIONS, type Integration } from '../../integrations'
 import { gitTriggerForm } from '../../integrations/git-trigger-form'
 import { triggerConfigSchema } from '../../integrations/trigger-config'
 import { projectLinks } from '../../stores/project-links'
 import { getProject } from '../../stores/projects'
 
+// `event` is the one-line label; `on`, `conditions` and `scope` are its parts, set off for display.
+export interface TriggerSourceDescription {
+  event: string
+  kind: string
+  on: TriggerSegment[]
+  conditions: TriggerSegment[][]
+  scope?: TriggerSegment[]
+}
+
 export interface TriggerSourceDef {
   source: TriggerSource
   integration: TrackerId | null
   configSchema: z.ZodType<Record<string, unknown>>
-  describe(trigger: Trigger): TriggerDescription & { event: string }
+  describe(trigger: Trigger): TriggerSourceDescription
   validateProjects?(projectIds: number[]): string | null
 }
 
@@ -32,7 +41,7 @@ const schedule: TriggerSourceDef = {
   configSchema: z.object({}),
   describe(t) {
     const event = !t.active || !t.nextFireAt ? 'Paused' : `Next run ${relFuture(t.nextFireAt)}`
-    return { kind: '', events: [[{ kind: 'text', text: event }]], conditions: [], event }
+    return { kind: '', on: [{ kind: 'text', text: event }], conditions: [], event }
   },
 }
 
@@ -54,8 +63,8 @@ function formSource(source: TriggerSource, integration: TrackerId | null, form: 
     integration,
     configSchema: triggerConfigSchema(form),
     describe: (t) => {
-      const description = triggerSummary(form, t.config as unknown as TriggerConfig)
-      return { ...description, event: triggerEventLabel(description) }
+      const { event, ...description } = triggerSummary(form, t.config as unknown as TriggerConfig)
+      return { ...description, on: event, event: triggerEventLabel({ ...description, event }) }
     },
   }
 }

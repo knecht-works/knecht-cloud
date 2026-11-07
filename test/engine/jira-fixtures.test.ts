@@ -27,27 +27,29 @@ const KNECHT_ACCOUNT = '712020:6e6c010f-5693-48ea-9049-18a3f7ce3087'
 const DIR = new URL('../fixtures/webhooks/jira/', import.meta.url)
 const fixtures = readdirSync(DIR).sort().map(file => ({ name: file.replace(/\.json$/, ''), body: JSON.stringify(JSON.parse(readFileSync(new URL(file, DIR), 'utf8')).body) }))
 
-const on = (events: TriggerEventConfig[], conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', on: events, conditions })
+const on = (event: TriggerEventConfig, conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', event, conditions })
+const entered = (scope: string[], conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', event: { type: 'entered' }, conditions, scope: { values: scope } })
 
 const CONFIGS = {
-  created: on([{ type: 'created' }]),
-  createdWithLabel: on([{ type: 'created' }], allOf({ label: ['bug'] })),
-  createdAssignedToKnecht: on([{ type: 'created' }], allOf({ assignee: ['self'] })),
-  createdNotAssignedToKnecht: on([{ type: 'created' }], noneOf({ assignee: ['self'] })),
-  createdTask: on([{ type: 'created' }], allOf({ issueType: ['Task'] })),
-  createdBug: on([{ type: 'created' }], allOf({ issueType: ['Bug'] })),
-  assigned: on([{ type: 'assigned' }]),
-  labeledEnhancement: on([{ type: 'labeled', values: ['enhancement'] }]),
-  labeledBug: on([{ type: 'labeled', values: ['bug'] }]),
-  labeledFeatureApi: on([{ type: 'labeled', values: ['Feature-API.'] }]),
-  labeledFeatureApiLowercase: on([{ type: 'labeled', values: ['feature-api.'] }]),
-  assignedBug: on([{ type: 'assigned' }], allOf({ issueType: ['Bug'] })),
-  inProgress: on([{ type: 'status', values: ['In Progress'] }]),
-  anyInProgress: on([{ type: 'status', values: ['category:indeterminate'] }]),
-  anyDone: on([{ type: 'status', values: ['category:done'] }]),
-  done: on([{ type: 'status', values: ['Done'] }]),
-  anyToDo: on([{ type: 'status', values: ['category:new'] }]),
-  createdOrInProgressWhileEnhancement: on([{ type: 'created' }, { type: 'status', values: ['category:indeterminate'] }], allOf({ label: ['enhancement'] })),
+  created: on({ type: 'created' }),
+  createdWithLabel: on({ type: 'created' }, allOf({ label: ['bug'] })),
+  createdAssignedToKnecht: on({ type: 'created' }, allOf({ assignee: ['self'] })),
+  createdNotAssignedToKnecht: on({ type: 'created' }, noneOf({ assignee: ['self'] })),
+  createdTask: on({ type: 'created' }, allOf({ issueType: ['Task'] })),
+  createdBug: on({ type: 'created' }, allOf({ issueType: ['Bug'] })),
+  assigned: on({ type: 'assigned' }),
+  labeledEnhancement: on({ type: 'labeled', values: ['enhancement'] }),
+  labeledBug: on({ type: 'labeled', values: ['bug'] }),
+  labeledFeatureApi: on({ type: 'labeled', values: ['Feature-API.'] }),
+  labeledFeatureApiLowercase: on({ type: 'labeled', values: ['feature-api.'] }),
+  assignedBug: on({ type: 'assigned' }, allOf({ issueType: ['Bug'] })),
+  inProgress: entered(['In Progress']),
+  anyInProgress: entered(['category:indeterminate']),
+  anyDone: entered(['category:done']),
+  done: entered(['Done']),
+  anyToDo: entered(['category:new']),
+  createdWhileEnhancement: on({ type: 'created' }, allOf({ label: ['enhancement'] })),
+  inProgressWhileEnhancement: entered(['category:indeterminate'], allOf({ label: ['enhancement'] })),
 }
 
 const fired: Record<keyof typeof CONFIGS, string[]> = Object.fromEntries(Object.keys(CONFIGS).map(k => [k, []])) as never
@@ -107,7 +109,8 @@ describe('jira deliveries', () => {
     expect(fired.anyToDo).toEqual(['issue_updated-CC-18-status-in-planning'])
   })
 
-  it('conditions apply to every event of the trigger', () => {
-    expect(fired.createdOrInProgressWhileEnhancement).toEqual(['issue_created-CC-18', 'issue_updated-CC-18-status-in-progress'])
+  it('conditions apply to the created and the entered event alike', () => {
+    expect(fired.createdWhileEnhancement).toEqual(['issue_created-CC-18'])
+    expect(fired.inProgressWhileEnhancement).toEqual(['issue_updated-CC-18-status-in-progress'])
   })
 })
