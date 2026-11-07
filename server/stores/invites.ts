@@ -2,6 +2,8 @@ import { and, asc, eq, gt } from 'drizzle-orm'
 import { db } from '../db'
 import { invites, type Invite } from '../db/schema'
 import { hashLinkToken as hash, newLinkToken } from '../utils/link-token'
+import { liveTopics } from '../../shared/utils/live-topics'
+import { emitTopics } from '../utils/live'
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -13,6 +15,7 @@ export function createInvite(createdBy: string): { invite: Omit<Invite, 'tokenHa
     .values({ tokenHash: hash(token), createdBy, expiresAt: new Date(Date.now() + INVITE_TTL_MS) })
     .returning()
     .get()
+  emitTopics(liveTopics.invites)
   return { invite, token }
 }
 
@@ -30,9 +33,12 @@ export function findOpenInvite(token: string): Invite | undefined {
 
 // Deleting is what makes an invite single use: of two concurrent joins only one gets the row back.
 export function consumeInvite(token: string): Invite | undefined {
-  return db.delete(invites).where(and(eq(invites.tokenHash, hash(token)), open())).returning().get()
+  const invite = db.delete(invites).where(and(eq(invites.tokenHash, hash(token)), open())).returning().get()
+  if (invite) emitTopics(liveTopics.invites)
+  return invite
 }
 
 export function revokeInvite(id: number): void {
   db.delete(invites).where(eq(invites.id, id)).run()
+  emitTopics(liveTopics.invites)
 }

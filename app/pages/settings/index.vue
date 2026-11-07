@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { liveTopics } from '#shared/utils/live-topics'
+
 const { user } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()
@@ -10,7 +12,7 @@ const me = computed(() => members.value?.find(m => m.id === user.value?.id))
 const others = computed(() => members.value?.filter(m => m.id !== user.value?.id) ?? [])
 
 const isOwner = computed(() => !!me.value?.isOwner)
-const { data: invites, refresh: refreshInvites } = await useFetch('/api/invites', { default: () => [], immediate: isOwner.value })
+const { data: invites } = await useInvites(isOwner.value)
 // The server keeps only a hash, so a link can be copied only in the tab that created it.
 const inviteUrls = ref<Record<number, string>>({})
 const inviting = ref(false)
@@ -19,7 +21,7 @@ async function invite() {
   try {
     const { invite, token } = await withElevation(() => $fetch('/api/invites', { method: 'POST' }))
     inviteUrls.value[invite.id] = `${window.location.origin}/join/${token}`
-    await refreshInvites()
+    await invalidate(liveTopics.invites)
     await copyInvite(invite.id)
   }
   catch (e) {
@@ -49,7 +51,8 @@ const revoking = ref<number | null>(null)
 async function revoke(id: number) {
   revoking.value = id
   try {
-    invites.value = await withElevation(() => $fetch(`/api/invites/${id}`, { method: 'DELETE' }))
+    await withElevation(() => $fetch(`/api/invites/${id}`, { method: 'DELETE' }))
+    await invalidate(liveTopics.invites)
   }
   catch (e) {
     toastError('Could not revoke the invite link', e)
@@ -78,7 +81,8 @@ async function createResetLink(login: string) {
 
 async function setOwner(login: string, isOwner: boolean) {
   try {
-    members.value = await withElevation(() => $fetch(`/api/members/${login}`, { method: 'PATCH', body: { isOwner } }))
+    await withElevation(() => $fetch(`/api/members/${login}`, { method: 'PATCH', body: { isOwner } }))
+    await invalidate(liveTopics.members)
     toast.add({ title: isOwner ? `@${login} is now an owner` : `@${login} is no longer an owner`, color: 'success' })
   }
   catch (e) {
@@ -109,7 +113,8 @@ async function remove() {
   if (!login) return
   removing.value = true
   try {
-    members.value = await withElevation(() => $fetch(`/api/members/${login}`, { method: 'DELETE' }))
+    await withElevation(() => $fetch(`/api/members/${login}`, { method: 'DELETE' }))
+    await invalidate(liveTopics.members)
     toast.add({ title: `Removed @${login}`, color: 'success' })
     removeTarget.value = null
   }

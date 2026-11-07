@@ -7,4 +7,5 @@ export const liveTopics = {
   triggers: 'triggers',
   integrations: 'integrations',
   members: 'members',
+  invites: 'invites',
 }

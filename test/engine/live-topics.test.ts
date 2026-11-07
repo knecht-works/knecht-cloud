@@ -3,6 +3,7 @@ import { onTopics } from '../../server/utils/live'
 import { appendRunLog, updateRun } from '../../server/stores/runs'
 import { touchSessionPreview, updateSession } from '../../server/stores/sessions'
 import { makeProject, makeRun } from '../helpers/db'
+import { consumeInvite, createInvite, revokeInvite } from '../../server/stores/invites'
 
 function nextBatch(): Promise<string[]> {
   return new Promise((resolve) => {
@@ -40,5 +41,17 @@ describe('live topics', () => {
     await new Promise(resolve => setTimeout(resolve, 200))
     off()
     expect(heard).toBe(false)
+  })
+
+  it('announces every invite change, so other tabs see new and used links', async () => {
+    let batch = nextBatch()
+    const { invite, token } = createInvite('owner')
+    expect(await batch).toEqual(['invites'])
+    batch = nextBatch()
+    consumeInvite(token)
+    expect(await batch).toEqual(['invites'])
+    batch = nextBatch()
+    revokeInvite(invite.id)
+    expect(await batch).toEqual(['invites'])
   })
 })

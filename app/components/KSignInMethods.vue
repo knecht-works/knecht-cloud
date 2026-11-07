@@ -1,8 +1,9 @@
 <script setup lang="ts">
+import { liveTopics } from '#shared/utils/live-topics'
+
 defineProps<{
   methods: { password: boolean, github: { available: boolean, username: string | null } }
 }>()
-const emit = defineEmits<{ changed: [] }>()
 
 const route = useRoute()
 const router = useRouter()
@@ -19,8 +20,8 @@ onMounted(() => {
 })
 
 const editingPassword = ref(false)
-function passwordSaved() {
-  emit('changed')
+async function passwordSaved() {
+  await invalidate(liveTopics.members)
   toast.add({ title: 'Password saved', color: 'success' })
 }
 
@@ -39,7 +40,7 @@ async function disconnect() {
   disconnecting.value = true
   try {
     await withElevation(() => $fetch('/api/me/identities/github', { method: 'DELETE' }))
-    emit('changed')
+    await invalidate(liveTopics.members)
     toast.add({ title: 'GitHub disconnected', color: 'success' })
   }
   catch (e) {
