@@ -4,8 +4,8 @@ import { createConnectionStore } from '../connections'
 export const PLANE_CONNECTION_FORM: ConnectionFormDef = {
   intro: 'Work items start workflows and get Knecht\'s replies. Connect with a personal access token (Profile settings → Personal access tokens), ideally of a dedicated "Knecht" account, then link each project to its Plane project in the project settings.',
   fields: [
-    { key: 'siteUrl', label: 'Plane URL', type: 'url', placeholder: 'https://app.plane.so', default: 'https://app.plane.so', mono: true, required: 'Enter your Plane URL.', invalid: 'Must be an https:// URL, e.g. https://app.plane.so.' },
-    { key: 'workspaceSlug', label: 'Workspace slug', type: 'text', placeholder: 'acme', mono: true, required: 'Enter the workspace slug.', pattern: '^[a-z0-9-]+$', invalid: 'The slug is the first path segment of your Plane URL, e.g. acme.' },
+    { key: 'siteUrl', label: 'Plane URL', type: 'url', placeholder: 'https://app.plane.so', default: 'https://app.plane.so', required: 'Enter your Plane URL.', invalid: 'Must be an https:// URL, e.g. https://app.plane.so.' },
+    { key: 'workspaceSlug', label: 'Workspace slug', type: 'text', placeholder: 'acme', required: 'Enter the workspace slug.', pattern: '^[a-z0-9-]+$', invalid: 'The slug is the first path segment of your Plane URL, e.g. acme.' },
     { key: 'apiKey', label: 'API key', type: 'secret', placeholder: 'plane_api_…', required: 'Paste an API key.' },
   ],
   rejected: 'Plane rejected the connection. Check the site URL, workspace slug and API key.',

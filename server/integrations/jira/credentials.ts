@@ -5,7 +5,7 @@ export const JIRA_CONNECTION_FORM: ConnectionFormDef = {
   intro: 'Tickets start workflows and get Knecht\'s replies. Connect with an API token, ideally of a dedicated "Knecht" account, then link each project to its Jira project in the project settings.',
   docs: { label: 'Create an API token', url: 'https://id.atlassian.com/manage-profile/security/api-tokens' },
   fields: [
-    { key: 'siteUrl', label: 'Site URL', type: 'url', placeholder: 'https://acme.atlassian.net', mono: true, required: 'Enter your Jira site URL.', invalid: 'Must be an https:// URL, e.g. https://acme.atlassian.net.' },
+    { key: 'siteUrl', label: 'Site URL', type: 'url', placeholder: 'https://acme.atlassian.net', required: 'Enter your Jira site URL.', invalid: 'Must be an https:// URL, e.g. https://acme.atlassian.net.' },
     { key: 'email', label: 'Email', type: 'email', placeholder: 'knecht@acme.com', required: 'Enter the account\'s email.', invalid: 'That doesn\'t look like an email address.' },
     { key: 'apiToken', label: 'API token', type: 'secret', placeholder: 'ATATT…', required: 'Paste an API token.' },
   ],

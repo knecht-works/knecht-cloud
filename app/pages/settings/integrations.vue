@@ -1,5 +1,8 @@
 <script setup lang="ts">
+const { user } = useUserSession()
 const { data: integrations } = await useIntegrations()
+const { data: members } = await useMembers()
+const isOwner = computed(() => !!members.value?.find(m => m.id === user.value?.id)?.isOwner)
 </script>
 
 <template>
@@ -13,6 +16,7 @@ const { data: integrations } = await useIntegrations()
         :id="integration.id"
         :name="integration.name"
         :form="integration.connectionForm"
+        :editable="isOwner"
       />
     </template>
   </div>
