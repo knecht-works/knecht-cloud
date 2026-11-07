@@ -9,10 +9,7 @@ const SECTIONS = [
 
 <template>
   <div>
-    <KTopBar
-      title="Settings"
-      sub="Members, agent, integrations and advanced configuration."
-    />
+    <KTopBar title="Settings" />
 
     <KSettingsNav
       :sections="SECTIONS"
