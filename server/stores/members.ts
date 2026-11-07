@@ -18,9 +18,9 @@ export interface ProviderAccount {
   username: string
 }
 
-const { passwordHash: _, ...publicColumns } = getTableColumns(members)
+const { passwordHash: _, avatarImage: __, nameIsOwn: ___, ...publicColumns } = getTableColumns(members)
 
-export function listMembers(): Omit<Member, 'passwordHash'>[] {
+export function listMembers(): Omit<Member, 'passwordHash' | 'avatarImage' | 'nameIsOwn'>[] {
   return db.select(publicColumns).from(members).orderBy(asc(members.createdAt)).all()
 }
 
@@ -96,8 +96,32 @@ export function loginWithIdentity(provider: RepoProvider, account: ProviderAccou
   }
   if (memberId === undefined) return undefined
 
+  const current = getMemberById(memberId)!
+  const changes = {
+    ...(current.nameIsOwn ? {} : { name: profile.name ?? null }),
+    ...(current.avatarImage ? {} : { avatarUrl: profile.avatarUrl ?? null }),
+  }
+  if (!Object.keys(changes).length) return current
+  const member = db.update(members).set(changes).where(eq(members.id, memberId)).returning().get()
+  emitTopics(liveTopics.members)
+  return member
+}
+
+// A name of the member's own is kept when a provider login brings another one.
+export function setName(memberId: number, name: string | null): Member {
   const member = db.update(members)
-    .set({ name: profile.name ?? null, avatarUrl: profile.avatarUrl ?? null })
+    .set({ name, nameIsOwn: name !== null })
+    .where(eq(members.id, memberId))
+    .returning()
+    .get()
+  emitTopics(liveTopics.members)
+  return member
+}
+
+// The version in the URL makes browsers drop a cached older picture.
+export function setAvatarImage(memberId: number, image: string | null): Member {
+  const member = db.update(members)
+    .set({ avatarImage: image, avatarUrl: image ? `/api/avatars/${memberId}?v=${Date.now()}` : null })
     .where(eq(members.id, memberId))
     .returning()
     .get()

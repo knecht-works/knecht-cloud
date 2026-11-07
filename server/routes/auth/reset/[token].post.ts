@@ -4,6 +4,7 @@ import { getMemberById, setPasswordHash } from '../../../stores/members'
 import { rememberLoginMethod } from '../../../utils/last-login'
 import { isForeignOrigin } from '../../../utils/origin'
 import { passwordProblem } from '../../../../shared/utils/account'
+import { setMemberSession } from '../../../utils/member-session'
 
 const bodySchema = z.object({
   password: z.string().max(1024).superRefine((v, ctx) => {
@@ -29,7 +30,7 @@ export default defineEventHandler(async (event) => {
   }
   setPasswordHash(member.id, passwordHash)
 
-  await setUserSession(event, { user: { id: member.id, login: member.login, name: member.name, avatarUrl: member.avatarUrl } })
+  await setMemberSession(event, member)
   rememberLoginMethod(event, 'password')
   return { ok: true }
 })

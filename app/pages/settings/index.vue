@@ -1,18 +1,12 @@
 <script setup lang="ts">
-const { user, clear } = useUserSession()
+const { user } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()
 
 const { data: members } = await useMembers()
-const { data: signIn, refresh: refreshSignIn } = await useFetch('/api/me/sign-in')
 
 const me = computed(() => members.value?.find(m => m.id === user.value?.id))
 const others = computed(() => members.value?.filter(m => m.id !== user.value?.id) ?? [])
-
-async function logout() {
-  await clear()
-  await navigateTo('/login')
-}
 
 const isOwner = computed(() => !!me.value?.isOwner)
 const { data: invites, refresh: refreshInvites } = await useFetch('/api/invites', { default: () => [], immediate: isOwner.value })
@@ -129,7 +123,7 @@ async function remove() {
 
 <template>
   <KPanel
-    title="Access"
+    title="Members"
     icon="i-lucide-users"
     accent="var(--primary)"
   >
@@ -161,14 +155,14 @@ async function remove() {
             @{{ user?.login }}
           </div>
         </div>
-        <UTooltip text="Sign out">
+        <UTooltip text="Edit profile">
           <UButton
-            icon="i-lucide-log-out"
+            to="/settings/profile"
+            icon="i-lucide-pencil"
             color="neutral"
             variant="ghost"
             size="sm"
-            aria-label="Sign out"
-            @click="logout"
+            aria-label="Edit profile"
           />
         </UTooltip>
       </div>
@@ -285,13 +279,6 @@ async function remove() {
         </button>
       </template>
     </div>
-
-    <KSignInMethods
-      v-if="signIn"
-      :methods="signIn"
-      class="mt-6"
-      @changed="refreshSignIn"
-    />
 
     <KConfirmModal
       v-model:open="confirmingRemove"

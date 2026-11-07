@@ -161,3 +161,33 @@ describe('own password', () => {
     expect((await signIn('the third password')).status).toBe(200)
   })
 })
+
+describe('profile', () => {
+  // A 1x1 PNG.
+  const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+
+  it('sets a picture and a display name of their own', async () => {
+    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'the third password' }) })
+    let cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+    const send = async (path: string, method: string, body?: unknown) => {
+      const r = await fetch(`${BASE_URL}${path}`, { method, headers: { 'Content-Type': 'application/json', cookie }, body: body === undefined ? undefined : JSON.stringify(body) })
+      const fresh = r.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+      if (fresh) cookie = fresh
+      return r
+    }
+
+    expect((await send('/api/me/avatar', 'PUT', { image: 'data:text/html;base64,PGgxPg==' })).status).toBe(400)
+    expect((await send('/api/me/avatar', 'PUT', { image: PNG })).status).toBe(200)
+    expect((await send('/api/me', 'PATCH', { name: 'E2E Person' })).status).toBe(200)
+
+    const me = (await expectJson<{ login: string, name: string, avatarUrl: string }[]>(await send('/api/members', 'GET'))).find(m => m.login === username)!
+    expect(me.name).toBe('E2E Person')
+    const picture = await send(me.avatarUrl, 'GET')
+    expect(picture.headers.get('content-type')).toBe('image/png')
+    expect((await picture.arrayBuffer()).byteLength).toBeGreaterThan(50)
+    expect(JSON.stringify(await (await send('/api/members', 'GET')).json())).not.toContain('base64')
+
+    expect((await send('/api/me/avatar', 'DELETE')).status).toBe(200)
+    expect((await send(me.avatarUrl, 'GET')).status).toBe(404)
+  })
+})

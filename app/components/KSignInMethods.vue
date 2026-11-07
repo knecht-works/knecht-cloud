@@ -40,10 +40,7 @@ async function disconnect() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-2">
-    <h3 class="text-xs font-medium text-muted">
-      Your sign-in methods
-    </h3>
+  <div>
     <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
       <div class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3">
         <UIcon

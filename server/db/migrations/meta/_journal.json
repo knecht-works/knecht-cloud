@@ -442,6 +442,20 @@
       "when": 1794082326649,
       "tag": "0062_password-resets",
       "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "6",
+      "when": 1794083297022,
+      "tag": "0063_member-avatar-image",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "6",
+      "when": 1794083351578,
+      "tag": "0064_member-name-is-own",
+      "breakpoints": true
     }
   ]
 }

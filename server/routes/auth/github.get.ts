@@ -6,6 +6,7 @@ import { githubAppCredentials } from '../../utils/github-credentials'
 import { consumeInvite } from '../../stores/invites'
 import { rememberLoginMethod } from '../../utils/last-login'
 import { addMember, getMember, getMemberById, linkIdentity, loginWithIdentity } from '../../stores/members'
+import { setMemberSession } from '../../utils/member-session'
 
 // Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
 export default defineEventHandler(async (event) => {
@@ -93,7 +94,7 @@ export default defineEventHandler(async (event) => {
       return sendRedirect(event, '/login?error=forbidden')
     }
 
-    await setUserSession(event, { user: { id: member.id, login: member.login, name: member.name, avatarUrl: member.avatarUrl } })
+    await setMemberSession(event, member)
     rememberLoginMethod(event, 'github')
     return sendRedirect(event, popRedirect(event))
   }
