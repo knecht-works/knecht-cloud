@@ -156,6 +156,7 @@ async function saveName() {
       title="Sign-in methods"
       icon="i-lucide-key-round"
       accent="var(--primary)"
+      :pad="0"
     >
       <KSignInMethods
         v-if="signIn"

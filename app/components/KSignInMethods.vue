@@ -41,8 +41,8 @@ async function disconnect() {
 
 <template>
   <div>
-    <ul class="divide-y divide-default overflow-hidden rounded-lg border border-default">
-      <li class="flex items-center gap-3.5 px-4 py-3.5">
+    <ul class="divide-y divide-default">
+      <li class="flex items-center gap-3.5 px-4.5 py-3.5">
         <UIcon
           name="i-lucide-key-round"
           class="size-5 flex-none text-muted"
@@ -66,7 +66,7 @@ async function disconnect() {
 
       <li
         v-if="methods.github.available || methods.github.username"
-        class="flex items-center gap-3.5 px-4 py-3.5"
+        class="flex items-center gap-3.5 px-4.5 py-3.5"
       >
         <UIcon
           name="i-simple-icons-github"
