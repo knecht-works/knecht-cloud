@@ -314,3 +314,18 @@ describe('jira webhook route, vendor specifics', () => {
     expect(reply.body.content[0]!.content[0]).toEqual({ type: 'mention', attrs: { id: 'user-2', text: '@Bob' } })
   })
 })
+
+describe('jira webhook route, tracker roles', () => {
+  it('fires only the tracker triggers of Jira on a project linked to Jira and Linear', async () => {
+    const project = makeJiraProject()
+    setProjectLink(project.id, 'linear', `L${keyN}`)
+    const config = { kind: 'issue', on: [{ type: 'created' }], conditions: [] }
+    const viaJira = makeTrigger('jira', [project.id], config)
+    const viaLinear = makeTrigger('linear', [project.id], config)
+
+    await deliver({ webhookEvent: 'jira:issue_created', issue: issue(project) })
+
+    expect(runsOf(viaJira.id)).toMatchObject([{ trigger: 'jira' }])
+    expect(runsOf(viaLinear.id)).toEqual([])
+  })
+})

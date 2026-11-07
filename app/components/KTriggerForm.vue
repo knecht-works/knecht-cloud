@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { defaultTriggerConfig, triggerConfigIssues, type TriggerCondition, type TriggerConfig, type TriggerFormDef, type TriggerValueInput } from '#shared/utils/trigger-form'
 
-const props = withDefaults(defineProps<{ form: TriggerFormDef, linkKeys?: string[], showIssues?: boolean }>(), { linkKeys: () => [] })
+const props = withDefaults(defineProps<{ form: TriggerFormDef, optionTargets?: { key: string, name: string }[], showIssues?: boolean }>(), { optionTargets: () => [] })
 const config = defineModel<Record<string, unknown>>('config', { required: true })
 const valid = defineModel<boolean>('valid', { default: false })
 
@@ -44,18 +44,18 @@ const remoteSources = computed(() => [
   }),
 ])
 
-watch([() => props.linkKeys, () => remoteSources.value.map(s => s.id).join()], async ([keys]) => {
+watch([() => props.optionTargets, () => remoteSources.value.map(s => s.id).join()], async ([targets]) => {
   for (const source of remoteSources.value) {
-    const entries = await Promise.all(keys.map(async key =>
+    const entries = await Promise.all(targets.map(async ({ key }) =>
       [key, await $fetch<string[]>(source.url, { query: { project: key } }).catch(() => null)] as const,
     ))
-    if (keys !== props.linkKeys) return
+    if (targets !== props.optionTargets) return
     remoteOptions.value[source.id] = Object.fromEntries(entries)
   }
 }, { immediate: true })
 
 function projectsWith(source: string, name: string): string[] {
-  return props.linkKeys.filter(key => remoteOptions.value[source]?.[key]?.includes(name))
+  return props.optionTargets.filter(t => remoteOptions.value[source]?.[t.key]?.includes(name)).map(t => t.name)
 }
 
 const heading = 'k-mono text-3xs font-normal uppercase tracking-(--tracking-label) text-dimmed'
@@ -82,8 +82,8 @@ function listedItems(input: OptionSource | undefined, source: string): SelectIte
 
 function remoteItems(title: string | undefined, source: string): SelectItem[] {
   const names = [...new Set(Object.values(remoteOptions.value[source] ?? {}).flatMap(list => list ?? []))]
-  const partial = names.filter(n => projectsWith(source, n).length < props.linkKeys.length)
-  if (props.linkKeys.length < 2 || !partial.length) {
+  const partial = names.filter(n => projectsWith(source, n).length < props.optionTargets.length)
+  if (props.optionTargets.length < 2 || !partial.length) {
     return [...(title && names.length ? [{ type: 'label' as const, label: title, class: heading }] : []), ...names.map(n => ({ label: n, value: n }))]
   }
   return [
@@ -98,7 +98,7 @@ function remoteItems(title: string | undefined, source: string): SelectItem[] {
 const missing = computed(() => remoteEvents.value.flatMap((event) => {
   const known = remoteOptions.value[event.type] ?? {}
   return (values.value[event.type] ?? []).flatMap((value) => {
-    const projects = event.value?.options?.some(o => o.value === value) ? [] : props.linkKeys.filter(key => known[key] && !known[key]!.includes(value))
+    const projects = event.value?.options?.some(o => o.value === value) ? [] : props.optionTargets.filter(t => known[t.key] && !known[t.key]!.includes(value)).map(t => t.name)
     return projects.length ? [{ value, projects: projects.join(', ') }] : []
   })
 }))

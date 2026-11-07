@@ -59,7 +59,7 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const trigger = wTriggers.length === 0
     ? 'Manual'
     : wTriggers.length === 1
-      ? triggerSourceMeta(wTriggers[0]!.source).label
+      ? triggerMeta(wTriggers[0]!).label
       : `${wTriggers.length} triggers`
 
   return { ...w, rate, avg, status, statusText, projects, trigger, triggerCount: wTriggers.length }

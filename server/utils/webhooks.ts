@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { createError, getHeader, readRawBody, type H3Event } from 'h3'
 import type { Integration } from '../integrations'
+import { integrationRole, isTrackerId } from '../../shared/utils/integrations'
 import { stopEnv } from '../daemon/envs'
 import { handleMention } from './mentions'
 import { sessionHasActiveWork, syncObjectStatus } from './sessions'
@@ -52,12 +53,13 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
 
   const runIds: number[] = []
   if (delivery.event) {
-    const candidates = listActiveTriggers(integration.id)
+    const candidates = listActiveTriggers(integrationRole(integration.id), isTrackerId(integration.id) ? integration.id : null)
     for (const trigger of candidates) {
       if (!trigger.projectIds.includes(project.id)) continue
       const match = await integration.webhook.match(trigger, delivery)
       if (!match) continue
       runIds.push(...fireTrigger(trigger, {
+        integration: integration.id,
         projectIds: [project.id],
         branch: match.branch,
         inputs: match.inputs,

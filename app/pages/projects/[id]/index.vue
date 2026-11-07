@@ -287,8 +287,8 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
                 class="group flex min-w-0 flex-1 items-center gap-3 text-left"
               >
                 <KStepIcon
-                  :icon="triggerSourceMeta(row.trigger.source).icon"
-                  :color="triggerSourceMeta(row.trigger.source).color"
+                  :icon="triggerMeta(row.trigger).icon"
+                  :color="triggerMeta(row.trigger).color"
                   :size="28"
                   :radius="7"
                 />
@@ -297,7 +297,7 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
                     {{ row.name }}
                   </span>
                   <span class="k-mono block truncate text-2xs text-dimmed">
-                    {{ row.trigger.event }} · {{ triggerSourceMeta(row.trigger.source).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
+                    {{ row.trigger.event }} · {{ triggerMeta(row.trigger).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
                   </span>
                 </span>
               </NuxtLink>

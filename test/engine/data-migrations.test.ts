@@ -81,7 +81,7 @@ describe('runDataMigrations', () => {
   it('reshapes github and jira trigger configs into events with value lists and conditions', () => {
     const workflowId = db.insert(schema.workflows).values({ name: 'legacy-triggers', steps: [] }).returning().get().id
     const insert = (source: 'github' | 'jira' | 'schedule', config: Record<string, unknown>) =>
-      db.insert(schema.triggers).values({ source, workflowId, projectIds: [], config }).returning().get().id
+      db.insert(schema.triggers).values({ source: source as never, workflowId, projectIds: [], config }).returning().get().id
     const configOf = (id: number) => db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!.config
 
     const pr = insert('github', { event: 'pull_request', branches: ['main'], issueActions: ['opened'], issueLabel: null })
@@ -92,7 +92,7 @@ describe('runDataMigrations', () => {
     const current = insert('github', { kind: 'issue', on: [{ type: 'opened' }], filters: {} })
     const schedule = insert('schedule', {})
 
-    for (const name of ['0005_trigger_event_configs', '0006_trigger_conditions', '0007_trigger_event_values']) {
+    for (const name of ['0005_trigger_event_configs', '0006_trigger_conditions', '0007_trigger_event_values', '0009_trigger_roles']) {
       db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, name)).run()
     }
     runDataMigrations()
@@ -106,14 +106,14 @@ describe('runDataMigrations', () => {
     expect(configOf(schedule)).toEqual({})
     for (const id of [pr, issues, category, status, assigned]) {
       const row = db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!
-      expect(getTriggerSource(row.source)!.configSchema.safeParse(row.config).success).toBe(true)
+      expect(getTriggerSource(row.source, row.integration)!.configSchema.safeParse(row.config).success).toBe(true)
     }
   })
 
   it('turns trigger filters into one group of conditions, authorNot into "author is not"', () => {
     const workflowId = db.insert(schema.workflows).values({ name: 'filter-triggers', steps: [] }).returning().get().id
     const insert = (source: 'github' | 'schedule', config: Record<string, unknown>) =>
-      db.insert(schema.triggers).values({ source, workflowId, projectIds: [], config }).returning().get()
+      db.insert(schema.triggers).values({ source: source as never, workflowId, projectIds: [], config }).returning().get()
     const on = [{ type: 'opened' }]
     const filtered = insert('github', { kind: 'pull_request', on, filters: { base: ['main', 'releases/*'], authorNot: ['*[bot]'], draft: ['ready'] } })
     const bare = insert('github', { kind: 'issue', on, filters: {} })
@@ -136,7 +136,31 @@ describe('runDataMigrations', () => {
     expect(configOf(bare.id)).toEqual({ kind: 'issue', on, conditions: [] })
     expect(configOf(current.id)).toEqual(current.config)
     expect(configOf(schedule.id)).toEqual({})
-    expect(getTriggerSource('github')!.configSchema.safeParse(configOf(filtered.id)).success).toBe(true)
+    expect(getTriggerSource('git')!.configSchema.safeParse(configOf(filtered.id)).success).toBe(true)
+  })
+
+  it('gives every trigger a role and keeps the tracker of tracker triggers', () => {
+    const workflowId = db.insert(schema.workflows).values({ name: 'role-triggers', steps: [] }).returning().get().id
+    const lastFiredAt = new Date(1_700_000_000_000)
+    const insert = (source: string, extra: Partial<typeof schema.triggers.$inferInsert> = {}) =>
+      db.insert(schema.triggers).values({ source: source as never, workflowId, projectIds: [1], config: { kind: 'issue', on: [{ type: 'created' }], conditions: [] }, ...extra }).returning().get().id
+    const ids = {
+      github: insert('github', { active: false, firedCount: 3, lastFiredAt }),
+      jira: insert('jira'),
+      plane: insert('plane'),
+      linear: insert('linear'),
+      schedule: insert('schedule', { cron: '0 9 * * *', config: {} }),
+    }
+
+    db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, '0009_trigger_roles')).run()
+    runDataMigrations()
+
+    const rowOf = (id: number) => db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!
+    expect(rowOf(ids.github)).toMatchObject({ source: 'git', integration: null, active: false, firedCount: 3, lastFiredAt, projectIds: [1] })
+    expect(rowOf(ids.jira)).toMatchObject({ source: 'tracker', integration: 'jira' })
+    expect(rowOf(ids.plane)).toMatchObject({ source: 'tracker', integration: 'plane' })
+    expect(rowOf(ids.linear)).toMatchObject({ source: 'tracker', integration: 'linear' })
+    expect(rowOf(ids.schedule)).toMatchObject({ source: 'schedule', integration: null, cron: '0 9 * * *' })
   })
 
   it('is a no-op on the second run', () => {

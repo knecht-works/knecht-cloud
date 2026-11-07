@@ -1,0 +1,1 @@
+ALTER TABLE `triggers` ADD `integration` text;

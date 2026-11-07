@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from './index'
 import { stripLegacyModelPrefix } from '../../shared/utils/ai'
+import { TRACKER_IDS } from '../../shared/utils/integrations'
 import type { TriggerCondition } from '../../shared/utils/trigger-form'
 import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '../../shared/utils/workflow'
 
@@ -14,6 +15,7 @@ const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0006_trigger_conditions', run: triggerConditions },
   { name: '0007_trigger_event_values', run: triggerEventValues },
   { name: '0008_redetect_frameworks', run: redetectFrameworks },
+  { name: '0009_trigger_roles', run: triggerRoles },
 ]
 
 export function runDataMigrations(): void {
@@ -119,7 +121,7 @@ function fromLegacyJira(c: LegacyJiraConfig): FilterTriggerConfig {
 function triggerEventConfigs(): void {
   for (const row of db.select().from(schema.triggers).all()) {
     if (row.source === 'schedule' || Array.isArray(row.config.on)) continue
-    const config = row.source === 'github' ? fromLegacyGithub(row.config) : fromLegacyJira(row.config)
+    const config = (row.source as string) === 'github' ? fromLegacyGithub(row.config) : fromLegacyJira(row.config)
     db.update(schema.triggers).set({ config: { ...config } }).where(eq(schema.triggers.id, row.id)).run()
   }
 }
@@ -141,5 +143,12 @@ function triggerEventValues(): void {
     if (row.source === 'schedule' || !on?.some(e => e.value !== undefined)) continue
     const events = on.map(({ value, ...e }) => (value === undefined ? e : { ...e, values: [value] }))
     db.update(schema.triggers).set({ config: { ...row.config, on: events } }).where(eq(schema.triggers.id, row.id)).run()
+  }
+}
+
+function triggerRoles(): void {
+  db.update(schema.triggers).set({ source: 'git' }).where(eq(schema.triggers.source, 'github' as never)).run()
+  for (const id of TRACKER_IDS) {
+    db.update(schema.triggers).set({ source: 'tracker', integration: id }).where(eq(schema.triggers.source, id as never)).run()
   }
 }

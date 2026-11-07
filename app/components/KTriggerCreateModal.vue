@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { INTEGRATION_IDS, type TriggerSource } from '#shared/utils/integrations'
+import { INTEGRATION_IDS, integrationRole, isTrackerId, type IntegrationId, type TriggerSource } from '#shared/utils/integrations'
 
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
@@ -8,6 +8,7 @@ const props = defineProps<{
   trigger?: {
     id: number
     source: TriggerSource
+    via: IntegrationId | null
     workflowId: number
     projectIds: number[]
     endpoint: string | null
@@ -21,16 +22,17 @@ const editing = computed(() => !!props.trigger)
 const toast = useToast()
 const toastError = useToastError()
 
-type Source = TriggerSource
-const SOURCES: { key: Source, label: string, icon: string }[] = [
+type Tile = IntegrationId | 'schedule'
+const TILES: { key: Tile, label: string, icon: string }[] = [
   { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock' },
   ...INTEGRATION_IDS.map(id => ({ key: id, ...integrationUi(id) })),
 ]
 
 const { data: projects } = useProjects()
 const { data: integrations } = useIntegrations()
+const { data: forms } = useFetch('/api/triggers/forms', { key: 'trigger-forms' })
 
-const source = ref<Source>('schedule')
+const tile = ref<Tile>(TILES[0]!.key)
 const workflowId = ref<number>()
 const projectIds = ref<number[]>([])
 const config = ref<Record<string, unknown>>({})
@@ -38,37 +40,42 @@ const valid = ref(false)
 const creating = ref(false)
 const attempted = ref(false)
 
-const integration = computed(() => integrations.value.find(i => i.id === source.value) ?? null)
-const linked = computed(() => !!integration.value?.link)
-// What the integration's option lists are keyed by: the link key, or the repository where projects are not linked.
-const linkKeyOf = (p: { fullName: string, links: Partial<Record<string, string>> }) => (linked.value ? p.links[integration.value!.id] : p.fullName) ?? null
+const source = computed<TriggerSource>(() => (tile.value === 'schedule' ? 'schedule' : integrationRole(tile.value)))
+const integration = computed(() => integrations.value.find(i => i.id === tile.value) ?? null)
+const form = computed(() => (source.value === 'git' ? forms.value?.git : integration.value?.triggerForm) ?? null)
 
-// A linked integration's trigger only takes projects that are linked.
-const projectItems = computed(() =>
-  (projects.value ?? [])
-    .filter(p => !linked.value || linkKeyOf(p))
-    .map(p => ({ label: p.fullName, value: p.id })),
-)
-const selectedLinkKeys = computed(() =>
-  (projects.value ?? [])
-    .filter(p => projectIds.value.includes(p.id))
-    .map(linkKeyOf)
-    .filter((key): key is string => !!key),
-)
+const projectItems = computed(() => (projects.value ?? []).map(p => ({ label: p.fullName, value: p.id })))
+const selectedProjects = computed(() => (projects.value ?? []).filter(p => projectIds.value.includes(p.id)))
 
-// Sync: the edit preload sets the source first and the config right after.
-watch(source, () => {
+// Only what every selected project supports: its repository's provider, a tracker it is linked to.
+// A trigger being edited keeps its own tile, so a disconnected integration says so instead of vanishing.
+const tiles = computed(() => TILES.filter(t => t.key === 'schedule' || t.key === props.trigger?.via
+  || integrations.value.some(i => i.id === t.key && i.configured)))
+const supported = (key: Tile) => selectedProjects.value.length > 0 && (key === 'schedule'
+  || selectedProjects.value.every(p => (isTrackerId(key) ? !!p.links[key] : p.repoProvider === key)))
+watch(selectedProjects, () => {
+  if (selectedProjects.value.length && !supported(tile.value)) tile.value = tiles.value.find(t => supported(t.key))!.key
+})
+
+// What the form's option lists are keyed by: the tracker's link key, or the project for git.
+const optionTargets = computed(() => selectedProjects.value.flatMap((p) => {
+  if (!isTrackerId(tile.value)) return [{ key: String(p.id), name: p.fullName }]
+  const key = p.links[tile.value]
+  return key ? [{ key, name: key }] : []
+}))
+
+// Sync: the edit preload sets the tile first and the config right after.
+watch(tile, () => {
   config.value = {}
   valid.value = false
   attempted.value = false
-  const selectable = new Set(projectItems.value.map(p => p.value))
-  projectIds.value = projectIds.value.filter(id => selectable.has(id))
 }, { flush: 'sync' })
 
 const canCreate = computed(() => !!workflowId.value && projectIds.value.length > 0)
 
 function body(): Record<string, unknown> {
   const base: Record<string, unknown> = { source: source.value, projectIds: projectIds.value }
+  if (isTrackerId(tile.value)) base.integration = tile.value
   if (source.value === 'schedule') base.cron = config.value.cron
   else base.config = config.value
   return base
@@ -103,7 +110,7 @@ async function create() {
 watch(open, (isOpen) => {
   if (isOpen) {
     if (props.trigger) {
-      source.value = props.trigger.source
+      tile.value = props.trigger.via ?? 'schedule'
       workflowId.value = props.trigger.workflowId
       projectIds.value = [...props.trigger.projectIds]
       config.value = props.trigger.source === 'schedule'
@@ -115,7 +122,7 @@ watch(open, (isOpen) => {
     if (props.presetProjectIds?.length) projectIds.value = [...props.presetProjectIds]
     return
   }
-  source.value = 'schedule'
+  tile.value = TILES[0]!.key
   workflowId.value = undefined
   projectIds.value = []
   config.value = {}
@@ -133,32 +140,10 @@ watch(open, (isOpen) => {
     :ui="{ content: 'sm:max-w-2xl' }"
   >
     <template #body>
-      <div class="flex flex-col gap-4 min-h-115">
+      <div class="flex flex-col gap-4 min-h-130">
         <div class="space-y-4 h-full flex-1">
-          <div class="grid grid-cols-5 gap-2">
-            <button
-              v-for="src in SOURCES"
-              :key="src.key"
-              type="button"
-              class="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border p-4 text-center transition-colors"
-              :class="source === src.key
-                ? 'border-(--primary-border) bg-(--lime-950)'
-                : 'border-muted bg-(--surface-muted) hover:border-default'"
-              @click="source = src.key"
-            >
-              <UIcon
-                :name="src.icon"
-                class="size-5"
-                :class="source === src.key ? 'text-primary' : 'text-dimmed'"
-              />
-              <span
-                class="text-xs font-medium"
-                :class="source === src.key ? 'text-highlighted' : 'text-muted'"
-              >{{ src.label }}</span>
-            </button>
-          </div>
           <div>
-            <span class="k-label">Projects</span>
+            <span class="k-label block">Projects</span>
             <USelectMenu
               v-model="projectIds"
               value-key="value"
@@ -185,41 +170,68 @@ watch(open, (isOpen) => {
                 >Select projects…</span>
               </template>
             </USelectMenu>
-            <p
-              v-if="linked"
-              class="mt-1 text-2xs text-dimmed"
-            >
-              Only projects linked to a {{ integration?.link?.label }} (project settings) are listed.
-            </p>
           </div>
 
-          <div>
-            <KTriggerFormSchedule
-              v-if="source === 'schedule'"
-              v-model:config="config"
-              v-model:valid="valid"
-            />
-            <p
-              v-else-if="integration && !integration.configured"
-              class="rounded-md border border-muted bg-(--surface-muted) px-3 py-2.5 text-2xs leading-normal text-muted"
-            >
-              {{ integration.name }} is not connected yet. Connect it in
-              <NuxtLink
-                to="/settings/integrations"
-                class="text-toned underline underline-offset-2"
-              >Settings → Integrations</NuxtLink>
-              first.
-            </p>
-            <KTriggerForm
-              v-else-if="integration"
-              :key="source"
-              v-model:config="config"
-              v-model:valid="valid"
-              :form="integration.triggerForm"
-              :show-issues="attempted"
-              :link-keys="selectedLinkKeys"
-            />
-          </div>
+          <fieldset
+            :disabled="!projectIds.length"
+            class="space-y-4 disabled:opacity-50"
+          >
+            <div>
+              <div
+                class="grid gap-2"
+                :style="{ gridTemplateColumns: `repeat(${tiles.length}, minmax(0, 150px))` }"
+              >
+                <button
+                  v-for="src in tiles"
+                  :key="src.key"
+                  type="button"
+                  class="flex cursor-pointer flex-col items-center gap-1.5 rounded-md border p-4 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                  :disabled="!supported(src.key)"
+                  :class="tile === src.key
+                    ? 'border-(--primary-border) bg-(--lime-950)'
+                    : 'border-muted bg-(--surface-muted) enabled:hover:border-default'"
+                  @click="tile = src.key"
+                >
+                  <UIcon
+                    :name="src.icon"
+                    class="size-5"
+                    :class="tile === src.key ? 'text-primary' : 'text-dimmed'"
+                  />
+                  <span
+                    class="text-xs font-medium"
+                    :class="tile === src.key ? 'text-highlighted' : 'text-muted'"
+                  >{{ src.label }}</span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <KTriggerFormSchedule
+                v-if="source === 'schedule'"
+                v-model:config="config"
+                v-model:valid="valid"
+              />
+              <p
+                v-else-if="integration && !integration.configured"
+                class="rounded-md border border-muted bg-(--surface-muted) px-3 py-2.5 text-2xs leading-normal text-muted"
+              >
+                {{ integration.name }} is not connected yet. Connect it in
+                <NuxtLink
+                  to="/settings/integrations"
+                  class="text-toned underline underline-offset-2"
+                >Settings → Integrations</NuxtLink>
+                first.
+              </p>
+              <KTriggerForm
+                v-else-if="form"
+                :key="tile"
+                v-model:config="config"
+                v-model:valid="valid"
+                :form="form"
+                :show-issues="attempted"
+                :option-targets="optionTargets"
+              />
+            </div>
+          </fieldset>
         </div>
         <div class="flex justify-end gap-2">
           <UButton

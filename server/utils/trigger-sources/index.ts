@@ -1,14 +1,16 @@
 import { z } from 'zod'
 import type { Trigger } from '../../db/schema'
-import type { TriggerSource } from '../../../shared/utils/integrations'
-import { triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerDescription } from '../../../shared/utils/trigger-form'
+import type { TrackerId, TriggerSource } from '../../../shared/utils/integrations'
+import { triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerDescription, type TriggerFormDef } from '../../../shared/utils/trigger-form'
 import { INTEGRATIONS, type Integration } from '../../integrations'
+import { gitTriggerForm } from '../../integrations/git-trigger-form'
 import { triggerConfigSchema } from '../../integrations/trigger-config'
 import { projectLinks } from '../../stores/project-links'
 import { getProject } from '../../stores/projects'
 
 export interface TriggerSourceDef {
   source: TriggerSource
+  integration: TrackerId | null
   configSchema: z.ZodType<Record<string, unknown>>
   describe(trigger: Trigger): TriggerDescription & { event: string }
   validateProjects?(projectIds: number[]): string | null
@@ -26,6 +28,7 @@ function relFuture(date: Date): string {
 // The schedule keeps its own `cron` and `nextFireAt` columns: the scheduler queries them.
 const schedule: TriggerSourceDef = {
   source: 'schedule',
+  integration: null,
   configSchema: z.object({}),
   describe(t) {
     const event = !t.active || !t.nextFireAt ? 'Paused' : `Next run ${relFuture(t.nextFireAt)}`
@@ -45,19 +48,34 @@ function validateLinkedProjects(integration: Integration, projectIds: number[]):
   return null
 }
 
-export const TRIGGER_SOURCE_DEFS: readonly TriggerSourceDef[] = [
-  schedule,
-  ...INTEGRATIONS.map((i): TriggerSourceDef => ({
-    source: i.id,
-    configSchema: triggerConfigSchema(i.trigger.form),
+function formSource(source: TriggerSource, integration: TrackerId | null, form: TriggerFormDef): Omit<TriggerSourceDef, 'validateProjects'> {
+  return {
+    source,
+    integration,
+    configSchema: triggerConfigSchema(form),
     describe: (t) => {
-      const description = triggerSummary(i.trigger.form, t.config as unknown as TriggerConfig)
+      const description = triggerSummary(form, t.config as unknown as TriggerConfig)
       return { ...description, event: triggerEventLabel(description) }
     },
-    validateProjects: ids => validateLinkedProjects(i, ids),
-  })),
+  }
+}
+
+const git: TriggerSourceDef = {
+  ...formSource('git', null, gitTriggerForm),
+  validateProjects: ids => (ids.every(id => getProject(id)) ? null : 'Unknown project'),
+}
+
+export const TRIGGER_SOURCE_DEFS: readonly TriggerSourceDef[] = [
+  schedule,
+  git,
+  ...INTEGRATIONS.flatMap((i): TriggerSourceDef[] => (i.trigger
+    ? [{
+        ...formSource('tracker', i.id as TrackerId, i.trigger.form),
+        validateProjects: ids => validateLinkedProjects(i, ids),
+      }]
+    : [])),
 ]
 
-export function getTriggerSource(source: string): TriggerSourceDef | undefined {
-  return TRIGGER_SOURCE_DEFS.find(def => def.source === source)
+export function getTriggerSource(source: string, integration: string | null = null): TriggerSourceDef | undefined {
+  return TRIGGER_SOURCE_DEFS.find(def => def.source === source && def.integration === integration)
 }

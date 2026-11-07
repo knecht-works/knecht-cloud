@@ -1,5 +1,5 @@
 import { resolveProjectMeta } from '../utils/framework'
-import { createPullRequest, getInstallationClient, getInstallationToken, listAppRepositories, listRepoBranches } from '../utils/github-app'
+import { createPullRequest, getInstallationClient, getInstallationToken, listAppRepositories, listRepoAssignees, listRepoBranches, listRepoLabels } from '../utils/github-app'
 import type { GitProvider } from './types'
 
 export const githubProvider: GitProvider = {
@@ -30,6 +30,8 @@ export const githubProvider: GitProvider = {
   },
 
   listBranches: repo => listRepoBranches(repo.owner, repo.name),
+  listLabels: repo => listRepoLabels(repo.owner, repo.name),
+  listAssignees: repo => listRepoAssignees(repo.owner, repo.name),
   createPullRequest: (repo, params) => createPullRequest(repo.owner, repo.name, params),
 
   async projectMeta(repo, ref) {

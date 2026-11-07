@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`POST /api/triggers > creates a github trigger and describes it 1`] = `
+exports[`POST /api/triggers > creates a git trigger and describes it 1`] = `
 {
   "active": true,
   "conditions": [],
@@ -25,6 +25,7 @@ exports[`POST /api/triggers > creates a github trigger and describes it 1`] = `
   ],
   "firedCount": 0,
   "id": Any<Number>,
+  "integration": null,
   "kind": "Pull request",
   "lastFiredAt": null,
   "projectIds": [
@@ -33,7 +34,8 @@ exports[`POST /api/triggers > creates a github trigger and describes it 1`] = `
   "projects": [
     "test-php",
   ],
-  "source": "github",
+  "source": "git",
+  "via": "github",
   "workflowId": Any<Number>,
   "workflowName": Any<String>,
 }

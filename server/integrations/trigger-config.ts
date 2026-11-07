@@ -14,18 +14,20 @@ export function triggerConfigSchema(form: TriggerFormDef): z.ZodType<Record<stri
   })
 }
 
-// Picked from the tool's existing labels (`trigger.options.labels`): a typo would never fire.
-export function labeledEvent(id: IntegrationId): TriggerEventDef {
+export const integrationLabelsUrl = (id: IntegrationId) => `/api/integrations/${id}/options/labels`
+
+// Picked from the tool's existing labels: a typo would never fire.
+export function labeledEvent(labelsUrl: string): TriggerEventDef {
   return {
     type: 'labeled',
     label: 'Label added',
     summary: 'label {value}',
-    value: { placeholder: 'Pick a label', optionsUrl: `/api/integrations/${id}/options/labels`, listedOnly: true },
+    value: { placeholder: 'Pick a label', optionsUrl: labelsUrl, listedOnly: true },
   }
 }
 
-export function labelFilter(id: IntegrationId): TriggerFilterDef {
-  return { key: 'label', label: 'Label', listedOnly: true, placeholder: 'Pick labels', optionsUrl: `/api/integrations/${id}/options/labels` }
+export function labelFilter(labelsUrl: string): TriggerFilterDef {
+  return { key: 'label', label: 'Label', listedOnly: true, placeholder: 'Pick labels', optionsUrl: labelsUrl }
 }
 
 // A tool without priorities on an object reports `none`.

@@ -33,6 +33,8 @@ export interface GitProvider {
   branchUrl(repo: GitRepo, branch: string): string
   listRepos(): Promise<RemoteRepo[]>
   listBranches(repo: GitRepo): Promise<string[]>
+  listLabels(repo: GitRepo): Promise<string[]>
+  listAssignees(repo: GitRepo): Promise<string[]>
   // null when the branch has no commits over the base.
   createPullRequest(repo: GitRepo, params: { head: string, base: string, title: string, body: string }): Promise<PullRequest | null>
   projectMeta(repo: GitRepo, ref?: string): Promise<ProjectMeta>

@@ -2,7 +2,7 @@ import { emptyInputs, type TriggerInputs } from '../utils/inputs'
 import type { SessionObject } from '../utils/sessions'
 import type { IntegrationId } from '../../shared/utils/integrations'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../shared/utils/trigger-form'
-import { conditionsPass, labeledEvent, listedOnlyKeys, triggerEvent } from './trigger-config'
+import { conditionsPass, integrationLabelsUrl, labeledEvent, listedOnlyKeys, triggerEvent } from './trigger-config'
 import type { CommentAuthor, TriggerMatch, WebhookComment, WebhookDelivery } from './types'
 
 // Issue trackers share one set of rules: when a trigger fires, what a run gets as
@@ -73,7 +73,7 @@ export function trackerTriggerForm(def: TrackerDef): TriggerFormDef {
           default: true,
           hint: `Fires when a ${def.noun} is assigned to the account the ${def.name} connection uses, so "give it to Knecht" is a normal assignment in ${def.name}.`,
         },
-        labeledEvent(def.id),
+        labeledEvent(integrationLabelsUrl(def.id)),
         {
           type: status.event,
           label: `${capitalize(status.event)} reached`,

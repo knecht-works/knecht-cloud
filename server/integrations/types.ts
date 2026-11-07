@@ -68,10 +68,10 @@ export interface Integration {
   name: string
   isConfigured(): boolean
 
-  trigger: {
+  // Tracker triggers only; git triggers share one form (server/integrations/git-trigger-form.ts).
+  trigger?: {
     form: TriggerFormDef
-    // Remote option lists of the form, by name: `/api/integrations/<id>/options/<name>?project=<key>`.
-    // The key is the project's link key, or the repository's full name where projects are not linked.
+    // Remote option lists of the form, by name: `/api/integrations/<id>/options/<name>?project=<link key>`.
     options?: Record<string, (projectKey: string) => Promise<string[]>>
   }
 
