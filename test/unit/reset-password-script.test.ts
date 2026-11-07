@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -34,5 +34,16 @@ describe('scripts/reset-password.mjs', () => {
     run(dbPath, 'owner')
     expect(sqlite.prepare('SELECT count(*) AS n FROM password_resets').get()).toEqual({ n: 1 })
     expect(() => run(dbPath, 'nobody')).toThrow()
+  })
+
+  it('lists the members when no username is given', () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), 'knecht-reset-')), 'knecht.db')
+    const sqlite = new Database(dbPath)
+    migrate(drizzle(sqlite), { migrationsFolder: 'server/db/migrations' })
+    sqlite.exec(`INSERT INTO members (login, is_owner) VALUES ('anna', 0), ('samuel', 1), ('ben', 0)`)
+
+    const result = spawnSync('node', ['scripts/reset-password.mjs'], { env: { ...process.env, KNECHT_DB_PATH: dbPath }, encoding: 'utf8' })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Members: samuel (owner), anna, ben')
   })
 })
