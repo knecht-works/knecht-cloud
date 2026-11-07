@@ -22,3 +22,10 @@ export function useRunSteps(id: number) {
   useLiveTopics(key, [liveTopics.run(id)])
   return useFetch(`/api/runs/${id}/steps`, { key, default: () => [] })
 }
+
+// The environment reports going up or down on the run's topic.
+export function useRunServices(id: number) {
+  const key = `run-services:${id}`
+  useLiveTopics(key, [liveTopics.run(id)])
+  return useFetch(`/api/runs/${id}/services`, { key, lazy: true, default: () => [] })
+}
