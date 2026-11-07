@@ -142,3 +142,14 @@ export function setPasswordHash(memberId: number, passwordHash: string): void {
   db.update(members).set({ passwordHash }).where(eq(members.id, memberId)).run()
   emitTopics(liveTopics.members)
 }
+
+// Answers false instead of demoting the last owner.
+export function setOwner(memberId: number, isOwner: boolean): boolean {
+  if (!isOwner) {
+    const owners = db.select({ id: members.id }).from(members).where(eq(members.isOwner, true)).all()
+    if (owners.length === 1 && owners[0]!.id === memberId) return false
+  }
+  db.update(members).set({ isOwner }).where(eq(members.id, memberId)).run()
+  emitTopics(liveTopics.members)
+  return true
+}

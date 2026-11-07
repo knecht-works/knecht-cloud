@@ -68,3 +68,16 @@ describe('linkIdentity and unlinkIdentity', () => {
     expect(hasVerifiedIdentity('github', 'owner')).toBe(true)
   })
 })
+
+describe('setOwner', () => {
+  it('promotes and demotes, but always keeps one owner', async () => {
+    const { listMembers, setOwner } = await import('../../server/stores/members')
+    const owners = () => listMembers().filter(m => m.isOwner).map(m => m.login)
+    const second = addMember({ login: 'second-owner', passwordHash: 'hash' })
+    expect(setOwner(second.id, true)).toBe(true)
+    for (const m of listMembers().filter(m => m.isOwner && m.id !== second.id)) expect(setOwner(m.id, false)).toBe(true)
+    expect(owners()).toEqual(['second-owner'])
+    expect(setOwner(second.id, false)).toBe(false)
+    expect(owners()).toEqual(['second-owner'])
+  })
+})
