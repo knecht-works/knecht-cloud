@@ -82,16 +82,14 @@ async function saveName() {
           <UAvatar
             :src="user?.avatarUrl ?? undefined"
             :alt="user?.name || user?.login"
-            size="3xl"
-            class="flex-none"
+            class="size-16 flex-none text-xl"
           />
-          <div class="flex flex-col gap-2">
+          <div class="flex flex-col gap-1.5">
             <div class="flex gap-2">
               <UButton
                 label="Upload picture"
-                icon="i-lucide-upload"
                 color="neutral"
-                variant="subtle"
+                variant="outline"
                 size="sm"
                 :loading="uploading"
                 @click="fileInput?.click()"
@@ -100,12 +98,12 @@ async function saveName() {
                 v-if="user?.avatarUrl"
                 label="Remove"
                 color="neutral"
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 @click="removePicture"
               />
             </div>
-            <p class="text-xs text-dimmed">
+            <p class="text-xs text-muted">
               PNG, JPEG or WebP. Cropped to a square.
             </p>
           </div>
@@ -118,37 +116,39 @@ async function saveName() {
           >
         </div>
 
-        <form
-          class="grid max-w-md gap-4"
-          @submit.prevent="saveName"
-        >
-          <UFormField label="Display name">
-            <div class="flex gap-2">
+        <div class="grid max-w-md gap-5">
+          <form @submit.prevent="saveName">
+            <UFormField label="Display name">
               <UInput
                 v-model="name"
                 :placeholder="user?.login"
-                class="flex-1"
-              />
-              <UButton
-                type="submit"
-                label="Save"
-                color="neutral"
-                variant="subtle"
-                :loading="savingName"
-                :disabled="!nameChanged"
-              />
+                class="w-full"
+              >
+                <template
+                  v-if="nameChanged"
+                  #trailing
+                >
+                  <UButton
+                    type="submit"
+                    label="Save"
+                    color="primary"
+                    variant="soft"
+                    size="xs"
+                    :loading="savingName"
+                  />
+                </template>
+              </UInput>
+            </UFormField>
+          </form>
+          <div>
+            <div class="text-sm font-medium text-default">
+              Username
             </div>
-          </UFormField>
-          <UFormField label="Username">
-            <UInput
-              :model-value="`@${user?.login}`"
-              readonly
-              disabled
-              class="w-full"
-              :ui="{ base: 'k-mono' }"
-            />
-          </UFormField>
-        </form>
+            <div class="k-mono mt-1 text-sm text-muted">
+              @{{ user?.login }}
+            </div>
+          </div>
+        </div>
       </div>
     </KPanel>
 
