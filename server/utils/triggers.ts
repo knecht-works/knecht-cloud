@@ -19,8 +19,9 @@ export interface TriggerSummary {
   via: IntegrationId | null
   event: string
   kind: string
-  events: TriggerSegment[][]
-  conditions: TriggerSegment[][][]
+  on: TriggerSegment[]
+  conditions: TriggerSegment[][]
+  scope?: TriggerSegment[]
   workflowId: number
   workflowName: string
   projects: string[]
@@ -45,7 +46,7 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
     source: t.source,
     integration: t.integration,
     via: t.integration ?? (t.source === 'git' ? projects.get(t.projectIds[0]!)?.repoProvider ?? 'github' : null),
-    ...(getTriggerSource(t.source, t.integration)?.describe(t) ?? { event: '', kind: '', events: [], conditions: [] }),
+    ...(getTriggerSource(t.source, t.integration)?.describe(t) ?? { event: '', kind: '', on: [], conditions: [] }),
     workflowId: t.workflowId,
     workflowName: workflowNames.get(t.workflowId) ?? '',
     projects: t.projectIds.map(id => projects.get(id)?.name).filter((n): n is string => !!n),

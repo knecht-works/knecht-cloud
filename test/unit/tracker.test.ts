@@ -32,12 +32,14 @@ function change(overrides: Partial<TrackerChange> = {}, issue: Partial<TrackerCh
   }
 }
 
-const config = (on: TriggerEventConfig[], fields: Record<string, string[]> = {}): TriggerConfig => ({ kind: 'issue', on, conditions: allOf(fields) })
+const config = (event: TriggerEventConfig, fields: Record<string, string[]> = {}, scope?: string[]): TriggerConfig =>
+  ({ kind: 'issue', event, conditions: allOf(fields), ...(scope ? { scope: { values: scope } } : {}) })
+const entered = (scope: string[]) => config({ type: 'entered' }, {}, scope)
 const fires = (c: TriggerConfig, ch: TrackerChange) => matchTrackerEvent(DEF, c, ch) !== null
 
 describe('matchTrackerEvent', () => {
   it('hands the issue over as inputs and object', () => {
-    expect(matchTrackerEvent(DEF, config([{ type: 'created' }]), change({ created: true }))).toEqual({
+    expect(matchTrackerEvent(DEF, config({ type: 'created' }), change({ created: true }))).toEqual({
       branch: null,
       object: change().issue.object,
       inputs: { event: 'issue', identifier: 'P-1', title: 'Login broken', body: 'It fails.', url: 'https://x/P-1', status: 'Todo', assignee: 'Bob, Knecht', labels: 'bug', author: 'Ann' },
@@ -47,15 +49,20 @@ describe('matchTrackerEvent', () => {
 
   it('names who made the change, so Knecht can hand the object back to them', () => {
     const actor = { id: 'u-7', name: 'Sam' }
-    expect(matchTrackerEvent(DEF, config([{ type: 'created' }]), change({ created: true, actor }))).toMatchObject({ actor })
+    expect(matchTrackerEvent(DEF, config({ type: 'created' }), change({ created: true, actor }))).toMatchObject({ actor })
   })
 
   it('fires created only on creation', () => {
-    expect(fires(config([{ type: 'created' }]), change())).toBe(false)
+    expect(fires(config({ type: 'created' }), change())).toBe(false)
+  })
+
+  it('fires only the configured event', () => {
+    expect(fires(config({ type: 'created' }), change({ gainedLabels: ['bug'], gainedSelf: true, previousStatus: { group: 'done' } }))).toBe(false)
+    expect(fires(config({ type: 'assigned' }), change({ created: true }))).toBe(false)
   })
 
   it('fires a label when gained, or when the object is born with it', () => {
-    const labeled = config([{ type: 'labeled', values: ['bug'] }])
+    const labeled = config({ type: 'labeled', values: ['bug'] })
     expect(fires(labeled, change())).toBe(false)
     expect(fires(labeled, change({ gainedLabels: ['bug'] }))).toBe(true)
     expect(fires(labeled, change({ created: true }))).toBe(true)
@@ -63,33 +70,37 @@ describe('matchTrackerEvent', () => {
   })
 
   it('fires assigned when Knecht gains the object, or is born with it', () => {
-    const assigned = config([{ type: 'assigned' }])
+    const assigned = config({ type: 'assigned' })
     expect(fires(assigned, change({ assignedToSelf: true }))).toBe(false)
     expect(fires(assigned, change({ gainedSelf: true }))).toBe(true)
     expect(fires(assigned, change({ created: true, assignedToSelf: true }))).toBe(true)
   })
 
-  it('fires an exact status only when this update changed the status', () => {
-    const status = config([{ type: 'status', values: ['Todo'] }])
+  it('fires entered on an exact status only when this update changed the status', () => {
+    const status = entered(['Todo'])
     expect(fires(status, change())).toBe(false)
     expect(fires(status, change({ previousStatus: { group: 'open' } }))).toBe(true)
     expect(fires(status, change({ created: true }))).toBe(false)
   })
 
-  it('fires a status group only when the object enters it', () => {
-    const group = config([{ type: 'status', values: ['group:open'] }])
+  it('fires entered on a status group only when the object enters it', () => {
+    const group = entered(['group:open'])
     expect(fires(group, change({ previousStatus: { group: 'open' } }))).toBe(false)
     expect(fires(group, change({ previousStatus: { group: 'done' } }))).toBe(true)
     expect(fires(group, change({ previousStatus: { group: null } }))).toBe(true)
     expect(fires(group, change({ previousStatus: { group: 'open' } }, { status: { name: 'Done', group: 'done' } }))).toBe(false)
-    const either = config([{ type: 'status', values: ['group:done', 'In Review'] }])
+    const either = entered(['group:done', 'In Review'])
     expect(fires(either, change({ previousStatus: { group: 'open' } }, { status: { name: 'In Review', group: 'open' } }))).toBe(true)
     expect(fires(either, change({ previousStatus: { group: 'open' } }, { status: { name: 'Shipped', group: 'done' } }))).toBe(true)
     expect(fires(either, change({ previousStatus: { group: 'open' } }))).toBe(false)
   })
 
+  it('never fires entered without a scope', () => {
+    expect(fires(config({ type: 'entered' }), change({ previousStatus: { group: 'done' } }))).toBe(false)
+  })
+
   it('holds back what the label and the extra filters exclude', () => {
-    const created = (fields: Record<string, string[]>) => config([{ type: 'created' }], fields)
+    const created = (fields: Record<string, string[]>) => config({ type: 'created' }, fields)
     const born = change({ created: true, filterValues: { priority: ['high'] } })
     expect(fires(created({ label: ['b*'] }), born)).toBe(true)
     expect(fires(created({ label: ['Bug'] }), born)).toBe(false)
@@ -100,17 +111,28 @@ describe('matchTrackerEvent', () => {
     expect(matchTrackerEvent(listed, created({ priority: ['h*'] }), born)).toBeNull()
     expect(matchTrackerEvent(listed, created({ priority: ['high'] }), born)).not.toBeNull()
   })
-  it('holds an event back by the status the issue is in and by who it is assigned to', () => {
-    const labeled = (conditions: TriggerConfig['conditions']) => ({ ...config([{ type: 'labeled', values: ['bug'] }]), conditions })
-    const gained = (status: { name: string, group: string }, assignedToSelf = false) => change({ gainedLabels: ['bug'], assignedToSelf }, { status })
-    expect(fires(labeled(allOf({ status: ['In Review'] })), gained({ name: 'In Review', group: 'open' }))).toBe(true)
-    expect(fires(labeled(allOf({ status: ['In Review'] })), gained({ name: 'Todo', group: 'open' }))).toBe(false)
-    expect(fires(labeled(allOf({ status: ['In *'] })), gained({ name: 'In Review', group: 'open' }))).toBe(false)
-    expect(fires(labeled(allOf({ status: ['group:open'] })), gained({ name: 'Todo', group: 'open' }))).toBe(true)
-    expect(fires(labeled(noneOf({ status: ['group:done'] })), gained({ name: 'Shipped', group: 'done' }))).toBe(false)
-    expect(fires(labeled(allOf({ assignee: ['self'] })), gained({ name: 'Todo', group: 'open' }, true))).toBe(true)
-    expect(fires(labeled(allOf({ assignee: ['self'] })), gained({ name: 'Todo', group: 'open' }))).toBe(false)
-    expect(fires(labeled(noneOf({ assignee: ['self'] })), gained({ name: 'Todo', group: 'open' }))).toBe(true)
+
+  it('holds another event back by the scope the issue has to be in', () => {
+    const labeled = (scope?: string[]) => config({ type: 'labeled', values: ['bug'] }, {}, scope)
+    const gained = (status: { name: string, group: string }) => change({ gainedLabels: ['bug'] }, { status })
+    expect(fires(labeled(), gained({ name: 'Shipped', group: 'done' }))).toBe(true)
+    expect(fires(labeled(['In Review']), gained({ name: 'In Review', group: 'open' }))).toBe(true)
+    expect(fires(labeled(['In Review']), gained({ name: 'Todo', group: 'open' }))).toBe(false)
+    expect(fires(labeled(['In *']), gained({ name: 'In Review', group: 'open' }))).toBe(false)
+    expect(fires(labeled(['group:open']), gained({ name: 'Todo', group: 'open' }))).toBe(true)
+    expect(fires(labeled(['group:open', 'Shipped']), gained({ name: 'Shipped', group: 'done' }))).toBe(true)
+  })
+
+  it('holds an event back by who it is assigned to', () => {
+    const labeled = (conditions: TriggerConfig['conditions']) => ({ ...config({ type: 'labeled', values: ['bug'] }), conditions })
+    const gained = (assignedToSelf = false) => change({ gainedLabels: ['bug'], assignedToSelf })
+    expect(fires(labeled(allOf({ assignee: ['self'] })), gained(true))).toBe(true)
+    expect(fires(labeled(allOf({ assignee: ['self'] })), gained())).toBe(false)
+    expect(fires(labeled(noneOf({ assignee: ['self'] })), gained())).toBe(true)
+  })
+
+  it('no longer reads the status as a condition', () => {
+    expect(fires(config({ type: 'labeled', values: ['bug'] }, { status: ['Todo'] }), change({ gainedLabels: ['bug'] }))).toBe(false)
   })
 })
 
@@ -142,15 +164,15 @@ describe('trackerComment', () => {
 })
 
 describe('trackerTriggerForm', () => {
-  it('offers exactly the events and conditions the matcher understands', () => {
+  it('offers exactly the events, scope and conditions the matcher understands', () => {
     const [kind] = trackerTriggerForm(DEF)
     expect(kind!.label).toBe('Ticket')
-    expect(kind!.events.map(e => e.type)).toEqual(['created', 'assigned', 'labeled', 'status'])
+    expect(kind!.events.map(e => e.type)).toEqual(['created', 'assigned', 'labeled', 'entered'])
     expect(kind!.events.find(e => e.default)?.type).toBe('assigned')
     expect(kind!.events.find(e => e.type === 'labeled')!.value).toMatchObject({ optionsUrl: '/api/integrations/jira/options/labels' })
-    expect(kind!.filters.map(f => f.key)).toEqual(['status', 'assignee'])
-    expect(kind!.filters[0]).toMatchObject({ listedOnly: true })
-    expect(kind!.events.at(-1)!.value).toMatchObject({ listedOnly: true, default: 'group:done', optionsUrl: '/api/integrations/jira/options/statuses', options: [{ value: 'group:open' }, { value: 'group:done' }] })
+    expect(kind!.events.find(e => e.type === 'entered')!.value).toBeUndefined()
+    expect(kind!.filters.map(f => f.key)).toEqual(['assignee'])
+    expect(kind!.scope).toMatchObject({ label: 'Status', requiredBy: ['entered'], listedOnly: true, optionsUrl: '/api/integrations/jira/options/statuses', options: [{ value: 'group:open' }, { value: 'group:done' }] })
   })
 })
 

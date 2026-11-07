@@ -4,8 +4,9 @@ import { TRIGGER_CONDITION_OPS, triggerConfigIssues, type TriggerConfig, type Tr
 
 const shape = z.object({
   kind: z.string().min(1),
-  on: z.array(z.object({ type: z.string().min(1), values: z.array(z.string().trim()).optional() })),
-  conditions: z.array(z.array(z.object({ field: z.string().min(1), op: z.enum(TRIGGER_CONDITION_OPS), values: z.array(z.string().trim()) }))).default([]),
+  event: z.object({ type: z.string().min(1), values: z.array(z.string().trim()).optional() }),
+  conditions: z.array(z.object({ field: z.string().min(1), op: z.enum(TRIGGER_CONDITION_OPS), values: z.array(z.string().trim()) })).default([]),
+  scope: z.object({ values: z.array(z.string().trim()) }).optional(),
 })
 
 export function triggerConfigSchema(form: TriggerFormDef): z.ZodType<Record<string, unknown>> {
@@ -36,18 +37,17 @@ export function priorityFilter(): TriggerFilterDef {
 }
 
 export function triggerEvent(config: TriggerConfig, type: string): TriggerEventConfig | undefined {
-  return config.on.find(on => on.type === type)
+  return config.event.type === type ? config.event : undefined
 }
 
 // `fields` holds the object's current values per filter key; a field it lacks has no values.
 // `exact` names the `listedOnly` filters, whose values are no patterns.
 export function conditionsPass(config: TriggerConfig, fields: Record<string, string[]>, exact: string[] = []): boolean {
-  if (!config.conditions.length) return true
-  return config.conditions.some(group => group.every((condition) => {
+  return config.conditions.every((condition) => {
     const values = fields[condition.field] ?? []
     const hit = exact.includes(condition.field) ? condition.values.some(v => values.includes(v)) : matchesAny(condition.values, values)
     return condition.op === 'is' ? hit : !hit
-  }))
+  })
 }
 
 export function listedOnlyKeys(filters: TriggerFilterDef[]): string[] {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultTriggerConfig, segmentsText, triggerConfigIssues, triggerEventLabel, triggerSummary, type TriggerFormDef } from '../../shared/utils/trigger-form'
+import { defaultTriggerConfig, segmentsText, triggerConfigIssues, triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerFormDef } from '../../shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 const FORM: TriggerFormDef = [
@@ -7,7 +7,7 @@ const FORM: TriggerFormDef = [
     kind: 'card',
     label: 'Card',
     events: [
-      { type: 'created', label: 'Created', summary: 'created', default: true },
+      { type: 'created', label: 'Created', summary: 'created' },
       { type: 'labeled', label: 'Label added', summary: 'label {value}', value: { default: 'go' }, default: true },
       { type: 'moved', label: 'Moved to', summary: 'moved to {value}', value: { options: [{ label: 'Doing', value: 'doing' }, { label: 'Done', value: 'done' }] } },
     ],
@@ -19,70 +19,87 @@ const FORM: TriggerFormDef = [
   {
     kind: 'list',
     label: 'List',
-    events: [{
-      type: 'state',
-      label: 'State reached',
-      summary: 'state {value}',
-      value: { options: [{ label: 'Done', value: 'group:done', summary: 'any "Done" state' }], optionsUrl: '/api/states' },
-    }],
+    events: [
+      { type: 'created', label: 'Created', summary: 'list created' },
+      { type: 'entered', label: 'State reached', summary: 'state {value}' },
+    ],
+    scope: {
+      label: 'State',
+      requiredBy: ['entered'],
+      options: [{ label: 'Any Done', value: 'group:done', summary: 'any "Done" state' }],
+      optionsUrl: '/api/states',
+    },
     filters: [],
   },
   { kind: 'board', label: 'Board', events: [{ type: 'created', label: 'Created', summary: 'created' }], filters: [] },
 ]
 
+const card = (event: TriggerConfig['event'], conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'card', event, conditions })
+const list = (event: TriggerConfig['event'], scope?: string[]): TriggerConfig => ({ kind: 'list', event, conditions: [], ...(scope ? { scope: { values: scope } } : {}) })
+
 describe('trigger form', () => {
-  it('starts a new trigger from the events marked as default', () => {
-    expect(defaultTriggerConfig(FORM)).toEqual({ kind: 'card', on: [{ type: 'created' }, { type: 'labeled', values: ['go'] }], conditions: [] })
-    expect(defaultTriggerConfig(FORM, 'board')).toEqual({ kind: 'board', on: [], conditions: [] })
+  it('starts a new trigger from the event marked as default, or the first one', () => {
+    expect(defaultTriggerConfig(FORM)).toEqual({ kind: 'card', event: { type: 'labeled', values: ['go'] }, conditions: [] })
+    expect(defaultTriggerConfig(FORM, 'board')).toEqual({ kind: 'board', event: { type: 'created' }, conditions: [] })
   })
 
-  it('accepts a config made of declared events and conditions, a field more than once', () => {
+  it('accepts a config made of a declared event and conditions, a field more than once', () => {
     expect(triggerConfigIssues(FORM, defaultTriggerConfig(FORM))).toEqual([])
-    expect(triggerConfigIssues(FORM, { kind: 'card', on: [{ type: 'moved', values: ['done'] }], conditions: allOf({ board: ['ops'], size: ['s'] }) })).toEqual([])
-    expect(triggerConfigIssues(FORM, { kind: 'card', on: [{ type: 'created' }], conditions: [[...allOf({ board: ['o*'] })[0]!, ...noneOf({ board: ['ops'] })[0]!]] })).toEqual([])
+    expect(triggerConfigIssues(FORM, card({ type: 'moved', values: ['done'] }, allOf({ board: ['ops'], size: ['s'] })))).toEqual([])
+    expect(triggerConfigIssues(FORM, card({ type: 'created' }, [...allOf({ board: ['o*'] }), ...noneOf({ board: ['ops'] })]))).toEqual([])
   })
 
   it.each([
-    [{ kind: 'lane', on: [{ type: 'created' }], conditions: [] }, 'Unknown trigger kind "lane"'],
-    [{ kind: 'card', on: [], conditions: [] }, 'Pick at least one event.'],
-    [{ kind: 'board', on: [{ type: 'labeled', values: ['go'] }], conditions: [] }, 'Unknown event "labeled"'],
-    [{ kind: 'card', on: [{ type: 'created' }, { type: 'created' }], conditions: [] }, '"Created" is listed twice'],
-    [{ kind: 'card', on: [{ type: 'created', values: ['x'] }], conditions: [] }, '"Created" takes no value'],
-    [{ kind: 'card', on: [{ type: 'labeled', values: [' '] }], conditions: [] }, '"Label added" needs a value.'],
-    [{ kind: 'card', on: [{ type: 'moved', values: ['gone'] }], conditions: [] }, '"gone" is not an option of "Moved to"'],
-    [{ kind: 'card', on: [{ type: 'created' }], conditions: allOf({ team: ['a'] }) }, 'Unknown condition "team"'],
-    [{ kind: 'card', on: [{ type: 'created' }], conditions: allOf({ board: ['ops', ''] }) }, 'Fill in or remove the "Board" condition.'],
-    [{ kind: 'card', on: [{ type: 'created' }], conditions: allOf({ size: ['s', 'x*'] }) }, '"x*" is not an option of "Size"'],
-    [{ kind: 'card', on: [{ type: 'created' }], conditions: [[]] }, 'Fill in or remove the empty condition group.'],
+    [{ kind: 'lane', event: { type: 'created' }, conditions: [] }, 'Unknown trigger kind "lane"'],
+    [{ kind: 'board', event: { type: 'labeled', values: ['go'] }, conditions: [] }, 'Unknown event "labeled"'],
+    [card({ type: 'created', values: ['x'] }), '"Created" takes no value'],
+    [card({ type: 'labeled', values: [' '] }), '"Label added" needs a value.'],
+    [card({ type: 'moved', values: ['gone'] }), '"gone" is not an option of "Moved to"'],
+    [card({ type: 'created' }, allOf({ team: ['a'] })), 'Unknown condition "team"'],
+    [card({ type: 'created' }, allOf({ board: ['ops', ''] })), 'Fill in or remove the "Board" condition.'],
+    [card({ type: 'created' }, allOf({ size: ['s', 'x*'] })), '"x*" is not an option of "Size"'],
+    [{ ...card({ type: 'created' }), scope: { values: ['done'] } }, 'This trigger takes no scope'],
+    [list({ type: 'entered' }), '"State reached" needs a state.'],
+    [list({ type: 'entered' }, ['Done', ' ']), 'Fill in or remove the "State".'],
   ])('rejects %o', (config, message) => {
     expect(triggerConfigIssues(FORM, config)[0]?.message).toBe(message)
   })
 
-  it('takes any value where options also load per project, and lets an option word the summary', () => {
-    expect(triggerConfigIssues(FORM, { kind: 'list', on: [{ type: 'state', values: ['In Review'] }], conditions: [] })).toEqual([])
-    expect(triggerEventLabel(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', values: ['In Review'] }], conditions: [] }))).toBe('On list · state In Review')
-    expect(triggerEventLabel(triggerSummary(FORM, { kind: 'list', on: [{ type: 'state', values: ['group:done'] }], conditions: [] }))).toBe('On list · any "Done" state')
+  it('requires the scope only for the events that target it', () => {
+    expect(triggerConfigIssues(FORM, list({ type: 'entered' }, ['In Review']))).toEqual([])
+    expect(triggerConfigIssues(FORM, list({ type: 'created' }))).toEqual([])
+    expect(triggerConfigIssues(FORM, list({ type: 'created' }, ['In Review']))).toEqual([])
   })
 
-  it('names the event or condition every issue belongs to', () => {
-    expect(triggerConfigIssues(FORM, { kind: 'card', on: [{ type: 'labeled', values: [''] }, { type: 'moved' }], conditions: [...allOf({ board: ['ops'] }), ...allOf({ board: ['dev'], size: ['s'], team: ['a'] })] })).toEqual([
-      { message: '"Label added" needs a value.', event: 'labeled' },
-      { message: '"Moved to" needs a value.', event: 'moved' },
-      { message: 'Unknown condition "team"', condition: [1, 2] },
+  it('takes any scope value where options also load per project, and lets an option word the summary', () => {
+    expect(triggerEventLabel(triggerSummary(FORM, list({ type: 'entered' }, ['In Review'])))).toBe('On list · state In Review')
+    expect(triggerEventLabel(triggerSummary(FORM, list({ type: 'entered' }, ['group:done'])))).toBe('On list · any "Done" state')
+  })
+
+  it('describes an optional scope apart from the event', () => {
+    const summary = triggerSummary(FORM, list({ type: 'created' }, ['In Review', 'group:done']))
+    expect(segmentsText(summary.event)).toBe('list created')
+    expect(segmentsText(summary.scope!)).toBe('state In Review, any "Done" state')
+    expect(triggerEventLabel(summary)).toBe('On list · list created · in state In Review, any "Done" state')
+    expect(triggerSummary(FORM, list({ type: 'entered' }, ['In Review'])).scope).toBeUndefined()
+  })
+
+  it('names the field every issue belongs to', () => {
+    expect(triggerConfigIssues(FORM, card({ type: 'labeled', values: [''] }, allOf({ board: ['dev'], size: ['s'], team: ['a'] })))).toEqual([
+      { message: '"Label added" needs a value.', event: true },
+      { message: 'Unknown condition "team"', condition: 2 },
     ])
-    expect(triggerConfigIssues(FORM, { kind: 'card', on: [], conditions: [] })).toEqual([{ message: 'Pick at least one event.' }])
+    expect(triggerConfigIssues(FORM, list({ type: 'entered' }))).toEqual([{ message: '"State reached" needs a state.', scope: true }])
   })
 
-  it('summarises kind, events and conditions, showing option labels', () => {
-    const on = [{ type: 'created' }, { type: 'moved', values: ['done'] }]
-    const summary = triggerSummary(FORM, { kind: 'card', on, conditions: allOf({ board: ['ops', 'dev'], size: ['s'] }) })
+  it('summarises kind, event and conditions, showing option labels', () => {
+    const summary = triggerSummary(FORM, card({ type: 'moved', values: ['done'] }, allOf({ board: ['ops', 'dev'], size: ['s'] })))
     expect(summary.kind).toBe('Card')
-    expect(summary.events.map(segmentsText)).toEqual(['created', 'moved to Done'])
-    expect(summary.events[1]).toEqual([{ kind: 'text', text: 'moved to ' }, { kind: 'value', text: 'Done' }])
-    expect(summary.conditions.map(g => g.map(segmentsText))).toEqual([['board is ops, dev', 'size is S']])
-    const negated = triggerSummary(FORM, { kind: 'card', on, conditions: [...noneOf({ board: ['ops'] }), ...allOf({ board: ['dev'], size: ['s', 'l'] })] }).conditions
-    expect(negated.map(g => g.map(segmentsText))).toEqual([['board is not ops'], ['board is dev', 'size is S, L']])
-    expect(negated[0]![0]!.map(s => s.kind)).toEqual(['text', 'not', 'text', 'value'])
-    expect(triggerEventLabel(triggerSummary([FORM[0]!], { kind: 'card', on: [{ type: 'labeled', values: ['go'] }], conditions: [] }))).toBe('On label go')
+    expect(summary.event).toEqual([{ kind: 'text', text: 'moved to ' }, { kind: 'value', text: 'Done' }])
+    expect(summary.conditions.map(segmentsText)).toEqual(['board is ops, dev', 'size is S'])
+    const negated = triggerSummary(FORM, card({ type: 'created' }, [...noneOf({ board: ['ops'] }), ...allOf({ size: ['s', 'l'] })])).conditions
+    expect(negated.map(segmentsText)).toEqual(['board is not ops', 'size is S, L'])
+    expect(negated[0]!.map(s => s.kind)).toEqual(['text', 'not', 'text', 'value'])
+    expect(triggerEventLabel(triggerSummary([FORM[0]!], card({ type: 'labeled', values: ['go'] })))).toBe('On label go')
   })
 })

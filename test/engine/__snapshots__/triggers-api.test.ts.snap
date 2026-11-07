@@ -6,28 +6,24 @@ exports[`POST /api/triggers > creates a git trigger and describes it 1`] = `
   "conditions": [],
   "config": {
     "conditions": [],
+    "event": {
+      "type": "opened",
+    },
     "kind": "pull_request",
-    "on": [
-      {
-        "type": "opened",
-      },
-    ],
   },
   "endpoint": null,
   "event": "On pull request · opened",
-  "events": [
-    [
-      {
-        "kind": "text",
-        "text": "opened",
-      },
-    ],
-  ],
   "firedCount": 0,
   "id": Any<Number>,
   "integration": null,
   "kind": "Pull request",
   "lastFiredAt": null,
+  "on": [
+    {
+      "kind": "text",
+      "text": "opened",
+    },
+  ],
   "projectIds": [
     Any<Number>,
   ],

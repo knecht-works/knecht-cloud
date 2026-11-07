@@ -172,7 +172,7 @@ export function describeIntegrationWebhook<P extends Project, D>(fx: WebhookFixt
         const project = fx.makeProject()
         const triggers = keys.map(field => [field, makeTrigger(id, [project.id], {
           ...config,
-          conditions: [[{ field, op: 'is', values: [values[field]!] }]],
+          conditions: [{ field, op: 'is', values: [values[field]!] }],
         })] as const)
         await deliver(delivery(project))
         for (const [field, trigger] of triggers) expect(runsOf(trigger.id), `${config.kind} ${field}`).toHaveLength(1)

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
+import { asc, eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
 import { runDataMigrations } from '../../server/db/data-migrations'
 import { getTriggerSource } from '../../server/utils/trigger-sources'
@@ -14,6 +14,22 @@ function makeWorkflow(name: string, steps: Step[]) {
 
 function getSteps(name: string): Step[] {
   return db.select().from(schema.workflows).where(eq(schema.workflows.name, name)).get()!.steps
+}
+
+// The first test already applied every migration; these run the named ones again against the rows a test inserts.
+function rerun(...names: string[]) {
+  for (const name of names) db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, name)).run()
+  runDataMigrations()
+}
+
+function triggersOf(workflowId: number) {
+  return db.select().from(schema.triggers).where(eq(schema.triggers.workflowId, workflowId)).orderBy(asc(schema.triggers.id)).all()
+}
+
+function expectValid(rows: (typeof schema.triggers.$inferSelect)[]) {
+  for (const row of rows.filter(r => r.source !== 'schedule')) {
+    expect(getTriggerSource(row.source, row.integration)!.configSchema.safeParse(row.config).success, `trigger ${row.id}`).toBe(true)
+  }
 }
 
 describe('runDataMigrations', () => {
@@ -78,12 +94,10 @@ describe('runDataMigrations', () => {
     expect(db.select().from(schema.runSteps).where(eq(schema.runSteps.id, failed.id)).get()).toMatchObject({ status: 'failed', error: 'exit 1' })
   })
 
-  it('reshapes github and jira trigger configs into events with value lists and conditions', () => {
+  it('reshapes legacy github and jira trigger configs into single-event triggers', () => {
     const workflowId = db.insert(schema.workflows).values({ name: 'legacy-triggers', steps: [] }).returning().get().id
     const insert = (source: 'github' | 'jira' | 'schedule', config: Record<string, unknown>) =>
       db.insert(schema.triggers).values({ source: source as never, workflowId, projectIds: [], config }).returning().get().id
-    const configOf = (id: number) => db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!.config
-
     const pr = insert('github', { event: 'pull_request', branches: ['main'], issueActions: ['opened'], issueLabel: null })
     const issues = insert('github', { event: 'issues', branches: [], issueActions: ['opened', 'labeled'], issueLabel: 'knecht' })
     const category = insert('jira', { event: 'transitioned', statusCategory: 'done', issueType: 'Bug' })
@@ -92,22 +106,22 @@ describe('runDataMigrations', () => {
     const current = insert('github', { kind: 'issue', on: [{ type: 'opened' }], filters: {} })
     const schedule = insert('schedule', {})
 
-    for (const name of ['0005_trigger_event_configs', '0006_trigger_conditions', '0007_trigger_event_values', '0009_trigger_roles']) {
-      db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, name)).run()
-    }
-    runDataMigrations()
+    rerun('0005_trigger_event_configs', '0006_trigger_conditions', '0007_trigger_event_values', '0009_trigger_roles', '0010_single_event_triggers')
 
-    expect(configOf(pr)).toEqual({ kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], conditions: [[{ field: 'base', op: 'is', values: ['main'] }]] })
-    expect(configOf(issues)).toEqual({ kind: 'issue', on: [{ type: 'opened' }, { type: 'labeled', values: ['knecht'] }], conditions: [] })
-    expect(configOf(category)).toEqual({ kind: 'issue', on: [{ type: 'status', values: ['category:done'] }], conditions: [[{ field: 'issueType', op: 'is', values: ['Bug'] }]] })
-    expect(configOf(status)).toEqual({ kind: 'issue', on: [{ type: 'status', values: ['In Review'] }], conditions: [] })
-    expect(configOf(assigned)).toEqual({ kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
-    expect(configOf(current)).toEqual({ kind: 'issue', on: [{ type: 'opened' }], conditions: [] })
-    expect(configOf(schedule)).toEqual({})
-    for (const id of [pr, issues, category, status, assigned]) {
-      const row = db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!
-      expect(getTriggerSource(row.source, row.integration)!.configSchema.safeParse(row.config).success).toBe(true)
-    }
+    const rows = triggersOf(workflowId)
+    const base = [{ field: 'base', op: 'is', values: ['main'] }]
+    expect(rows.map(r => [r.id, r.source, r.integration, r.config])).toEqual([
+      [pr, 'git', null, { kind: 'pull_request', event: { type: 'opened' }, conditions: base }],
+      [issues, 'git', null, { kind: 'issue', event: { type: 'opened' }, conditions: [] }],
+      [category, 'tracker', 'jira', { kind: 'issue', event: { type: 'entered' }, conditions: [{ field: 'issueType', op: 'is', values: ['Bug'] }], scope: { values: ['category:done'] } }],
+      [status, 'tracker', 'jira', { kind: 'issue', event: { type: 'entered' }, conditions: [], scope: { values: ['In Review'] } }],
+      [assigned, 'tracker', 'jira', { kind: 'issue', event: { type: 'assigned' }, conditions: [] }],
+      [current, 'git', null, { kind: 'issue', event: { type: 'opened' }, conditions: [] }],
+      [schedule, 'schedule', null, {}],
+      [expect.any(Number), 'git', null, { kind: 'pull_request', event: { type: 'pushed' }, conditions: base }],
+      [expect.any(Number), 'git', null, { kind: 'issue', event: { type: 'labeled', values: ['knecht'] }, conditions: [] }],
+    ])
+    expectValid(rows)
   })
 
   it('turns trigger filters into one group of conditions, authorNot into "author is not"', () => {
@@ -120,23 +134,25 @@ describe('runDataMigrations', () => {
     const current = insert('github', { kind: 'issue', on, conditions: [[{ field: 'label', op: 'is', values: ['bug'] }]] })
     const schedule = insert('schedule', {})
 
-    db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, '0006_trigger_conditions')).run()
-    runDataMigrations()
+    rerun('0006_trigger_conditions', '0009_trigger_roles', '0010_single_event_triggers')
 
-    const configOf = (id: number) => db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!.config
-    expect(configOf(filtered.id)).toEqual({
-      kind: 'pull_request',
-      on,
-      conditions: [[
-        { field: 'base', op: 'is', values: ['main', 'releases/*'] },
-        { field: 'author', op: 'is-not', values: ['*[bot]'] },
-        { field: 'draft', op: 'is', values: ['ready'] },
-      ]],
-    })
-    expect(configOf(bare.id)).toEqual({ kind: 'issue', on, conditions: [] })
-    expect(configOf(current.id)).toEqual(current.config)
-    expect(configOf(schedule.id)).toEqual({})
-    expect(getTriggerSource('git')!.configSchema.safeParse(configOf(filtered.id)).success).toBe(true)
+    const rows = triggersOf(workflowId)
+    const event = { type: 'opened' }
+    expect(rows.map(r => [r.id, r.config])).toEqual([
+      [filtered.id, {
+        kind: 'pull_request',
+        event,
+        conditions: [
+          { field: 'base', op: 'is', values: ['main', 'releases/*'] },
+          { field: 'author', op: 'is-not', values: ['*[bot]'] },
+          { field: 'draft', op: 'is', values: ['ready'] },
+        ],
+      }],
+      [bare.id, { kind: 'issue', event, conditions: [] }],
+      [current.id, { kind: 'issue', event, conditions: [{ field: 'label', op: 'is', values: ['bug'] }] }],
+      [schedule.id, {}],
+    ])
+    expectValid(rows)
   })
 
   it('gives every trigger a role and keeps the tracker of tracker triggers', () => {
@@ -152,11 +168,10 @@ describe('runDataMigrations', () => {
       schedule: insert('schedule', { cron: '0 9 * * *', config: {} }),
     }
 
-    db.delete(schema.dataMigrations).where(eq(schema.dataMigrations.name, '0009_trigger_roles')).run()
-    runDataMigrations()
+    rerun('0009_trigger_roles', '0010_single_event_triggers')
 
     const rowOf = (id: number) => db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()!
-    expect(rowOf(ids.github)).toMatchObject({ source: 'git', integration: null, active: false, firedCount: 3, lastFiredAt, projectIds: [1] })
+    expect(rowOf(ids.github)).toMatchObject({ source: 'git', integration: null, active: false, firedCount: 3, lastFiredAt, projectIds: [1], config: { kind: 'issue', event: { type: 'created' }, conditions: [] } })
     expect(rowOf(ids.jira)).toMatchObject({ source: 'tracker', integration: 'jira' })
     expect(rowOf(ids.plane)).toMatchObject({ source: 'tracker', integration: 'plane' })
     expect(rowOf(ids.linear)).toMatchObject({ source: 'tracker', integration: 'linear' })
@@ -167,5 +182,98 @@ describe('runDataMigrations', () => {
     const before = getSteps('legacy')
     runDataMigrations()
     expect(getSteps('legacy')).toEqual(before)
+  })
+})
+
+describe('0010_single_event_triggers', () => {
+  let n = 0
+  function setup(source: 'git' | 'tracker' | 'schedule', integration: 'jira' | 'plane' | 'linear' | null, config: Record<string, unknown>, extra: Partial<typeof schema.triggers.$inferInsert> = {}) {
+    const workflowId = db.insert(schema.workflows).values({ name: `single-event-${++n}`, steps: [] }).returning().get().id
+    const trigger = db.insert(schema.triggers).values({ source, integration, workflowId, projectIds: [3, 4], config, ...extra }).returning().get()
+    rerun('0010_single_event_triggers')
+    return { trigger, rows: triggersOf(workflowId) }
+  }
+
+  it('splits several events into one trigger each, keeping the firing history on the first', () => {
+    const lastFiredAt = new Date(1_700_000_000_000)
+    const { trigger, rows } = setup('git', null, { kind: 'issue', on: [{ type: 'opened' }, { type: 'labeled', values: ['bug'] }], conditions: [] }, { firedCount: 4, lastFiredAt })
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ id: trigger.id, active: true, firedCount: 4, lastFiredAt, config: { kind: 'issue', event: { type: 'opened' }, conditions: [] } })
+    expect(rows[1]).toMatchObject({
+      source: 'git',
+      integration: null,
+      workflowId: trigger.workflowId,
+      projectIds: [3, 4],
+      active: true,
+      firedCount: 0,
+      lastFiredAt: null,
+      config: { kind: 'issue', event: { type: 'labeled', values: ['bug'] }, conditions: [] },
+    })
+    expect(rows[1]!.id).not.toBe(trigger.id)
+    expectValid(rows)
+  })
+
+  it('splits condition groups into one trigger each, per event', () => {
+    const bug = { field: 'label', op: 'is', values: ['bug'] }
+    const ann = { field: 'author', op: 'is', values: ['ann'] }
+    const { rows } = setup('git', null, { kind: 'issue', on: [{ type: 'opened' }, { type: 'assigned', values: ['ann'] }], conditions: [[bug], [ann]] }, { active: false })
+
+    expect(rows.map(r => [r.active, r.config])).toEqual([
+      [false, { kind: 'issue', event: { type: 'opened' }, conditions: [bug] }],
+      [false, { kind: 'issue', event: { type: 'opened' }, conditions: [ann] }],
+      [false, { kind: 'issue', event: { type: 'assigned', values: ['ann'] }, conditions: [bug] }],
+      [false, { kind: 'issue', event: { type: 'assigned', values: ['ann'] }, conditions: [ann] }],
+    ])
+    expectValid(rows)
+  })
+
+  it('turns a reached status into entered with the status as scope, in every tracker', () => {
+    for (const [integration, key, value] of [['jira', 'status', 'category:done'], ['plane', 'state', 'group:completed'], ['linear', 'status', 'Done']] as const) {
+      const { rows } = setup('tracker', integration, { kind: 'issue', on: [{ type: key, values: [value, 'Review'] }], conditions: [] })
+      expect(rows.map(r => r.config), integration).toEqual([{ kind: 'issue', event: { type: 'entered' }, conditions: [], scope: { values: [value, 'Review'] } }])
+      expectValid(rows)
+    }
+  })
+
+  it('moves an "is" status condition into the scope', () => {
+    const label = { field: 'label', op: 'is', values: ['bug'] }
+    const { rows } = setup('tracker', 'plane', { kind: 'issue', on: [{ type: 'assigned' }], conditions: [[{ field: 'state', op: 'is', values: ['Todo', 'group:unstarted'] }, label]] })
+    expect(rows.map(r => r.config)).toEqual([{ kind: 'issue', event: { type: 'assigned' }, conditions: [label], scope: { values: ['Todo', 'group:unstarted'] } }])
+    expectValid(rows)
+  })
+
+  it('intersects an "is" status condition with the reached status, and keeps the reached status when nothing is left', () => {
+    const { rows } = setup('tracker', 'jira', {
+      kind: 'issue',
+      on: [{ type: 'status', values: ['To Do', 'Review'] }],
+      conditions: [[{ field: 'status', op: 'is', values: ['Review', 'Done'] }], [{ field: 'status', op: 'is', values: ['Done'] }]],
+    })
+    expect(rows.map(r => r.config)).toEqual([
+      { kind: 'issue', event: { type: 'entered' }, conditions: [], scope: { values: ['Review'] } },
+      { kind: 'issue', event: { type: 'entered' }, conditions: [], scope: { values: ['To Do', 'Review'] } },
+    ])
+    expectValid(rows)
+  })
+
+  it('deactivates the trigger an "is not" status condition belonged to, and logs it', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const label = { field: 'label', op: 'is', values: ['bug'] }
+    const { trigger, rows } = setup('tracker', 'jira', { kind: 'issue', on: [{ type: 'created' }], conditions: [[{ field: 'status', op: 'is-not', values: ['Done'] }], [label]] })
+
+    expect(rows.map(r => [r.active, r.config])).toEqual([
+      [false, { kind: 'issue', event: { type: 'created' }, conditions: [] }],
+      [true, { kind: 'issue', event: { type: 'created' }, conditions: [label] }],
+    ])
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0]![0]).toContain(`trigger ${trigger.id}`)
+    warn.mockRestore()
+    expectValid(rows)
+  })
+
+  it('leaves schedules and already migrated triggers alone', () => {
+    const migrated = { kind: 'issue', event: { type: 'opened' }, conditions: [] }
+    expect(setup('schedule', null, {}, { cron: '0 9 * * *' }).rows).toMatchObject([{ config: {}, cron: '0 9 * * *', active: true }])
+    expect(setup('git', null, migrated).rows.map(r => r.config)).toEqual([migrated])
   })
 })

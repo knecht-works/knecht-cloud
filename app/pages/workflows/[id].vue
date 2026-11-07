@@ -806,25 +806,22 @@ const pr = computed(() => {
                       >
                         <span class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                           <span>on</span>
-                          <template
-                            v-for="(segments, ei) in t.events"
-                            :key="ei"
-                          >
-                            <span
-                              v-if="ei > 0"
-                              class="-ml-1.5"
-                            >,</span>
-                            <KTriggerSegments :segments="segments" />
-                          </template>
+                          <KTriggerSegments :segments="t.on" />
                         </span>
                         <span
-                          v-for="(group, gi) in t.conditions"
-                          :key="gi"
+                          v-if="t.scope"
                           class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
                         >
-                          <span>{{ gi === 0 ? 'if' : 'or' }}</span>
+                          <span>while in</span>
+                          <KTriggerSegments :segments="t.scope" />
+                        </span>
+                        <span
+                          v-if="t.conditions.length"
+                          class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+                        >
+                          <span>if</span>
                           <template
-                            v-for="(segments, ci) in group"
+                            v-for="(segments, ci) in t.conditions"
                             :key="ci"
                           >
                             <span v-if="ci > 0">and</span>

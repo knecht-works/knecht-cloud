@@ -153,7 +153,7 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
   },
   object: project => ({ integration: 'plane', kind: 'issue', key: `${project.identifier}-12` }),
   created: {
-    config: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    config: { kind: 'issue', event: { type: 'created' }, conditions: [] },
     delivery: project => created(project),
     run: project => ({
       trigger: 'plane',
@@ -179,7 +179,7 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
     }),
   },
   labeled: {
-    config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] },
+    config: { kind: 'issue', event: { type: 'labeled', values: ['knecht'] }, conditions: [] },
     notGained: project => [
       updated(project, { label_ids: ['l-knecht'] }, { label_ids: ['l-knecht', 'l-bug'] }),
       updated(project, { label_ids: [] }, { label_ids: ['l-bug'] }),
@@ -188,9 +188,9 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
     gained: project => updated(project, { label_ids: ['l-bug'] }, { label_ids: ['l-bug', 'l-knecht'] }),
   },
   filters: [{
-    config: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    config: { kind: 'issue', event: { type: 'created' }, conditions: [] },
     delivery: project => created(project, { assignee_ids: [KNECHT_ACCOUNT], priority: 'high' }),
-    values: { state: 'Todo', assignee: 'self', label: 'bug', priority: 'high' },
+    values: { assignee: 'self', label: 'bug', priority: 'high' },
   }],
   closed: project => updated(project, { state_id: 's-todo' }, { state_id: 's-done' }),
   reopened: project => updated(project, { state_id: 's-done' }, { state_id: 's-todo' }),
@@ -214,9 +214,9 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
 describe('plane webhook route, vendor specifics', () => {
   it('fires on a work item created with the label or the assignment already set, not in the state', async () => {
     const project = makePlaneProject()
-    const labeled = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] })
-    const transitioned = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'state', values: ['In Progress'] }], conditions: [] })
-    const assigned = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
+    const labeled = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'labeled', values: ['knecht'] }, conditions: [] })
+    const transitioned = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'entered' }, conditions: [], scope: { values: ['In Progress'] } })
+    const assigned = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'assigned' }, conditions: [] })
 
     await deliver(created(project, { label_ids: ['l-bug'] }))
     expect(runsOf(labeled.id)).toHaveLength(0)
@@ -231,7 +231,7 @@ describe('plane webhook route, vendor specifics', () => {
 
   it('fires on a transition to the configured state', async () => {
     const project = makePlaneProject()
-    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'state', values: ['In Progress'] }], conditions: [] })
+    const trigger = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'entered' }, conditions: [], scope: { values: ['In Progress'] } })
     await deliver(updated(project, { state_id: 's-todo' }, { state_id: 's-done' }))
     await deliver(updated(project, { name: 'old' }, { state_id: 's-progress' }))
     expect(runsOf(trigger.id)).toHaveLength(0)
@@ -241,7 +241,7 @@ describe('plane webhook route, vendor specifics', () => {
 
   it('fires on a state group only when the work item enters it', async () => {
     const project = makePlaneProject()
-    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'state', values: ['group:started'] }], conditions: [] })
+    const trigger = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'entered' }, conditions: [], scope: { values: ['group:started'] } })
     await deliver(updated(project, { state_id: 's-progress' }, { state_id: 's-review' }))
     await deliver(updated(project, { state_id: 's-todo' }, { state_id: 's-done' }))
     expect(runsOf(trigger.id)).toHaveLength(0)
@@ -249,16 +249,18 @@ describe('plane webhook route, vendor specifics', () => {
     expect(runsOf(trigger.id)).toHaveLength(1)
   })
 
-  it('fires once when any of several events matches', async () => {
+  it('starts a workflow once when several of its triggers match one change', async () => {
     const project = makePlaneProject()
-    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }, { type: 'assigned' }], conditions: [] })
-    await deliver(updated(project, { label_ids: [], assignee_ids: [] }, { label_ids: ['l-knecht'], assignee_ids: [KNECHT_ACCOUNT] }))
-    expect(runsOf(trigger.id)).toHaveLength(1)
+    const labeled = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'labeled', values: ['knecht'] }, conditions: [] })
+    const assigned = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'assigned' }, conditions: [] })
+    db.update(schema.triggers).set({ workflowId: labeled.workflowId }).where(eq(schema.triggers.id, assigned.id)).run()
+    await deliver(updated(project, { label_ids: [], assignee_ids: [] }, { label_ids: ['l-knecht'], assignee_ids: [KNECHT_ACCOUNT], updated_at: '2026-11-07T10:00:00Z' }))
+    expect([...runsOf(labeled.id), ...runsOf(assigned.id)]).toHaveLength(1)
   })
 
   it('holds back work items its label and priority filters exclude', async () => {
     const project = makePlaneProject()
-    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'created' }], conditions: allOf({ label: ['knecht'], priority: ['urgent', 'high'] }) })
+    const trigger = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'created' }, conditions: allOf({ label: ['knecht'], priority: ['urgent', 'high'] }) })
     await deliver(created(project, { label_ids: ['l-bug'], priority: 'high' }))
     await deliver(created(project, { priority: 'low' }))
     await deliver(created(project))
@@ -270,7 +272,7 @@ describe('plane webhook route, vendor specifics', () => {
 
   it('fires when the work item is assigned to the connection account', async () => {
     const project = makePlaneProject()
-    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
+    const trigger = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'assigned' }, conditions: [] })
     await deliver(updated(project, { assignee_ids: [] }, { assignee_ids: ['user-1'] }))
     expect(runsOf(trigger.id)).toHaveLength(0)
     await deliver(updated(project, { assignee_ids: ['user-1'] }, { assignee_ids: ['user-1', KNECHT_ACCOUNT] }))
@@ -280,7 +282,7 @@ describe('plane webhook route, vendor specifics', () => {
 
   it('does not count Knecht taking the work item itself while it works on it', async () => {
     const project = makePlaneProject()
-    const trigger = makePlaneTrigger(project.id, { kind: 'issue', on: [{ type: 'assigned' }], conditions: [] })
+    const trigger = makePlaneTrigger(project.id, { kind: 'issue', event: { type: 'assigned' }, conditions: [] })
     const session = resolveSession(project, { integration: 'plane', kind: 'issue', key: `${project.identifier}-12` }, null)
     const run = makeRun(project, [], { sessionId: session.id, status: 'running' })
     await deliver(updated(project, { assignee_ids: [] }, { assignee_ids: [KNECHT_ACCOUNT] }))

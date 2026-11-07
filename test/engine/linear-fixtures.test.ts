@@ -31,23 +31,24 @@ const handler = (await import('../../server/api/linear/webhook.post')).default
 const SECRET = 'lin_wh_secret'
 const KNECHT_ACCOUNT = 'a01b5370-e8eb-47ec-85f7-5002aa38aca0'
 
-const on = (events: TriggerEventConfig[], conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', on: events, conditions })
+const on = (event: TriggerEventConfig, conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', event, conditions })
+const entered = (scope: string[], conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', event: { type: 'entered' }, conditions, scope: { values: scope } })
 
 const CONFIGS = {
-  created: on([{ type: 'created' }]),
-  createdUrgent: on([{ type: 'created' }], allOf({ priority: ['urgent'] })),
-  createdWithoutPriority: on([{ type: 'created' }], allOf({ priority: ['none'] })),
-  createdWithBug: on([{ type: 'created' }], allOf({ label: ['Bug'] })),
-  assigned: on([{ type: 'assigned' }]),
-  labeledBug: on([{ type: 'labeled', values: ['Bug'] }]),
-  labeledBugLowercase: on([{ type: 'labeled', values: ['bug'] }]),
-  inProgress: on([{ type: 'status', values: ['In Progress'] }]),
-  anyStarted: on([{ type: 'status', values: ['type:started'] }]),
-  anyCompleted: on([{ type: 'status', values: ['type:completed'] }]),
-  anyCanceled: on([{ type: 'status', values: ['type:canceled'] }]),
-  anyBacklog: on([{ type: 'status', values: ['type:backlog'] }]),
-  todo: on([{ type: 'status', values: ['Todo'] }]),
-  startedWhileUrgent: on([{ type: 'status', values: ['type:started'] }], allOf({ priority: ['urgent'] })),
+  created: on({ type: 'created' }),
+  createdUrgent: on({ type: 'created' }, allOf({ priority: ['urgent'] })),
+  createdWithoutPriority: on({ type: 'created' }, allOf({ priority: ['none'] })),
+  createdWithBug: on({ type: 'created' }, allOf({ label: ['Bug'] })),
+  assigned: on({ type: 'assigned' }),
+  labeledBug: on({ type: 'labeled', values: ['Bug'] }),
+  labeledBugLowercase: on({ type: 'labeled', values: ['bug'] }),
+  inProgress: entered(['In Progress']),
+  anyStarted: entered(['type:started']),
+  anyCompleted: entered(['type:completed']),
+  anyCanceled: entered(['type:canceled']),
+  anyBacklog: entered(['type:backlog']),
+  todo: entered(['Todo']),
+  startedWhileUrgent: entered(['type:started'], allOf({ priority: ['urgent'] })),
 }
 
 const fired: Record<keyof typeof CONFIGS, string[]> = Object.fromEntries(Object.keys(CONFIGS).map(k => [k, []])) as never
