@@ -40,6 +40,12 @@ export default defineAppConfig({
     dropdownMenu: {
       slots: {
         item: 'cursor-pointer',
+        itemLeadingIcon: 'self-center',
+      },
+      variants: {
+        size: {
+          md: { itemLeadingIcon: 'size-4' },
+        },
       },
     },
     breadcrumb: {
