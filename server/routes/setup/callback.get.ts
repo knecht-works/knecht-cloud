@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
       webhookSecret: app.webhook_secret,
     })
 
-    addMember({ login: app.owner.login, isOwner: true })
+    addMember({ login: app.owner.login, isOwner: true, identity: { provider: 'github', username: app.owner.login } })
 
     return sendRedirect(event, `${app.html_url}/installations/new`)
   }

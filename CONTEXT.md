@@ -68,7 +68,10 @@ An additional prompt appended to a finished run's session. Comes from the dashbo
 The AI that works inside a run's sandbox on the checkout, through the ai step or a follow-up.
 
 **Member**:
-A person allowed to use this Knecht instance and to address it via mentions.
+A person allowed to use this Knecht instance and to address it via mentions. Has a username of its own, independent of any git provider.
+
+**Identity**:
+A member's account at a provider such as GitHub. Used to log in and, once verified by an OAuth login, to attribute the provider's mentions to the member.
 
 ### AI
 

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import type { Project } from '../../server/db/schema'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
-import { getSessionRow, makeProject } from '../helpers/db'
+import { getSessionRow, makeMember, makeProject } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import { allOf } from '../helpers/trigger-conditions'
 
@@ -17,7 +17,6 @@ vi.mock('../../server/utils/github-app', () => ({
 }))
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { db, schema } = await import('../../server/db')
 const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
 const { github } = await import('../../server/integrations/github')
 const handler = (await import('../../server/api/github/webhook.post')).default
@@ -70,7 +69,7 @@ describeIntegrationWebhook<Project, GithubDelivery>({
   handler,
   configure: () => {
     saveGithubAppCredentials({ appId: '1', slug: 'knecht-test', clientId: 'c', clientSecret: 'x', privateKey: 'x', webhookSecret: SECRET })
-    db.insert(schema.members).values({ login: 'samuelreichor' }).run()
+    makeMember('samuelreichor')
   },
   request,
   makeProject: makeRepoProject,

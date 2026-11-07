@@ -1,5 +1,5 @@
 import { INTEGRATIONS } from '../integrations'
-import { addMember, isMember, memberCount } from '../stores/members'
+import { getMemberById } from '../stores/members'
 
 export default defineEventHandler(async (event) => {
   // The router matches the percent-decoded path, so the gate must classify that
@@ -23,15 +23,8 @@ export default defineEventHandler(async (event) => {
 
   const { user } = await requireUserSession(event)
 
-  // Empty members table: the first authenticated request claims the owner,
-  // otherwise an instance from before member gating would lock itself out.
-  if (memberCount() === 0) {
-    addMember({ login: user.login, name: user.name, avatarUrl: user.avatarUrl, isOwner: true })
-    return
-  }
-
   // Re-checked per request so removing a member revokes access immediately.
-  if (!isMember(user.login)) {
+  if (!getMemberById(user.id)) {
     await clearUserSession(event)
     throw createError({ statusCode: 401, statusMessage: 'Membership revoked' })
   }

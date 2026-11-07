@@ -5,10 +5,8 @@ const toastError = useToastError()
 
 const { data: members } = await useMembers()
 
-// Member logins are stored lowercased; the session login keeps GitHub's casing.
-const myLogin = computed(() => user.value?.login.toLowerCase())
-const me = computed(() => members.value?.find(m => m.login === myLogin.value))
-const others = computed(() => members.value?.filter(m => m.login !== myLogin.value) ?? [])
+const me = computed(() => members.value?.find(m => m.id === user.value?.id))
+const others = computed(() => members.value?.filter(m => m.id !== user.value?.id) ?? [])
 
 async function logout() {
   await clear()
@@ -65,7 +63,7 @@ async function remove(login: string) {
     <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
       <div class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3">
         <UAvatar
-          :src="user?.avatarUrl"
+          :src="user?.avatarUrl ?? undefined"
           :alt="user?.login"
           size="sm"
           class="flex-none"

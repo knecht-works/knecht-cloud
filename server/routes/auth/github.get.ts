@@ -3,7 +3,7 @@ import type { H3Event } from 'h3'
 import { withQuery } from 'ufo'
 import { dashboardOrigin } from '../../utils/origin'
 import { githubAppCredentials } from '../../utils/github-credentials'
-import { addMember, isMember, memberCount, touchProfile } from '../../stores/members'
+import { loginWithIdentity } from '../../stores/members'
 
 // Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
 export default defineEventHandler(async (event) => {
@@ -55,25 +55,18 @@ export default defineEventHandler(async (event) => {
     )
     if (!tokens.access_token) throw new Error(tokens.error || 'no access_token')
 
-    const user = await $fetch<{ login: string, name: string | null, avatar_url: string }>(
+    const user = await $fetch<{ id: number, login: string, name: string | null, avatar_url: string }>(
       'https://api.github.com/user',
       { headers: { 'Authorization': `Bearer ${tokens.access_token}`, 'User-Agent': 'knecht' } },
     )
 
-    // An empty members table lets the first login claim ownership.
-    const profile = { login: user.login, name: user.name, avatarUrl: user.avatar_url }
-    if (memberCount() === 0) {
-      addMember({ ...profile, isOwner: true })
-    }
-    else if (!isMember(user.login)) {
+    const member = loginWithIdentity('github', { subject: String(user.id), username: user.login }, { name: user.name, avatarUrl: user.avatar_url })
+    if (!member) {
       console.warn(`Login denied for @${user.login}: not a member of this instance.`)
       return sendRedirect(event, '/login?error=forbidden')
     }
-    else {
-      touchProfile(profile)
-    }
 
-    await setUserSession(event, { user: profile })
+    await setUserSession(event, { user: { id: member.id, login: member.login, name: member.name, avatarUrl: member.avatarUrl } })
     return sendRedirect(event, popRedirect(event))
   }
   catch (error) {

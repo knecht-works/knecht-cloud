@@ -1,10 +1,10 @@
 import { startUpdate } from '../../daemon/update'
-import { getMember } from '../../stores/members'
+import { getMemberById } from '../../stores/members'
 import { currentVersion, isNewerVersion, latestVersion } from '../../utils/version'
 
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event)
-  if (!getMember(user.login)?.isOwner) {
+  if (!getMemberById(user.id)?.isOwner) {
     throw createError({ statusCode: 403, statusMessage: 'Only the owner can update.' })
   }
 

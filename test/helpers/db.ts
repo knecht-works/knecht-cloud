@@ -16,6 +16,11 @@ export function makeProject(overrides: Partial<typeof schema.projects.$inferInse
   }).returning().get()
 }
 
+export function makeMember(login: string): void {
+  const member = db.insert(schema.members).values({ login }).returning().get()
+  db.insert(schema.memberIdentities).values({ memberId: member.id, provider: 'github', subject: String(member.id), username: login, verified: true }).run()
+}
+
 export function makeSession(project: Project, overrides: Partial<typeof schema.sessions.$inferInsert> = {}): Session {
   return db.insert(schema.sessions).values({
     projectId: project.id,

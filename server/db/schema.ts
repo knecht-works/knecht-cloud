@@ -441,7 +441,7 @@ export const integrationConnections = sqliteTable('integration_connections', {
     .default(sql`(unixepoch())`),
 })
 
-// GitHub logins are case-insensitive, so `login` is always stored lowercased.
+// Usernames are case-insensitive, so `login` is always stored lowercased.
 export const members = sqliteTable('members', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   login: text('login').notNull().unique(),
@@ -459,6 +459,27 @@ export const members = sqliteTable('members', {
 
 export type Member = typeof members.$inferSelect
 export type NewMember = typeof members.$inferInsert
+
+// `subject` is the provider's user id, null until the first login with this identity.
+// Only a verified identity attributes the provider's mentions to the member.
+export const memberIdentities = sqliteTable('member_identities', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  memberId: integer('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
+  provider: text('provider', { enum: REPO_PROVIDERS }).notNull(),
+  subject: text('subject'),
+  username: text('username').notNull(),
+  verified: integer('verified', { mode: 'boolean' }).notNull().default(false),
+
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, t => [
+  uniqueIndex('member_identities_member_provider_idx').on(t.memberId, t.provider),
+  uniqueIndex('member_identities_subject_idx').on(t.provider, t.subject),
+  uniqueIndex('member_identities_username_idx').on(t.provider, t.username),
+])
+
+export type MemberIdentity = typeof memberIdentities.$inferSelect
 
 export const toolCalls = sqliteTable('tool_calls', {
   id: integer('id').primaryKey({ autoIncrement: true }),
