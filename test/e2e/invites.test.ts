@@ -143,3 +143,21 @@ describe('owner role', () => {
     expect((await fetch(`${BASE_URL}/api/invites`, { headers: { cookie } })).status).toBe(403)
   })
 })
+
+describe('own password', () => {
+  it('changes only with the current password', async () => {
+    const signIn = (pw: string) => fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: pw }) })
+    const res = await signIn('a brand new password')
+    const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+    const change = (body: unknown) => fetch(`${BASE_URL}/api/me/password`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify(body) })
+
+    const wrong = await change({ currentPassword: 'not my password', password: 'the third password' })
+    expect(wrong.status).toBe(400)
+    expect(((await wrong.json()) as { data: { field: string } }).data.field).toBe('currentPassword')
+    expect((await change({ currentPassword: 'a brand new password', password: 'short' })).status).toBe(400)
+    expect((await change({ currentPassword: 'a brand new password', password: 'the third password' })).status).toBe(200)
+
+    expect((await signIn('a brand new password')).status).toBe(401)
+    expect((await signIn('the third password')).status).toBe(200)
+  })
+})
