@@ -96,6 +96,8 @@ COPY --from=build --chown=node:node /app/.output ./.output
 # Boot-time migrations (server/plugins/migrate.ts) read this folder from disk,
 # resolved against the cwd /app, so it must ship alongside the bundle.
 COPY --from=build --chown=node:node /app/server/db/migrations ./server/db/migrations
+# The emergency password reset, run with `docker compose exec knecht node scripts/reset-password.mjs <username>`.
+COPY --from=build --chown=node:node /app/scripts/reset-password.mjs ./scripts/reset-password.mjs
 
 # Nitro listens here; the daemon checks out worktrees at /data/knecht/projects
 # (mounted) and boots one sandbox per run off them.
