@@ -63,18 +63,26 @@ async function revoke(id: number) {
   }
 }
 
-const removing = ref('')
-async function remove(login: string) {
-  removing.value = login
+const removeTarget = ref<string | null>(null)
+const confirmingRemove = computed({
+  get: () => removeTarget.value !== null,
+  set: (open) => { if (!open) removeTarget.value = null },
+})
+const removing = ref(false)
+async function remove() {
+  const login = removeTarget.value
+  if (!login) return
+  removing.value = true
   try {
     members.value = await $fetch(`/api/members/${login}`, { method: 'DELETE' })
     toast.add({ title: `Removed @${login}`, color: 'success' })
+    removeTarget.value = null
   }
   catch (e) {
     toastError('Could not remove', e)
   }
   finally {
-    removing.value = ''
+    removing.value = false
   }
 }
 </script>
@@ -160,9 +168,8 @@ async function remove(login: string) {
             color="neutral"
             variant="ghost"
             size="sm"
-            :loading="removing === m.login"
             :aria-label="`Remove ${m.login}`"
-            @click="remove(m.login)"
+            @click="removeTarget = m.login"
           />
         </UTooltip>
       </div>
@@ -238,5 +245,14 @@ async function remove(login: string) {
         </button>
       </template>
     </div>
+
+    <KConfirmModal
+      v-model:open="confirmingRemove"
+      :title="`Remove @${removeTarget}?`"
+      description="They lose access right away and can only come back with a new invite link. This can't be undone."
+      confirm-label="Remove"
+      :loading="removing"
+      @confirm="remove"
+    />
   </KPanel>
 </template>
