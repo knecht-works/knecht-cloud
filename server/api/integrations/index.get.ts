@@ -6,6 +6,6 @@ export default defineEventHandler(() => INTEGRATIONS.map(i => ({
   configured: i.isConfigured(),
   accountName: i.connection?.store.status().accountName ?? null,
   link: i.link ? { label: i.link.label } : null,
-  triggerForm: i.trigger.form,
+  triggerForm: i.trigger?.form ?? null,
   connectionForm: i.connection?.form ?? null,
 })))

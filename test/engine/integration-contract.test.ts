@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { makeProject } from '../helpers/db'
+import { triggerSourceOf } from '../helpers/integration-webhook-suite'
 
 vi.mock('../../server/utils/github-app', () => ({}))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
@@ -26,6 +27,7 @@ vi.mock('../../server/integrations/linear/api', async importOriginal => ({
 const { db, schema } = await import('../../server/db')
 const { INTEGRATIONS } = await import('../../server/integrations')
 const { getTriggerSource } = await import('../../server/utils/trigger-sources')
+const { gitTriggerForm } = await import('../../server/integrations/git-trigger-form')
 const { defaultTriggerConfig, triggerEventLabel, triggerSummary } = await import('../../shared/utils/trigger-form')
 const { INPUT_KEYS } = await import('../../server/utils/inputs')
 const { setProjectLink } = await import('../../server/stores/project-links')
@@ -152,7 +154,7 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
     const project = fixture.project()
     const delivery = (await integration.webhook.parse(JSON.stringify(fixture.body(project as never)), headers({})))!
     const trigger = db.insert(schema.triggers).values({
-      source: id,
+      ...triggerSourceOf(id),
       workflowId: db.insert(schema.workflows).values({ name: `contract-${id}`, steps: [] }).returning().get().id,
       projectIds: [project.id],
       config: { ...fixture.triggerConfig },
@@ -166,13 +168,15 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
   })
 
   it('declares a trigger form its config validates against', () => {
-    const source = getTriggerSource(id)!
+    const { source: role, integration: tracker } = triggerSourceOf(id)
+    const source = getTriggerSource(role, tracker)!
+    const form = integration.trigger?.form ?? gitTriggerForm
     expect(source.configSchema.safeParse(fixture.triggerConfig).success).toBe(true)
     expect(source.configSchema.safeParse({ ...fixture.triggerConfig, on: [] }).success).toBe(false)
-    expect(triggerEventLabel(triggerSummary(integration.trigger.form, fixture.triggerConfig))).toMatch(/^On /)
-    for (const kind of integration.trigger.form) {
+    expect(triggerEventLabel(triggerSummary(form, fixture.triggerConfig))).toMatch(/^On /)
+    for (const kind of form) {
       expect(integration.objects.kinds).toContain(kind.kind)
-      expect(source.configSchema.safeParse(defaultTriggerConfig(integration.trigger.form, kind.kind)).success).toBe(kind.events.some(e => e.default))
+      expect(source.configSchema.safeParse(defaultTriggerConfig(form, kind.kind)).success).toBe(kind.events.some(e => e.default))
     }
   })
 

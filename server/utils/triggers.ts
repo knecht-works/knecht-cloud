@@ -3,7 +3,7 @@ import { dispatchRuns } from '../daemon/dispatcher'
 import { isGithubAppConfigured } from './github-credentials'
 import { emptyInputs, type TriggerInputs } from './inputs'
 import { resolveSession, type SessionObject } from './sessions'
-import type { TriggerSource } from '../../shared/utils/integrations'
+import type { IntegrationId, TrackerId, TriggerSource } from '../../shared/utils/integrations'
 import type { TriggerSegment } from '../../shared/utils/trigger-form'
 import { getTriggerSource } from './trigger-sources'
 import { getWorkflowRow, getWorkflowRows } from '../stores/workflows'
@@ -14,6 +14,9 @@ import { appendRunLog, createRun, finishRun, workflowRanOnVersion } from '../sto
 export interface TriggerSummary {
   id: number
   source: TriggerSource
+  integration: TrackerId | null
+  // The tool the trigger listens to: the tracker, or the git provider of its projects.
+  via: IntegrationId | null
   event: string
   kind: string
   events: TriggerSegment[][]
@@ -34,16 +37,18 @@ function endpoint(t: Trigger): string | null {
 }
 
 export function toSummaries(rows: Trigger[]): TriggerSummary[] {
-  const names = new Map(getProjects([...new Set(rows.flatMap(r => r.projectIds))]).map(p => [p.id, p.name]))
+  const projects = new Map(getProjects([...new Set(rows.flatMap(r => r.projectIds))]).map(p => [p.id, p]))
   const workflowNames = new Map(getWorkflowRows([...new Set(rows.map(r => r.workflowId))]).map(w => [w.id, w.name]))
 
   return rows.map(t => ({
     id: t.id,
     source: t.source,
-    ...(getTriggerSource(t.source)?.describe(t) ?? { event: '', kind: '', events: [], conditions: [] }),
+    integration: t.integration,
+    via: t.integration ?? (t.source === 'git' ? projects.get(t.projectIds[0]!)?.repoProvider ?? 'github' : null),
+    ...(getTriggerSource(t.source, t.integration)?.describe(t) ?? { event: '', kind: '', events: [], conditions: [] }),
     workflowId: t.workflowId,
     workflowName: workflowNames.get(t.workflowId) ?? '',
-    projects: t.projectIds.map(id => names.get(id)).filter((n): n is string => !!n),
+    projects: t.projectIds.map(id => projects.get(id)?.name).filter((n): n is string => !!n),
     projectIds: t.projectIds,
     endpoint: endpoint(t),
     config: t.config,
@@ -54,6 +59,8 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
 }
 
 export interface FireOverrides {
+  // The integration that delivered the event; recorded as the run's trigger.
+  integration?: IntegrationId
   projectIds?: number[]
   branch?: string | null
   inputs?: TriggerInputs
@@ -80,7 +87,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
       sessionId: session.id,
       workflow: workflow.name,
       workflowId: workflow.id,
-      trigger: t.source,
+      trigger: opts.integration ?? t.source,
       triggerId: t.id,
       branch: session.branch ?? opts.branch ?? project.defaultBranch,
       objectVersion: opts.version ?? null,

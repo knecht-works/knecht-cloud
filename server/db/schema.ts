@@ -3,7 +3,7 @@ import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from
 import { ENV_STATES, SESSION_TIERS, type RunDiagnosis } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import { DDEV_DATABASES, PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
-import { INTEGRATION_IDS, OBJECT_KINDS, REPO_PROVIDERS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
+import { INTEGRATION_IDS, OBJECT_KINDS, REPO_PROVIDERS, TRACKER_IDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
 import type { Step } from '../../shared/utils/workflow'
 
 export interface DdevEnv {
@@ -367,6 +367,8 @@ export const dataMigrations = sqliteTable('data_migrations', {
 export const triggers = sqliteTable('triggers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   source: text('source', { enum: TRIGGER_SOURCES }).notNull(),
+  // Set exactly for `tracker` triggers; a `git` trigger follows the provider of its projects.
+  integration: text('integration', { enum: TRACKER_IDS }),
   // PRAGMA foreign_keys is off, so the cascade is declarative; the delete route removes triggers.
   workflowId: integer('workflow_id')
     .notNull()

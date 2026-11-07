@@ -2,7 +2,7 @@ import { tryParseJson } from '../../utils/json'
 import { linkedProject } from '../../stores/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
+import { integrationLabelsUrl, labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookDelivery } from '../types'
 import { addLinearComment, downloadLinearUpload, forgetLinearCache, getLinearComment, getLinearHandle, getLinearIssue, getLinearIssueRaw, type LinearComment, linearMyself, listLinearComments, listLinearLabels, listLinearStates, listLinearTeams, updateLinearIssue, type LinearIssue, type LinearState } from './api'
@@ -27,7 +27,7 @@ const LINEAR_TRACKER: TrackerDef = {
     options: 'statuses',
   },
   filters: [
-    labelFilter('linear'),
+    labelFilter(integrationLabelsUrl('linear')),
     priorityFilter(),
   ],
 }

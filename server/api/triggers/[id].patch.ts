@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { TRIGGER_SOURCES } from '../../../shared/utils/integrations'
+import { TRACKER_IDS, TRIGGER_SOURCES } from '../../../shared/utils/integrations'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
@@ -11,6 +11,7 @@ const bodySchema = z.object({
   active: z.boolean().optional(),
   workflowId: z.number().int().optional(),
   source: z.enum(TRIGGER_SOURCES).optional(),
+  integration: z.enum(TRACKER_IDS).nullable().optional(),
   projectIds: z.array(z.number().int()).optional(),
   cron: z.string().min(1).optional(),
   config: z.record(z.string(), z.unknown()).optional(),
@@ -36,14 +37,20 @@ export default defineEventHandler(async (event) => {
   if (data.active !== undefined) patch.active = data.active
 
   const nextSource = data.source ?? row.source
-  if (data.source !== undefined) patch.source = data.source
-  const def = getTriggerSource(nextSource)
+  const nextIntegration = data.integration !== undefined ? data.integration : data.source === undefined ? row.integration : null
+  if ((nextSource === 'tracker') !== !!nextIntegration) {
+    throw createError({ statusCode: 400, statusMessage: nextIntegration ? `${nextSource} triggers take no integration` : 'Pick the issue tracker' })
+  }
+  patch.source = nextSource
+  patch.integration = nextIntegration
+  const def = getTriggerSource(nextSource, nextIntegration)
   if (!def) {
-    throw createError({ statusCode: 400, statusMessage: `${nextSource} triggers are not available` })
+    throw createError({ statusCode: 400, statusMessage: `${nextIntegration ?? nextSource} triggers are not available` })
   }
 
   // A switched source starts from an empty config: the old one belongs to another schema.
-  const config = def.configSchema.safeParse(data.config ?? (nextSource === row.source ? row.config : {}))
+  const unchanged = nextSource === row.source && nextIntegration === row.integration
+  const config = def.configSchema.safeParse(data.config ?? (unchanged ? row.config : {}))
   if (!config.success) {
     throw createError({ statusCode: 400, statusMessage: config.error.issues[0]?.message ?? 'Invalid trigger config' })
   }

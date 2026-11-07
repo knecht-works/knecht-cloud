@@ -785,15 +785,15 @@ const pr = computed(() => {
                     @click="editTrigger(t)"
                   >
                     <KStepIcon
-                      :icon="triggerSourceMeta(t.source).icon"
-                      :color="triggerSourceMeta(t.source).color"
+                      :icon="triggerMeta(t).icon"
+                      :color="triggerMeta(t).color"
                       :size="32"
                       :radius="8"
                     />
                     <span class="min-w-0 flex-1">
                       <span class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                         <span class="text-sm font-medium text-highlighted">
-                          {{ triggerSourceMeta(t.source).label }} {{ t.kind }}
+                          {{ triggerMeta(t).label }} {{ t.kind }}
                         </span>
                       </span>
                       <span

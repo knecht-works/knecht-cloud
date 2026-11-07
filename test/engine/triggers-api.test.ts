@@ -50,9 +50,9 @@ describe('POST /api/triggers', () => {
     expect(res.json).toMatchObject({ statusMessage: 'Invalid cron expression' })
   })
 
-  it('creates a github trigger and describes it', async () => {
+  it('creates a git trigger and describes it', async () => {
     const project = makeProject()
-    const res = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [project.id], config: { kind: 'pull_request', on: [{ type: 'opened' }] } })
+    const res = await post({ source: 'git', workflowId: makeWorkflow().id, projectIds: [project.id], config: { kind: 'pull_request', on: [{ type: 'opened' }] } })
     expect(res.status).toBe(200)
     expect(res.json).toMatchSnapshot({
       id: expect.any(Number),
@@ -62,31 +62,49 @@ describe('POST /api/triggers', () => {
     })
   })
 
-  it('describes github triggers by kind, events and conditions', async () => {
+  it('describes git triggers by kind, events and conditions', async () => {
     const wf = makeWorkflow()
-    const pr = await post({ source: 'github', workflowId: wf.id, projectIds: [], config: { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], conditions: allOf({ base: ['main', 'staging'], draft: ['ready'] }) } })
+    const pr = await post({ source: 'git', workflowId: wf.id, projectIds: [], config: { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], conditions: allOf({ base: ['main', 'staging'], draft: ['ready'] }) } })
     expect(pr.json).toMatchObject({ event: 'On pull request · opened, pushed', kind: 'Pull request' })
     const { events, conditions } = pr.json as { events: TriggerSegment[][], conditions: TriggerSegment[][][] }
     expect(events.map(segmentsText)).toEqual(['opened', 'pushed'])
     expect(conditions.map(g => g.map(segmentsText))).toEqual([['base branch is main, staging', 'pr state is Ready for review']])
     expect(conditions[0]![0]).toEqual([{ kind: 'text', text: 'base branch ' }, { kind: 'op', text: 'is' }, { kind: 'text', text: ' ' }, { kind: 'value', text: 'main, staging' }])
-    const issues = await post({ source: 'github', workflowId: wf.id, projectIds: [], config: { kind: 'issue', on: [{ type: 'opened' }, { type: 'labeled', values: ['knecht', 'bug'] }] } })
+    const issues = await post({ source: 'git', workflowId: wf.id, projectIds: [], config: { kind: 'issue', on: [{ type: 'opened' }, { type: 'labeled', values: ['knecht', 'bug'] }] } })
     expect(issues.json).toMatchObject({ event: 'On issue · opened, label knecht, bug', conditions: [] })
   })
 
   it('requires a label to trigger on labeled issues', async () => {
-    const res = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'issue', on: [{ type: 'labeled' }] } })
+    const res = await post({ source: 'git', workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'issue', on: [{ type: 'labeled' }] } })
     expect(res.status).toBe(400)
     expect(res.json).toMatchObject({ statusMessage: '"Label added" needs a value.' })
   })
 
   it('refuses events and conditions the kind does not declare', async () => {
     const wf = makeWorkflow()
-    const config = (extra: object) => ({ source: 'github', workflowId: wf.id, projectIds: [], config: { kind: 'issue', on: [{ type: 'opened' }], ...extra } })
+    const config = (extra: object) => ({ source: 'git', workflowId: wf.id, projectIds: [], config: { kind: 'issue', on: [{ type: 'opened' }], ...extra } })
     expect((await post(config({ on: [] }))).json).toMatchObject({ statusMessage: 'Pick at least one event.' })
     expect((await post(config({ on: [{ type: 'pushed' }] }))).json).toMatchObject({ statusMessage: 'Unknown event "pushed"' })
     expect((await post(config({ conditions: allOf({ base: ['main'] }) }))).json).toMatchObject({ statusMessage: 'Unknown condition "base"' })
     expect((await post(config({ conditions: allOf({ label: [] }) }))).json).toMatchObject({ statusMessage: 'Fill in or remove the "Label" condition.' })
+  })
+
+  it('takes the tracker of a tracker trigger, and only there', async () => {
+    const wf = makeWorkflow()
+    const project = makeProject()
+    setProjectLink(project.id, 'jira', 'ROLE')
+    const config = { kind: 'issue', on: [{ type: 'created' }] }
+    expect((await post({ source: 'tracker', workflowId: wf.id, projectIds: [project.id], config })).json).toMatchObject({ statusMessage: 'Pick the issue tracker' })
+    expect((await post({ source: 'git', integration: 'jira', workflowId: wf.id, projectIds: [project.id], config })).status).toBe(400)
+    expect((await post({ source: 'tracker', integration: 'github', workflowId: wf.id, projectIds: [project.id], config })).status).toBe(400)
+    const res = await post({ source: 'tracker', integration: 'jira', workflowId: wf.id, projectIds: [project.id], config })
+    expect(res.json).toMatchObject({ source: 'tracker', integration: 'jira', via: 'jira' })
+  })
+
+  it('refuses the removed integration sources', async () => {
+    for (const source of ['github', 'jira']) {
+      expect((await post({ source, workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'issue', on: [{ type: 'opened' }] } })).status).toBe(400)
+    }
   })
 
   it('refuses the removed manual source', async () => {
@@ -101,22 +119,22 @@ describe('POST /api/triggers', () => {
     const other = makeProject()
     setProjectLink(other.id, 'jira', 'WEB')
     const unlinked = makeProject()
-    expect((await post({ source: 'jira', workflowId: wf.id, projectIds: [], config: { kind: 'issue', on: [{ type: 'created' }] } })).json)
+    expect((await post({ source: 'tracker', integration: 'jira', workflowId: wf.id, projectIds: [], config: { kind: 'issue', on: [{ type: 'created' }] } })).json)
       .toMatchObject({ statusMessage: 'A Jira trigger needs at least one project' })
-    expect((await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id, unlinked.id], config: { kind: 'issue', on: [{ type: 'created' }] } })).json)
+    expect((await post({ source: 'tracker', integration: 'jira', workflowId: wf.id, projectIds: [linked.id, unlinked.id], config: { kind: 'issue', on: [{ type: 'created' }] } })).json)
       .toMatchObject({ statusMessage: expect.stringContaining('Link knecht-works/test-php to a Jira project first') })
-    expect((await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { kind: 'issue', on: [{ type: 'status' }] } })).json)
+    expect((await post({ source: 'tracker', integration: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { kind: 'issue', on: [{ type: 'status' }] } })).json)
       .toMatchObject({ statusMessage: '"Status reached" needs a value.' })
-    const both = await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id, other.id], config: { kind: 'issue', on: [{ type: 'status', values: ['category:done'] }] } })
+    const both = await post({ source: 'tracker', integration: 'jira', workflowId: wf.id, projectIds: [linked.id, other.id], config: { kind: 'issue', on: [{ type: 'status', values: ['category:done'] }] } })
     expect(both.status).toBe(200)
     expect(both.json).toMatchObject({ projectIds: [linked.id, other.id], event: 'On any Done status' })
-    const exact = await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { kind: 'issue', on: [{ type: 'status', values: ['In Progress', 'category:done'] }] } })
+    const exact = await post({ source: 'tracker', integration: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { kind: 'issue', on: [{ type: 'status', values: ['In Progress', 'category:done'] }] } })
     expect(exact.json).toMatchObject({ event: 'On status In Progress, any Done status' })
-    expect((await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { kind: 'issue', on: [{ type: 'labeled' }] } })).json)
+    expect((await post({ source: 'tracker', integration: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { kind: 'issue', on: [{ type: 'labeled' }] } })).json)
       .toMatchObject({ statusMessage: '"Label added" needs a value.' })
-    const res = await post({ source: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: allOf({ issueType: ['Bug'] }) } })
+    const res = await post({ source: 'tracker', integration: 'jira', workflowId: wf.id, projectIds: [linked.id], config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: allOf({ issueType: ['Bug'] }) } })
     expect(res.status).toBe(200)
-    expect(res.json).toMatchObject({ source: 'jira', event: 'On label knecht', config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: allOf({ issueType: ['Bug'] }) } })
+    expect(res.json).toMatchObject({ source: 'tracker', integration: 'jira', event: 'On label knecht', config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: allOf({ issueType: ['Bug'] }) } })
   })
 
   it('refuses an unknown workflow', async () => {
@@ -137,21 +155,21 @@ describe('PATCH /api/triggers/:id', () => {
     expect(row(id).nextFireAt).not.toBeNull()
   })
 
-  it('switching a github trigger to a schedule clears the github config', async () => {
-    const created = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }] } })
+  it('switching a git trigger to a schedule clears its config', async () => {
+    const created = await post({ source: 'git', workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }] } })
     const id = (created.json as { id: number }).id
     const res = await update(id, { source: 'schedule', cron: '*/15 * * * *' })
     expect(res.status).toBe(200)
     expect(res.json).toMatchObject({ source: 'schedule', endpoint: '*/15 * * * *', config: {} })
   })
 
-  it('switching a schedule to github clears the cron and validates the label', async () => {
+  it('switching a schedule to git clears the cron and validates the label', async () => {
     const created = await post({ source: 'schedule', workflowId: makeWorkflow().id, projectIds: [], cron: '0 9 * * *' })
     const id = (created.json as { id: number }).id
-    const bad = await update(id, { source: 'github', config: { kind: 'issue', on: [{ type: 'labeled' }] } })
+    const bad = await update(id, { source: 'git', config: { kind: 'issue', on: [{ type: 'labeled' }] } })
     expect(bad.status).toBe(400)
-    const res = await update(id, { source: 'github', config: { kind: 'issue', on: [{ type: 'labeled', values: ['go'] }] } })
-    expect(res.json).toMatchObject({ source: 'github', endpoint: null, event: 'On issue · label go' })
+    const res = await update(id, { source: 'git', config: { kind: 'issue', on: [{ type: 'labeled', values: ['go'] }] } })
+    expect(res.json).toMatchObject({ source: 'git', endpoint: null, event: 'On issue · label go' })
     expect(row(id)).toMatchObject({ cron: null, nextFireAt: null })
   })
 
@@ -165,7 +183,7 @@ describe('PATCH /api/triggers/:id', () => {
   })
 
   it('keeps the config when only projects change', async () => {
-    const created = await post({ source: 'github', workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }] } })
+    const created = await post({ source: 'git', workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }] } })
     const id = (created.json as { id: number }).id
     const res = await update(id, { projectIds: [makeProject().id] })
     expect(res.json).toMatchObject({ event: 'On issue · label knecht' })
