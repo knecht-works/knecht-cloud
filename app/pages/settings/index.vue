@@ -13,7 +13,8 @@ async function logout() {
   await navigateTo('/login')
 }
 
-const { data: invites, refresh: refreshInvites } = await useFetch('/api/invites', { default: () => [] })
+const isOwner = computed(() => !!me.value?.isOwner)
+const { data: invites, refresh: refreshInvites } = await useFetch('/api/invites', { default: () => [], immediate: isOwner.value })
 // The server keeps only a hash, so a link can be copied only in the tab that created it.
 const inviteUrls = ref<Record<number, string>>({})
 const inviting = ref(false)
@@ -151,7 +152,7 @@ async function remove(login: string) {
           </div>
         </div>
         <UTooltip
-          v-if="!m.isOwner"
+          v-if="isOwner && !m.isOwner"
           text="Remove"
         >
           <UButton
@@ -166,74 +167,76 @@ async function remove(login: string) {
         </UTooltip>
       </div>
 
-      <div
-        v-for="i in invites"
-        :key="`invite-${i.id}`"
-        class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3"
-      >
-        <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
-          <UIcon
-            name="i-lucide-link"
-            class="size-3.5"
-          />
-        </span>
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <span class="truncate text-sm text-toned">Invite link</span>
-            <UBadge
-              color="neutral"
-              variant="subtle"
-              size="sm"
-              label="Pending"
-            />
-          </div>
-          <div class="k-mono truncate text-2xs text-dimmed">
-            expires {{ expiresIn(i.expiresAt) }}<template v-if="i.createdBy">
-              · @{{ i.createdBy }}
-            </template>
-          </div>
-        </div>
-        <UTooltip
-          v-if="inviteUrls[i.id]"
-          text="Copy link"
+      <template v-if="isOwner">
+        <div
+          v-for="i in invites"
+          :key="`invite-${i.id}`"
+          class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3"
         >
-          <UButton
-            icon="i-lucide-copy"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            aria-label="Copy invite link"
-            @click="copyInvite(i.id)"
-          />
-        </UTooltip>
-        <UTooltip text="Revoke">
-          <UButton
-            icon="i-lucide-x"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            :loading="revoking === i.id"
-            aria-label="Revoke invite link"
-            @click="revoke(i.id)"
-          />
-        </UTooltip>
-      </div>
+          <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
+            <UIcon
+              name="i-lucide-link"
+              class="size-3.5"
+            />
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="truncate text-sm text-toned">Invite link</span>
+              <UBadge
+                color="neutral"
+                variant="subtle"
+                size="sm"
+                label="Pending"
+              />
+            </div>
+            <div class="k-mono truncate text-2xs text-dimmed">
+              expires {{ expiresIn(i.expiresAt) }}<template v-if="i.createdBy">
+                · @{{ i.createdBy }}
+              </template>
+            </div>
+          </div>
+          <UTooltip
+            v-if="inviteUrls[i.id]"
+            text="Copy link"
+          >
+            <UButton
+              icon="i-lucide-copy"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              aria-label="Copy invite link"
+              @click="copyInvite(i.id)"
+            />
+          </UTooltip>
+          <UTooltip text="Revoke">
+            <UButton
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              :loading="revoking === i.id"
+              aria-label="Revoke invite link"
+              @click="revoke(i.id)"
+            />
+          </UTooltip>
+        </div>
 
-      <button
-        type="button"
-        class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3 text-left text-sm text-muted hover:text-toned disabled:opacity-60"
-        :disabled="inviting"
-        @click="invite"
-      >
-        <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
-          <UIcon
-            :name="inviting ? 'i-lucide-loader-circle' : 'i-lucide-plus'"
-            class="size-3.5"
-            :class="{ 'animate-spin': inviting }"
-          />
-        </span>
-        Create invite link
-      </button>
+        <button
+          type="button"
+          class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3 text-left text-sm text-muted hover:text-toned disabled:opacity-60"
+          :disabled="inviting"
+          @click="invite"
+        >
+          <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
+            <UIcon
+              :name="inviting ? 'i-lucide-loader-circle' : 'i-lucide-plus'"
+              class="size-3.5"
+              :class="{ 'animate-spin': inviting }"
+            />
+          </span>
+          Create invite link
+        </button>
+      </template>
     </div>
   </KPanel>
 </template>

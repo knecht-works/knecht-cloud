@@ -1,7 +1,8 @@
 import { getMember, listMembers, removeMember } from '../../stores/members'
+import { requireOwner } from '../../utils/owner'
 
 export default defineEventHandler(async (event) => {
-  await requireUserSession(event)
+  await requireOwner(event)
 
   const login = getRouterParam(event, 'login')
   if (!login) {

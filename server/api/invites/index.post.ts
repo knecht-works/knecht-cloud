@@ -1,6 +1,7 @@
 import { createInvite } from '../../stores/invites'
+import { requireOwner } from '../../utils/owner'
 
 export default defineEventHandler(async (event) => {
-  const { user } = await requireUserSession(event)
-  return createInvite(user.login)
+  const owner = await requireOwner(event)
+  return createInvite(owner.login)
 })
