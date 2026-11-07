@@ -3,7 +3,7 @@ const { user, clear, fetch: refreshSession } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()
 
-const { data: signIn, refresh: refreshSignIn } = await useFetch('/api/me/sign-in')
+const { data: signIn } = await useSignInMethods()
 
 async function logout() {
   await clear()
@@ -198,7 +198,6 @@ async function saveName() {
       <KSignInMethods
         v-if="signIn"
         :methods="signIn"
-        @changed="refreshSignIn"
       />
     </KPanel>
   </div>
