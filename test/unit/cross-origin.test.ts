@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { withoutDashboardCookie } from '../../server/utils/preview-proxy'
-import { isForeignOrigin } from '../../server/utils/origin'
+import { isForeignOrigin, localPath } from '../../server/utils/origin'
 
 describe('isForeignOrigin', () => {
   it('accepts the dashboard itself and requests without an Origin', () => {
@@ -13,6 +13,16 @@ describe('isForeignOrigin', () => {
     expect(isForeignOrigin('https://115.preview.knecht.example', 'knecht.example')).toBe(true)
     expect(isForeignOrigin('https://evil.example', 'knecht.example')).toBe(true)
     expect(isForeignOrigin('null', 'knecht.example')).toBe(true)
+  })
+})
+
+describe('localPath', () => {
+  it('keeps a path on the dashboard', () => {
+    expect(localPath('/profile?tab=1#x')).toBe('/profile?tab=1#x')
+  })
+
+  it.each(['//evil.example', '/\\evil.example', '/\t/evil.example', '/x/..//evil.example', 'https://evil.example', 'profile', undefined])('refuses %j', (value) => {
+    expect(localPath(value)).toBeUndefined()
   })
 })
 
