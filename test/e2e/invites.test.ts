@@ -46,6 +46,9 @@ describe('invite links', () => {
     const members = await expectJson<Member[]>(await fetch(`${BASE_URL}/api/members`, { headers: { cookie } }))
     expect(members.find(m => m.login === username)).toMatchObject({ invitedBy: owner.login.toLowerCase() })
     expect(JSON.stringify(members)).not.toContain('passwordHash')
+    expect((await fetch(`${BASE_URL}/api/invites`, { method: 'POST', headers: { cookie } })).status).toBe(403)
+    expect((await fetch(`${BASE_URL}/api/invites`, { headers: { cookie } })).status).toBe(403)
+    expect((await fetch(`${BASE_URL}/api/members/${username}`, { method: 'DELETE', headers: { cookie } })).status).toBe(403)
 
     expect((await join(token, { username: `${username}-2`, password })).status).toBe(404)
     expect((await fetch(`${BASE_URL}/auth/invite/${token}`)).status).toBe(404)
