@@ -48,7 +48,7 @@ interface Fixture {
   sign?: (secret: string, raw: string) => string
   headers: Record<string, string>
   project: () => { id: number }
-  body: (project: { githubId: number, jiraProjectKey: string, planeProjectId: string, linearTeamKey: string }) => object
+  body: (project: { repoId: string, jiraProjectKey: string, planeProjectId: string, linearTeamKey: string }) => object
   unknownBody: object
   triggerConfig: TriggerConfig
 }
@@ -60,7 +60,7 @@ const FIXTURES: Record<string, Fixture> = {
     signatureHeader: 'x-hub-signature-256',
     headers: { 'x-github-event': 'issues' },
     project: () => makeProject(),
-    body: p => ({ action: 'opened', issue: { number: 1, title: 'T', body: 'B', html_url: 'https://x/1' }, repository: { id: p.githubId } }),
+    body: p => ({ action: 'opened', issue: { number: 1, title: 'T', body: 'B', html_url: 'https://x/1' }, repository: { id: Number(p.repoId) } }),
     unknownBody: { action: 'opened', repository: { id: 424242 } },
     triggerConfig: { kind: 'issue', on: [{ type: 'opened' }], conditions: [] },
   },

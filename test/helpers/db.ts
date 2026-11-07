@@ -3,16 +3,15 @@ import { db, schema } from '../../server/db'
 import type { Project, Run, Session } from '../../server/db/schema'
 import { ensureStepIds, type Step } from '../../shared/utils/workflow'
 
-let nextGithubId = 1
+let nextRepoId = 1
 
 export function makeProject(overrides: Partial<typeof schema.projects.$inferInsert> = {}): Project {
   return db.insert(schema.projects).values({
-    githubId: nextGithubId++,
+    repoId: String(nextRepoId++),
     owner: 'knecht-works',
     name: 'test-php',
     fullName: 'knecht-works/test-php',
     defaultBranch: 'main',
-    cloneUrl: 'https://github.com/knecht-works/test-php.git',
     ...overrides,
   }).returning().get()
 }

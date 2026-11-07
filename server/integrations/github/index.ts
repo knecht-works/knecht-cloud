@@ -1,5 +1,5 @@
 import { getGithubAppRow } from '../../stores/github-app'
-import { getProjectByGithubId } from '../../stores/projects'
+import { getProjectByRepo } from '../../stores/projects'
 import { addCommentReaction, addIssueLabels, createIssueComment, listRepoAssignees, listRepoBranches, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
@@ -68,8 +68,8 @@ export const github: Integration = {
     async parse(raw, header) {
       const name = header('x-github-event') ?? ''
       const payload = (tryParseJson(raw) ?? {}) as GithubPayload
-      const githubId = payload.repository?.id
-      const project = githubId ? getProjectByGithubId(githubId) : undefined
+      const repoId = payload.repository?.id
+      const project = repoId ? getProjectByRepo('github', String(repoId)) : undefined
       if (!project) return null
 
       const action = payload.action ?? ''

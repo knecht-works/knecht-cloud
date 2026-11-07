@@ -50,7 +50,7 @@ function makeGithubTrigger(projectIds: number[], config: TriggerConfig = PR_OPEN
   return makeTrigger('github', projectIds, config)
 }
 
-const repo = (project: { githubId: number, fullName: string }) => ({ id: project.githubId, full_name: project.fullName })
+const repo = (project: { repoId: string, fullName: string }) => ({ id: Number(project.repoId), full_name: project.fullName })
 
 let repoN = 0
 function makeRepoProject() {

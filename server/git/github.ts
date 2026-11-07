@@ -1,5 +1,5 @@
 import { resolveProjectMeta } from '../utils/framework'
-import { createPullRequest, getInstallationClient, getInstallationToken, listRepoBranches } from '../utils/github-app'
+import { createPullRequest, getInstallationClient, getInstallationToken, listAppRepositories, listRepoBranches } from '../utils/github-app'
 import type { GitProvider } from './types'
 
 export const githubProvider: GitProvider = {
@@ -15,6 +15,20 @@ export const githubProvider: GitProvider = {
 
   repoUrl: repo => `https://github.com/${repo.fullName}`,
   branchUrl: (repo, branch) => `https://github.com/${repo.fullName}/tree/${branch}`,
+  async listRepos() {
+    return (await listAppRepositories())
+      .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''))
+      .map(r => ({
+        repoId: String(r.id),
+        owner: r.owner.login,
+        name: r.name,
+        fullName: r.full_name,
+        private: r.private,
+        defaultBranch: r.default_branch,
+        description: r.description,
+      }))
+  },
+
   listBranches: repo => listRepoBranches(repo.owner, repo.name),
   createPullRequest: (repo, params) => createPullRequest(repo.owner, repo.name, params),
 

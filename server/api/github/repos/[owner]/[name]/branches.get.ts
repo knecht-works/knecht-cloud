@@ -1,4 +1,4 @@
-import { listRepoBranches } from '../../../../../utils/github-app'
+import { GIT_PROVIDERS } from '../../../../../git'
 
 export default defineEventHandler(async (event) => {
   const owner = getRouterParam(event, 'owner')
@@ -7,5 +7,5 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid repo' })
   }
 
-  return listRepoBranches(owner, name)
+  return GIT_PROVIDERS.github.listBranches({ repoProvider: 'github', owner, name, fullName: `${owner}/${name}` })
 })

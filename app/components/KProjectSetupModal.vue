@@ -52,13 +52,13 @@ async function connect() {
     project.value = await $fetch('/api/projects', {
       method: 'POST',
       body: {
-        githubId: selected.value.githubId,
+        repoProvider: selected.value.repoProvider,
+        repoId: selected.value.repoId,
         owner: selected.value.owner,
         name: selected.value.name,
         fullName: selected.value.fullName,
         defaultBranch: branch.value ?? selected.value.defaultBranch,
         private: selected.value.private,
-        cloneUrl: selected.value.cloneUrl,
       },
     })
     emit('created')

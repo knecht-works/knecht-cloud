@@ -3,6 +3,9 @@
 export const INTEGRATION_IDS = ['github', 'jira', 'plane', 'linear'] as const
 export type IntegrationId = typeof INTEGRATION_IDS[number]
 
+export const REPO_PROVIDERS = ['github'] as const
+export type RepoProvider = typeof REPO_PROVIDERS[number]
+
 export const TRIGGER_SOURCES = ['schedule', ...INTEGRATION_IDS] as const
 export type TriggerSource = typeof TRIGGER_SOURCES[number]
 
