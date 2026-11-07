@@ -163,7 +163,7 @@ async function remove() {
         </div>
         <UTooltip text="Edit profile">
           <UButton
-            to="/settings/profile"
+            to="/profile"
             icon="i-lucide-pencil"
             color="neutral"
             variant="ghost"
