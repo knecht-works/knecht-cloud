@@ -135,7 +135,7 @@ watch(built, () => {
 <template>
   <div class="space-y-4">
     <div>
-      <div class="flex items-center justify-between">
+      <div class="flex min-h-7 items-center justify-between">
         <span class="k-label">Fires when any of these happens</span>
         <div
           v-if="form.length > 1"
