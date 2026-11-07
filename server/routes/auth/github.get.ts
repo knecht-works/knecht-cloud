@@ -21,23 +21,11 @@ export default defineEventHandler(async (event) => {
 
   if (!query.code) {
     const state = randomBytes(16).toString('hex')
-    setCookie(event, 'knecht-oauth-state', state, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 600,
-    })
-    if (query.link || query.elevate) {
-      setCookie(event, 'knecht-link', query.link ? 'link' : 'elevate', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600 })
-    }
+    setFlowCookie(event, 'oauth-state', state)
+    if (query.link || query.elevate) setFlowCookie(event, 'link', query.link ? 'link' : 'elevate')
     const returnTo = localPath(query.return)
-    if (returnTo) {
-      setCookie(event, 'knecht-return', returnTo, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600 })
-    }
-    if (typeof query.invite === 'string') {
-      setCookie(event, 'knecht-invite', query.invite, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600 })
-    }
+    if (returnTo) setFlowCookie(event, 'return', returnTo)
+    if (typeof query.invite === 'string') setFlowCookie(event, 'invite', query.invite)
     return sendRedirect(event, withQuery('https://github.com/login/oauth/authorize', {
       client_id: creds.clientId,
       redirect_uri: redirectUri,
@@ -46,14 +34,10 @@ export default defineEventHandler(async (event) => {
     }))
   }
 
-  const expected = getCookie(event, 'knecht-oauth-state')
-  deleteCookie(event, 'knecht-oauth-state', { path: '/' })
-  const inviteToken = getCookie(event, 'knecht-invite')
-  deleteCookie(event, 'knecht-invite', { path: '/' })
-  const mode = getCookie(event, 'knecht-link')
-  deleteCookie(event, 'knecht-link', { path: '/' })
-  const returnTo = localPath(getCookie(event, 'knecht-return')) ?? '/'
-  deleteCookie(event, 'knecht-return', { path: '/' })
+  const expected = popFlowCookie(event, 'oauth-state')
+  const inviteToken = popFlowCookie(event, 'invite')
+  const mode = popFlowCookie(event, 'link')
+  const returnTo = localPath(popFlowCookie(event, 'return')) ?? '/'
   if (!expected || query.state !== expected) {
     console.error('GitHub OAuth error: state mismatch')
     return sendRedirect(event, '/login?error=oauth')
@@ -117,6 +101,21 @@ export default defineEventHandler(async (event) => {
     return sendRedirect(event, '/login?error=oauth')
   }
 })
+
+// __Host- cookies cannot be planted by a preview subdomain, so a callback only
+// completes a flow this browser started here. Plain http (dev) cannot set them.
+const secure = process.env.NODE_ENV === 'production'
+const flowCookie = (name: string) => `${secure ? '__Host-' : ''}knecht-${name}`
+
+function setFlowCookie(event: H3Event, name: string, value: string) {
+  setCookie(event, flowCookie(name), value, { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: 600 })
+}
+
+function popFlowCookie(event: H3Event, name: string): string | undefined {
+  const value = getCookie(event, flowCookie(name))
+  deleteCookie(event, flowCookie(name), { secure, path: '/' })
+  return value
+}
 
 // Only our own base domain is honored (no open redirect).
 function popRedirect(event: H3Event): string {
