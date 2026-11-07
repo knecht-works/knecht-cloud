@@ -198,15 +198,15 @@ const menuItems = computed(() => [
     disabled: togglingEnabled.value,
     onSelect: () => { void toggleEnabled() },
   }],
-  (['yaml', 'json'] as const).map(format => ({
-    label: `Export ${format.toUpperCase()}`,
-    icon: 'i-lucide-file-down',
-    disabled: !valid.value,
-    onSelect: () => {
-      if (saved.value) window.location.assign(`/api/workflows/${saved.value.id}/export?format=${format}`)
-    },
-  })),
   [
+    ...(['yaml', 'json'] as const).map(format => ({
+      label: `Export ${format.toUpperCase()}`,
+      icon: 'i-lucide-file-down',
+      disabled: !valid.value,
+      onSelect: () => {
+        if (saved.value) window.location.assign(`/api/workflows/${saved.value.id}/export?format=${format}`)
+      },
+    })),
     ...(hasIncompleteEdits.value
       ? [{
           label: 'Discard incomplete edits',
