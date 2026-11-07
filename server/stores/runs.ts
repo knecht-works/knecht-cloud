@@ -154,10 +154,10 @@ export function sessionHasActiveRun(sessionId: number): boolean {
     .get()
 }
 
-export function ranOnVersion(triggerId: number, sessionId: number, version: string): boolean {
+export function workflowRanOnVersion(workflowId: number, sessionId: number, version: string): boolean {
   return !!db.select({ id: schema.runs.id })
     .from(schema.runs)
-    .where(and(eq(schema.runs.triggerId, triggerId), eq(schema.runs.sessionId, sessionId), eq(schema.runs.objectVersion, version)))
+    .where(and(eq(schema.runs.workflowId, workflowId), eq(schema.runs.sessionId, sessionId), eq(schema.runs.objectVersion, version)))
     .get()
 }
 

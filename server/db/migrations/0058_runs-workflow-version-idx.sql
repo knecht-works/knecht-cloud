@@ -1,0 +1,1 @@
+CREATE INDEX `runs_workflow_version_idx` ON `runs` (`workflow_id`,`session_id`,`object_version`);
