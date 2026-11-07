@@ -81,3 +81,20 @@ describe('setOwner', () => {
     expect(owners()).toEqual(['second-owner'])
   })
 })
+
+describe('own name and picture', () => {
+  it('survive a later provider login', async () => {
+    const { setAvatarImage, setName } = await import('../../server/stores/members')
+    const owner = loginWithIdentity('github', { subject: '1', username: 'owner' }, profile)!
+    setName(owner.id, 'Sam')
+    setAvatarImage(owner.id, 'data:image/png;base64,AAAA')
+
+    const after = loginWithIdentity('github', { subject: '1', username: 'owner' }, { name: 'GitHub Name', avatarUrl: 'https://avatars/2' })!
+    expect(after.name).toBe('Sam')
+    expect(after.avatarUrl).toMatch(new RegExp(`^/api/avatars/${owner.id}\\?v=\\d+$`))
+
+    setName(owner.id, null)
+    setAvatarImage(owner.id, null)
+    expect(loginWithIdentity('github', { subject: '1', username: 'owner' }, { name: 'GitHub Name', avatarUrl: 'https://avatars/2' })).toMatchObject({ name: 'GitHub Name', avatarUrl: 'https://avatars/2' })
+  })
+})

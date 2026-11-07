@@ -447,7 +447,10 @@ export const members = sqliteTable('members', {
   login: text('login').notNull().unique(),
 
   name: text('name'),
+  nameIsOwn: integer('name_is_own', { mode: 'boolean' }).notNull().default(false),
   avatarUrl: text('avatar_url'),
+  // An uploaded picture as a data URL; avatar_url then points to the route that serves it.
+  avatarImage: text('avatar_image'),
   passwordHash: text('password_hash'),
 
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),

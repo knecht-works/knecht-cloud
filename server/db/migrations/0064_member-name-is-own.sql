@@ -1,0 +1,1 @@
+ALTER TABLE `members` ADD `name_is_own` integer DEFAULT false NOT NULL;

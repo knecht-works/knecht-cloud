@@ -6,8 +6,10 @@ const props = defineProps<{
 
 const route = useRoute()
 
+// A section whose path prefixes another section's matches only itself.
 function isActive(to: string) {
-  return to === props.sections[0]?.to ? route.path === to : route.path.startsWith(to)
+  const hasChildSection = props.sections.some(s => s.to !== to && s.to.startsWith(`${to}/`))
+  return hasChildSection ? route.path === to : route.path.startsWith(to)
 }
 </script>
 
