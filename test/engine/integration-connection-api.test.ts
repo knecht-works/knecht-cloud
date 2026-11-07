@@ -6,6 +6,22 @@ const myself = async () => {
   if (vendor.rejects) throw new Error('401')
   return { displayName: 'Knecht', accountId: 'acc-1' }
 }
+const access = vi.hoisted(() => ({ owner: true, elevated: true }))
+vi.mock('../../server/utils/owner', async () => {
+  const { createError } = await import('h3')
+  return {
+    requireOwner: async () => {
+      if (!access.owner) throw createError({ statusCode: 403, statusMessage: 'Only an owner can do this.' })
+    },
+    isOwner: async () => access.owner,
+  }
+})
+vi.mock('../../server/utils/member-session', async () => {
+  const { createError } = await import('h3')
+  return { requireElevated: async () => {
+    if (!access.elevated) throw createError({ statusCode: 403, statusMessage: 'Confirm it’s you to continue.', data: { reauth: true } })
+  } }
+})
 vi.mock('../../server/utils/github-app', () => ({}))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
@@ -84,6 +100,37 @@ describe.each(INTEGRATIONS.filter(i => i.connection).map(i => [i.id, i] as const
     const before = ((await call('get', id, { method: 'GET' })).json as { webhookSecret: string }).webhookSecret
     const again = (await call('post', id, { body })).json as { webhookSecret: string }
     expect(again.webhookSecret).toBe(before)
+  })
+
+  it('keeps the stored secrets when a reconnect leaves them empty', async () => {
+    const blank = Object.fromEntries(secrets.map(k => [k, '']))
+    expect((await call('post', id, { body: { ...body, ...blank } })).status).toBe(200)
+    expect(integration.connection!.store.secrets()).toEqual(Object.fromEntries(secrets.map(k => [k, body[k]])))
+  })
+
+  it('lets only an owner with a confirmed session change the connection', async () => {
+    const attempts = () => Promise.all([
+      call('post', id, { body }),
+      call('delete', id, { method: 'DELETE' }),
+      call('secret', id, { body: { webhookSecret: 'whsec' } }),
+    ])
+    access.owner = false
+    for (const res of await attempts()) expect(res.status).toBe(403)
+    access.owner = true
+    access.elevated = false
+    for (const res of await attempts()) expect(res.json).toMatchObject({ statusCode: 403, data: { reauth: true } })
+    access.elevated = true
+    expect((await call('get', id, { method: 'GET' })).json).toMatchObject({ configured: true })
+  })
+
+  it('shows members the webhook secret only as a preview', async () => {
+    const secret = ((await call('get', id, { method: 'GET' })).json as { webhookSecret: string }).webhookSecret
+    access.owner = false
+    const masked = ((await call('get', id, { method: 'GET' })).json as { webhookSecret: string }).webhookSecret
+    access.owner = true
+    expect(masked).toBeTruthy()
+    expect(masked).not.toBe(secret)
+    expect(masked).toContain('*')
   })
 
   it('disconnects', async () => {

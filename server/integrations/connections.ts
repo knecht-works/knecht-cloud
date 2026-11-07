@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { deleteConnection, getConnectionRow, updateConnection, upsertConnection } from '../stores/integration-connections'
 import { decrypt, encrypt } from '../utils/crypto'
 import { dashboardOrigin } from '../utils/origin'
-import { keyPreview } from '../utils/settings'
+import { keyPreview } from '../../shared/utils/key-preview'
 import type { ConnectionFormDef, ConnectionStatus } from '../../shared/utils/connection-form'
 import type { IntegrationId } from '../../shared/utils/integrations'
 import type { DeliveryRecord } from './types'
@@ -21,6 +21,7 @@ export interface ConnectionAccount {
 
 export interface ConnectionStore {
   status(): ConnectionStatus
+  secrets(): Record<string, string>
   save(values: Record<string, string>, account?: ConnectionAccount): void
   saveWebhookSecret(secret: string): void
   remove(): void
@@ -77,6 +78,11 @@ export function createConnectionStore<F extends string>(id: IntegrationId, form:
         lastDelivery: row?.lastDeliveryAt && row.lastDeliverySummary ? { at: seconds(row.lastDeliveryAt), summary: row.lastDeliverySummary } : null,
         lastRejected: row?.lastRejectedAt && row.lastRejectedReason ? { at: seconds(row.lastRejectedAt), reason: row.lastRejectedReason } : null,
       }
+    },
+
+    secrets() {
+      const creds = credentials()
+      return creds ? Object.fromEntries([...secretKeys].filter(key => creds[key as F]).map(key => [key, creds[key as F]])) : {}
     },
 
     save(values, account = {}) {
