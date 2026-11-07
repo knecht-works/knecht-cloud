@@ -1,6 +1,6 @@
 // The repos do not exist on GitHub: framework/ddevEnv/favicon are pre-filled so
 // the backfill never fires, but a real run against them fails at checkout.
-// Usage: npm run db:seed:demo (idempotent, keyed on github_id)
+// Usage: npm run db:seed:demo (idempotent, keyed on repo_id)
 import Database from 'better-sqlite3'
 
 const dbPath = process.env.KNECHT_DB_PATH || '.data/knecht.db'
@@ -18,12 +18,12 @@ const ddevEnv = (phpVersion, nodeVersion = '20') => JSON.stringify({
 
 // Far above any real repo id, so a later real connect can never collide.
 const projects = [
-  { githubId: 990000001, owner: 'stadtwerke-mch', name: 'typo3-portal', defaultBranch: 'main', framework: 'typo3', frameworkVersion: '13.4', ddevEnv: ddevEnv('8.3') },
-  { githubId: 990000002, owner: 'klinikum-nord', name: 'wp-relaunch', defaultBranch: 'develop', framework: 'wordpress', frameworkVersion: '6.5', ddevEnv: ddevEnv('8.2') },
-  { githubId: 990000003, owner: 'acme-intra', name: 'craft-intranet', defaultBranch: 'main', framework: 'craftcms', frameworkVersion: '4.10', ddevEnv: ddevEnv('8.2') },
-  { githubId: 990000004, owner: 'handelshaus', name: 'shopware-b2b', defaultBranch: 'main', framework: 'shopware6', frameworkVersion: '6.6', ddevEnv: ddevEnv('8.3', '22') },
-  { githubId: 990000005, owner: 'kanzlei-roth', name: 'typo3-web', defaultBranch: 'staging', framework: 'typo3', frameworkVersion: '12.4', ddevEnv: ddevEnv('8.1') },
-  { githubId: 990000006, owner: 'verein-gruen', name: 'wp-events', defaultBranch: 'main', framework: 'wordpress', frameworkVersion: '6.4', ddevEnv: ddevEnv('8.2') },
+  { repoId: '990000001', owner: 'stadtwerke-mch', name: 'typo3-portal', defaultBranch: 'main', framework: 'typo3', frameworkVersion: '13.4', ddevEnv: ddevEnv('8.3') },
+  { repoId: '990000002', owner: 'klinikum-nord', name: 'wp-relaunch', defaultBranch: 'develop', framework: 'wordpress', frameworkVersion: '6.5', ddevEnv: ddevEnv('8.2') },
+  { repoId: '990000003', owner: 'acme-intra', name: 'craft-intranet', defaultBranch: 'main', framework: 'craftcms', frameworkVersion: '4.10', ddevEnv: ddevEnv('8.2') },
+  { repoId: '990000004', owner: 'handelshaus', name: 'shopware-b2b', defaultBranch: 'main', framework: 'shopware6', frameworkVersion: '6.6', ddevEnv: ddevEnv('8.3', '22') },
+  { repoId: '990000005', owner: 'kanzlei-roth', name: 'typo3-web', defaultBranch: 'staging', framework: 'typo3', frameworkVersion: '12.4', ddevEnv: ddevEnv('8.1') },
+  { repoId: '990000006', owner: 'verein-gruen', name: 'wp-events', defaultBranch: 'main', framework: 'wordpress', frameworkVersion: '6.4', ddevEnv: ddevEnv('8.2') },
 ]
 
 // Only success/failed: a seeded 'queued' run would get claimed by the dispatcher.
@@ -51,10 +51,10 @@ const runsByOwner = {
 
 const insertProject = db.prepare(`
   INSERT OR IGNORE INTO projects
-    (github_id, owner, name, full_name, default_branch, private, clone_url,
+    (repo_provider, repo_id, owner, name, full_name, default_branch, private,
      framework, framework_version, ddev_env, favicon)
   VALUES
-    (@githubId, @owner, @name, @fullName, @defaultBranch, 1, @cloneUrl,
+    ('github', @repoId, @owner, @name, @fullName, @defaultBranch, 1,
      @framework, @frameworkVersion, @ddevEnv, '')
 `)
 
@@ -73,7 +73,6 @@ for (const p of projects) {
   const result = insertProject.run({
     ...p,
     fullName: `${p.owner}/${p.name}`,
-    cloneUrl: `https://github.com/${p.owner}/${p.name}.git`,
   })
   if (result.changes === 0) {
     console.log(`skip  ${p.owner}/${p.name} (already seeded)`)

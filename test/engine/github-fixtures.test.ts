@@ -36,7 +36,7 @@ const fired: Record<keyof typeof CONFIGS, string[]> = Object.fromEntries(Object.
 
 beforeAll(async () => {
   saveGithubAppCredentials({ appId: '1', slug: 'knecht-test', clientId: 'c', clientSecret: 'x', privateKey: 'x', webhookSecret: SECRET })
-  const project = makeProject({ githubId: fixtures[0]!.repositoryId })
+  const project = makeProject({ repoId: String(fixtures[0]!.repositoryId) })
   const triggers = Object.entries(CONFIGS).map(([name, config]) => [name, makeTrigger('github', [project.id], config).id] as const)
   for (const { name, event, body } of fixtures) {
     const res = await callRoute(handler, { body, headers: { 'x-github-event': event, 'x-hub-signature-256': `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}` } })

@@ -3,7 +3,7 @@ import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from
 import { ENV_STATES, SESSION_TIERS, type RunDiagnosis } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import { DDEV_DATABASES, PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
-import { INTEGRATION_IDS, OBJECT_KINDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
+import { INTEGRATION_IDS, OBJECT_KINDS, REPO_PROVIDERS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
 import type { Step } from '../../shared/utils/workflow'
 
 export interface DdevEnv {
@@ -19,13 +19,13 @@ export interface DdevEnv {
 export const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
 
-  githubId: integer('github_id').notNull().unique(),
+  repoProvider: text('repo_provider', { enum: REPO_PROVIDERS }).notNull().default('github'),
+  repoId: text('repo_id').notNull(),
   owner: text('owner').notNull(),
   name: text('name').notNull(),
   fullName: text('full_name').notNull(),
   defaultBranch: text('default_branch').notNull(),
   private: integer('private', { mode: 'boolean' }).notNull().default(false),
-  cloneUrl: text('clone_url').notNull(),
 
   framework: text('framework'),
   frameworkVersion: text('framework_version'),
@@ -68,7 +68,9 @@ export const projects = sqliteTable('projects', {
   updatedAt: integer('updated_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
-})
+}, table => [
+  uniqueIndex('projects_repo_idx').on(table.repoProvider, table.repoId),
+])
 
 export type Project = typeof projects.$inferSelect
 export type NewProject = typeof projects.$inferInsert

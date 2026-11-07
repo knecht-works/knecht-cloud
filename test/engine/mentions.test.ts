@@ -31,7 +31,7 @@ function payload(body: string, overrides: Record<string, unknown> = {}) {
 
 // The GitHub payloads go through the integration's parser, like a real delivery.
 async function handleMention(project: Project, body: ReturnType<typeof payload>): Promise<string> {
-  const raw = JSON.stringify({ ...body, repository: { id: project.githubId } })
+  const raw = JSON.stringify({ ...body, repository: { id: Number(project.repoId) } })
   const delivery = await github.webhook.parse(raw, name => (name === 'x-github-event' ? 'issue_comment' : undefined))
   return handle(github, delivery!.project, delivery!.comment!)
 }
