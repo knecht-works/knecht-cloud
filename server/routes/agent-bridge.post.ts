@@ -8,7 +8,7 @@ import { sessionSandbox } from '../daemon/session-sandbox'
 import { getIntegration, type Integration } from '../integrations'
 import { addressee, applyLabels, moveToStatus } from '../integrations/capabilities'
 import { verifyBridgeToken } from '../utils/agent-bridge'
-import { createPullRequest, getInstallationToken } from '../utils/github-app'
+import { gitProvider } from '../git'
 import { withPreviewFooter } from '../utils/origin'
 import { describeObject, recordAgentReply, sessionObject, withSessionLinks, type SessionObject } from '../utils/sessions'
 import { ticketFetched } from '../utils/object-freshness'
@@ -94,9 +94,9 @@ export default defineEventHandler(async (event) => {
   try {
     switch (body.op) {
       case 'credential': {
-        const ghToken = await getInstallationToken(project.owner, project.name)
+        const { token } = await gitProvider(project).credentials(project)
         log(`\nagent-git: issued a repo credential to in-sandbox git\n`)
-        return reply(event, 200, ghToken)
+        return reply(event, 200, token)
       }
       case 'context': {
         const { integration, object } = requireObject(session)
@@ -148,9 +148,9 @@ export default defineEventHandler(async (event) => {
         if (branch === project.defaultBranch) {
           throw new BridgeError(`refusing to open a PR from the default branch '${project.defaultBranch}': create a work branch first (git checkout -b <name>)`)
         }
-        const ghToken = await getInstallationToken(project.owner, project.name)
-        await pushBranch(sandbox, branch, ghToken)
-        const pr = await createPullRequest(project.owner, project.name, {
+        const git = gitProvider(project)
+        await pushBranch(sandbox, branch, await git.credentials(project))
+        const pr = await git.createPullRequest(project, {
           title: body.title,
           body: withPreviewFooter(body.body ?? '', sessionId),
           head: branch,

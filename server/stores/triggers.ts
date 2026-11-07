@@ -15,9 +15,13 @@ export function listTriggers(): Trigger[] {
   return db.select().from(schema.triggers).orderBy(desc(schema.triggers.id)).all()
 }
 
-export function listActiveTriggers(source: Trigger['source']): Trigger[] {
+export function listActiveTriggers(source: Trigger['source'], integration: Trigger['integration'] = null): Trigger[] {
   return db.select().from(schema.triggers)
-    .where(and(eq(schema.triggers.source, source), eq(schema.triggers.active, true)))
+    .where(and(
+      eq(schema.triggers.source, source),
+      integration ? eq(schema.triggers.integration, integration) : undefined,
+      eq(schema.triggers.active, true),
+    ))
     .all()
 }
 

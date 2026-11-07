@@ -4,8 +4,9 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { db, schema } from '../../server/db'
 import type { Project } from '../../server/db/schema'
 import type { Integration } from '../../server/integrations/types'
+import { gitTriggerForm } from '../../server/integrations/git-trigger-form'
 import { resolveSession, type SessionObject } from '../../server/utils/sessions'
-import type { IntegrationId } from '../../shared/utils/integrations'
+import { integrationRole, isTrackerId, type IntegrationId } from '../../shared/utils/integrations'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { getSessionRow } from './db'
 import { callRoute } from './routes'
@@ -72,9 +73,13 @@ export function makeWorkflow() {
   }).returning().get()
 }
 
-export function makeTrigger(source: IntegrationId, projectIds: number[], config: TriggerConfig, active = true) {
+export function triggerSourceOf(id: IntegrationId) {
+  return { source: integrationRole(id), integration: isTrackerId(id) ? id : null }
+}
+
+export function makeTrigger(id: IntegrationId, projectIds: number[], config: TriggerConfig, active = true) {
   return db.insert(schema.triggers).values({
-    source,
+    ...triggerSourceOf(id),
     workflowId: makeWorkflow().id,
     projectIds,
     active,
@@ -159,7 +164,7 @@ export function describeIntegrationWebhook<P extends Project, D>(fx: WebhookFixt
     // A filter key the matcher never fills would silently never match; every key the form
     // offers must be found on the object, and the fixture must know all of them.
     it('fills every filter the form offers', async () => {
-      const form = fx.integration.trigger.form
+      const form = fx.integration.trigger?.form ?? gitTriggerForm
       expect(fx.filters.map(f => f.config.kind).sort()).toEqual(form.map(k => k.kind).sort())
       for (const { config, delivery, values } of fx.filters) {
         const keys = form.find(k => k.kind === config.kind)!.filters.map(f => f.key)
@@ -167,7 +172,7 @@ export function describeIntegrationWebhook<P extends Project, D>(fx: WebhookFixt
         const project = fx.makeProject()
         const triggers = keys.map(field => [field, makeTrigger(id, [project.id], {
           ...config,
-          conditions: [[{ field, op: 'is', values: [values[field]!] }]],
+          conditions: [{ field, op: 'is', values: [values[field]!] }],
         })] as const)
         await deliver(delivery(project))
         for (const [field, trigger] of triggers) expect(runsOf(trigger.id), `${config.kind} ${field}`).toHaveLength(1)

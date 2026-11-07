@@ -3,7 +3,7 @@ import { linkedKeys, linkedProject } from '../../stores/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import { sessionHasActiveWork, type SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelFilter, objectVersion, priorityFilter } from '../trigger-config'
+import { integrationLabelsUrl, labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { addPlaneComment, downloadPlaneAsset, downloadPlaneAttachment, forgetPlaneCache, getPlaneComment, getPlaneRelations, getPlaneWorkItemRaw, listPlaneAttachments, listPlaneLinks, listPlaneWorkItems, planeMyself, planeUserName, getPlaneWorkItem, getPlaneWorkItemByKey, listPlaneComments, listPlaneLabels, listPlaneMembers, listPlaneProjects, listPlaneStates, planeProjectById, planeProjectByIdentifier, planeWorkItemUrl, updatePlaneWorkItem, type PlaneLabel, type PlaneMember, type PlaneProject, type PlaneState, type PlaneWorkItem } from './api'
@@ -26,7 +26,7 @@ const PLANE_TRACKER: TrackerDef = {
     options: 'states',
   },
   filters: [
-    labelFilter('plane'),
+    labelFilter(integrationLabelsUrl('plane')),
     priorityFilter(),
   ],
 }

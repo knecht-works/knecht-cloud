@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from './index'
 import { stripLegacyModelPrefix } from '../../shared/utils/ai'
+import { TRACKER_IDS } from '../../shared/utils/integrations'
 import type { TriggerCondition } from '../../shared/utils/trigger-form'
 import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '../../shared/utils/workflow'
 
@@ -14,6 +15,8 @@ const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0006_trigger_conditions', run: triggerConditions },
   { name: '0007_trigger_event_values', run: triggerEventValues },
   { name: '0008_redetect_frameworks', run: redetectFrameworks },
+  { name: '0009_trigger_roles', run: triggerRoles },
+  { name: '0010_single_event_triggers', run: singleEventTriggers },
 ]
 
 export function runDataMigrations(): void {
@@ -119,7 +122,7 @@ function fromLegacyJira(c: LegacyJiraConfig): FilterTriggerConfig {
 function triggerEventConfigs(): void {
   for (const row of db.select().from(schema.triggers).all()) {
     if (row.source === 'schedule' || Array.isArray(row.config.on)) continue
-    const config = row.source === 'github' ? fromLegacyGithub(row.config) : fromLegacyJira(row.config)
+    const config = (row.source as string) === 'github' ? fromLegacyGithub(row.config) : fromLegacyJira(row.config)
     db.update(schema.triggers).set({ config: { ...config } }).where(eq(schema.triggers.id, row.id)).run()
   }
 }
@@ -141,5 +144,69 @@ function triggerEventValues(): void {
     if (row.source === 'schedule' || !on?.some(e => e.value !== undefined)) continue
     const events = on.map(({ value, ...e }) => (value === undefined ? e : { ...e, values: [value] }))
     db.update(schema.triggers).set({ config: { ...row.config, on: events } }).where(eq(schema.triggers.id, row.id)).run()
+  }
+}
+
+function triggerRoles(): void {
+  db.update(schema.triggers).set({ source: 'git' }).where(eq(schema.triggers.source, 'github' as never)).run()
+  for (const id of TRACKER_IDS) {
+    db.update(schema.triggers).set({ source: 'tracker', integration: id }).where(eq(schema.triggers.source, id as never)).run()
+  }
+}
+
+interface LegacyEvent { type: string, values?: string[] }
+interface LegacyCondition { field: string, op: 'is' | 'is-not', values: string[] }
+
+// The tracker's word for a status: the old status event type and condition field.
+const LEGACY_STATUS_KEYS: Record<string, string> = { jira: 'status', plane: 'state', linear: 'status' }
+
+// `unsupported`: a status condition the new shape cannot express, so the trigger must not fire any more.
+function singleEventConfig(kind: string | undefined, event: LegacyEvent, group: LegacyCondition[], statusKey: string | undefined) {
+  const status = statusKey ? group.filter(c => c.field === statusKey) : []
+  const conditions = group.filter(c => !status.includes(c))
+  let unsupported = status.some(c => c.op === 'is-not')
+  const required = status.filter(c => c.op === 'is').map(c => c.values)
+  let scope = required.length ? required.reduce((a, b) => a.filter(v => b.includes(v))) : undefined
+  const entered = !!statusKey && event.type === statusKey
+  if (entered) {
+    const target = event.values ?? []
+    const both = scope ? target.filter(v => scope!.includes(v)) : target
+    scope = both.length ? both : target
+  }
+  else if (scope && !scope.length) {
+    unsupported = true
+  }
+  const config = {
+    kind,
+    event: entered ? { type: 'entered' } : event,
+    conditions,
+    ...(scope?.length ? { scope: { values: scope } } : {}),
+  }
+  return { config, unsupported }
+}
+
+// One event and one list of conditions per trigger: a trigger with several events or condition
+// groups becomes one trigger per combination. Runs keep pointing at the original trigger.
+function singleEventTriggers(): void {
+  for (const row of db.select().from(schema.triggers).all()) {
+    const { kind, on, conditions } = row.config as { kind?: string, on?: LegacyEvent[], conditions?: LegacyCondition[][] }
+    if (row.source === 'schedule' || !Array.isArray(on)) continue
+    const statusKey = row.integration ? LEGACY_STATUS_KEYS[row.integration] : undefined
+    const groups = conditions?.length ? conditions : [[]]
+    const splits = on.flatMap(event => groups.map(group => singleEventConfig(kind, event, group, statusKey)))
+    splits.forEach(({ config, unsupported }, i) => {
+      const active = row.active && !unsupported
+      const id = i === 0
+        ? db.update(schema.triggers).set({ config, active }).where(eq(schema.triggers.id, row.id)).returning().get()!.id
+        : db.insert(schema.triggers).values({
+          source: row.source,
+          integration: row.integration,
+          workflowId: row.workflowId,
+          projectIds: row.projectIds,
+          active,
+          config,
+        }).returning().get().id
+      if (unsupported) console.warn(`[data-migrations] trigger ${id} (from trigger ${row.id}) had a status condition that can no longer be expressed and was deactivated`)
+    })
   }
 }

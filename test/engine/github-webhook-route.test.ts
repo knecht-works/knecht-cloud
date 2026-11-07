@@ -44,13 +44,13 @@ function deliver(event: string, payload: object) {
   return callRoute(handler, request({ event, payload }))
 }
 
-const PR_OPENED_OR_PUSHED: TriggerConfig = { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], conditions: [] }
+const PR_PUSHED: TriggerConfig = { kind: 'pull_request', event: { type: 'pushed' }, conditions: [] }
 
-function makeGithubTrigger(projectIds: number[], config: TriggerConfig = PR_OPENED_OR_PUSHED) {
+function makeGithubTrigger(projectIds: number[], config: TriggerConfig = PR_PUSHED) {
   return makeTrigger('github', projectIds, config)
 }
 
-const repo = (project: { githubId: number, fullName: string }) => ({ id: project.githubId, full_name: project.fullName })
+const repo = (project: { repoId: string, fullName: string }) => ({ id: Number(project.repoId), full_name: project.fullName })
 
 let repoN = 0
 function makeRepoProject() {
@@ -77,7 +77,7 @@ describeIntegrationWebhook<Project, GithubDelivery>({
   unknownProject: () => ({ event: 'issues', payload: { action: 'opened', issue: ISSUE, repository: { id: 999_999, full_name: 'x/y' } } }),
   object: () => ({ integration: 'github', kind: 'issue', key: '12' }),
   created: {
-    config: { kind: 'issue', on: [{ type: 'opened' }], conditions: [] },
+    config: { kind: 'issue', event: { type: 'opened' }, conditions: [] },
     delivery: project => ({ event: 'issues', payload: { action: 'opened', issue: ISSUE, repository: repo(project) } }),
     run: () => ({
       trigger: 'github',
@@ -87,7 +87,7 @@ describeIntegrationWebhook<Project, GithubDelivery>({
     session: () => ({ objectIntegration: 'github', objectKind: 'issue', objectKey: '12', objectTitle: 'Login broken', objectUrl: 'https://x/issues/12' }),
   },
   labeled: {
-    config: { kind: 'issue', on: [{ type: 'labeled', values: ['knecht'] }], conditions: [] },
+    config: { kind: 'issue', event: { type: 'labeled', values: ['knecht'] }, conditions: [] },
     notGained: project => [
       { event: 'issues', payload: { action: 'opened', issue: ISSUE, repository: repo(project) } },
       { event: 'issues', payload: { action: 'labeled', issue: ISSUE, label: { name: 'other' }, repository: repo(project) } },
@@ -96,12 +96,12 @@ describeIntegrationWebhook<Project, GithubDelivery>({
   },
   filters: [
     {
-      config: { kind: 'issue', on: [{ type: 'opened' }], conditions: [] },
+      config: { kind: 'issue', event: { type: 'opened' }, conditions: [] },
       delivery: project => ({ event: 'issues', payload: { action: 'opened', issue: FILLED, repository: repo(project) } }),
       values: { author: 'ann', assignee: 'bob', label: 'bug' },
     },
     {
-      config: { kind: 'pull_request', on: [{ type: 'opened' }], conditions: [] },
+      config: { kind: 'pull_request', event: { type: 'opened' }, conditions: [] },
       delivery: project => ({ event: 'pull_request', payload: { action: 'opened', pull_request: { ...FILLED, draft: true, head: { ref: 'feat' }, base: { ref: 'develop' } }, repository: repo(project) } }),
       values: { author: 'ann', assignee: 'bob', label: 'bug', draft: 'draft', head: 'feat', base: 'develop' },
     },
@@ -127,13 +127,13 @@ describe('github webhook route, vendor specifics', () => {
 
   it('fires a pull_request trigger on the base filter and checks out the head', async () => {
     const project = makeProject()
-    const trigger = makeGithubTrigger([project.id], { ...PR_OPENED_OR_PUSHED, conditions: allOf({ base: ['main'] }) })
+    const trigger = makeGithubTrigger([project.id], { ...PR_PUSHED, conditions: allOf({ base: ['main'] }) })
     const pr = { number: 42, title: 'Add feature', body: 'Because', html_url: 'https://x/pull/42', head: { ref: 'feat' }, base: { ref: 'main' } }
 
     await deliver('pull_request', { action: 'labeled', pull_request: pr, repository: repo(project) })
     expect(runsOf(trigger.id)).toHaveLength(0)
 
-    await deliver('pull_request', { action: 'opened', pull_request: { ...pr, base: { ref: 'develop' } }, repository: repo(project) })
+    await deliver('pull_request', { action: 'synchronize', pull_request: { ...pr, base: { ref: 'develop' } }, repository: repo(project) })
     expect(runsOf(trigger.id)).toHaveLength(0)
 
     await deliver('pull_request', { action: 'synchronize', pull_request: pr, repository: repo(project) })

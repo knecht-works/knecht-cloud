@@ -1,8 +1,9 @@
-import { desc, eq, inArray } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewProject, Project } from '../db/schema'
 import { liveTopics } from '../../shared/utils/live-topics'
+import type { RepoProvider } from '../../shared/utils/integrations'
 import { emitTopics } from '../utils/live'
 import { deleteAgentItems } from './agent-items'
 import { deleteFollowups } from './followups'
@@ -24,8 +25,10 @@ export function requireProject(id: number): Project {
   return project
 }
 
-export function getProjectByGithubId(githubId: number): Project | undefined {
-  return db.select().from(schema.projects).where(eq(schema.projects.githubId, githubId)).get()
+export function getProjectByRepo(provider: RepoProvider, repoId: string): Project | undefined {
+  return db.select().from(schema.projects)
+    .where(and(eq(schema.projects.repoProvider, provider), eq(schema.projects.repoId, repoId)))
+    .get()
 }
 
 export function listProjects(): Project[] {

@@ -2,6 +2,7 @@
 const props = defineProps<{
   project: {
     fullName: string
+    repoUrl: string
     framework?: string | null
     favicon?: string | null
   }
@@ -24,7 +25,7 @@ const repoName = computed(() => props.project.fullName.split('/').pop() ?? 'Proj
       </h1>
       <UTooltip :text="project.fullName">
         <a
-          :href="`https://github.com/${project.fullName}`"
+          :href="project.repoUrl"
           target="_blank"
           rel="noopener"
           :aria-label="`${project.fullName} on GitHub`"

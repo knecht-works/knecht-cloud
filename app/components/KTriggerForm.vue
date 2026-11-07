@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { defaultTriggerConfig, triggerConfigIssues, type TriggerCondition, type TriggerConfig, type TriggerFormDef, type TriggerValueInput } from '#shared/utils/trigger-form'
 
-const props = withDefaults(defineProps<{ form: TriggerFormDef, linkKeys?: string[], showIssues?: boolean }>(), { linkKeys: () => [] })
+const props = withDefaults(defineProps<{ form: TriggerFormDef, optionTargets?: { key: string, name: string }[], showIssues?: boolean }>(), { optionTargets: () => [] })
 const config = defineModel<Record<string, unknown>>('config', { required: true })
 const valid = defineModel<boolean>('valid', { default: false })
 
@@ -14,48 +14,57 @@ interface SelectItem {
 }
 
 const kind = ref('')
-const checked = ref<Record<string, boolean>>({})
+const eventType = ref('')
+// Per event, so switching between events keeps what was picked for each.
 const values = ref<Record<string, string[]>>({})
-const groups = ref<TriggerCondition[][]>([])
+const conditions = ref<TriggerCondition[]>([])
+const scope = ref<string[]>([])
 
 const def = computed(() => props.form.find(k => k.kind === kind.value) ?? props.form[0]!)
 const filterDef = (key: string) => def.value.filters.find(f => f.key === key)
 
 function load(c: TriggerConfig) {
   kind.value = c.kind
-  checked.value = Object.fromEntries(c.on.map(on => [on.type, true]))
+  eventType.value = c.event.type
   values.value = Object.fromEntries(def.value.events
     .filter(e => e.value)
-    .map(e => [e.type, c.on.find(on => on.type === e.type)?.values ?? [e.value!.default ?? e.value!.options?.[0]?.value ?? ''].filter(Boolean)]))
-  groups.value = c.conditions.map(group => group.map(condition => ({ ...condition, values: [...condition.values] })))
+    .map(e => [e.type, (c.event.type === e.type ? c.event.values : undefined) ?? [e.value!.default ?? e.value!.options?.[0]?.value ?? ''].filter(Boolean)]))
+  conditions.value = c.conditions.map(condition => ({ ...condition, values: [...condition.values] }))
+  scope.value = [...c.scope?.values ?? []]
 }
 
-load(Array.isArray(config.value.on) ? config.value as unknown as TriggerConfig : defaultTriggerConfig(props.form))
+load(config.value.event ? config.value as unknown as TriggerConfig : defaultTriggerConfig(props.form))
+
+const event = computed(() => def.value.events.find(e => e.type === eventType.value))
+const eventItems = computed(() => def.value.events.map(e => ({ label: e.label, value: e.type, hint: e.hint })))
+const scopeRequired = computed(() => !!def.value.scope?.requiredBy.includes(eventType.value))
 
 // null: the list could not be loaded, so nothing is known about that project.
 const remoteOptions = ref<Record<string, Record<string, string[] | null>>>({})
-const remoteEvents = computed(() => def.value.events.filter(e => e.value?.optionsUrl && checked.value[e.type]))
+const remoteEvents = computed(() => (event.value?.value?.optionsUrl ? [event.value] : []))
 const filterSource = (key: string) => `filter:${key}`
+const SCOPE_SOURCE = 'scope'
 const remoteSources = computed(() => [
   ...remoteEvents.value.map(e => ({ id: e.type, url: e.value!.optionsUrl! })),
-  ...[...new Set(groups.value.flat().map(c => c.field))].flatMap((key) => {
+  ...(def.value.scope?.optionsUrl ? [{ id: SCOPE_SOURCE, url: def.value.scope.optionsUrl }] : []),
+  ...[...new Set(conditions.value.map(c => c.field))].flatMap((key) => {
     const url = filterDef(key)?.optionsUrl
     return url ? [{ id: filterSource(key), url }] : []
   }),
 ])
 
-watch([() => props.linkKeys, () => remoteSources.value.map(s => s.id).join()], async ([keys]) => {
+watch([() => props.optionTargets, () => remoteSources.value.map(s => s.id).join()], async ([targets]) => {
   for (const source of remoteSources.value) {
-    const entries = await Promise.all(keys.map(async key =>
+    const entries = await Promise.all(targets.map(async ({ key }) =>
       [key, await $fetch<string[]>(source.url, { query: { project: key } }).catch(() => null)] as const,
     ))
-    if (keys !== props.linkKeys) return
+    if (targets !== props.optionTargets) return
     remoteOptions.value[source.id] = Object.fromEntries(entries)
   }
 }, { immediate: true })
 
 function projectsWith(source: string, name: string): string[] {
-  return props.linkKeys.filter(key => remoteOptions.value[source]?.[key]?.includes(name))
+  return props.optionTargets.filter(t => remoteOptions.value[source]?.[t.key]?.includes(name)).map(t => t.name)
 }
 
 const heading = 'k-mono text-3xs font-normal uppercase tracking-(--tracking-label) text-dimmed'
@@ -82,8 +91,8 @@ function listedItems(input: OptionSource | undefined, source: string): SelectIte
 
 function remoteItems(title: string | undefined, source: string): SelectItem[] {
   const names = [...new Set(Object.values(remoteOptions.value[source] ?? {}).flatMap(list => list ?? []))]
-  const partial = names.filter(n => projectsWith(source, n).length < props.linkKeys.length)
-  if (props.linkKeys.length < 2 || !partial.length) {
+  const partial = names.filter(n => projectsWith(source, n).length < props.optionTargets.length)
+  if (props.optionTargets.length < 2 || !partial.length) {
     return [...(title && names.length ? [{ type: 'label' as const, label: title, class: heading }] : []), ...names.map(n => ({ label: n, value: n }))]
   }
   return [
@@ -95,10 +104,10 @@ function remoteItems(title: string | undefined, source: string): SelectItem[] {
   ]
 }
 
-const missing = computed(() => remoteEvents.value.flatMap((event) => {
-  const known = remoteOptions.value[event.type] ?? {}
-  return (values.value[event.type] ?? []).flatMap((value) => {
-    const projects = event.value?.options?.some(o => o.value === value) ? [] : props.linkKeys.filter(key => known[key] && !known[key]!.includes(value))
+const missing = computed(() => remoteEvents.value.flatMap((e) => {
+  const known = remoteOptions.value[e.type] ?? {}
+  return (values.value[e.type] ?? []).flatMap((value) => {
+    const projects = e.value?.options?.some(o => o.value === value) ? [] : props.optionTargets.filter(t => known[t.key] && !known[t.key]!.includes(value)).map(t => t.name)
     return projects.length ? [{ value, projects: projects.join(', ') }] : []
   })
 }))
@@ -108,23 +117,19 @@ const fieldItems = computed(() => def.value.filters.map(f => ({ label: f.label, 
 
 const newCondition = (field: string): TriggerCondition => ({ field, op: 'is', values: [] })
 
-function removeCondition(gi: number, ci: number) {
-  groups.value[gi]!.splice(ci, 1)
-  if (!groups.value[gi]!.length) groups.value.splice(gi, 1)
-}
-
+const trimmed = (list: string[]) => list.map(v => v.trim()).filter(Boolean)
 const built = computed<TriggerConfig>(() => ({
   kind: kind.value,
-  on: def.value.events
-    .filter(e => checked.value[e.type])
-    .map(e => (e.value ? { type: e.type, values: (values.value[e.type] ?? []).map(v => v.trim()).filter(Boolean) } : { type: e.type })),
-  conditions: groups.value.map(group => group.map(c => ({ ...c, values: c.values.map(v => v.trim()).filter(Boolean) }))),
+  event: event.value?.value ? { type: eventType.value, values: trimmed(values.value[eventType.value] ?? []) } : { type: eventType.value },
+  conditions: conditions.value.map(c => ({ ...c, values: trimmed(c.values) })),
+  ...(def.value.scope && scope.value.length ? { scope: { values: trimmed(scope.value) } } : {}),
 }))
 const issues = computed(() => triggerConfigIssues(props.form, built.value))
 const shown = computed(() => (props.showIssues ? issues.value : []))
-const eventIssue = (type: string) => shown.value.find(i => i.event === type)?.message
-const conditionIssue = (gi: number, ci: number) => shown.value.find(i => i.condition?.[0] === gi && i.condition[1] === ci)?.message
-const generalIssue = computed(() => shown.value.find(i => !i.event && !i.condition)?.message)
+const eventIssue = computed(() => shown.value.find(i => i.event)?.message)
+const scopeIssue = computed(() => shown.value.find(i => i.scope)?.message)
+const conditionIssue = (index: number) => shown.value.find(i => i.condition === index)?.message
+const generalIssue = computed(() => shown.value.find(i => !i.event && !i.scope && i.condition === undefined)?.message)
 
 watch(built, () => {
   config.value = { ...built.value }
@@ -135,8 +140,8 @@ watch(built, () => {
 <template>
   <div class="space-y-4">
     <div>
-      <div class="flex items-center justify-between">
-        <span class="k-label">Fires when any of these happens</span>
+      <div class="flex min-h-7 items-center justify-between">
+        <span class="k-label">Fires when</span>
         <div
           v-if="form.length > 1"
           class="flex gap-2"
@@ -157,32 +162,32 @@ watch(built, () => {
       </div>
       <div class="mt-1 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
         <div
-          v-for="event in def.events"
-          :key="event.type"
+          v-for="item in eventItems"
+          :key="item.value"
         >
           <div class="flex min-h-8 items-center gap-2">
-            <UCheckbox
-              v-model="checked[event.type]"
-              :label="event.label"
+            <URadioGroup
+              v-model="eventType"
+              :items="[item]"
               :ui="{ label: 'whitespace-nowrap' }"
-            />
-            <UTooltip
-              v-if="event.hint"
-              :text="event.hint"
             >
-              <button
-                type="button"
-                class="flex shrink-0 cursor-help text-dimmed hover:text-muted"
-                :aria-label="event.hint"
-              >
-                <UIcon
-                  name="i-lucide-info"
-                  class="size-3.5"
-                />
-              </button>
-            </UTooltip>
+              <template #label>
+                <span class="inline-flex items-center gap-1.5">
+                  {{ item.label }}
+                  <UTooltip
+                    v-if="item.hint"
+                    :text="item.hint"
+                  >
+                    <UIcon
+                      name="i-lucide-info"
+                      class="size-3.5 cursor-help text-dimmed hover:text-muted"
+                    />
+                  </UTooltip>
+                </span>
+              </template>
+            </URadioGroup>
             <USelectMenu
-              v-if="event.value && checked[event.type]"
+              v-if="item.value === eventType && event?.value"
               v-model="values[event.type]"
               value-key="value"
               :items="menuItems(event.value, event.type, values[event.type] ?? [])"
@@ -191,21 +196,38 @@ watch(built, () => {
               :placeholder="event.value.placeholder"
               size="sm"
               class="min-w-0 flex-1"
-              @create="typed => values[event.type] = [...(values[event.type] ?? []), typed.trim()]"
+              @create="typed => values[event!.type] = [...(values[event!.type] ?? []), typed.trim()]"
             >
-              <template #item-trailing="{ item }">
+              <template #item-trailing="{ item: option }">
                 <span
-                  v-if="item.projects"
+                  v-if="option.projects"
                   class="k-mono text-2xs text-dimmed"
-                >{{ item.projects }}</span>
+                >{{ option.projects }}</span>
+              </template>
+            </USelectMenu>
+            <USelectMenu
+              v-if="item.value === eventType && scopeRequired && def.scope"
+              v-model="scope"
+              value-key="value"
+              :items="menuItems(def.scope, SCOPE_SOURCE, scope)"
+              multiple
+              :placeholder="def.scope.placeholder"
+              size="sm"
+              class="min-w-0 flex-1"
+            >
+              <template #item-trailing="{ item: option }">
+                <span
+                  v-if="option.projects"
+                  class="k-mono text-2xs text-dimmed"
+                >{{ option.projects }}</span>
               </template>
             </USelectMenu>
           </div>
           <p
-            v-if="eventIssue(event.type)"
+            v-if="item.value === eventType && (eventIssue || (scopeRequired && scopeIssue))"
             class="mb-1 text-2xs text-error"
           >
-            {{ eventIssue(event.type) }}
+            {{ eventIssue ?? scopeIssue }}
           </p>
         </div>
       </div>
@@ -231,93 +253,100 @@ watch(built, () => {
       </p>
     </div>
 
+    <div v-if="def.scope && !scopeRequired">
+      <span class="k-label">While the {{ def.scope.label.toLowerCase() }} is</span>
+      <USelectMenu
+        v-model="scope"
+        value-key="value"
+        :items="menuItems(def.scope, SCOPE_SOURCE, scope)"
+        multiple
+        :placeholder="`Any ${def.scope.label.toLowerCase()}`"
+        size="sm"
+        class="mt-2 w-full"
+      >
+        <template #item-trailing="{ item }">
+          <span
+            v-if="item.projects"
+            class="k-mono text-2xs text-dimmed"
+          >{{ item.projects }}</span>
+        </template>
+      </USelectMenu>
+      <p
+        v-if="scopeIssue"
+        class="mt-1 text-2xs text-error"
+      >
+        {{ scopeIssue }}
+      </p>
+    </div>
+
     <div v-if="def.filters.length">
       <span class="k-label">But only if</span>
-      <template
-        v-for="(group, gi) in groups"
-        :key="gi"
+      <div
+        v-if="conditions.length"
+        class="mt-2 flex flex-col gap-1.5 rounded-md border border-muted p-2"
       >
         <div
-          v-if="gi > 0"
-          class="k-mono mt-2 text-3xs uppercase tracking-widest text-dimmed"
+          v-for="(condition, ci) in conditions"
+          :key="ci"
         >
-          or
-        </div>
-        <div class="mt-2 flex flex-col gap-1.5 rounded-md border border-muted p-2">
-          <div
-            v-for="(condition, ci) in group"
-            :key="ci"
-          >
-            <div class="flex items-center gap-2">
-              <USelectMenu
-                :model-value="condition.field"
-                value-key="value"
-                :items="fieldItems"
-                :search-input="false"
-                size="sm"
-                class="w-36 shrink-0"
-                @update:model-value="field => group[ci] = newCondition(field)"
-              />
-              <USelectMenu
-                v-model="condition.op"
-                value-key="value"
-                :items="OP_ITEMS"
-                :search-input="false"
-                size="sm"
-                class="w-24 shrink-0"
-              />
-              <USelectMenu
-                v-model="condition.values"
-                value-key="value"
-                :items="menuItems(filterDef(condition.field), filterSource(condition.field), condition.values)"
-                multiple
-                :create-item="!filterDef(condition.field)?.listedOnly"
-                :placeholder="filterDef(condition.field)?.placeholder"
-                size="sm"
-                class="min-w-0 flex-1"
-                @create="pattern => condition.values = [...condition.values, pattern.trim()]"
-              >
-                <template #item-trailing="{ item }">
-                  <span
-                    v-if="item.projects"
-                    class="k-mono text-2xs text-dimmed"
-                  >{{ item.projects }}</span>
-                </template>
-              </USelectMenu>
-              <UButton
-                icon="i-lucide-x"
-                color="neutral"
-                variant="ghost"
-                size="sm"
-                aria-label="Remove condition"
-                @click="removeCondition(gi, ci)"
-              />
-            </div>
-            <p
-              v-if="conditionIssue(gi, ci)"
-              class="mt-1 text-2xs text-error"
+          <div class="flex items-center gap-2">
+            <USelectMenu
+              :model-value="condition.field"
+              value-key="value"
+              :items="fieldItems"
+              :search-input="false"
+              size="sm"
+              class="w-36 shrink-0"
+              @update:model-value="field => conditions[ci] = newCondition(field)"
+            />
+            <USelectMenu
+              v-model="condition.op"
+              value-key="value"
+              :items="OP_ITEMS"
+              :search-input="false"
+              size="sm"
+              class="w-24 shrink-0"
+            />
+            <USelectMenu
+              v-model="condition.values"
+              value-key="value"
+              :items="menuItems(filterDef(condition.field), filterSource(condition.field), condition.values)"
+              multiple
+              :create-item="!filterDef(condition.field)?.listedOnly"
+              :placeholder="filterDef(condition.field)?.placeholder"
+              size="sm"
+              class="min-w-0 flex-1"
+              @create="pattern => condition.values = [...condition.values, pattern.trim()]"
             >
-              {{ conditionIssue(gi, ci) }}
-            </p>
+              <template #item-trailing="{ item }">
+                <span
+                  v-if="item.projects"
+                  class="k-mono text-2xs text-dimmed"
+                >{{ item.projects }}</span>
+              </template>
+            </USelectMenu>
+            <UButton
+              icon="i-lucide-x"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              aria-label="Remove condition"
+              @click="conditions.splice(ci, 1)"
+            />
           </div>
-          <div>
-            <UDropdownMenu :items="def.filters.map(f => ({ label: f.label, onSelect: () => group.push(newCondition(f.key)) }))">
-              <UButton
-                icon="i-lucide-plus"
-                label="and"
-                color="neutral"
-                variant="ghost"
-                size="xs"
-              />
-            </UDropdownMenu>
-          </div>
+          <p
+            v-if="conditionIssue(ci)"
+            class="mt-1 text-2xs text-error"
+          >
+            {{ conditionIssue(ci) }}
+          </p>
         </div>
-      </template>
+      </div>
       <div>
-        <UDropdownMenu :items="def.filters.map(f => ({ label: f.label, onSelect: () => groups.push([newCondition(f.key)]) }))">
+        <UDropdownMenu :items="def.filters.map(f => ({ label: f.label, onSelect: () => conditions.push(newCondition(f.key)) }))">
           <UButton
             icon="i-lucide-plus"
-            :label="groups.length ? 'or group' : 'Add condition'"
+            :label="conditions.length ? 'and' : 'Add condition'"
             color="neutral"
             variant="outline"
             size="xs"

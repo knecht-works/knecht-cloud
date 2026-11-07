@@ -4,7 +4,7 @@ import { execa } from 'execa'
 import type { NewSession, Project } from '../db/schema'
 import type { EnvState, EnvTransition, SessionTier } from '../../shared/utils/run'
 import { getSettings } from '../utils/settings'
-import { getInstallationToken } from '../utils/github-app'
+import { gitProvider } from '../git'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
 import { configureSessionEnv, readDdevConfig } from './ddev'
 import { restartDevServer, waitForDevServer } from './dev-server'
@@ -178,8 +178,8 @@ async function restoreFromArchive(sessionId: number): Promise<void> {
     // Keep the prior fallback clone.
   }
   else {
-    const token = await getInstallationToken(project.owner, project.name)
-    await prepareSessionCheckout(project, sessionId, token, () => {}, session.branch ?? project.defaultBranch)
+    const credentials = await gitProvider(project).credentials(project)
+    await prepareSessionCheckout(project, sessionId, credentials, () => {}, session.branch ?? project.defaultBranch)
   }
 
   // Only when the checkout has none yet: a retry must keep the live state.

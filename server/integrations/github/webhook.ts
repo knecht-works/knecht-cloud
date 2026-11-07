@@ -1,55 +1,9 @@
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
-import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '../../../shared/utils/trigger-form'
-import { conditionsPass, labeledEvent, labelFilter, listedOnlyKeys, objectVersion, triggerEvent } from '../trigger-config'
+import type { TriggerConfig } from '../../../shared/utils/trigger-form'
+import { conditionsPass, objectVersion, triggerEvent } from '../trigger-config'
+import { GIT_EXACT_FILTERS as EXACT } from '../git-trigger-form'
 import type { TriggerMatch } from '../types'
-
-const LABEL_FILTER = labelFilter('github')
-const BRANCHES_URL = '/api/integrations/github/options/branches'
-const DRAFT_FILTER: TriggerFilterDef = {
-  key: 'draft',
-  label: 'PR state',
-  listedOnly: true,
-  placeholder: 'Pick a state',
-  options: [{ label: 'Draft', value: 'draft' }, { label: 'Ready for review', value: 'ready' }],
-}
-const ASSIGNEES_URL = '/api/integrations/github/options/assignees'
-const PEOPLE_FILTERS: TriggerFilterDef[] = [
-  { key: 'author', label: 'Author', placeholder: 'octocat, renovate[bot]', optionsUrl: ASSIGNEES_URL },
-  { key: 'assignee', label: 'Assignee', placeholder: 'octocat', optionsUrl: ASSIGNEES_URL },
-]
-
-export const githubTriggerForm: TriggerFormDef = [
-  {
-    kind: 'pull_request',
-    label: 'Pull request',
-    events: [
-      { type: 'opened', label: 'Opened', summary: 'opened', default: true },
-      { type: 'ready_for_review', label: 'Ready for review', summary: 'ready for review' },
-      { type: 'pushed', label: 'New commits pushed', summary: 'pushed', hint: 'Starts a run on every push to the pull request, force pushes included.' },
-      labeledEvent('github'),
-    ],
-    filters: [
-      { key: 'base', label: 'Base branch', placeholder: 'main, releases/*', optionsUrl: BRANCHES_URL },
-      { key: 'head', label: 'Head branch', placeholder: 'renovate/*', optionsUrl: BRANCHES_URL },
-      ...PEOPLE_FILTERS,
-      LABEL_FILTER,
-      DRAFT_FILTER,
-    ],
-  },
-  {
-    kind: 'issue',
-    label: 'Issue',
-    events: [
-      { type: 'opened', label: 'Opened', summary: 'opened', default: true },
-      labeledEvent('github'),
-      { type: 'assigned', label: 'Assigned to', summary: 'assigned to {value}', value: { placeholder: 'octocat', optionsUrl: ASSIGNEES_URL } },
-    ],
-    filters: [...PEOPLE_FILTERS, LABEL_FILTER],
-  },
-]
-
-const EXACT = listedOnlyKeys([LABEL_FILTER, DRAFT_FILTER])
 
 export interface GithubPayload {
   action?: string

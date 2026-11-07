@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import type { Step } from '../../../shared/utils/workflow'
 import { pushBranch } from '../../daemon/git'
-import { createPullRequest, getInstallationToken } from '../../utils/github-app'
+import { gitProvider } from '../../git'
+import type { PullRequest } from '../../git/types'
 import { withPreviewFooter } from '../../utils/origin'
 import { defineAction } from './types'
 import { updateRun } from '../../stores/runs'
@@ -20,12 +21,13 @@ export const createPrAction = defineAction({
     if (!branch) throw new Error('create-pr requires a preceding create-branch step')
     rt.log(`\n▶ create-pr: ${step.title}\n`)
     // Fresh token: the run may have outlived the 1h token from checkout.
-    const token = await getInstallationToken(rt.project.owner, rt.project.name)
+    const git = gitProvider(rt.project)
+    const credentials = await git.credentials(rt.project)
     await rt.sandbox.ensureUp()
-    await pushBranch(rt.sandbox, branch, token)
-    let pr: { url: string, number: number, existing: boolean } | null
+    await pushBranch(rt.sandbox, branch, credentials)
+    let pr: PullRequest | null
     try {
-      pr = await createPullRequest(rt.project.owner, rt.project.name, {
+      pr = await git.createPullRequest(rt.project, {
         title: step.title,
         body: withPreviewFooter(step.body, rt.sessionId),
         head: branch,

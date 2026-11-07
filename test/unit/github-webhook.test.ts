@@ -4,7 +4,7 @@ import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 function trigger(overrides: Partial<TriggerConfig>): TriggerConfig {
-  return { kind: 'pull_request', on: [{ type: 'opened' }, { type: 'pushed' }], conditions: [], ...overrides }
+  return { kind: 'pull_request', event: { type: 'opened' }, conditions: [], ...overrides }
 }
 
 function pr(action: string, overrides: GithubPayload['pull_request'] = {}, extra: GithubPayload = {}): GithubPayload {
@@ -17,7 +17,7 @@ describe('matchGithubEvent objects', () => {
   })
 
   it('a pull_request delivery carries the PR as object', () => {
-    const match = matchGithubEvent(trigger({}), 'pull_request', {
+    const match = matchGithubEvent(trigger({ event: { type: 'pushed' } }), 'pull_request', {
       action: 'synchronize',
       pull_request: { number: 42, title: 'Add feature', html_url: 'https://x/pull/42', head: { ref: 'feat' }, base: { ref: 'main' }, state: 'open', user: { login: 'sam' }, assignees: [{ login: 'ann' }, { login: 'bob' }], labels: [{ name: 'bug' }, { name: 'ui' }] },
     })
@@ -26,7 +26,7 @@ describe('matchGithubEvent objects', () => {
   })
 
   it('an issues delivery carries the issue as object', () => {
-    const match = matchGithubEvent(trigger({ kind: 'issue', on: [{ type: 'opened' }] }), 'issues', {
+    const match = matchGithubEvent(trigger({ kind: 'issue', event: { type: 'opened' } }), 'issues', {
       action: 'opened',
       issue: { number: 7, title: 'Broken', body: 'boom', html_url: 'https://x/issues/7' },
     })
@@ -43,29 +43,29 @@ describe('matchGithubEvent objects', () => {
 describe('matchGithubEvent events and filters', () => {
   const fires = (c: TriggerConfig, payload: GithubPayload, event = 'pull_request') => matchGithubEvent(c, event, payload) !== null
 
-  it('fires only on the events the trigger lists', () => {
-    const openedOnly = trigger({ on: [{ type: 'opened' }] })
+  it('fires only on the event of the trigger', () => {
+    const openedOnly = trigger({ event: { type: 'opened' } })
     expect(fires(openedOnly, pr('opened'))).toBe(true)
     expect(fires(openedOnly, pr('reopened'))).toBe(true)
     expect(fires(openedOnly, pr('synchronize'))).toBe(false)
     expect(fires(openedOnly, pr('ready_for_review'))).toBe(false)
-    expect(fires(trigger({ on: [{ type: 'ready_for_review' }] }), pr('ready_for_review'))).toBe(true)
+    expect(fires(trigger({ event: { type: 'ready_for_review' } }), pr('ready_for_review'))).toBe(true)
   })
 
   it('fires on the configured pull request label only', () => {
-    const labeled = trigger({ on: [{ type: 'labeled', values: ['knecht'] }] })
+    const labeled = trigger({ event: { type: 'labeled', values: ['knecht'] } })
     expect(fires(labeled, pr('labeled', {}, { label: { name: 'knecht' } }))).toBe(true)
     expect(fires(labeled, pr('labeled', {}, { label: { name: 'other' } }))).toBe(false)
     expect(fires(labeled, pr('opened'))).toBe(false)
     expect(fires(trigger({}), pr('labeled'))).toBe(false)
-    const either = trigger({ on: [{ type: 'labeled', values: ['knecht', 'bug'] }] })
+    const either = trigger({ event: { type: 'labeled', values: ['knecht', 'bug'] } })
     expect(fires(either, pr('labeled', {}, { label: { name: 'bug' } }))).toBe(true)
     expect(fires(either, pr('labeled', {}, { label: { name: 'other' } }))).toBe(false)
   })
 
   it('keeps a pull request kind away from issue deliveries and the other way round', () => {
     expect(fires(trigger({}), { action: 'opened', issue: { number: 1 } }, 'issues')).toBe(false)
-    expect(fires(trigger({ kind: 'issue', on: [{ type: 'opened' }] }), pr('opened'))).toBe(false)
+    expect(fires(trigger({ kind: 'issue', event: { type: 'opened' } }), pr('opened'))).toBe(false)
   })
 
   it('filters on base, head pattern and draft state', () => {
@@ -94,12 +94,8 @@ describe('matchGithubEvent events and filters', () => {
     expect(fires(trigger({ conditions: allOf({ label: ['bug'], base: ['main'] }) }), pr('opened', { labels: [{ name: 'ui' }] }))).toBe(false)
   })
 
-  it('takes any one group of conditions, and a field more than once in a group', () => {
-    const mainOrBots = trigger({ conditions: [...allOf({ base: ['main'], label: ['bug'] }), ...allOf({ author: ['*[bot]'] })] })
-    expect(fires(mainOrBots, pr('opened', { labels: [{ name: 'bug' }] }))).toBe(true)
-    expect(fires(mainOrBots, pr('opened', { base: { ref: 'develop' }, user: { login: 'renovate[bot]' } }))).toBe(true)
-    expect(fires(mainOrBots, pr('opened', { base: { ref: 'develop' }, labels: [{ name: 'bug' }] }))).toBe(false)
-    const botsButRenovate = trigger({ conditions: [[...allOf({ author: ['*[bot]'] })[0]!, ...noneOf({ author: ['renovate[bot]'] })[0]!]] })
+  it('takes a field more than once', () => {
+    const botsButRenovate = trigger({ conditions: [...allOf({ author: ['*[bot]'] }), ...noneOf({ author: ['renovate[bot]'] })] })
     expect(fires(botsButRenovate, pr('opened', { user: { login: 'dependabot[bot]' } }))).toBe(true)
     expect(fires(botsButRenovate, pr('opened', { user: { login: 'renovate[bot]' } }))).toBe(false)
   })
@@ -114,7 +110,7 @@ describe('matchGithubEvent events and filters', () => {
   })
 
   it('fires when an issue is assigned to the configured login', () => {
-    const assigned = trigger({ kind: 'issue', on: [{ type: 'assigned', values: ['knecht-works'] }] })
+    const assigned = trigger({ kind: 'issue', event: { type: 'assigned', values: ['knecht-works'] } })
     const issue = { number: 7 }
     expect(fires(assigned, { action: 'assigned', issue, assignee: { login: 'knecht-works' } }, 'issues')).toBe(true)
     expect(fires(assigned, { action: 'assigned', issue, assignee: { login: 'Knecht-Works' } }, 'issues')).toBe(false)

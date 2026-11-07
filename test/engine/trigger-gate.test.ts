@@ -74,11 +74,22 @@ describe('fireTrigger object version', () => {
     expect(runsOf(wf.id).map(r => r.objectVersion)).toEqual(['100', '101'])
   })
 
-  it('keeps other triggers and other objects apart, and never skips without a version', () => {
+  it('starts a workflow once per version however many of its triggers match', () => {
     const project = makeProject()
     const wf = makeWorkflow({ publishedAt: new Date() })
     const trigger = makeTrigger(wf.id, [project.id])
     const other = makeTrigger(wf.id, [project.id])
+
+    expect(fireTrigger(trigger, { object, version: '100' })).toHaveLength(1)
+    expect(fireTrigger(other, { object, version: '100' })).toEqual([])
+    expect(runsOf(wf.id)).toHaveLength(1)
+  })
+
+  it('keeps other workflows and other objects apart, and never skips without a version', () => {
+    const project = makeProject()
+    const wf = makeWorkflow({ publishedAt: new Date() })
+    const trigger = makeTrigger(wf.id, [project.id])
+    const other = makeTrigger(makeWorkflow({ publishedAt: new Date() }).id, [project.id])
 
     fireTrigger(trigger, { object, version: '100' })
     expect(fireTrigger(other, { object, version: '100' })).toHaveLength(1)

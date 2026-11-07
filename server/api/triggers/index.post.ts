@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { TRIGGER_SOURCES } from '../../../shared/utils/integrations'
+import { TRACKER_IDS, TRIGGER_SOURCES } from '../../../shared/utils/integrations'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
@@ -8,6 +8,7 @@ import { createTrigger } from '../../stores/triggers'
 
 const bodySchema = z.object({
   source: z.enum(TRIGGER_SOURCES),
+  integration: z.enum(TRACKER_IDS).optional(),
   workflowId: z.number().int(),
   projectIds: z.array(z.number().int()).default([]),
   cron: z.string().min(1).optional(),
@@ -23,9 +24,12 @@ export default defineEventHandler(async (event) => {
 
   requireWorkflowRow(data.workflowId)
 
-  const def = getTriggerSource(data.source)
+  if ((data.source === 'tracker') !== !!data.integration) {
+    throw createError({ statusCode: 400, statusMessage: data.integration ? `${data.source} triggers take no integration` : 'Pick the issue tracker' })
+  }
+  const def = getTriggerSource(data.source, data.integration)
   if (!def) {
-    throw createError({ statusCode: 400, statusMessage: `${data.source} triggers are not available` })
+    throw createError({ statusCode: 400, statusMessage: `${data.integration ?? data.source} triggers are not available` })
   }
   const config = def.configSchema.safeParse(data.config)
   if (!config.success) {
@@ -38,6 +42,7 @@ export default defineEventHandler(async (event) => {
 
   const values = {
     source: data.source,
+    integration: data.integration ?? null,
     workflowId: data.workflowId,
     projectIds: data.projectIds,
     cron: null as string | null,

@@ -142,13 +142,13 @@ function envList(vars: Record<string, string>): { key: string, value: string }[]
 }
 
 interface RepoData {
-  githubId: number
+  repoProvider: string
+  repoId: string
   owner: string
   name: string
   fullName: string
   private: boolean
   defaultBranch: string
-  cloneUrl: string
 }
 
 interface RunRow {
@@ -184,11 +184,11 @@ async function connectFixture(client: E2eClient, fullName: string): Promise<{ pr
     throw new Error(`The instance's GitHub App is not installed on ${fullName}; install it on the fixture repo.`)
   }
 
-  const { githubId, owner, name, defaultBranch, cloneUrl } = repo
+  const { repoProvider, repoId, owner, name, defaultBranch } = repo
   const created = await client.fetch('/api/projects', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ githubId, owner, name, fullName, defaultBranch, cloneUrl, private: repo.private }),
+    body: JSON.stringify({ repoProvider, repoId, owner, name, fullName, defaultBranch, private: repo.private }),
   })
   if (created.status === 409) {
     const projects = await expectJson<{ id: number, fullName: string }[]>(await client.fetch('/api/projects'))

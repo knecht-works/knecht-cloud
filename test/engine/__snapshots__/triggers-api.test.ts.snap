@@ -1,39 +1,37 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`POST /api/triggers > creates a github trigger and describes it 1`] = `
+exports[`POST /api/triggers > creates a git trigger and describes it 1`] = `
 {
   "active": true,
   "conditions": [],
   "config": {
     "conditions": [],
+    "event": {
+      "type": "opened",
+    },
     "kind": "pull_request",
-    "on": [
-      {
-        "type": "opened",
-      },
-    ],
   },
   "endpoint": null,
   "event": "On pull request · opened",
-  "events": [
-    [
-      {
-        "kind": "text",
-        "text": "opened",
-      },
-    ],
-  ],
   "firedCount": 0,
   "id": Any<Number>,
+  "integration": null,
   "kind": "Pull request",
   "lastFiredAt": null,
+  "on": [
+    {
+      "kind": "text",
+      "text": "opened",
+    },
+  ],
   "projectIds": [
     Any<Number>,
   ],
   "projects": [
     "test-php",
   ],
-  "source": "github",
+  "source": "git",
+  "via": "github",
   "workflowId": Any<Number>,
   "workflowName": Any<String>,
 }

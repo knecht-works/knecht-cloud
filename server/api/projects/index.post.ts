@@ -1,17 +1,17 @@
 import { z } from 'zod'
-import { createProject, getProjectByGithubId } from '../../stores/projects'
+import { createProject, getProjectByRepo } from '../../stores/projects'
+import { REPO_PROVIDERS } from '../../../shared/utils/integrations'
 import type { ProjectMeta } from '../../utils/framework'
-import { resolveProjectMeta } from '../../utils/framework'
-import { getInstallationClient } from '../../utils/github-app'
+import { gitProvider } from '../../git'
 
 const bodySchema = z.object({
-  githubId: z.number().int(),
+  repoProvider: z.enum(REPO_PROVIDERS),
+  repoId: z.string().min(1),
   owner: z.string().min(1),
   name: z.string().min(1),
   fullName: z.string().min(1),
   defaultBranch: z.string().min(1),
   private: z.boolean(),
-  cloneUrl: z.string().url(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -20,14 +20,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Invalid project data' })
   }
 
-  if (getProjectByGithubId(result.data.githubId)) {
+  if (getProjectByRepo(result.data.repoProvider, result.data.repoId)) {
     throw createError({ statusCode: 409, statusMessage: 'Repo is already connected' })
   }
 
   let meta: ProjectMeta | undefined
   try {
-    const octokit = await getInstallationClient(result.data.owner, result.data.name)
-    meta = await resolveProjectMeta(octokit, result.data.owner, result.data.name, result.data.defaultBranch)
+    meta = await gitProvider(result.data).projectMeta(result.data, result.data.defaultBranch)
   }
   catch {
     // Connect anyway, the backfill retries.

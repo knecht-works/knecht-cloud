@@ -75,6 +75,8 @@ interface TriggerSourceMeta {
 const TRIGGER_SOURCE_META: Record<string, TriggerSourceMeta> = {
   manual: { icon: 'i-lucide-mouse-pointer-click', label: 'Manual', color: 'var(--text-primary)' },
   schedule: { icon: 'i-lucide-clock', label: 'Schedule', color: 'var(--accent-orange)' },
+  git: { icon: 'i-lucide-git-branch', label: 'Git', color: 'var(--text-toned)' },
+  tracker: { icon: 'i-lucide-ticket', label: 'Issue tracker', color: 'var(--accent-violet)' },
   mention: { icon: 'i-lucide-at-sign', label: 'Mention', color: 'var(--accent-violet)' },
   ...Object.fromEntries(INTEGRATION_IDS.map((id) => {
     const { icon, label, color } = INTEGRATION_UI[id]
@@ -84,6 +86,10 @@ const TRIGGER_SOURCE_META: Record<string, TriggerSourceMeta> = {
 
 export function triggerSourceMeta(source: string): TriggerSourceMeta {
   return TRIGGER_SOURCE_META[source] ?? { icon: 'i-lucide-zap', label: source, color: 'var(--accent-violet)' }
+}
+
+export function triggerMeta(trigger: { source: string, via: string | null }): TriggerSourceMeta {
+  return triggerSourceMeta(trigger.via ?? trigger.source)
 }
 
 export type SessionObjectKind = ObjectKind

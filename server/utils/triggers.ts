@@ -3,21 +3,25 @@ import { dispatchRuns } from '../daemon/dispatcher'
 import { isGithubAppConfigured } from './github-credentials'
 import { emptyInputs, type TriggerInputs } from './inputs'
 import { resolveSession, type SessionObject } from './sessions'
-import type { TriggerSource } from '../../shared/utils/integrations'
+import type { IntegrationId, TrackerId, TriggerSource } from '../../shared/utils/integrations'
 import type { TriggerSegment } from '../../shared/utils/trigger-form'
 import { getTriggerSource } from './trigger-sources'
 import { getWorkflowRow, getWorkflowRows } from '../stores/workflows'
 import { getProjects } from '../stores/projects'
 import { recordTriggerFired } from '../stores/triggers'
-import { appendRunLog, createRun, finishRun, ranOnVersion } from '../stores/runs'
+import { appendRunLog, createRun, finishRun, workflowRanOnVersion } from '../stores/runs'
 
 export interface TriggerSummary {
   id: number
   source: TriggerSource
+  integration: TrackerId | null
+  // The tool the trigger listens to: the tracker, or the git provider of its projects.
+  via: IntegrationId | null
   event: string
   kind: string
-  events: TriggerSegment[][]
-  conditions: TriggerSegment[][][]
+  on: TriggerSegment[]
+  conditions: TriggerSegment[][]
+  scope?: TriggerSegment[]
   workflowId: number
   workflowName: string
   projects: string[]
@@ -34,16 +38,18 @@ function endpoint(t: Trigger): string | null {
 }
 
 export function toSummaries(rows: Trigger[]): TriggerSummary[] {
-  const names = new Map(getProjects([...new Set(rows.flatMap(r => r.projectIds))]).map(p => [p.id, p.name]))
+  const projects = new Map(getProjects([...new Set(rows.flatMap(r => r.projectIds))]).map(p => [p.id, p]))
   const workflowNames = new Map(getWorkflowRows([...new Set(rows.map(r => r.workflowId))]).map(w => [w.id, w.name]))
 
   return rows.map(t => ({
     id: t.id,
     source: t.source,
-    ...(getTriggerSource(t.source)?.describe(t) ?? { event: '', kind: '', events: [], conditions: [] }),
+    integration: t.integration,
+    via: t.integration ?? (t.source === 'git' ? projects.get(t.projectIds[0]!)?.repoProvider ?? 'github' : null),
+    ...(getTriggerSource(t.source, t.integration)?.describe(t) ?? { event: '', kind: '', on: [], conditions: [] }),
     workflowId: t.workflowId,
     workflowName: workflowNames.get(t.workflowId) ?? '',
-    projects: t.projectIds.map(id => names.get(id)).filter((n): n is string => !!n),
+    projects: t.projectIds.map(id => projects.get(id)?.name).filter((n): n is string => !!n),
     projectIds: t.projectIds,
     endpoint: endpoint(t),
     config: t.config,
@@ -54,6 +60,8 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
 }
 
 export interface FireOverrides {
+  // The integration that delivered the event; recorded as the run's trigger.
+  integration?: IntegrationId
   projectIds?: number[]
   branch?: string | null
   inputs?: TriggerInputs
@@ -72,14 +80,15 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   const runIds: number[] = []
   for (const project of projects) {
     const session = resolveSession(project, opts.object ?? null, opts.branch ?? null)
-    // One action reaches us as several deliveries of the same object version (see `objectVersion`).
-    if (opts.version && ranOnVersion(t.id, session.id, opts.version)) continue
+    // One action reaches us as several deliveries of the same object version (see `objectVersion`),
+    // and several triggers of one workflow can match the same version.
+    if (opts.version && workflowRanOnVersion(workflow.id, session.id, opts.version)) continue
     const run = createRun({
       projectId: project.id,
       sessionId: session.id,
       workflow: workflow.name,
       workflowId: workflow.id,
-      trigger: t.source,
+      trigger: opts.integration ?? t.source,
       triggerId: t.id,
       branch: session.branch ?? opts.branch ?? project.defaultBranch,
       objectVersion: opts.version ?? null,

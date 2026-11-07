@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { makeProject } from '../helpers/db'
+import { triggerSourceOf } from '../helpers/integration-webhook-suite'
 
 vi.mock('../../server/utils/github-app', () => ({}))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
@@ -26,6 +27,7 @@ vi.mock('../../server/integrations/linear/api', async importOriginal => ({
 const { db, schema } = await import('../../server/db')
 const { INTEGRATIONS } = await import('../../server/integrations')
 const { getTriggerSource } = await import('../../server/utils/trigger-sources')
+const { gitTriggerForm } = await import('../../server/integrations/git-trigger-form')
 const { defaultTriggerConfig, triggerEventLabel, triggerSummary } = await import('../../shared/utils/trigger-form')
 const { INPUT_KEYS } = await import('../../server/utils/inputs')
 const { setProjectLink } = await import('../../server/stores/project-links')
@@ -48,7 +50,7 @@ interface Fixture {
   sign?: (secret: string, raw: string) => string
   headers: Record<string, string>
   project: () => { id: number }
-  body: (project: { githubId: number, jiraProjectKey: string, planeProjectId: string, linearTeamKey: string }) => object
+  body: (project: { repoId: string, jiraProjectKey: string, planeProjectId: string, linearTeamKey: string }) => object
   unknownBody: object
   triggerConfig: TriggerConfig
 }
@@ -60,9 +62,9 @@ const FIXTURES: Record<string, Fixture> = {
     signatureHeader: 'x-hub-signature-256',
     headers: { 'x-github-event': 'issues' },
     project: () => makeProject(),
-    body: p => ({ action: 'opened', issue: { number: 1, title: 'T', body: 'B', html_url: 'https://x/1' }, repository: { id: p.githubId } }),
+    body: p => ({ action: 'opened', issue: { number: 1, title: 'T', body: 'B', html_url: 'https://x/1' }, repository: { id: Number(p.repoId) } }),
     unknownBody: { action: 'opened', repository: { id: 424242 } },
-    triggerConfig: { kind: 'issue', on: [{ type: 'opened' }], conditions: [] },
+    triggerConfig: { kind: 'issue', event: { type: 'opened' }, conditions: [] },
   },
   jira: {
     configure: () => jiraConnection.save({ siteUrl: 'https://acme.atlassian.net', email: 'k@acme.test', apiToken: 't' }, { accountId: 'acc' }),
@@ -77,7 +79,7 @@ const FIXTURES: Record<string, Fixture> = {
     },
     body: p => ({ webhookEvent: 'jira:issue_created', issue: { key: `${p.jiraProjectKey}-1`, fields: { summary: 'T', project: { key: p.jiraProjectKey } } } }),
     unknownBody: { webhookEvent: 'jira:issue_created', issue: { key: 'X-1', fields: { project: { key: 'X' } } } },
-    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    triggerConfig: { kind: 'issue', event: { type: 'created' }, conditions: [] },
   },
   plane: {
     configure: () => planeConnection.save({ siteUrl: 'https://app.plane.so', workspaceSlug: 'acme', apiKey: 'k' }, { webhookSecret: 'plane-secret', accountId: 'acc' }),
@@ -95,7 +97,7 @@ const FIXTURES: Record<string, Fixture> = {
     },
     body: p => ({ event: 'workitem.created', data: { id: 'wi-1', name: 'T', sequence_id: 1, project_id: p.planeProjectId, state_id: 's1', label_ids: [], assignee_ids: [], created_by_id: 'u1' }, previous_attributes: {} }),
     unknownBody: { event: 'workitem.created', data: { id: 'wi-1', sequence_id: 1, project_id: 'pp-NOPE' }, previous_attributes: {} },
-    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    triggerConfig: { kind: 'issue', event: { type: 'created' }, conditions: [] },
   },
   linear: {
     configure: () => linearConnection.save({ apiKey: 'k' }, { webhookSecret: 'linear-secret', accountId: 'acc' }),
@@ -111,7 +113,7 @@ const FIXTURES: Record<string, Fixture> = {
     },
     body: p => ({ action: 'create', type: 'Issue', data: { id: `li-${p.linearTeamKey}-1`, identifier: `${p.linearTeamKey}-1`, title: 'T' } }),
     unknownBody: { action: 'create', type: 'Issue', data: { id: 'li-NOPE-1', identifier: 'NOPE-1' } },
-    triggerConfig: { kind: 'issue', on: [{ type: 'created' }], conditions: [] },
+    triggerConfig: { kind: 'issue', event: { type: 'created' }, conditions: [] },
   },
 }
 
@@ -152,7 +154,7 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
     const project = fixture.project()
     const delivery = (await integration.webhook.parse(JSON.stringify(fixture.body(project as never)), headers({})))!
     const trigger = db.insert(schema.triggers).values({
-      source: id,
+      ...triggerSourceOf(id),
       workflowId: db.insert(schema.workflows).values({ name: `contract-${id}`, steps: [] }).returning().get().id,
       projectIds: [project.id],
       config: { ...fixture.triggerConfig },
@@ -166,13 +168,15 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
   })
 
   it('declares a trigger form its config validates against', () => {
-    const source = getTriggerSource(id)!
+    const { source: role, integration: tracker } = triggerSourceOf(id)
+    const source = getTriggerSource(role, tracker)!
+    const form = integration.trigger?.form ?? gitTriggerForm
     expect(source.configSchema.safeParse(fixture.triggerConfig).success).toBe(true)
-    expect(source.configSchema.safeParse({ ...fixture.triggerConfig, on: [] }).success).toBe(false)
-    expect(triggerEventLabel(triggerSummary(integration.trigger.form, fixture.triggerConfig))).toMatch(/^On /)
-    for (const kind of integration.trigger.form) {
+    expect(source.configSchema.safeParse({ ...fixture.triggerConfig, event: { type: 'unknown' } }).success).toBe(false)
+    expect(triggerEventLabel(triggerSummary(form, fixture.triggerConfig))).toMatch(/^On /)
+    for (const kind of form) {
       expect(integration.objects.kinds).toContain(kind.kind)
-      expect(source.configSchema.safeParse(defaultTriggerConfig(integration.trigger.form, kind.kind)).success).toBe(kind.events.some(e => e.default))
+      expect(source.configSchema.safeParse(defaultTriggerConfig(form, kind.kind)).success).toBe(true)
     }
   })
 

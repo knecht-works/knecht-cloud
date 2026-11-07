@@ -39,24 +39,25 @@ const handler = (await import('../../server/api/plane/webhook.post')).default
 
 const SECRET = 'plane_wh_secret'
 
-const on = (events: TriggerEventConfig[], conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', on: events, conditions })
+const on = (event: TriggerEventConfig, conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', event, conditions })
+const entered = (scope: string[], conditions: TriggerConfig['conditions'] = []): TriggerConfig => ({ kind: 'issue', event: { type: 'entered' }, conditions, scope: { values: scope } })
 
 const CONFIGS = {
-  created: on([{ type: 'created' }]),
-  createdUrgent: on([{ type: 'created' }], allOf({ priority: ['urgent'] })),
-  createdWithoutPriority: on([{ type: 'created' }], allOf({ priority: ['none'] })),
-  createdWithBug: on([{ type: 'created' }], allOf({ label: ['Bug'] })),
-  createdAssignedToKnecht: on([{ type: 'created' }], allOf({ assignee: ['self'] })),
-  assigned: on([{ type: 'assigned' }]),
-  labeledBug: on([{ type: 'labeled', values: ['Bug'] }]),
-  labeledBugLowercase: on([{ type: 'labeled', values: ['bug'] }]),
-  todo: on([{ type: 'state', values: ['Todo'] }]),
-  anyUnstarted: on([{ type: 'state', values: ['group:unstarted'] }]),
-  anyCompleted: on([{ type: 'state', values: ['group:completed'] }]),
-  anyCancelled: on([{ type: 'state', values: ['group:cancelled'] }]),
-  anyBacklog: on([{ type: 'state', values: ['group:backlog'] }]),
-  anyStarted: on([{ type: 'state', values: ['group:started'] }]),
-  unstartedWhileUrgent: on([{ type: 'state', values: ['group:unstarted'] }], allOf({ priority: ['urgent'] })),
+  created: on({ type: 'created' }),
+  createdUrgent: on({ type: 'created' }, allOf({ priority: ['urgent'] })),
+  createdWithoutPriority: on({ type: 'created' }, allOf({ priority: ['none'] })),
+  createdWithBug: on({ type: 'created' }, allOf({ label: ['Bug'] })),
+  createdAssignedToKnecht: on({ type: 'created' }, allOf({ assignee: ['self'] })),
+  assigned: on({ type: 'assigned' }),
+  labeledBug: on({ type: 'labeled', values: ['Bug'] }),
+  labeledBugLowercase: on({ type: 'labeled', values: ['bug'] }),
+  todo: entered(['Todo']),
+  anyUnstarted: entered(['group:unstarted']),
+  anyCompleted: entered(['group:completed']),
+  anyCancelled: entered(['group:cancelled']),
+  anyBacklog: entered(['group:backlog']),
+  anyStarted: entered(['group:started']),
+  unstartedWhileUrgent: entered(['group:unstarted'], allOf({ priority: ['urgent'] })),
 }
 
 const fired: Record<keyof typeof CONFIGS, string[]> = Object.fromEntries(Object.keys(CONFIGS).map(k => [k, []])) as never

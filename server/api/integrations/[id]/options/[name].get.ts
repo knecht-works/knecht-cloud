@@ -3,7 +3,7 @@ import { INTEGRATIONS } from '../../../../integrations'
 
 export default defineEventHandler(async (event) => {
   const integration = INTEGRATIONS.find(i => i.id === getRouterParam(event, 'id'))
-  const list = integration?.trigger.options?.[getRouterParam(event, 'name') ?? '']
+  const list = integration?.trigger?.options?.[getRouterParam(event, 'name') ?? '']
   if (!integration || !list) {
     throw createError({ statusCode: 404, statusMessage: 'Unknown option list' })
   }

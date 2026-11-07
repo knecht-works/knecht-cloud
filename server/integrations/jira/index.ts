@@ -3,7 +3,7 @@ import { linkedProject } from '../../stores/project-links'
 import { verifySha256Signature } from '../../utils/signature'
 import type { SessionObject } from '../../utils/sessions'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
-import { labelFilter, objectVersion } from '../trigger-config'
+import { integrationLabelsUrl, labelFilter, objectVersion } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type Person, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
@@ -26,7 +26,7 @@ const JIRA_TRACKER: TrackerDef = {
   },
   filters: [
     { key: 'issueType', label: 'Issue type', listedOnly: true, placeholder: 'Pick issue types', optionsUrl: '/api/integrations/jira/options/issueTypes' },
-    labelFilter('jira'),
+    labelFilter(integrationLabelsUrl('jira')),
   ],
 }
 

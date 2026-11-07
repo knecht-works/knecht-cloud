@@ -785,15 +785,15 @@ const pr = computed(() => {
                     @click="editTrigger(t)"
                   >
                     <KStepIcon
-                      :icon="triggerSourceMeta(t.source).icon"
-                      :color="triggerSourceMeta(t.source).color"
+                      :icon="triggerMeta(t).icon"
+                      :color="triggerMeta(t).color"
                       :size="32"
                       :radius="8"
                     />
                     <span class="min-w-0 flex-1">
                       <span class="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                         <span class="text-sm font-medium text-highlighted">
-                          {{ triggerSourceMeta(t.source).label }} {{ t.kind }}
+                          {{ triggerMeta(t).label }} {{ t.kind }}
                         </span>
                       </span>
                       <span
@@ -806,25 +806,22 @@ const pr = computed(() => {
                       >
                         <span class="flex flex-wrap items-center gap-x-1.5 gap-y-1">
                           <span>on</span>
-                          <template
-                            v-for="(segments, ei) in t.events"
-                            :key="ei"
-                          >
-                            <span
-                              v-if="ei > 0"
-                              class="-ml-1.5"
-                            >,</span>
-                            <KTriggerSegments :segments="segments" />
-                          </template>
+                          <KTriggerSegments :segments="t.on" />
                         </span>
                         <span
-                          v-for="(group, gi) in t.conditions"
-                          :key="gi"
+                          v-if="t.scope"
                           class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
                         >
-                          <span>{{ gi === 0 ? 'if' : 'or' }}</span>
+                          <span>while in</span>
+                          <KTriggerSegments :segments="t.scope" />
+                        </span>
+                        <span
+                          v-if="t.conditions.length"
+                          class="flex flex-wrap items-center gap-x-1.5 gap-y-1"
+                        >
+                          <span>if</span>
                           <template
-                            v-for="(segments, ci) in group"
+                            v-for="(segments, ci) in t.conditions"
                             :key="ci"
                           >
                             <span v-if="ci > 0">and</span>
