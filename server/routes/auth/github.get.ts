@@ -5,8 +5,9 @@ import { dashboardOrigin } from '../../utils/origin'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { consumeInvite } from '../../stores/invites'
 import { rememberLoginMethod } from '../../utils/last-login'
-import { addMember, getMember, getMemberById, linkIdentity, loginWithIdentity } from '../../stores/members'
-import { setMemberSession } from '../../utils/member-session'
+import { addMember, getMember, getMemberById, linkIdentity, listIdentities, loginWithIdentity } from '../../stores/members'
+import { isElevated } from '../../../shared/utils/elevation'
+import { elevateSession, startMemberSession } from '../../utils/member-session'
 
 // Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
 export default defineEventHandler(async (event) => {
@@ -27,8 +28,11 @@ export default defineEventHandler(async (event) => {
       path: '/',
       maxAge: 600,
     })
-    if (query.link) {
-      setCookie(event, 'knecht-link', '1', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600 })
+    if (query.link || query.elevate) {
+      setCookie(event, 'knecht-link', query.link ? 'link' : 'elevate', { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600 })
+    }
+    if (typeof query.return === 'string' && /^\/(?!\/)/.test(query.return)) {
+      setCookie(event, 'knecht-return', query.return, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600 })
     }
     if (typeof query.invite === 'string') {
       setCookie(event, 'knecht-invite', query.invite, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 600 })
@@ -45,8 +49,10 @@ export default defineEventHandler(async (event) => {
   deleteCookie(event, 'knecht-oauth-state', { path: '/' })
   const inviteToken = getCookie(event, 'knecht-invite')
   deleteCookie(event, 'knecht-invite', { path: '/' })
-  const linking = getCookie(event, 'knecht-link') === '1'
+  const mode = getCookie(event, 'knecht-link')
   deleteCookie(event, 'knecht-link', { path: '/' })
+  const returnTo = getCookie(event, 'knecht-return') ?? '/'
+  deleteCookie(event, 'knecht-return', { path: '/' })
   if (!expected || query.state !== expected) {
     console.error('GitHub OAuth error: state mismatch')
     return sendRedirect(event, '/login?error=oauth')
@@ -76,10 +82,17 @@ export default defineEventHandler(async (event) => {
     const account = { subject: String(user.id), username: user.login }
     const profile = { name: user.name, avatarUrl: user.avatar_url }
 
-    if (linking) {
-      const current = getMemberById((await getUserSession(event)).user?.id)
+    if (mode === 'link' || mode === 'elevate') {
+      const session = await getUserSession(event)
+      const current = getMemberById(session.user?.id)
       if (!current) return sendRedirect(event, '/login')
-      return sendRedirect(event, `/settings?github=${linkIdentity(current.id, 'github', account)}`)
+      if (mode === 'elevate') {
+        const own = listIdentities(current.id).some(i => i.provider === 'github' && i.subject === account.subject)
+        if (own) await elevateSession(event)
+        return sendRedirect(event, withQuery(returnTo, { reauth: own ? 'done' : 'mismatch' }))
+      }
+      if (!isElevated(session.elevatedAt)) return sendRedirect(event, '/settings/profile?github=reauth')
+      return sendRedirect(event, `/settings/profile?github=${linkIdentity(current.id, 'github', account)}`)
     }
     let member = loginWithIdentity('github', account, profile)
     if (!member && inviteToken) {
@@ -94,7 +107,7 @@ export default defineEventHandler(async (event) => {
       return sendRedirect(event, '/login?error=forbidden')
     }
 
-    await setMemberSession(event, member)
+    await startMemberSession(event, member)
     rememberLoginMethod(event, 'github')
     return sendRedirect(event, popRedirect(event))
   }

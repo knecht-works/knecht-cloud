@@ -2,7 +2,7 @@
 // can't tell host-local from LAN. import.meta.dev drops the body from prod builds.
 import { timingSafeEqual } from 'node:crypto'
 import { loginWithIdentity } from '../../stores/members'
-import { setMemberSession } from '../../utils/member-session'
+import { startMemberSession } from '../../utils/member-session'
 
 export default defineEventHandler(async (event) => {
   if (!import.meta.dev) {
@@ -35,7 +35,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: `@${ghUser.login} is not a member of this instance` })
   }
 
-  await setMemberSession(event, member)
+  await startMemberSession(event, member)
+  // `?stale=1` seeds a session past its elevation, to test the "Confirm it's you" path.
+  if (getQuery(event).stale) await replaceUserSession(event, { user: (await getUserSession(event)).user, elevatedAt: 0 })
 
   return { ok: true, login: ghUser.login }
 })

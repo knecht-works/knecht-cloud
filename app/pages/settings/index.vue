@@ -2,6 +2,7 @@
 const { user } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()
+const { withElevation } = useElevation()
 
 const { data: members } = await useMembers()
 
@@ -16,7 +17,7 @@ const inviting = ref(false)
 async function invite() {
   inviting.value = true
   try {
-    const { invite, token } = await $fetch('/api/invites', { method: 'POST' })
+    const { invite, token } = await withElevation(() => $fetch('/api/invites', { method: 'POST' }))
     inviteUrls.value[invite.id] = `${window.location.origin}/join/${token}`
     await refreshInvites()
     await copyInvite(invite.id)
@@ -48,7 +49,7 @@ const revoking = ref<number | null>(null)
 async function revoke(id: number) {
   revoking.value = id
   try {
-    invites.value = await $fetch(`/api/invites/${id}`, { method: 'DELETE' })
+    invites.value = await withElevation(() => $fetch(`/api/invites/${id}`, { method: 'DELETE' }))
   }
   catch (e) {
     toastError('Could not revoke the invite link', e)
@@ -60,7 +61,7 @@ async function revoke(id: number) {
 
 async function createResetLink(login: string) {
   try {
-    const { token } = await $fetch(`/api/members/${login}/password-reset`, { method: 'POST' })
+    const { token } = await withElevation(() => $fetch(`/api/members/${login}/password-reset`, { method: 'POST' }))
     const url = `${window.location.origin}/reset/${token}`
     try {
       await copyText(url)
@@ -77,7 +78,7 @@ async function createResetLink(login: string) {
 
 async function setOwner(login: string, isOwner: boolean) {
   try {
-    members.value = await $fetch(`/api/members/${login}`, { method: 'PATCH', body: { isOwner } })
+    members.value = await withElevation(() => $fetch(`/api/members/${login}`, { method: 'PATCH', body: { isOwner } }))
     toast.add({ title: isOwner ? `@${login} is now an owner` : `@${login} is no longer an owner`, color: 'success' })
   }
   catch (e) {
@@ -108,7 +109,7 @@ async function remove() {
   if (!login) return
   removing.value = true
   try {
-    members.value = await $fetch(`/api/members/${login}`, { method: 'DELETE' })
+    members.value = await withElevation(() => $fetch(`/api/members/${login}`, { method: 'DELETE' }))
     toast.add({ title: `Removed @${login}`, color: 'success' })
     removeTarget.value = null
   }

@@ -4,7 +4,7 @@ import { addMember, getMember } from '../../../stores/members'
 import { rememberLoginMethod } from '../../../utils/last-login'
 import { isForeignOrigin } from '../../../utils/origin'
 import { passwordProblem, usernameProblem } from '../../../../shared/utils/account'
-import { setMemberSession } from '../../../utils/member-session'
+import { startMemberSession } from '../../../utils/member-session'
 
 const bodySchema = z.object({
   username: z.string().trim().superRefine((v, ctx) => {
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
   }
   const member = addMember({ login: username, passwordHash, invitedBy: invite.createdBy })
 
-  await setMemberSession(event, member)
+  await startMemberSession(event, member)
   rememberLoginMethod(event, 'password')
   return { ok: true }
 })

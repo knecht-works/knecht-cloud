@@ -2,37 +2,31 @@
 import { passwordProblem } from '#shared/utils/account'
 
 const open = defineModel<boolean>('open', { required: true })
-const props = defineProps<{ hasPassword: boolean }>()
+defineProps<{ hasPassword: boolean }>()
 const emit = defineEmits<{ saved: [] }>()
 
-const currentPassword = ref('')
 const password = ref('')
 const saving = ref(false)
-const errors = ref<{ currentPassword?: string, password?: string }>({})
-watch(currentPassword, () => delete errors.value.currentPassword)
+const { withElevation } = useElevation()
+const errors = ref<{ password?: string }>({})
 watch(password, () => delete errors.value.password)
 watch(open, (isOpen) => {
   if (!isOpen) return
-  currentPassword.value = ''
   password.value = ''
   errors.value = {}
 })
 
 async function save() {
-  errors.value = {
-    currentPassword: props.hasPassword && !currentPassword.value ? 'Enter your current password.' : undefined,
-    password: passwordProblem(password.value) ?? undefined,
-  }
-  if (errors.value.currentPassword || errors.value.password) return
+  errors.value = { password: passwordProblem(password.value) ?? undefined }
+  if (errors.value.password) return
   saving.value = true
   try {
-    await $fetch('/api/me/password', { method: 'POST', body: { currentPassword: currentPassword.value || undefined, password: password.value } })
+    await withElevation(() => $fetch('/api/me/password', { method: 'POST', body: { password: password.value } }))
     open.value = false
     emit('saved')
   }
   catch (e) {
-    const field = (e as { data?: { data?: { field?: string } } }).data?.data?.field
-    errors.value[field === 'currentPassword' ? 'currentPassword' : 'password'] = errMsg(e, 'Could not save the password.')
+    if (!isReauthError(e)) errors.value.password = errMsg(e, 'Could not save the password.')
   }
   finally {
     saving.value = false
@@ -53,21 +47,6 @@ async function save() {
         @submit.prevent="save"
       >
         <UFormField
-          v-if="hasPassword"
-          label="Current password"
-          :error="errors.currentPassword"
-        >
-          <UInput
-            v-model="currentPassword"
-            type="password"
-            autocomplete="current-password"
-            placeholder="Your current password"
-            size="lg"
-            autofocus
-            class="w-full"
-          />
-        </UFormField>
-        <UFormField
           label="New password"
           :error="errors.password"
         >
@@ -77,7 +56,7 @@ async function save() {
             autocomplete="new-password"
             placeholder="At least 12 characters"
             size="lg"
-            :autofocus="!hasPassword"
+            autofocus
             class="w-full"
           />
         </UFormField>
