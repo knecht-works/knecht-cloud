@@ -3,7 +3,7 @@ const PUBLIC_ROUTES = ['/login', '/setup']
 
 export default defineNuxtRouteMiddleware((to) => {
   const { loggedIn } = useUserSession()
-  const isPublic = PUBLIC_ROUTES.includes(to.path) || to.path.startsWith('/join/')
+  const isPublic = PUBLIC_ROUTES.includes(to.path) || to.path.startsWith('/join/') || to.path.startsWith('/reset/')
 
   if (!loggedIn.value && !isPublic) {
     return navigateTo('/login')

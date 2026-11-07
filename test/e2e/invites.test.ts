@@ -102,3 +102,29 @@ describe('password login', () => {
     expect(link.headers.getSetCookie().join()).toContain('knecht-link=1')
   })
 })
+
+describe('password reset links', () => {
+  it('lets an owner hand out a single-use link that sets a new password', async () => {
+    const newPassword = 'a brand new password'
+    const { token } = await expectJson<{ token: string }>(await owner.fetch(`/api/members/${username}/password-reset`, { method: 'POST' }))
+    expect(await expectJson(await fetch(`${BASE_URL}/auth/reset/${token}`))).toEqual({ username })
+
+    const reset = (body: unknown) => fetch(`${BASE_URL}/auth/reset/${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    expect((await reset({ password: 'short' })).status).toBe(400)
+    const done = await reset({ password: newPassword })
+    expect(done.status).toBe(200)
+    const cookie = done.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+    expect((await fetch(`${BASE_URL}/api/members`, { headers: { cookie } })).status).toBe(200)
+    expect((await reset({ password: newPassword })).status).toBe(404)
+
+    const signIn = (pw: string) => fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: pw }) })
+    expect((await signIn(password)).status).toBe(401)
+    expect((await signIn(newPassword)).status).toBe(200)
+  })
+
+  it('is only for owners', async () => {
+    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'a brand new password' }) })
+    const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+    expect((await fetch(`${BASE_URL}/api/members/${username}/password-reset`, { method: 'POST', headers: { cookie } })).status).toBe(403)
+  })
+})

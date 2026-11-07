@@ -64,6 +64,30 @@ async function revoke(id: number) {
   }
 }
 
+async function createResetLink(login: string) {
+  try {
+    const { token } = await $fetch(`/api/members/${login}/password-reset`, { method: 'POST' })
+    const url = `${window.location.origin}/reset/${token}`
+    try {
+      await copyText(url)
+      toast.add({ title: `Reset link for @${login} copied`, description: 'It works once and expires in 24 hours.', color: 'success' })
+    }
+    catch {
+      toast.add({ title: `Reset link for @${login}`, description: url, color: 'warning' })
+    }
+  }
+  catch (e) {
+    toastError('Could not create the reset link', e)
+  }
+}
+
+function memberActions(m: { login: string, isOwner: boolean }) {
+  return [
+    [{ label: 'Create password reset link', icon: 'i-lucide-key-round', onSelect: () => createResetLink(m.login) }],
+    ...(m.isOwner ? [] : [[{ label: 'Remove', icon: 'i-lucide-user-x', color: 'error' as const, onSelect: () => { removeTarget.value = m.login } }]]),
+  ]
+}
+
 const removeTarget = ref<string | null>(null)
 const confirmingRemove = computed({
   get: () => removeTarget.value !== null,
@@ -160,19 +184,19 @@ async function remove() {
             @{{ m.login }}
           </div>
         </div>
-        <UTooltip
-          v-if="isOwner && !m.isOwner"
-          text="Remove"
+        <UDropdownMenu
+          v-if="isOwner"
+          :items="memberActions(m)"
+          :content="{ align: 'end' }"
         >
           <UButton
-            icon="i-lucide-x"
+            icon="i-lucide-ellipsis-vertical"
             color="neutral"
             variant="ghost"
             size="sm"
-            :aria-label="`Remove ${m.login}`"
-            @click="removeTarget = m.login"
+            :aria-label="`Actions for ${m.login}`"
           />
-        </UTooltip>
+        </UDropdownMenu>
       </div>
 
       <template v-if="isOwner">
