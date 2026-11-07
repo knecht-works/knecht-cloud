@@ -81,9 +81,24 @@ async function createResetLink(login: string) {
   }
 }
 
+async function setOwner(login: string, isOwner: boolean) {
+  try {
+    members.value = await $fetch(`/api/members/${login}`, { method: 'PATCH', body: { isOwner } })
+    toast.add({ title: isOwner ? `@${login} is now an owner` : `@${login} is no longer an owner`, color: 'success' })
+  }
+  catch (e) {
+    toastError('Could not change the owner role', e)
+  }
+}
+
 function memberActions(m: { login: string, isOwner: boolean }) {
   return [
-    [{ label: 'Create password reset link', icon: 'i-lucide-key-round', onSelect: () => createResetLink(m.login) }],
+    [
+      m.isOwner
+        ? { label: 'Remove owner role', icon: 'i-lucide-shield-off', onSelect: () => setOwner(m.login, false) }
+        : { label: 'Make owner', icon: 'i-lucide-shield', onSelect: () => setOwner(m.login, true) },
+      { label: 'Create password reset link', icon: 'i-lucide-key-round', onSelect: () => createResetLink(m.login) },
+    ],
     ...(m.isOwner ? [] : [[{ label: 'Remove', icon: 'i-lucide-user-x', color: 'error' as const, onSelect: () => { removeTarget.value = m.login } }]]),
   ]
 }

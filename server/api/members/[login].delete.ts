@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'No such member.' })
   }
   if (member.isOwner) {
-    throw createError({ statusCode: 403, statusMessage: 'The owner can’t be removed.' })
+    throw createError({ statusCode: 403, statusMessage: 'An owner can’t be removed. Remove the owner role first.' })
   }
 
   removeMember(login)

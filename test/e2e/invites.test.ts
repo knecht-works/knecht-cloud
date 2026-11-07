@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { BASE_URL, expectJson, login, type E2eClient } from './client'
 
 interface Invite { id: number, createdBy: string | null, expiresAt: string }
-interface Member { id: number, login: string, invitedBy: string | null }
+interface Member { id: number, login: string, invitedBy: string | null, isOwner: boolean }
 
 const username = `e2e-${Date.now()}`
 const password = 'correct horse battery'
@@ -126,5 +126,20 @@ describe('password reset links', () => {
     const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'a brand new password' }) })
     const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
     expect((await fetch(`${BASE_URL}/api/members/${username}/password-reset`, { method: 'POST', headers: { cookie } })).status).toBe(403)
+  })
+})
+
+describe('owner role', () => {
+  it('lets an owner promote a member, who can then manage invites, and demote them again', async () => {
+    const promoted = await expectJson<Member[]>(await owner.fetch(`/api/members/${username}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isOwner: true }) }))
+    expect(promoted.find(m => m.login === username)).toMatchObject({ isOwner: true })
+
+    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'a brand new password' }) })
+    const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+    expect((await fetch(`${BASE_URL}/api/invites`, { headers: { cookie } })).status).toBe(200)
+
+    expect((await owner.fetch(`/api/members/${username}`, { method: 'DELETE' })).status).toBe(403)
+    await expectJson(await owner.fetch(`/api/members/${username}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isOwner: false }) }))
+    expect((await fetch(`${BASE_URL}/api/invites`, { headers: { cookie } })).status).toBe(403)
   })
 })
