@@ -41,54 +41,55 @@ async function disconnect() {
 
 <template>
   <div>
-    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-      <div class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3">
+    <ul class="divide-y divide-default overflow-hidden rounded-lg border border-default">
+      <li class="flex items-center gap-3.5 px-4 py-3.5">
         <UIcon
           name="i-lucide-key-round"
-          class="size-5 flex-none text-dimmed"
+          class="size-5 flex-none text-muted"
         />
         <div class="min-w-0 flex-1">
-          <div class="text-sm text-toned">
+          <div class="text-sm text-highlighted">
             Password
           </div>
-          <div class="k-mono text-2xs text-dimmed">
-            {{ methods.password ? 'set' : 'not set' }}
+          <div class="text-xs text-muted">
+            {{ methods.password ? 'Sign in with your username and password.' : 'Not set. Set one to sign in without GitHub.' }}
           </div>
         </div>
         <UButton
-          :label="methods.password ? 'Change' : 'Set'"
+          :label="methods.password ? 'Change' : 'Set password'"
           color="neutral"
-          :variant="methods.password ? 'ghost' : 'subtle'"
-          size="xs"
+          variant="outline"
+          size="sm"
           @click="editingPassword = true"
         />
-      </div>
+      </li>
 
-      <div
+      <li
         v-if="methods.github.available || methods.github.username"
-        class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3"
+        class="flex items-center gap-3.5 px-4 py-3.5"
       >
         <UIcon
           name="i-simple-icons-github"
-          class="size-5 flex-none text-dimmed"
+          class="size-5 flex-none text-muted"
         />
         <div class="min-w-0 flex-1">
-          <div class="text-sm text-toned">
+          <div class="text-sm text-highlighted">
             GitHub
           </div>
-          <div class="k-mono truncate text-2xs text-dimmed">
-            {{ methods.github.username ? `@${methods.github.username}` : 'not connected' }}
+          <div class="truncate text-xs text-muted">
+            {{ methods.github.username ? `Connected as @${methods.github.username}.` : 'Not connected.' }}
           </div>
         </div>
         <UTooltip
           v-if="methods.github.username"
-          :text="methods.password ? 'Disconnect GitHub' : 'Your only way to sign in'"
+          :text="methods.password ? undefined : 'GitHub is your only way to sign in. Set a password first.'"
+          :disabled="methods.password"
         >
           <UButton
             label="Disconnect"
             color="neutral"
-            variant="ghost"
-            size="xs"
+            variant="outline"
+            size="sm"
             :loading="disconnecting"
             :disabled="!methods.password"
             @click="disconnect"
@@ -100,11 +101,11 @@ async function disconnect() {
           to="/auth/github?link=1"
           external
           color="neutral"
-          variant="subtle"
-          size="xs"
+          variant="outline"
+          size="sm"
         />
-      </div>
-    </div>
+      </li>
+    </ul>
 
     <KPasswordModal
       v-model:open="editingPassword"
