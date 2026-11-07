@@ -99,7 +99,7 @@ describe('password login', () => {
 
     const link = await fetch(`${BASE_URL}/auth/github?link=1`, { headers: { cookie }, redirect: 'manual' })
     expect(link.headers.get('location')).toMatch(/^https:\/\/github\.com\/login\/oauth\/authorize/)
-    expect(link.headers.getSetCookie().join()).toContain('knecht-link=1')
+    expect(link.headers.getSetCookie().join()).toContain('knecht-link=link')
   })
 })
 
@@ -145,20 +145,41 @@ describe('owner role', () => {
 })
 
 describe('own password', () => {
-  it('changes only with the current password', async () => {
+  it('changes without the current one while the session is fresh', async () => {
     const signIn = (pw: string) => fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: pw }) })
     const res = await signIn('a brand new password')
     const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
     const change = (body: unknown) => fetch(`${BASE_URL}/api/me/password`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify(body) })
 
-    const wrong = await change({ currentPassword: 'not my password', password: 'the third password' })
-    expect(wrong.status).toBe(400)
-    expect(((await wrong.json()) as { data: { field: string } }).data.field).toBe('currentPassword')
-    expect((await change({ currentPassword: 'a brand new password', password: 'short' })).status).toBe(400)
-    expect((await change({ currentPassword: 'a brand new password', password: 'the third password' })).status).toBe(200)
+    expect((await change({ password: 'short' })).status).toBe(400)
+    expect((await change({ password: 'the third password' })).status).toBe(200)
+    expect((await change({ password: 'the third password' })).status).toBe(200)
 
     expect((await signIn('a brand new password')).status).toBe(401)
     expect((await signIn('the third password')).status).toBe(200)
+  })
+})
+
+describe('confirm it is you', () => {
+  it('asks a session past its hour to confirm before sensitive actions', async () => {
+    const secret = process.env.KNECHT_TEST_AUTH!
+    const stale = await fetch(`${BASE_URL}/_test/login?secret=${encodeURIComponent(secret)}&stale=1`)
+    const cookie = stale.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+
+    expect((await fetch(`${BASE_URL}/api/members`, { headers: { cookie } })).status).toBe(200)
+    for (const [path, method] of [['/api/invites', 'POST'], [`/api/members/${username}/password-reset`, 'POST'], ['/api/me/elevated', 'GET'], ['/api/projects/999999', 'DELETE']]) {
+      const res = await fetch(`${BASE_URL}${path}`, { method, headers: { cookie } })
+      expect(res.status).toBe(403)
+      expect(((await res.json()) as { data: { reauth: boolean } }).data.reauth).toBe(true)
+    }
+  })
+
+  it('lets a member confirm with their password', async () => {
+    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'the third password' }) })
+    const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
+    const elevate = (password: string) => fetch(`${BASE_URL}/auth/elevate`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ password }) })
+    expect((await elevate('not my password')).status).toBe(400)
+    expect((await elevate('the third password')).status).toBe(200)
   })
 })
 

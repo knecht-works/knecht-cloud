@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { setName } from '../../stores/members'
-import { setMemberSession } from '../../utils/member-session'
+import { updateMemberSession } from '../../utils/member-session'
 
 const bodySchema = z.object({ name: z.string().trim().max(80) })
 
@@ -10,6 +10,6 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({ statusCode: 400, statusMessage: 'Use at most 80 characters.', data: { field: 'name' } })
   }
-  await setMemberSession(event, setName(user.id, result.data.name || null))
+  await updateMemberSession(event, setName(user.id, result.data.name || null))
   return { ok: true }
 })

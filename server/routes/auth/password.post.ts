@@ -3,7 +3,7 @@ import { getMember } from '../../stores/members'
 import { rememberLoginMethod } from '../../utils/last-login'
 import { clearLoginFailures, isLoginBlocked, recordLoginFailure } from '../../utils/login-attempts'
 import { isForeignOrigin } from '../../utils/origin'
-import { setMemberSession } from '../../utils/member-session'
+import { startMemberSession } from '../../utils/member-session'
 
 const bodySchema = z.object({
   username: z.string().trim().min(1).max(64),
@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
 
   // The client's count stays: one valid account must not reset the tries on others.
   clearLoginFailures([userKey])
-  await setMemberSession(event, member)
+  await startMemberSession(event, member)
   rememberLoginMethod(event, 'password')
   return { ok: true }
 })
