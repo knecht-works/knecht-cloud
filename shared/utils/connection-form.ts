@@ -8,7 +8,6 @@ export interface ConnectionFieldDef {
   type: 'text' | 'url' | 'email' | 'secret'
   placeholder?: string
   default?: string
-  mono?: boolean
   required: string
   pattern?: string
   invalid?: string

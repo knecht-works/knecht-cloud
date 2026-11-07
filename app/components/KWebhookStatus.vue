@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ConnectionStatus, WebhookRejectReason } from '#shared/utils/connection-form'
+import { keyPreview } from '#shared/utils/key-preview'
 
 const props = defineProps<{
   name: string
@@ -7,8 +8,10 @@ const props = defineProps<{
   setupUrl: string
   rejectCopy: Record<WebhookRejectReason, string>
   eventCopy: Record<string, string>
-  // Set when the tool mints the secret and the admin pastes it here; without it Knecht's own secret is shown to copy.
-  saveSecret?: (secret: string) => Promise<void>
+  // The tool mints the secret and the admin pastes it here; otherwise Knecht's own secret is copied into the tool.
+  pasted: boolean
+  editable: boolean
+  saveSecret: (secret: string) => Promise<void>
 }>()
 
 const toast = useToast()
@@ -43,7 +46,6 @@ async function copy(label: string, text: string | null) {
   }
 }
 
-const secretShown = ref(false)
 const secretEditing = ref(false)
 const secretDraft = ref('')
 const secretError = ref('')
@@ -56,7 +58,7 @@ async function submitSecret() {
   }
   secretSaving.value = true
   try {
-    await props.saveSecret!(secretDraft.value.trim())
+    await props.saveSecret(secretDraft.value.trim())
     secretDraft.value = ''
     secretEditing.value = false
     toast.add({ title: 'Webhook secret saved', color: 'success' })
@@ -71,7 +73,7 @@ async function submitSecret() {
 </script>
 
 <template>
-  <div class="mt-6 rounded-md border border-muted bg-(--surface-muted) px-4 py-3.5">
+  <div class="mt-4 rounded-md border border-muted bg-(--surface-muted) px-4 py-3.5">
     <div class="flex flex-wrap items-center gap-3">
       <KStatusDot
         :color="state.tone === 'error' ? 'error' : state.tone === 'ok' ? 'primary' : 'neutral'"
@@ -125,18 +127,10 @@ async function submitSecret() {
         />
         <span class="k-label">Secret</span>
         <template v-if="connection.webhookSecret && !secretEditing">
-          <span class="k-code min-w-0 max-w-full justify-self-start truncate text-xs">{{ secretShown ? connection.webhookSecret : '•'.repeat(24) }}</span>
+          <span class="k-code min-w-0 max-w-full justify-self-start truncate text-xs">{{ keyPreview(connection.webhookSecret) }}</span>
           <span class="flex gap-1">
             <UButton
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :icon="secretShown ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-              :aria-label="secretShown ? 'Hide secret' : 'Reveal secret'"
-              @click="() => { secretShown = !secretShown }"
-            />
-            <UButton
-              v-if="saveSecret"
+              v-if="pasted && editable"
               color="neutral"
               variant="ghost"
               size="xs"
@@ -145,7 +139,7 @@ async function submitSecret() {
               @click="() => { secretEditing = true }"
             />
             <UButton
-              v-else
+              v-else-if="editable"
               color="neutral"
               variant="ghost"
               size="xs"
@@ -155,7 +149,7 @@ async function submitSecret() {
             />
           </span>
         </template>
-        <template v-else>
+        <template v-else-if="pasted && editable">
           <UInput
             v-model="secretDraft"
             type="password"
@@ -182,6 +176,10 @@ async function submitSecret() {
               @click="submitSecret"
             />
           </span>
+        </template>
+        <template v-else>
+          <span class="text-xs text-dimmed">Not set</span>
+          <span />
         </template>
       </div>
       <p
