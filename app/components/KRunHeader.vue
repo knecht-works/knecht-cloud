@@ -130,7 +130,7 @@ const menuItems = computed(() => {
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
   }]
-  return [lifecycle, remove].filter(group => group.length)
+  return [[...lifecycle, ...remove]]
 })
 </script>
 
