@@ -4,13 +4,14 @@ import { defaultKeymap, editHistory, editorCommands } from 'prism-code-editor/co
 import { matchBrackets } from 'prism-code-editor/match-brackets'
 import 'prism-code-editor/prism/languages/bash'
 import 'prism-code-editor/prism/languages/javascript'
+import 'prism-code-editor/prism/languages/markdown'
 import 'prism-code-editor/languages/bash'
 import 'prism-code-editor/languages/clike'
 import 'prism-code-editor/layout.css'
 import 'prism-code-editor/themes/github-dark.css'
 
 const props = defineProps<{
-  lang: 'javascript' | 'bash'
+  lang: 'javascript' | 'bash' | 'markdown'
   placeholder?: string
   disabled?: boolean
   rows?: number

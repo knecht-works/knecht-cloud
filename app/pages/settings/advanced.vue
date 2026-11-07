@@ -4,6 +4,10 @@ import { SSH_TARGET_RE } from '#shared/utils/settings-limits'
 // The address is validated against the server's charset because it is spliced
 // verbatim into the copy-pasteable ssh command.
 const { data: settings } = useSettings()
+const { withElevation } = useElevation()
+const { user } = useUserSession()
+const { data: members } = await useMembers()
+const isOwner = computed(() => !!members.value?.find(m => m.id === user.value?.id)?.isOwner)
 
 const sshTarget = ref('')
 watch(settings, (s) => {
@@ -27,7 +31,7 @@ function validate(): boolean {
 }
 
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(() =>
-  patchSettings(settings, { sshTarget: sshTarget.value.trim() || null }))
+  withElevation(() => patchSettings(settings, { sshTarget: sshTarget.value.trim() || null })))
 watch(sshTarget, () => {
   if (sshTarget.value === (settings.value?.sshTarget ?? '')) return
   if (!validate()) return invalid('Not saved, check the value')
@@ -37,8 +41,8 @@ watch(sshTarget, () => {
 
 <template>
   <div class="flex flex-col gap-4.5">
-    <KSettingsEnvironments />
-    <KSettingsAutoUpdate />
+    <KSettingsEnvironments :editable="isOwner" />
+    <KSettingsAutoUpdate :editable="isOwner" />
     <KPanel
       title="Remote access"
       icon="i-lucide-terminal"
@@ -50,34 +54,32 @@ watch(sshTarget, () => {
           :error-text="saveError"
         />
       </template>
-      <p class="mb-5 text-xs leading-relaxed text-muted">
-        How do you reach this server over SSH? The run page's terminal modal uses this
-        address to build the copy-pasteable SSH command. The web terminal and the IDE
-        work without it.
-        <template v-if="settings?.sshTargetDefault">
-          Leave it empty to use <span class="k-code">{{ settings.sshTargetDefault }}</span>.
+      <KSettingRow
+        label="SSH address"
+        :preset="isPreset(settings, 'sshTarget')"
+      >
+        <template #hint>
+          Used for the copy-pasteable SSH command in the run's terminal modal. The web terminal
+          and the IDE work without it.
+          <template v-if="settings?.sshTargetDefault">
+            Empty uses <span class="k-code">{{ settings.sshTargetDefault }}</span>.
+          </template>
         </template>
-      </p>
-      <UInput
-        v-model="sshTarget"
-        :placeholder="settings?.sshTargetDefault ?? 'knecht@my-server.com'"
-        :disabled="isPreset(settings, 'sshTarget')"
-        :color="fieldError ? 'error' : undefined"
-        :highlight="!!fieldError"
-        class="k-mono w-full max-w-sm"
-      />
-      <p
-        v-if="isPreset(settings, 'sshTarget')"
-        class="k-mono mt-2 text-2xs text-dimmed"
-      >
-        Preset by the installation.
-      </p>
-      <p
-        v-if="fieldError"
-        class="mt-2 text-xs leading-normal text-error"
-      >
-        {{ fieldError }}
-      </p>
+        <UInput
+          v-model="sshTarget"
+          :placeholder="settings?.sshTargetDefault ?? 'knecht@my-server.com'"
+          :disabled="!isOwner || isPreset(settings, 'sshTarget')"
+          :color="fieldError ? 'error' : undefined"
+          :highlight="!!fieldError"
+          class="w-full"
+        />
+        <p
+          v-if="fieldError"
+          class="mt-2 text-xs leading-normal text-error"
+        >
+          {{ fieldError }}
+        </p>
+      </KSettingRow>
     </KPanel>
   </div>
 </template>
