@@ -421,6 +421,13 @@
       "when": 1794072069657,
       "tag": "0059_trigger-roles",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "6",
+      "when": 1794078714083,
+      "tag": "0060_member-identities",
+      "breakpoints": true
     }
   ]
 }

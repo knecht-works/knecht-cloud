@@ -1,6 +1,7 @@
 // The secret is the primary gate: the app runs in Docker, so a loopback check
 // can't tell host-local from LAN. import.meta.dev drops the body from prod builds.
 import { timingSafeEqual } from 'node:crypto'
+import { loginWithIdentity } from '../../stores/members'
 
 export default defineEventHandler(async (event) => {
   if (!import.meta.dev) {
@@ -21,19 +22,20 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 500, statusMessage: 'Set KNECHT_TEST_GITHUB_TOKEN to seed a session' })
   }
 
-  const ghUser = await $fetch<{ login: string, name: string | null, avatar_url: string }>(
+  const ghUser = await $fetch<{ id: number, login: string, name: string | null, avatar_url: string }>(
     'https://api.github.com/user',
     { headers: { 'Authorization': `Bearer ${token}`, 'User-Agent': 'knecht-dev-login' } },
   ).catch(() => {
     throw createError({ statusCode: 502, statusMessage: 'GitHub rejected KNECHT_TEST_GITHUB_TOKEN' })
   })
 
+  const member = loginWithIdentity('github', { subject: String(ghUser.id), username: ghUser.login }, { name: ghUser.name, avatarUrl: ghUser.avatar_url })
+  if (!member) {
+    throw createError({ statusCode: 403, statusMessage: `@${ghUser.login} is not a member of this instance` })
+  }
+
   await setUserSession(event, {
-    user: {
-      login: ghUser.login,
-      name: ghUser.name,
-      avatarUrl: ghUser.avatar_url,
-    },
+    user: { id: member.id, login: member.login, name: member.name, avatarUrl: member.avatarUrl },
   })
 
   return { ok: true, login: ghUser.login }

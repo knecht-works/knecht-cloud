@@ -34,3 +34,21 @@ describe('0057_project-repo-provider', () => {
     expect(sqlite.prepare(`SELECT id FROM projects WHERE repo_id = '43'`).get()).toEqual({ id: 3 })
   })
 })
+
+describe('0060_member-identities', () => {
+  it('gives every member a github identity, verified only once they have logged in', () => {
+    const { sqlite, upgrade } = databaseAt('0059_trigger-roles')
+    sqlite.exec(`
+      INSERT INTO members (login, avatar_url, is_owner) VALUES ('owner', 'https://avatars/1', 1), ('invited', NULL, 0);
+    `)
+
+    upgrade()
+
+    expect(sqlite.prepare('SELECT member_id, provider, subject, username, verified FROM member_identities ORDER BY member_id').all()).toEqual([
+      { member_id: 1, provider: 'github', subject: null, username: 'owner', verified: 1 },
+      { member_id: 2, provider: 'github', subject: null, username: 'invited', verified: 0 },
+    ])
+    sqlite.exec(`DELETE FROM members WHERE login = 'invited'`)
+    expect(sqlite.prepare('SELECT count(*) AS n FROM member_identities').get()).toEqual({ n: 1 })
+  })
+})

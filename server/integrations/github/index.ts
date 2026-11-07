@@ -3,7 +3,7 @@ import { getProjectByRepo } from '../../stores/projects'
 import { addCommentReaction, addIssueLabels, createIssueComment, listRepoLabels, removeIssueLabel } from '../../utils/github-app'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { tryParseJson } from '../../utils/json'
-import { isMember } from '../../stores/members'
+import { hasVerifiedIdentity } from '../../stores/members'
 import { verifySha256Signature } from '../../utils/signature'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
 import type { TriggerConfig } from '../../../shared/utils/trigger-form'
@@ -98,7 +98,7 @@ export const github: Integration = {
   },
 
   mentions: {
-    allowsAuthor: author => isMember(author.id),
+    allowsAuthor: author => hasVerifiedIdentity('github', author.id),
     async acknowledge(project, comment) {
       if (comment.id) await addCommentReaction(project.owner, project.name, Number(comment.id), 'eyes')
     },

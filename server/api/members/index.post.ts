@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { addMember, isMember, listMembers } from '../../stores/members'
+import { addMember, getIdentity, getMember, listMembers } from '../../stores/members'
 
 // GitHub usernames are at most 39 chars of alphanumerics and single hyphens.
 const bodySchema = z.object({
@@ -14,10 +14,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const { login } = result.data
-  if (isMember(login)) {
+  if (getMember(login) || getIdentity('github', login)) {
     throw createError({ statusCode: 409, statusMessage: 'That user is already a member.' })
   }
 
-  addMember({ login, invitedBy: user.login })
+  addMember({ login, invitedBy: user.login, identity: { provider: 'github', username: login } })
   return listMembers()
 })

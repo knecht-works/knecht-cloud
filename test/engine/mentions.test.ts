@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import type { Project } from '../../server/db/schema'
-import { getSessionRow, makeProject, makeRun } from '../helpers/db'
+import { getSessionRow, makeMember, makeProject, makeRun } from '../helpers/db'
 
 const reactions: number[] = []
 const comments: { issue: number, body: string }[] = []
@@ -53,7 +53,7 @@ beforeAll(() => {
     clientSecretEnc: 'x',
     privateKeyEnc: 'x',
   }).run()
-  db.insert(schema.members).values({ login: 'samuelreichor' }).run()
+  makeMember('samuelreichor')
 })
 
 describe('handleMention', () => {
