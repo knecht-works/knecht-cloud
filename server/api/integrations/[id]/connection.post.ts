@@ -1,10 +1,15 @@
 import { connectionIssues, normalizeConnection } from '../../../../shared/utils/connection-form'
 import { connectionOf } from '../../../utils/integration-routes'
+import { requireOwner } from '../../../utils/owner'
+import { requireElevated } from '../../../utils/member-session'
 
 export default defineEventHandler(async (event) => {
+  await requireOwner(event)
+  await requireElevated(event)
   const { connection } = connectionOf(event)
   const body = await readBody(event)
   const values = normalizeConnection(connection.form, body && typeof body === 'object' ? body : {})
+  for (const [key, stored] of Object.entries(connection.store.secrets())) values[key] ||= stored
   const [issue] = Object.values(connectionIssues(connection.form, values))
   if (issue) {
     throw createError({ statusCode: 400, statusMessage: issue })

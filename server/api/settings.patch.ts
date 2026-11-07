@@ -1,11 +1,13 @@
 import { z } from 'zod'
-import { AI_PROVIDERS, type AiProviderId, LANGDOCK_REGIONS, MODEL_NAME_RE } from '#shared/utils/ai'
-import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS, SSH_TARGET_RE } from '#shared/utils/settings-limits'
+import { AI_PROVIDERS, type AiProviderId, LANGDOCK_REGIONS, MODEL_NAME_RE } from '../../shared/utils/ai'
+import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS, SSH_TARGET_RE } from '../../shared/utils/settings-limits'
 import { getSettings, publicSettings, type SettingsPatch, updateSettings } from '../utils/settings'
 import { settingsPreset } from '../utils/settings-preset'
 import { isValidCron } from '../utils/cron'
 import { loadModelCatalog } from '../utils/ai-catalog'
 import { encrypt } from '../utils/crypto'
+import { requireOwner } from '../utils/owner'
+import { requireElevated } from '../utils/member-session'
 
 // PATCH /api/settings → update the tunable settings. Each field is optional so
 // the UI can send only what changed; values are bounded (SETTINGS_LIMITS, also
@@ -40,6 +42,12 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     const field = result.error.issues[0]?.path.join('.')
     throw createError({ statusCode: 400, statusMessage: field ? `Invalid value for ${field}` : 'Invalid settings' })
+  }
+  // Only the agent instructions are open to members; the rest picks the third party that
+  // receives every run's code and prompts, or runs and deletes things for the whole instance.
+  if (Object.keys(result.data).some(f => f !== 'agentInstructions')) {
+    await requireOwner(event)
+    await requireElevated(event)
   }
   // Fields pinned by the installation's env preset are read-only: the write
   // would be shadowed on every read anyway, and silently accepting it would

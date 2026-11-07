@@ -2,6 +2,11 @@ import type { H3Event } from 'h3'
 import { getMemberById } from '../stores/members'
 import type { Member } from '../db/schema'
 
+export async function isOwner(event: H3Event): Promise<boolean> {
+  const { user } = await requireUserSession(event)
+  return !!getMemberById(user.id)?.isOwner
+}
+
 export async function requireOwner(event: H3Event): Promise<Member> {
   const { user } = await requireUserSession(event)
   const member = getMemberById(user.id)

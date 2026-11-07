@@ -1,4 +1,5 @@
 import { getSettingsRow, updateSettingsRow } from '../stores/settings'
+import { keyPreview } from '../../shared/utils/key-preview'
 import { decrypt } from './crypto'
 import { defaultSshTarget } from './ssh'
 import { settingsPreset } from './settings-preset'
@@ -24,12 +25,6 @@ export function publicSettings(settings: Settings) {
     sshTargetDefault: defaultSshTarget(),
     presetKeys: settingsPreset().keys,
   }
-}
-
-// Star count capped so the preview does not leak the key length.
-export function keyPreview(key: string): string {
-  if (key.length <= 12) return '*'.repeat(key.length)
-  return `${key.slice(0, 8)}${'*'.repeat(Math.min(key.length - 12, 16))}${key.slice(-4)}`
 }
 
 function encKeyPreview(enc: string): string | undefined {
