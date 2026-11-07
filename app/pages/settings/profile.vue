@@ -86,37 +86,53 @@ async function saveName() {
 
       <div class="flex flex-col gap-6">
         <div class="flex items-center gap-4">
-          <UAvatar
-            :src="user?.avatarUrl ?? undefined"
-            :alt="user?.name || user?.login"
-            class="size-16 flex-none text-xl"
-          />
-          <div class="flex flex-col gap-1.5">
-            <div class="flex gap-2">
-              <UButton
-                label="Upload picture"
-                color="neutral"
-                variant="outline"
-                size="sm"
-                :loading="uploading"
-                @click="fileInput?.click()"
+          <div class="group relative size-16 flex-none">
+            <button
+              type="button"
+              class="relative size-16 overflow-hidden rounded-full"
+              :aria-label="user?.avatarUrl ? 'Change picture' : 'Upload picture'"
+              :disabled="uploading"
+              @click="fileInput?.click()"
+            >
+              <UAvatar
+                :src="user?.avatarUrl ?? undefined"
+                :alt="user?.name || user?.login"
+                class="size-16 text-xl"
               />
-              <UTooltip
-                v-if="user?.avatarUrl"
-                text="Remove picture"
+              <span
+                class="absolute inset-0 grid place-items-center bg-black/55 text-white transition-opacity"
+                :class="uploading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'"
               >
-                <UButton
-                  icon="i-lucide-x"
-                  color="error"
-                  variant="outline"
-                  size="sm"
-                  aria-label="Remove picture"
-                  @click="confirmingRemove = true"
+                <UIcon
+                  :name="uploading ? 'i-lucide-loader-circle' : 'i-lucide-camera'"
+                  class="size-5"
+                  :class="{ 'animate-spin': uploading }"
                 />
-              </UTooltip>
+              </span>
+            </button>
+            <UTooltip
+              v-if="user?.avatarUrl && !uploading"
+              text="Remove picture"
+            >
+              <button
+                type="button"
+                class="absolute -right-0.5 -top-0.5 grid size-5 place-items-center rounded-full bg-error text-inverted opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+                aria-label="Remove picture"
+                @click="confirmingRemove = true"
+              >
+                <UIcon
+                  name="i-lucide-x"
+                  class="size-3"
+                />
+              </button>
+            </UTooltip>
+          </div>
+          <div class="min-w-0">
+            <div class="truncate text-sm text-highlighted">
+              {{ user?.name || user?.login }}
             </div>
             <p class="text-xs text-muted">
-              PNG, JPEG or WebP. Cropped to a square.
+              Click the picture to change it. PNG, JPEG or WebP.
             </p>
           </div>
           <input
