@@ -28,11 +28,7 @@ const NuxtLink = resolveComponent('NuxtLink')
 
 const canTerminal = computed(() => props.envState === 'up' && !props.busy)
 
-const { data: services, refresh: refreshServices } = useFetch(`/api/runs/${props.runId}/services`, {
-  lazy: true,
-  default: () => [],
-})
-watch(canTerminal, up => up && refreshServices())
+const { data: services } = useRunServices(props.runId)
 const KNOWN_SERVICES: Record<string, { label: string, icon: string }> = {
   mailpit: { label: 'Mailpit', icon: 'i-lucide-mail' },
   adminer: { label: 'Adminer', icon: 'i-lucide-database' },
