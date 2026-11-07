@@ -1,8 +1,7 @@
 import { z } from 'zod'
 import { createProject, getProjectByGithubId } from '../../stores/projects'
 import type { ProjectMeta } from '../../utils/framework'
-import { resolveProjectMeta } from '../../utils/framework'
-import { getInstallationClient } from '../../utils/github-app'
+import { gitProvider } from '../../git'
 
 const bodySchema = z.object({
   githubId: z.number().int(),
@@ -26,8 +25,7 @@ export default defineEventHandler(async (event) => {
 
   let meta: ProjectMeta | undefined
   try {
-    const octokit = await getInstallationClient(result.data.owner, result.data.name)
-    meta = await resolveProjectMeta(octokit, result.data.owner, result.data.name, result.data.defaultBranch)
+    meta = await gitProvider(result.data).projectMeta(result.data, result.data.defaultBranch)
   }
   catch {
     // Connect anyway, the backfill retries.

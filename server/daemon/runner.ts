@@ -7,7 +7,7 @@ import { createContext, evalConditions, renderStepParams, resolveLoopItems, type
 import { formatEnvSummary } from '../../shared/utils/env-spec'
 import { runWorkspacePath } from '../../shared/utils/routes'
 import { sessionSandboxName } from '../utils/storage'
-import { getInstallationToken } from '../utils/github-app'
+import { gitProvider } from '../git'
 import { dashboardOrigin } from '../utils/origin'
 import { agentRepliedSince, describeObject, sessionObject } from '../utils/sessions'
 import { getIntegration, type CommentAuthor } from '../integrations'
@@ -97,8 +97,8 @@ async function execRun(runId: number, project: Project): Promise<void> {
       await reviveEnv(sessionId, log)
     }
     log(`▶ Preparing isolated checkout\n`)
-    const token = await getInstallationToken(project.owner, project.name)
-    const dir = await prepareSessionCheckout(project, sessionId, token, log, session.branch ?? run.branch ?? project.defaultBranch)
+    const credentials = await gitProvider(project).credentials(project)
+    const dir = await prepareSessionCheckout(project, sessionId, credentials, log, session.branch ?? run.branch ?? project.defaultBranch)
     markCheckedOut(sessionId)
 
     // urlMode is pinned on the first run: the proxy must match the env baked into

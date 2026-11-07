@@ -31,7 +31,7 @@ const meta = computed(() => {
   if (!r) return []
   const object = r.objectIntegration && r.objectKind ? sessionObjectMeta(r.objectIntegration, r.objectKind) : null
   // A branch is set locally by create-branch and pushed only by create-pr.
-  const branchOnGitHub = !!r.prUrl || r.objectKind === 'pull_request'
+  const branchPushed = !!r.prUrl || r.objectKind === 'pull_request'
   return [
     object && {
       icon: object.icon,
@@ -42,7 +42,7 @@ const meta = computed(() => {
     r.branch && {
       icon: 'i-lucide-git-branch',
       text: r.branch,
-      href: branchOnGitHub ? `https://github.com/${r.project}/tree/${r.branch}` : undefined,
+      href: branchPushed ? r.branchUrl ?? undefined : undefined,
     },
   ].filter(Boolean) as { icon: string, text: string, href?: string }[]
 })

@@ -2,6 +2,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import type { Project } from '../db/schema'
+import type { GitCredentials } from '../git/types'
 import type { ActionRuntime } from '../workflows/actions/types'
 import { KNECHT_COMPOSE_FILE, KNECHT_CONFIG_FILE } from './ddev'
 import { writeBridgeCredentialHelper } from '../utils/agent-bridge'
@@ -15,12 +16,11 @@ import { normalizeSharedFolder, sessionCheckoutDir } from '../utils/storage'
 export async function prepareSessionCheckout(
   project: Project,
   sessionId: number,
-  token: string,
+  credentials: GitCredentials,
   onLog: (line: string) => void,
   branch: string = project.defaultBranch,
 ): Promise<string> {
   const dir = sessionCheckoutDir(sessionId)
-  const url = `https://github.com/${project.fullName}.git`
 
   try {
     if (existsSync(join(dir, '.git'))) {
@@ -28,7 +28,8 @@ export async function prepareSessionCheckout(
     }
     else {
       onLog(`Cloning ${project.fullName} (${branch})…\n`)
-      await git([...authFlags(token), 'clone', '--depth', '1', '--branch', branch, url, dir])
+      const auth = authHeader(credentials)
+      await git(['-c', `${auth.key}=${auth.value}`, 'clone', '--depth', '1', '--branch', branch, credentials.cloneUrl, dir])
     }
 
     shieldGeneratedFiles(dir, project.sharedFolders)
@@ -37,7 +38,7 @@ export async function prepareSessionCheckout(
   }
   catch (e) {
     // The run log is UI-visible.
-    throw new Error(redact(String((e as Error).message), token), { cause: e })
+    throw new Error(redact(String((e as Error).message), credentials), { cause: e })
   }
 }
 
@@ -49,9 +50,15 @@ async function configureCheckout(dir: string, sessionId: number): Promise<void> 
   await writeBridgeCredentialHelper(dir, sessionId)
 }
 
-function authFlags(token: string): string[] {
-  const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
-  return ['-c', `http.https://github.com/.extraheader=Authorization: Basic ${basic}`]
+function basicAuth(credentials: GitCredentials): string {
+  return Buffer.from(`${credentials.username}:${credentials.token}`).toString('base64')
+}
+
+function authHeader(credentials: GitCredentials): { key: string, value: string } {
+  return {
+    key: `http.${new URL(credentials.cloneUrl).origin}/.extraheader`,
+    value: `Authorization: Basic ${basicAuth(credentials)}`,
+  }
 }
 
 // Everything below runs inside the sandbox: the sandbox can write .git, and git
@@ -90,18 +97,18 @@ export async function commitAll(
   return (await sandbox.exec(['git', 'rev-parse', 'HEAD'])).trim()
 }
 
-export async function pushBranch(sandbox: Sandbox, branch: string, token: string): Promise<void> {
-  const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
+export async function pushBranch(sandbox: Sandbox, branch: string, credentials: GitCredentials): Promise<void> {
+  const auth = authHeader(credentials)
   const env = {
     GIT_CONFIG_COUNT: '1',
-    GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader',
-    GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}`,
+    GIT_CONFIG_KEY_0: auth.key,
+    GIT_CONFIG_VALUE_0: auth.value,
   }
   try {
     await sandbox.exec(['git', 'push', 'origin', `HEAD:refs/heads/${branch}`], { env })
   }
   catch (e) {
-    throw new Error(redact(String((e as Error).message), token), { cause: e })
+    throw new Error(redact(String((e as Error).message), credentials), { cause: e })
   }
 }
 
@@ -132,9 +139,8 @@ function git(args: string[]) {
   return execa('git', args)
 }
 
-function redact(text: string, token: string): string {
-  if (!token) return text
+function redact(text: string, credentials: GitCredentials): string {
+  if (!credentials.token) return text
   // git may echo either the raw token or its base64 header form in an error.
-  const basic = Buffer.from(`x-access-token:${token}`).toString('base64')
-  return text.split(token).join('***').split(basic).join('***')
+  return text.split(credentials.token).join('***').split(basicAuth(credentials)).join('***')
 }
