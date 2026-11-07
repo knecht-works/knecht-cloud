@@ -69,6 +69,23 @@ describe('linkIdentity and unlinkIdentity', () => {
   })
 })
 
+describe('sessionMember', () => {
+  const session = (id: number, sessionVersion?: number) => ({ user: { id, login: '', name: null, avatarUrl: null }, sessionVersion })
+
+  it('ends the sessions from before a password change', async () => {
+    const { setPasswordHash } = await import('../../server/stores/members')
+    const { sessionMember } = await import('../../server/utils/member-session')
+    const member = addMember({ login: 'changes-password', passwordHash: 'old' })
+    expect(sessionMember(session(member.id, member.sessionVersion))?.id).toBe(member.id)
+    expect(sessionMember(session(member.id))?.id).toBe(member.id)
+
+    const changed = setPasswordHash(member.id, 'new')
+    expect(sessionMember(session(member.id, member.sessionVersion))).toBeUndefined()
+    expect(sessionMember(session(member.id))).toBeUndefined()
+    expect(sessionMember(session(member.id, changed.sessionVersion))?.id).toBe(member.id)
+  })
+})
+
 describe('setOwner', () => {
   it('promotes and demotes, but always keeps one owner', async () => {
     const { listMembers, setOwner } = await import('../../server/stores/members')

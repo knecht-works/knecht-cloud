@@ -1,4 +1,4 @@
-import { and, asc, count, eq, getTableColumns, isNull, or } from 'drizzle-orm'
+import { and, asc, count, eq, getTableColumns, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { memberIdentities, members, type Member, type MemberIdentity } from '../db/schema'
 import type { RepoProvider } from '../../shared/utils/integrations'
@@ -18,9 +18,9 @@ export interface ProviderAccount {
   username: string
 }
 
-const { passwordHash: _, avatarImage: __, nameIsOwn: ___, ...publicColumns } = getTableColumns(members)
+const { passwordHash: _, avatarImage: __, nameIsOwn: ___, sessionVersion: ____, ...publicColumns } = getTableColumns(members)
 
-export function listMembers(): Omit<Member, 'passwordHash' | 'avatarImage' | 'nameIsOwn'>[] {
+export function listMembers(): Omit<Member, 'passwordHash' | 'avatarImage' | 'nameIsOwn' | 'sessionVersion'>[] {
   return db.select(publicColumns).from(members).orderBy(asc(members.createdAt)).all()
 }
 
@@ -162,9 +162,14 @@ export function unlinkIdentity(memberId: number, provider: RepoProvider): boolea
   return true
 }
 
-export function setPasswordHash(memberId: number, passwordHash: string): void {
-  db.update(members).set({ passwordHash }).where(eq(members.id, memberId)).run()
+export function setPasswordHash(memberId: number, passwordHash: string): Member {
+  const member = db.update(members)
+    .set({ passwordHash, sessionVersion: sql`${members.sessionVersion} + 1` })
+    .where(eq(members.id, memberId))
+    .returning()
+    .get()
   emitTopics(liveTopics.members)
+  return member
 }
 
 // Answers false instead of demoting the last owner.
