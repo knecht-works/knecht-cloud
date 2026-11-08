@@ -33,7 +33,7 @@ async function copy() {
   >
     <template #body>
       <div class="flex gap-2">
-        <KCodeInput
+        <UInput
           :model-value="url"
           readonly
           class="flex-1"
@@ -41,7 +41,6 @@ async function copy() {
           @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
         />
         <UButton
-          :icon="done ? 'i-lucide-check' : 'i-lucide-copy'"
           :label="done ? 'Copied' : 'Copy'"
           color="neutral"
           variant="outline"
