@@ -336,9 +336,8 @@ watch(bootCommands, () => {
             <UInput
               v-model="previewPort"
               placeholder="Port"
+              aria-label="Port"
               inputmode="numeric"
-              size="sm"
-              :ui="{ base: 'k-mono text-xs' }"
             />
           </div>
         </div>
@@ -375,47 +374,52 @@ watch(bootCommands, () => {
               :key="row.label"
               class="flex items-center justify-between gap-3"
             >
-              <span class="k-mono text-2xs text-dimmed">{{ row.label }}</span>
-              <span class="k-mono text-xs text-toned">{{ row.value }}</span>
+              <span class="text-xs text-dimmed">{{ row.label }}</span>
+              <span class="text-xs text-toned">{{ row.value }}</span>
             </div>
           </div>
           <div
             v-else
-            class="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2"
+            class="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2"
           >
-            <span class="k-label">Framework</span>
-            <span class="k-mono text-xs text-toned">{{ fwLabel }}</span>
-            <span class="k-label">PHP</span>
-            <USelectMenu
-              :model-value="phpItems.find(i => i.value === phpOverride)"
-              :items="phpItems"
-              :search-input="false"
-              class="w-full"
-              @update:model-value="(item: { value: string | null } | undefined) => phpOverride = item?.value ?? null"
-            />
-            <span class="k-label">Node</span>
-            <USelectMenu
-              :model-value="nodeItems.find(i => i.value === nodeOverride)"
-              :items="nodeItems"
-              :search-input="false"
-              class="w-full"
-              @update:model-value="(item: { value: string | null } | undefined) => nodeOverride = item?.value ?? null"
-            />
-            <span class="k-label">Package manager</span>
-            <USelectMenu
-              :model-value="packageManagerItems.find(i => i.value === packageManagerOverride)"
-              :items="packageManagerItems"
-              :search-input="false"
-              class="w-full"
-              @update:model-value="(item: { value: string | null } | undefined) => packageManagerOverride = (item?.value ?? null) as PackageManagerName | null"
-            />
-            <span class="k-label">Database</span>
-            <USelectMenu
-              :model-value="databaseItems.flat().find(i => i.value === databaseOverride)"
-              :items="databaseItems"
-              class="w-full"
-              @update:model-value="(item: { value: DdevDatabase | null } | undefined) => databaseOverride = item?.value ?? null"
-            />
+            <UFormField label="Framework">
+              <span class="text-xs text-toned">{{ fwLabel }}</span>
+            </UFormField>
+            <UFormField label="PHP">
+              <USelectMenu
+                :model-value="phpItems.find(i => i.value === phpOverride)"
+                :items="phpItems"
+                :search-input="false"
+                class="w-full"
+                @update:model-value="(item: { value: string | null } | undefined) => phpOverride = item?.value ?? null"
+              />
+            </UFormField>
+            <UFormField label="Node">
+              <USelectMenu
+                :model-value="nodeItems.find(i => i.value === nodeOverride)"
+                :items="nodeItems"
+                :search-input="false"
+                class="w-full"
+                @update:model-value="(item: { value: string | null } | undefined) => nodeOverride = item?.value ?? null"
+              />
+            </UFormField>
+            <UFormField label="Package manager">
+              <USelectMenu
+                :model-value="packageManagerItems.find(i => i.value === packageManagerOverride)"
+                :items="packageManagerItems"
+                :search-input="false"
+                class="w-full"
+                @update:model-value="(item: { value: string | null } | undefined) => packageManagerOverride = (item?.value ?? null) as PackageManagerName | null"
+              />
+            </UFormField>
+            <UFormField label="Database">
+              <USelectMenu
+                :model-value="databaseItems.flat().find(i => i.value === databaseOverride)"
+                :items="databaseItems"
+                class="w-full"
+                @update:model-value="(item: { value: DdevDatabase | null } | undefined) => databaseOverride = item?.value ?? null"
+              />
+            </UFormField>
           </div>
           <p
             v-for="warning in detectedEnv.warnings"
@@ -537,17 +541,15 @@ watch(bootCommands, () => {
             <UInput
               v-model="newFolder"
               placeholder="web/uploads"
-              size="sm"
+              aria-label="Folder"
               class="flex-1"
-              :ui="{ base: 'k-mono text-xs' }"
             />
             <UButton
               type="submit"
-              label="Add"
               icon="i-lucide-plus"
+              aria-label="Add folder"
               variant="outline"
               color="neutral"
-              size="sm"
               :loading="savingFolders"
               :disabled="!newFolder.trim()"
             />

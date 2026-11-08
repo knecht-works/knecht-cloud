@@ -42,63 +42,63 @@ const onSettings = computed(() => route.path.startsWith(`/projects/${props.proje
           :disabled="startOpen"
         >
           <UButton
+            size="lg"
             color="primary"
             label="Start workflow"
             :loading="starting"
           />
         </UTooltip>
         <template #content>
-          <div class="w-72 p-3">
-            <div class="k-label mb-1.5">
-              Branch
-            </div>
-            <USelectMenu
-              v-model="selectedBranch"
-              :items="branchItems"
-              icon="i-lucide-git-branch"
-              :search-input="{ placeholder: 'Filter branches…' }"
-              class="w-full"
-            />
+          <div class="flex w-72 flex-col gap-4 p-3">
+            <UFormField label="Branch">
+              <USelectMenu
+                v-model="selectedBranch"
+                :items="branchItems"
+                icon="i-lucide-git-branch"
+                :search-input="{ placeholder: 'Filter branches…' }"
+                class="w-full"
+              />
+            </UFormField>
 
-            <div class="k-label mb-1.5 mt-3.5">
-              Workflow
-            </div>
-            <div
-              v-if="startableWorkflows.length"
-              class="flex flex-col gap-0.5"
-            >
-              <button
-                v-for="w in startableWorkflows"
-                :key="w.id"
-                type="button"
-                class="flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass) disabled:cursor-default"
-                :disabled="starting"
-                @click="startWorkflow(w.id)"
+            <UFormField label="Workflow">
+              <div
+                v-if="startableWorkflows.length"
+                class="flex flex-col gap-0.5"
               >
-                <UIcon
-                  name="i-lucide-workflow"
-                  class="mt-0.5 size-4 flex-none text-primary"
-                />
-                <span class="min-w-0">
-                  <span class="k-mono block truncate text-xs text-default">{{ w.name }}</span>
-                  <span
-                    v-if="w.description"
-                    class="block truncate text-2xs text-dimmed"
-                  >{{ w.description }}</span>
-                </span>
-              </button>
-            </div>
-            <p
-              v-else
-              class="px-2.5 py-2 text-xs text-dimmed"
-            >
-              No workflows yet.
-            </p>
+                <button
+                  v-for="w in startableWorkflows"
+                  :key="w.id"
+                  type="button"
+                  class="flex cursor-pointer items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-(--surface-glass) disabled:cursor-default"
+                  :disabled="starting"
+                  @click="startWorkflow(w.id)"
+                >
+                  <UIcon
+                    name="i-lucide-workflow"
+                    class="mt-0.5 size-4 flex-none text-primary"
+                  />
+                  <span class="min-w-0">
+                    <span class="k-mono block truncate text-xs text-default">{{ w.name }}</span>
+                    <span
+                      v-if="w.description"
+                      class="block truncate text-2xs text-dimmed"
+                    >{{ w.description }}</span>
+                  </span>
+                </button>
+              </div>
+              <p
+                v-else
+                class="px-2.5 py-2 text-xs text-dimmed"
+              >
+                No workflows yet.
+              </p>
+            </UFormField>
           </div>
         </template>
       </UPopover>
       <UTooltip :text="onSettings ? 'Project' : 'Settings'">
         <UButton
+          size="lg"
           :to="onSettings ? `/projects/${project.id}` : `/projects/${project.id}/settings`"
           color="neutral"
           variant="outline"

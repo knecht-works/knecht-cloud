@@ -18,7 +18,6 @@ const showLastUsed = (method: LoginMethod) => !props.newAccount && lastUsed.valu
 const { fetch: refreshSession } = useUserSession()
 const username = ref(props.fixedUsername ?? '')
 const password = ref('')
-const showPassword = ref(false)
 const submitting = ref(false)
 const error = ref<string | null>(null)
 const fieldErrors = ref<{ username?: string, password?: string }>({})
@@ -61,7 +60,6 @@ async function submit() {
         external
         icon="i-simple-icons-github"
         color="neutral"
-        size="lg"
         block
         class="justify-start"
       >
@@ -103,7 +101,6 @@ async function submit() {
         <UInput
           v-model="username"
           :placeholder="newAccount ? 'Choose a username' : 'Your username'"
-          size="lg"
           :readonly="!!fixedUsername"
           :autofocus="!fixedUsername"
           autocomplete="username"
@@ -116,33 +113,17 @@ async function submit() {
         label="Password"
         :error="fieldErrors.password"
       >
-        <UInput
+        <KPasswordInput
           v-model="password"
           :placeholder="newAccount ? 'Choose a password' : 'Your password'"
-          size="lg"
           :autofocus="!!fixedUsername"
-          :type="showPassword ? 'text' : 'password'"
           :autocomplete="newAccount ? 'new-password' : 'current-password'"
           class="w-full"
-          :ui="{ trailing: 'pe-1' }"
-        >
-          <template #trailing>
-            <UButton
-              :icon="showPassword ? 'i-lucide-eye-off' : 'i-lucide-eye'"
-              :aria-label="showPassword ? 'Hide password' : 'Show password'"
-              :aria-pressed="showPassword"
-              color="neutral"
-              variant="link"
-              size="sm"
-              @click="showPassword = !showPassword"
-            />
-          </template>
-        </UInput>
+        />
       </UFormField>
       <UButton
         type="submit"
         color="primary"
-        size="lg"
         block
         class="mt-2"
         :loading="submitting"

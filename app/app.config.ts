@@ -1,3 +1,10 @@
+// md and lg match the button sizes below, so a control and a button of the
+// same size are the same height (enforced by knecht/control-row-size).
+const controlSizes = {
+  md: { base: 'px-3 py-2 text-base/5 gap-2' },
+  lg: { base: 'px-3 py-2.5 text-base/5 gap-2' },
+}
+
 const pointer = {
   slots: {
     // Pointer cursor on the trigger and on each option; disabled states still
@@ -5,6 +12,7 @@ const pointer = {
     base: 'cursor-pointer',
     item: 'cursor-pointer',
   },
+  variants: { size: controlSizes },
 }
 
 export default defineAppConfig({
@@ -24,7 +32,10 @@ export default defineAppConfig({
       variants: {
         size: {
           md: {
-            base: 'px-5 py-2.5 text-sm font-medium',
+            base: 'px-4 py-2 text-sm/5 font-medium',
+          },
+          lg: {
+            base: 'px-5 py-2.5 text-sm/5 font-medium',
           },
         },
 
@@ -34,10 +45,24 @@ export default defineAppConfig({
           variant: 'solid',
           class: 'shadow-sm transition-shadow hover:shadow-md',
         },
+        { square: true, size: 'md', class: 'p-2' },
+        { square: true, size: 'lg', class: 'p-2.5' },
       ],
     },
+    input: { variants: { size: controlSizes } },
+    textarea: { variants: { size: controlSizes } },
+    inputNumber: { variants: { size: { md: controlSizes.md.base, lg: controlSizes.lg.base } } },
     select: pointer,
-    selectMenu: pointer,
+    selectMenu: {
+      ...pointer,
+      // Selected items wrap onto more lines instead of being cut off.
+      variants: { ...pointer.variants, multiple: { true: { base: 'h-auto' } } },
+    },
+    formField: {
+      variants: {
+        orientation: { vertical: { container: 'mt-2' } },
+      },
+    },
     dropdownMenu: {
       slots: {
         item: 'cursor-pointer',

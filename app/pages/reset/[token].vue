@@ -21,7 +21,6 @@ const { data: reset, error: resetError } = await useFetch(() => `/auth/reset/${t
       <UButton
         to="/login"
         color="neutral"
-        size="lg"
         block
       >
         Go to login

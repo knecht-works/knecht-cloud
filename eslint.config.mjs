@@ -1,4 +1,5 @@
 import withNuxt from './.nuxt/eslint.config.mjs'
+import { controlRowSize, labeledControl, themedOnly } from './eslint/form-rules.mjs'
 
 // Every query goes through a store, so live updates cannot be skipped.
 const storeQueries = {
@@ -25,5 +26,15 @@ export default withNuxt(
     ignores: ['server/stores/**', 'server/db/**'],
     plugins: { knecht: { rules: { 'store-queries': storeQueries } } },
     rules: { 'knecht/store-queries': 'error' },
+  },
+  {
+    files: ['app/**/*.vue'],
+    plugins: { 'knecht-forms': { rules: { 'control-row-size': controlRowSize, 'labeled-control': labeledControl, 'themed-only': themedOnly } } },
+    rules: { 'knecht-forms/control-row-size': 'error', 'knecht-forms/labeled-control': 'error', 'knecht-forms/themed-only': 'error' },
+  },
+  {
+    // The field components define their look once and are labeled by the UFormField around them.
+    files: ['app/components/{KSecretField,KCodeInput,KPasswordInput}.vue', 'app/components/chat/ModelPicker.vue'],
+    rules: { 'knecht-forms/labeled-control': 'off', 'knecht-forms/themed-only': 'off' },
   },
 )

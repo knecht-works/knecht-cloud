@@ -36,21 +36,20 @@ async function setLink(value: string | null) {
     :icon="ui.icon"
     :accent="ui.color"
   >
-    <div class="flex flex-col">
+    <div class="flex flex-col gap-3">
       <p class="text-xs leading-relaxed text-dimmed">
         Tickets of the linked {{ integration.link.label }} can start this repo's workflows, get Knecht's
         replies, and turn mentions into follow-ups. One {{ integration.link.label }} per repository.
       </p>
-      <div class="k-label mb-1.5 mt-3">
-        {{ integration.link.label }}
-      </div>
-      <USelectMenu
-        :model-value="items.find(i => i.value === key)"
-        :items="items"
-        placeholder="Not linked"
-        class="w-full"
-        @update:model-value="(item: { value: string | null } | undefined) => setLink(item?.value ?? null)"
-      />
+      <UFormField :label="integration.link.label">
+        <USelectMenu
+          :model-value="items.find(i => i.value === key)"
+          :items="items"
+          placeholder="Not linked"
+          class="w-full"
+          @update:model-value="(item: { value: string | null } | undefined) => setLink(item?.value ?? null)"
+        />
+      </UFormField>
     </div>
   </KPanel>
 </template>

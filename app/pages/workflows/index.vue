@@ -114,6 +114,7 @@ const filtered = computed(() =>
         >
         <UTooltip text="Import a workflow from a YAML or JSON file">
           <UButton
+            size="lg"
             label="Import"
             color="neutral"
             variant="outline"
@@ -123,6 +124,7 @@ const filtered = computed(() =>
         </UTooltip>
         <UTooltip text="Create an empty workflow">
           <UButton
+            size="lg"
             label="New workflow"
             color="primary"
             :loading="creating"

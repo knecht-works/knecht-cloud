@@ -57,6 +57,7 @@ async function removeProject() {
             </p>
           </div>
           <UButton
+            size="lg"
             color="error"
             variant="outline"
             label="Disconnect"

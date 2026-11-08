@@ -389,6 +389,7 @@ const pr = computed(() => {
       >
         <template v-if="mode === 'running'">
           <UButton
+            size="lg"
             color="error"
             variant="outline"
             label="Cancel run"
@@ -396,6 +397,7 @@ const pr = computed(() => {
             @click="cancel"
           />
           <UButton
+            size="lg"
             color="primary"
             label="Run in background"
             @click="detach"
@@ -404,6 +406,7 @@ const pr = computed(() => {
         <template v-else-if="mode === 'success'">
           <UButton
             v-if="pr"
+            size="lg"
             color="neutral"
             variant="outline"
             label="View PR"
@@ -411,6 +414,7 @@ const pr = computed(() => {
             target="_blank"
           />
           <UButton
+            size="lg"
             color="primary"
             label="Close"
             @click="detach"
@@ -419,6 +423,7 @@ const pr = computed(() => {
         <template v-else-if="mode === 'failed'">
           <UTooltip text="Edit the step that failed">
             <UButton
+              size="lg"
               color="neutral"
               variant="outline"
               label="Fix failed step"
@@ -427,6 +432,7 @@ const pr = computed(() => {
           </UTooltip>
           <UTooltip text="Continue from the failed step, without your edits">
             <UButton
+              size="lg"
               color="neutral"
               variant="outline"
               label="Resume run"
@@ -436,6 +442,7 @@ const pr = computed(() => {
           </UTooltip>
           <UTooltip text="Start a new test with your edits">
             <UButton
+              size="lg"
               color="primary"
               label="Test again"
               @click="retest"
@@ -512,40 +519,39 @@ const pr = computed(() => {
               :disabled="!!steps.length && !!projects?.length"
             >
               <UButton
+                size="lg"
                 color="primary"
                 label="Run workflow"
                 :disabled="!steps.length || starting || !projects?.length"
               />
             </UTooltip>
             <template #content>
-              <div class="w-72 p-3">
-                <div class="k-label mb-1.5">
-                  Project
-                </div>
-                <USelectMenu
-                  v-model="project"
-                  :items="projects ?? []"
-                  placeholder="Select a project…"
-                  icon="i-lucide-folder-git-2"
-                  class="w-full"
-                />
-
-                <template v-if="project">
-                  <div class="k-label mb-1.5 mt-3.5">
-                    Branch
-                  </div>
+              <div class="flex w-72 flex-col gap-4 p-3">
+                <UFormField label="Project">
                   <USelectMenu
-                    v-model="testBranch"
-                    :items="testBranchItems"
-                    icon="i-lucide-git-branch"
-                    :search-input="{ placeholder: 'Filter branches…' }"
+                    v-model="project"
+                    :items="projects ?? []"
+                    placeholder="Select a project…"
+                    icon="i-lucide-folder-git-2"
                     class="w-full"
                   />
+                </UFormField>
+
+                <template v-if="project">
+                  <UFormField label="Branch">
+                    <USelectMenu
+                      v-model="testBranch"
+                      :items="testBranchItems"
+                      icon="i-lucide-git-branch"
+                      :search-input="{ placeholder: 'Filter branches…' }"
+                      class="w-full"
+                    />
+                  </UFormField>
 
                   <button
                     type="button"
                     :aria-expanded="mockOpen"
-                    class="group mt-3.5 flex w-full cursor-pointer items-center gap-1.5"
+                    class="group flex w-full cursor-pointer items-center gap-1.5"
                     @click="mockOpen = !mockOpen"
                   >
                     <UIcon
@@ -557,26 +563,19 @@ const pr = computed(() => {
                   </button>
                   <div
                     v-if="mockOpen"
-                    class="mt-2 space-y-2"
+                    class="space-y-2"
                   >
                     <template
                       v-for="v in TRIGGER_VARS"
                       :key="v.path"
                     >
-                      <UTextarea
-                        v-if="v.path === 'inputs.body'"
+                      <KCodeInput
                         v-model="mockInputs[varPathParts(v.path)[1]]"
+                        :rows="v.path === 'inputs.body' ? 2 : undefined"
                         :placeholder="v.path"
-                        :rows="2"
+                        :aria-label="v.path"
+                        size="sm"
                         class="w-full"
-                        :ui="{ base: 'k-mono text-xs' }"
-                      />
-                      <UInput
-                        v-else
-                        v-model="mockInputs[varPathParts(v.path)[1]]"
-                        :placeholder="v.path"
-                        class="w-full"
-                        :ui="{ base: 'k-mono text-xs' }"
                       />
                     </template>
                     <p class="text-2xs leading-normal text-dimmed">
@@ -587,7 +586,8 @@ const pr = computed(() => {
                 </template>
 
                 <UButton
-                  class="mt-3.5 w-full justify-center"
+                  size="lg"
+                  class="w-full justify-center"
                   color="primary"
                   label="Run workflow"
                   :loading="starting"
@@ -604,6 +604,7 @@ const pr = computed(() => {
           >
             <UTooltip text="More actions">
               <UButton
+                size="lg"
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-ellipsis-vertical"
@@ -868,6 +869,7 @@ const pr = computed(() => {
               </div>
               <UButton
                 v-else-if="editable"
+                size="lg"
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-plus"
@@ -883,6 +885,7 @@ const pr = computed(() => {
             >
               <div class="w-7.5 flex-none" />
               <UButton
+                size="lg"
                 color="neutral"
                 variant="outline"
                 icon="i-lucide-plus"
@@ -922,6 +925,7 @@ const pr = computed(() => {
                   </div>
                 </div>
                 <UButton
+                  size="lg"
                   color="primary"
                   label="Add first step"
                   @click="addStep('ddev-start')"
@@ -944,6 +948,7 @@ const pr = computed(() => {
               <div class="flex gap-3.5">
                 <div class="w-7.5 flex-none" />
                 <UButton
+                  size="lg"
                   color="neutral"
                   variant="outline"
                   icon="i-lucide-plus"

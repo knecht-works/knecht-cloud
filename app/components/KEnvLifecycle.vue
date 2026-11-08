@@ -21,6 +21,7 @@ defineEmits<{
       The environment is stopped. Reboot it to work in it again.
     </p>
     <UButton
+      size="lg"
       color="primary"
       label="Reboot"
       :loading="reviving"
@@ -33,6 +34,7 @@ defineEmits<{
       and restoring rebuilds it in a few minutes.
     </p>
     <UButton
+      size="lg"
       color="primary"
       label="Restore"
       :loading="reviving"
@@ -49,6 +51,7 @@ defineEmits<{
       :disabled="!!workflowId"
     >
       <UButton
+        size="lg"
         color="primary"
         label="Run again"
         :loading="restarting"
@@ -63,6 +66,7 @@ defineEmits<{
       project's database and boot commands.
     </p>
     <UButton
+      size="lg"
       color="primary"
       label="Boot preview"
       :loading="reviving"

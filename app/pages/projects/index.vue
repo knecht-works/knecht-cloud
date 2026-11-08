@@ -45,6 +45,7 @@ const open = ref(false)
       <template #actions>
         <UTooltip text="Connect a GitHub repo">
           <UButton
+            size="lg"
             label="New project"
             color="primary"
             @click="() => { open = true }"

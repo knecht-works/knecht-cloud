@@ -559,16 +559,16 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
                 <UButton
                   v-for="(file, i) in files"
                   :key="`${file.name}-${file.size}`"
-                  :label="file.name"
                   :avatar="attachmentPreview(file) ? { src: attachmentPreview(file) } : undefined"
                   :icon="attachmentPreview(file) ? undefined : 'i-lucide-file'"
                   color="neutral"
                   variant="soft"
                   size="xs"
                   trailing-icon="i-lucide-x"
-                  :ui="{ label: 'k-mono max-w-48 truncate' }"
                   @click="removeFile(i)"
-                />
+                >
+                  <span class="k-mono max-w-48 truncate">{{ file.name }}</span>
+                </UButton>
               </div>
             </template>
             <template #footer>

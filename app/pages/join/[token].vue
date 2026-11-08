@@ -22,7 +22,6 @@ const githubTaken = route.query.error === 'username'
       <UButton
         to="/login"
         color="neutral"
-        size="lg"
         block
       >
         Go to login
