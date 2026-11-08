@@ -20,8 +20,16 @@ describe('usernameProblem', () => {
 })
 
 describe('passwordProblem', () => {
-  it('asks for at least 12 characters', () => {
-    expect(passwordProblem('x'.repeat(11))).toBe('At least 12 characters.')
-    expect(passwordProblem('x'.repeat(12))).toBeNull()
+  it.each(['Abcdefghijk1', 'Äöü-Straße-42', 'correct Horse 9 battery'])('accepts %s', (password) => {
+    expect(passwordProblem(password)).toBeNull()
+  })
+
+  it.each([
+    ['Abcdefghij1', 'At least 12 characters.'],
+    ['abcdefghijk1', 'Add an uppercase letter.'],
+    ['ABCDEFGHIJK1', 'Add a lowercase letter.'],
+    ['Abcdefghijkl', 'Add a digit.'],
+  ])('refuses %j', (password, problem) => {
+    expect(passwordProblem(password)).toBe(problem)
   })
 })

@@ -51,7 +51,7 @@ async function save() {
           <KPasswordInput
             v-model="password"
             autocomplete="new-password"
-            placeholder="At least 12 characters"
+            placeholder="12+ characters, upper and lower case, a digit"
             autofocus
             class="w-full"
           />

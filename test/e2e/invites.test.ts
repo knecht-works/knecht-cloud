@@ -5,7 +5,7 @@ interface Invite { id: number, createdBy: string | null, expiresAt: string }
 interface Member { id: number, login: string, invitedBy: string | null, isOwner: boolean }
 
 const username = `e2e-${Date.now()}`
-const password = 'correct horse battery'
+const password = 'Correct horse battery 1'
 let owner: E2eClient
 
 async function createInvite(): Promise<{ invite: Invite, token: string }> {
@@ -107,7 +107,7 @@ describe('password login', () => {
 
 describe('password reset links', () => {
   it('lets an owner hand out a single-use link that sets a new password', async () => {
-    const newPassword = 'a brand new password'
+    const newPassword = 'A brand new password 2'
     const { token } = await expectJson<{ token: string }>(await owner.fetch(`/api/members/${username}/password-reset`, { method: 'POST' }))
     expect(await expectJson(await fetch(`${BASE_URL}/auth/reset/${token}`))).toEqual({ username })
 
@@ -125,7 +125,7 @@ describe('password reset links', () => {
   })
 
   it('is only for owners', async () => {
-    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'a brand new password' }) })
+    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'A brand new password 2' }) })
     const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
     expect((await fetch(`${BASE_URL}/api/members/${username}/password-reset`, { method: 'POST', headers: { cookie } })).status).toBe(403)
   })
@@ -136,7 +136,7 @@ describe('owner role', () => {
     const promoted = await expectJson<Member[]>(await owner.fetch(`/api/members/${username}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isOwner: true }) }))
     expect(promoted.find(m => m.login === username)).toMatchObject({ isOwner: true })
 
-    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'a brand new password' }) })
+    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'A brand new password 2' }) })
     const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
     expect((await fetch(`${BASE_URL}/api/invites`, { headers: { cookie } })).status).toBe(200)
 
@@ -150,17 +150,17 @@ describe('own password', () => {
   it('changes without the current one', async () => {
     const signIn = (pw: string) => fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: pw }) })
     const sessionCookie = (res: Response) => res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
-    const cookie = sessionCookie(await signIn('a brand new password'))
+    const cookie = sessionCookie(await signIn('A brand new password 2'))
     const change = (cookie: string, body: unknown) => fetch(`${BASE_URL}/api/me/password`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify(body) })
 
     expect((await change(cookie, { password: 'short' })).status).toBe(400)
-    const changed = await change(cookie, { password: 'the third password' })
+    const changed = await change(cookie, { password: 'The third password 3' })
     expect(changed.status).toBe(200)
-    expect((await change(cookie, { password: 'the third password' })).status).toBe(401)
-    expect((await change(sessionCookie(changed), { password: 'the third password' })).status).toBe(200)
+    expect((await change(cookie, { password: 'The third password 3' })).status).toBe(401)
+    expect((await change(sessionCookie(changed), { password: 'The third password 3' })).status).toBe(200)
 
-    expect((await signIn('a brand new password')).status).toBe(401)
-    expect((await signIn('the third password')).status).toBe(200)
+    expect((await signIn('A brand new password 2')).status).toBe(401)
+    expect((await signIn('The third password 3')).status).toBe(200)
   })
 })
 
@@ -169,7 +169,7 @@ describe('profile', () => {
   const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
 
   it('sets a picture and a display name of their own', async () => {
-    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'the third password' }) })
+    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'The third password 3' }) })
     let cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
     const send = async (path: string, method: string, body?: unknown) => {
       const r = await fetch(`${BASE_URL}${path}`, { method, headers: { 'Content-Type': 'application/json', cookie }, body: body === undefined ? undefined : JSON.stringify(body) })

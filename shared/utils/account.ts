@@ -11,7 +11,11 @@ export function usernameProblem(username: string): string | null {
 }
 
 export function passwordProblem(password: string): string | null {
-  return password.length < PASSWORD_MIN_LENGTH ? `At least ${PASSWORD_MIN_LENGTH} characters.` : null
+  if (password.length < PASSWORD_MIN_LENGTH) return `At least ${PASSWORD_MIN_LENGTH} characters.`
+  if (!/\p{Lu}/u.test(password)) return 'Add an uppercase letter.'
+  if (!/\p{Ll}/u.test(password)) return 'Add a lowercase letter.'
+  if (!/\d/.test(password)) return 'Add a digit.'
+  return null
 }
 
 export const LAST_LOGIN_COOKIE = 'knecht-last-login'
