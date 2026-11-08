@@ -145,7 +145,9 @@ async function saveAiKey() {
           </template>
         </template>
         <div class="flex gap-2">
+          <!-- Mounted with an undefined value, Reka's Select stays uncontrolled and would show a cancelled switch. -->
           <USelect
+            :key="aiProvider ? 'loaded' : 'loading'"
             :model-value="aiProvider"
             :items="PROVIDER_ITEMS"
             value-key="id"
