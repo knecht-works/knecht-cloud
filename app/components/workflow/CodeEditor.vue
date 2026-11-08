@@ -52,19 +52,28 @@ defineExpose({ editor })
     :style="{ '--code-min-lines': rows ?? 3, '--code-max-height': maxHeight ? `${maxHeight}px` : 'none' }"
   >
     <div ref="host" />
+    <!-- The editor only exists after mount; this keeps its size until then. -->
+    <pre
+      v-if="!editor"
+      class="k-code-fallback"
+    >{{ model }}</pre>
     <span
       v-if="props.placeholder && !model"
       aria-hidden="true"
-      class="k-mono pointer-events-none absolute left-2.5 top-1.5 whitespace-pre-wrap text-xs text-dimmed"
+      class="k-mono pointer-events-none absolute left-2.5 top-(--code-pad) whitespace-pre-wrap text-xs text-dimmed"
     >{{ props.placeholder }}</span>
   </div>
 </template>
 
 <style scoped>
+.k-code-editor {
+  /* One line is as tall as a md input. */
+  --code-pad: calc((2.25rem - 1.4 * 12px) / 2);
+}
 .k-code-editor :deep(.prism-code-editor) {
   font-family: var(--font-mono);
   font-size: 12px;
-  min-height: calc(var(--code-min-lines) * 1.4em + 0.75rem);
+  min-height: calc(var(--code-min-lines) * 1.4em + 2 * var(--code-pad));
   max-height: var(--code-max-height);
   resize: vertical;
   --pce-bg: transparent;
@@ -75,6 +84,18 @@ defineExpose({ editor })
   --pce-border-highlight: none;
 }
 .k-code-editor :deep(.pce-wrapper) {
-  margin: 0.375rem 0;
+  margin: var(--code-pad) 0;
+}
+.k-code-fallback {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.4;
+  min-height: calc(var(--code-min-lines) * 1.4em + 2 * var(--code-pad));
+  max-height: var(--code-max-height);
+  overflow: hidden;
+  padding: var(--code-pad) 0.625rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-default);
 }
 </style>
