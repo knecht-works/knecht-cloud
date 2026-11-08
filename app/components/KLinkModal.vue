@@ -33,12 +33,11 @@ async function copy() {
   >
     <template #body>
       <div class="flex gap-2">
-        <UInput
+        <KCodeInput
           :model-value="url"
           readonly
           size="sm"
           class="flex-1"
-          :ui="{ base: 'k-mono text-xs' }"
           aria-label="Link"
           @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
         />
@@ -55,6 +54,7 @@ async function copy() {
     <template #footer>
       <div class="flex w-full justify-end">
         <UButton
+          size="lg"
           label="Done"
           @click="() => { open = false }"
         />

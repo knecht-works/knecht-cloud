@@ -50,12 +50,10 @@ async function save() {
           label="New password"
           :error="errors.password"
         >
-          <UInput
+          <KPasswordInput
             v-model="password"
-            type="password"
             autocomplete="new-password"
             placeholder="At least 12 characters"
-            size="lg"
             autofocus
             class="w-full"
           />
@@ -65,12 +63,14 @@ async function save() {
     <template #footer>
       <div class="flex w-full justify-end gap-2">
         <UButton
+          size="lg"
           color="neutral"
           variant="outline"
           label="Cancel"
           @click="open = false"
         />
         <UButton
+          size="lg"
           type="submit"
           form="password-form"
           label="Save password"

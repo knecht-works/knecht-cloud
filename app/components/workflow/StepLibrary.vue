@@ -55,8 +55,9 @@ function addTop() {
         icon="i-lucide-search"
         placeholder="Search steps…"
         :disabled="!editable"
+        aria-label="Search steps"
+        size="sm"
         class="w-full"
-        :ui="{ base: 'text-xs' }"
         @keydown.enter="addTop"
       />
 

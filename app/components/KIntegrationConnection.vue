@@ -94,11 +94,12 @@ const setupUrl = computed(() => props.form.webhook.setupUrl.replace(/\{(\w+)\}/g
       :style="{ '--cols': `repeat(${form.fields.length}, minmax(0, 1fr))${showActions ? ' auto' : ''}` }"
       @submit.prevent="submit"
     >
-      <div
+      <UFormField
         v-for="field in form.fields"
         :key="field.key"
+        :label="field.label"
+        :error="fieldErrors[field.key]"
       >
-        <span class="k-label">{{ field.label }}</span>
         <KSecretField
           v-if="field.type === 'secret'"
           v-model="values[field.key]!"
@@ -106,7 +107,6 @@ const setupUrl = computed(() => props.form.webhook.setupUrl.replace(/\{(\w+)\}/g
           :placeholder="field.placeholder"
           :disabled="!editable"
           :invalid="!!fieldErrors[field.key]"
-          class="mt-2"
         />
         <UInput
           v-else
@@ -118,18 +118,12 @@ const setupUrl = computed(() => props.form.webhook.setupUrl.replace(/\{(\w+)\}/g
           spellcheck="false"
           :color="fieldErrors[field.key] ? 'error' : undefined"
           :highlight="!!fieldErrors[field.key]"
-          class="mt-2 w-full"
+          class="w-full"
         />
-        <p
-          v-if="fieldErrors[field.key]"
-          class="mt-2 text-xs leading-normal text-error"
-        >
-          {{ fieldErrors[field.key] }}
-        </p>
-      </div>
+      </UFormField>
       <div
         v-if="showActions"
-        class="flex gap-2 xl:mt-7.5"
+        class="flex gap-2 xl:mt-7"
       >
         <UButton
           type="submit"

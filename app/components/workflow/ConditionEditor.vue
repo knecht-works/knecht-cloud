@@ -99,8 +99,9 @@ function removeCondition(gi: number, ci: number) {
               v-model="c.op"
               :items="OP_ITEMS"
               :disabled="!editable"
+              aria-label="Operator"
+              size="sm"
               class="w-36 flex-none"
-              :ui="{ base: 'text-xs' }"
             />
             <WorkflowVarField
               v-if="hasRight(c.op)"
@@ -115,7 +116,7 @@ function removeCondition(gi: number, ci: number) {
             <UButton
               color="neutral"
               variant="ghost"
-              size="xs"
+              size="sm"
               icon="i-lucide-x"
               aria-label="Remove condition"
               :disabled="!editable || (group.length === 1 && step.conditions.length === 1)"

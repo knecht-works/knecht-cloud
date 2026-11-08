@@ -21,16 +21,13 @@ const value = computed({
 </script>
 
 <template>
-  <div>
-    <span class="k-label">{{ field.label }}</span>
-    <UInput
+  <UFormField :label="field.label">
+    <KCodeInput
       v-if="error"
       v-model="model as string"
-      spellcheck="false"
       :disabled="disabled"
       :placeholder="field.placeholder"
-      class="mt-1.5 w-full"
-      :ui="{ base: 'k-mono' }"
+      class="w-full"
     />
     <USelectMenu
       v-else
@@ -41,8 +38,7 @@ const value = computed({
       :loading="status === 'pending'"
       :disabled="disabled"
       :placeholder="field.placeholder"
-      class="mt-1.5 w-full"
-      :ui="{ base: 'k-mono' }"
+      class="w-full"
     />
-  </div>
+  </UFormField>
 </template>

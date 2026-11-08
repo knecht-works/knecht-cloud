@@ -14,8 +14,6 @@ const emit = defineEmits<{ focus: [] }>()
 
 const compact = computed(() => !props.field.label)
 
-const invalidRing = computed(() => props.invalid ? ' ring-(--accent-orange)' : '')
-
 const wrap = ref<HTMLElement>()
 
 function el(): HTMLInputElement | HTMLTextAreaElement | null {
@@ -154,99 +152,88 @@ defineExpose({ insertVar, acceptsVars: () => !!props.field.vars })
     :field="field"
     :disabled="disabled"
   />
-  <div
+  <UFormField
     v-else
-    ref="wrap"
-    class="relative"
-    @focusin="emit('focus')"
+    :label="field.label || undefined"
+    :required="field.required"
+    :help="field.hint"
   >
-    <span
-      v-if="field.label"
-      class="k-label"
-      :style="invalid ? { color: 'var(--accent-orange)' } : undefined"
-    >{{ field.label }}<span
-      v-if="field.required"
-      class="text-(--accent-orange)"
-    >*</span></span>
     <div
-      v-if="field.input === 'code'"
-      class="w-full overflow-hidden rounded-md bg-default ring ring-inset transition-colors focus-within:ring-2 focus-within:ring-primary"
-      :class="[
-        compact ? '' : 'mt-1.5',
-        invalid ? 'ring-(--accent-orange)' : 'ring-accented',
-        disabled ? 'opacity-75' : '',
-      ]"
+      ref="wrap"
+      class="relative"
+      @focusin="emit('focus')"
     >
-      <WorkflowCodeEditor
-        ref="codeEditor"
+      <div
+        v-if="field.input === 'code'"
+        class="w-full overflow-hidden rounded-md bg-default ring ring-inset transition-colors focus-within:ring-2 focus-within:ring-primary"
+        :class="[
+          invalid ? 'ring-(--accent-orange)' : 'ring-accented',
+          disabled ? 'opacity-75' : '',
+        ]"
+      >
+        <WorkflowCodeEditor
+          ref="codeEditor"
+          v-model="model as string"
+          :lang="field.lang ?? 'bash'"
+          :placeholder="field.placeholder"
+          :disabled="disabled"
+          :rows="field.rows"
+          @keydown.capture="onKeydown"
+          @input="field.vars && refreshToken()"
+          @click="field.vars && refreshToken()"
+          @focusout="close"
+        />
+      </div>
+      <KCodeInput
+        v-else-if="field.input === 'textarea'"
         v-model="model as string"
-        :lang="field.lang ?? 'bash'"
-        :placeholder="field.placeholder"
+        :rows="field.rows ?? 3"
         :disabled="disabled"
-        :rows="field.rows"
-        @keydown.capture="onKeydown"
+        :placeholder="field.placeholder"
+        :color="invalid ? 'warning' : undefined"
+        :highlight="invalid"
+        class="w-full"
         @input="field.vars && refreshToken()"
         @click="field.vars && refreshToken()"
-        @focusout="close"
+        @keydown="onKeydown"
+        @blur="close"
       />
-    </div>
-    <UTextarea
-      v-else-if="field.input === 'textarea'"
-      v-model="model as string"
-      :rows="field.rows ?? 3"
-      autoresize
-      spellcheck="false"
-      :disabled="disabled"
-      :placeholder="field.placeholder"
-      class="w-full"
-      :class="compact ? '' : 'mt-1.5'"
-      :ui="{ base: 'k-mono text-xs resize-y' + invalidRing }"
-      @input="field.vars && refreshToken()"
-      @click="field.vars && refreshToken()"
-      @keydown="onKeydown"
-      @blur="close"
-    />
-    <UInput
-      v-else
-      v-model="model as string"
-      spellcheck="false"
-      :disabled="disabled"
-      :placeholder="field.placeholder"
-      class="w-full"
-      :class="compact ? '' : 'mt-1.5'"
-      :ui="{ base: (compact ? 'k-mono text-xs' : 'k-mono') + invalidRing }"
-      @input="field.vars && refreshToken()"
-      @click="field.vars && refreshToken()"
-      @keydown="onKeydown"
-      @blur="close"
-    />
-    <p
-      v-if="field.hint"
-      class="mt-1.5 text-2xs leading-normal text-muted"
-    >
-      {{ field.hint }}
-    </p>
+      <KCodeInput
+        v-else
+        v-model="model as string"
+        :disabled="disabled"
+        :placeholder="field.placeholder"
+        :size="compact ? 'sm' : undefined"
+        :color="invalid ? 'warning' : undefined"
+        :highlight="invalid"
+        class="w-full"
+        @input="field.vars && refreshToken()"
+        @click="field.vars && refreshToken()"
+        @keydown="onKeydown"
+        @blur="close"
+      />
 
-    <Teleport to="body">
-      <div
-        v-if="open && matches.length"
-        ref="list"
-        class="fixed z-50 max-h-60 overflow-y-auto rounded-md border border-default bg-(--surface-elevated)"
-        :style="{ boxShadow: 'var(--shadow-panel)', top: `${pos.top}px`, left: `${pos.left}px`, width: `${pos.width}px` }"
-      >
-        <button
-          v-for="(v, i) in matches"
-          :key="v.path"
-          type="button"
-          class="flex w-full items-baseline gap-2.5 px-3 py-2 text-left"
-          :style="i === active ? { background: 'var(--surface-accented)' } : undefined"
-          @mousedown.prevent="pick(v.path)"
-          @mousemove="active = i"
+      <Teleport to="body">
+        <div
+          v-if="open && matches.length"
+          ref="list"
+          class="fixed z-50 max-h-60 overflow-y-auto rounded-md border border-default bg-(--surface-elevated)"
+          :style="{ boxShadow: 'var(--shadow-panel)', top: `${pos.top}px`, left: `${pos.left}px`, width: `${pos.width}px` }"
         >
-          <span class="k-mono text-xs"><span class="text-dimmed">{{ varPathParts(v.path)[0] }}</span><span :style="{ color: v.color }">{{ varPathParts(v.path)[1] }}</span></span>
-          <span class="truncate text-2xs text-dimmed">{{ v.hint }}</span>
-        </button>
-      </div>
-    </Teleport>
-  </div>
+          <button
+            v-for="(v, i) in matches"
+            :key="v.path"
+            type="button"
+            class="flex w-full items-baseline gap-2.5 px-3 py-2 text-left"
+            :style="i === active ? { background: 'var(--surface-accented)' } : undefined"
+            @mousedown.prevent="pick(v.path)"
+            @mousemove="active = i"
+          >
+            <span class="k-mono text-xs"><span class="text-dimmed">{{ varPathParts(v.path)[0] }}</span><span :style="{ color: v.color }">{{ varPathParts(v.path)[1] }}</span></span>
+            <span class="truncate text-2xs text-dimmed">{{ v.hint }}</span>
+          </button>
+        </div>
+      </Teleport>
+    </div>
+  </UFormField>
 </template>

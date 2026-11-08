@@ -29,7 +29,7 @@ defineProps<{
       <slot />
       <p
         v-if="preset"
-        class="k-mono mt-2 text-2xs text-dimmed"
+        class="mt-2 text-xs text-dimmed"
       >
         Preset by the installation.
       </p>

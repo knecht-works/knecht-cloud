@@ -139,13 +139,15 @@ watch(built, () => {
 
 <template>
   <div class="space-y-4">
-    <div>
-      <div class="flex min-h-7 items-center justify-between">
-        <span class="k-label">Fires when</span>
-        <div
-          v-if="form.length > 1"
-          class="flex gap-2"
-        >
+    <UFormField
+      label="Fires when"
+      :error="generalIssue"
+    >
+      <template
+        v-if="form.length > 1"
+        #hint
+      >
+        <div class="flex gap-2">
           <button
             v-for="k in form"
             :key="k.kind"
@@ -159,8 +161,8 @@ watch(built, () => {
             {{ k.label }}
           </button>
         </div>
-      </div>
-      <div class="mt-1 grid grid-cols-1 gap-x-8 sm:grid-cols-2">
+      </template>
+      <div class="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
         <div
           v-for="item in eventItems"
           :key="item.value"
@@ -194,6 +196,7 @@ watch(built, () => {
               multiple
               :create-item="!event.value.listedOnly"
               :placeholder="event.value.placeholder"
+              :aria-label="item.label"
               size="sm"
               class="min-w-0 flex-1"
               @create="typed => values[event!.type] = [...(values[event!.type] ?? []), typed.trim()]"
@@ -212,6 +215,7 @@ watch(built, () => {
               :items="menuItems(def.scope, SCOPE_SOURCE, scope)"
               multiple
               :placeholder="def.scope.placeholder"
+              :aria-label="def.scope.label"
               size="sm"
               class="min-w-0 flex-1"
             >
@@ -232,12 +236,6 @@ watch(built, () => {
         </div>
       </div>
       <p
-        v-if="generalIssue"
-        class="mt-1 text-2xs text-error"
-      >
-        {{ generalIssue }}
-      </p>
-      <p
         v-for="miss in missing"
         :key="miss.value"
         class="mt-2 flex gap-2.5 rounded-md border border-(--status-orange)/35 bg-(--status-orange)/8 px-3 py-2.5 text-2xs leading-normal text-muted"
@@ -251,10 +249,13 @@ watch(built, () => {
           Nothing there will ever fire this trigger. Pick a value all projects share or create a separate trigger for them.
         </span>
       </p>
-    </div>
+    </UFormField>
 
-    <div v-if="def.scope && !scopeRequired">
-      <span class="k-label">While the {{ def.scope.label.toLowerCase() }} is</span>
+    <UFormField
+      v-if="def.scope && !scopeRequired"
+      :label="`While the ${def.scope.label.toLowerCase()} is`"
+      :error="scopeIssue"
+    >
       <USelectMenu
         v-model="scope"
         value-key="value"
@@ -262,7 +263,7 @@ watch(built, () => {
         multiple
         :placeholder="`Any ${def.scope.label.toLowerCase()}`"
         size="sm"
-        class="mt-2 w-full"
+        class="w-full"
       >
         <template #item-trailing="{ item }">
           <span
@@ -271,19 +272,15 @@ watch(built, () => {
           >{{ item.projects }}</span>
         </template>
       </USelectMenu>
-      <p
-        v-if="scopeIssue"
-        class="mt-1 text-2xs text-error"
-      >
-        {{ scopeIssue }}
-      </p>
-    </div>
+    </UFormField>
 
-    <div v-if="def.filters.length">
-      <span class="k-label">But only if</span>
+    <UFormField
+      v-if="def.filters.length"
+      label="But only if"
+    >
       <div
         v-if="conditions.length"
-        class="mt-2 flex flex-col gap-1.5 rounded-md border border-muted p-2"
+        class="flex flex-col gap-1.5 rounded-md border border-muted p-2"
       >
         <div
           v-for="(condition, ci) in conditions"
@@ -295,6 +292,7 @@ watch(built, () => {
               value-key="value"
               :items="fieldItems"
               :search-input="false"
+              aria-label="Field"
               size="sm"
               class="w-36 shrink-0"
               @update:model-value="field => conditions[ci] = newCondition(field)"
@@ -304,6 +302,7 @@ watch(built, () => {
               value-key="value"
               :items="OP_ITEMS"
               :search-input="false"
+              aria-label="Operator"
               size="sm"
               class="w-24 shrink-0"
             />
@@ -314,6 +313,7 @@ watch(built, () => {
               multiple
               :create-item="!filterDef(condition.field)?.listedOnly"
               :placeholder="filterDef(condition.field)?.placeholder"
+              aria-label="Values"
               size="sm"
               class="min-w-0 flex-1"
               @create="pattern => condition.values = [...condition.values, pattern.trim()]"
@@ -354,6 +354,6 @@ watch(built, () => {
           />
         </UDropdownMenu>
       </div>
-    </div>
+    </UFormField>
   </div>
 </template>

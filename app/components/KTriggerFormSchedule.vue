@@ -21,13 +21,13 @@ watch(cron, () => {
 
 <template>
   <div>
-    <span class="k-label">Schedule</span>
-    <UInput
-      v-model="cron"
-      placeholder="0 9 * * *"
-      class="mt-2 w-full"
-      :ui="{ base: 'k-mono' }"
-    />
+    <UFormField label="Schedule">
+      <KCodeInput
+        v-model="cron"
+        placeholder="0 9 * * *"
+        class="w-full"
+      />
+    </UFormField>
     <div class="mt-2 flex flex-wrap gap-1.5">
       <button
         v-for="p in CRON_PRESETS"

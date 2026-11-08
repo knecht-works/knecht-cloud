@@ -142,16 +142,14 @@ watch(open, (isOpen) => {
     <template #body>
       <div class="flex flex-col gap-4 min-h-130">
         <div class="space-y-4 h-full flex-1">
-          <div>
-            <span class="k-label block">Projects</span>
+          <UFormField label="Projects">
             <USelectMenu
               v-model="projectIds"
               value-key="value"
               multiple
               :items="projectItems"
               icon="i-lucide-box"
-              class="mt-2 w-full"
-              :ui="{ base: 'h-auto min-h-8' }"
+              class="w-full"
             >
               <template #default>
                 <span
@@ -170,7 +168,7 @@ watch(open, (isOpen) => {
                 >Select projects…</span>
               </template>
             </USelectMenu>
-          </div>
+          </UFormField>
 
           <fieldset
             :disabled="!projectIds.length"
@@ -235,12 +233,14 @@ watch(open, (isOpen) => {
         </div>
         <div class="flex justify-end gap-2">
           <UButton
+            size="lg"
             color="neutral"
             variant="outline"
             label="Cancel"
             @click="() => { open = false }"
           />
           <UButton
+            size="lg"
             :label="editing ? 'Save changes' : 'Create trigger'"
             color="primary"
             :loading="creating"

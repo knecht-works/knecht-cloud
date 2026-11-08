@@ -43,7 +43,6 @@ const errorMessage = computed(() => {
       <UButton
         to="/login"
         color="neutral"
-        size="lg"
         block
         class="mt-6"
       >
@@ -81,7 +80,6 @@ const errorMessage = computed(() => {
           type="submit"
           icon="i-simple-icons-github"
           color="neutral"
-          size="lg"
           block
           :loading="!setup"
           :disabled="!setup"

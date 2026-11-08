@@ -185,23 +185,27 @@ watch(open, (isOpen) => {
         v-if="step === 'repo'"
         class="space-y-4"
       >
-        <USelectMenu
-          v-model="selected"
-          :items="repos ?? []"
-          :loading="reposStatus === 'pending'"
-          placeholder="Select a repo…"
-          icon="i-simple-icons-github"
-          class="w-full"
-        />
-        <USelectMenu
-          v-model="branch"
-          :items="branches"
-          :loading="loadingBranches"
-          :disabled="!selected"
-          placeholder="Branch…"
-          icon="i-lucide-git-branch"
-          class="w-full"
-        />
+        <UFormField label="Repository">
+          <USelectMenu
+            v-model="selected"
+            :items="repos ?? []"
+            :loading="reposStatus === 'pending'"
+            placeholder="Select a repo…"
+            icon="i-simple-icons-github"
+            class="w-full"
+          />
+        </UFormField>
+        <UFormField label="Branch">
+          <USelectMenu
+            v-model="branch"
+            :items="branches"
+            :loading="loadingBranches"
+            :disabled="!selected"
+            placeholder="Branch…"
+            icon="i-lucide-git-branch"
+            class="w-full"
+          />
+        </UFormField>
         <p class="text-xs text-dimmed">
           A repo with a <code class="k-code">.ddev/config.yaml</code> is booted from it (framework, PHP and
           database are read automatically); any other repo gets an environment generated from its
@@ -220,12 +224,14 @@ watch(open, (isOpen) => {
         </p>
         <div class="flex justify-end gap-2">
           <UButton
+            size="lg"
             color="neutral"
             variant="outline"
             label="Cancel"
             @click="() => { open = false }"
           />
           <UButton
+            size="lg"
             label="Connect"
             color="primary"
             :loading="connecting"
@@ -239,30 +245,28 @@ watch(open, (isOpen) => {
         v-else-if="step === 'env'"
         class="space-y-4"
       >
-        <div>
-          <span class="k-label">Env variables</span>
-          <UTextarea
+        <UFormField
+          label="Env variables"
+          help="One KEY=value per line. Paste the project's .env. You can edit these later."
+        >
+          <KCodeInput
             v-model="envText"
             :rows="9"
-            autoresize
             :maxrows="14"
-            spellcheck="false"
             :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
-            class="mt-2.5 w-full"
-            :ui="{ base: 'k-mono text-xs leading-loose resize-none' }"
+            class="w-full"
           />
-          <p class="k-mono mt-2 text-2xs text-dimmed">
-            One KEY=value per line. Paste the project's .env. You can edit these later.
-          </p>
-        </div>
+        </UFormField>
         <div class="flex justify-end gap-2">
           <UButton
+            size="lg"
             color="neutral"
             variant="outline"
             label="Skip"
             @click="() => { step = 'database' }"
           />
           <UButton
+            size="lg"
             label="Continue"
             color="primary"
             :loading="savingEnv"
@@ -314,6 +318,7 @@ watch(open, (isOpen) => {
         </div>
         <div class="flex justify-end gap-2">
           <UButton
+            size="lg"
             color="neutral"
             variant="outline"
             :label="dumpName ? 'Continue' : 'Skip'"
@@ -321,6 +326,7 @@ watch(open, (isOpen) => {
           />
           <UButton
             v-if="dumpName"
+            size="lg"
             label="Done"
             color="primary"
             @click="() => { step = 'done' }"
@@ -350,6 +356,7 @@ watch(open, (isOpen) => {
         </div>
         <div class="mt-1 flex w-full justify-center gap-2">
           <UButton
+            size="lg"
             color="neutral"
             variant="outline"
             label="Open project"
@@ -357,6 +364,7 @@ watch(open, (isOpen) => {
           />
           <UButton
             v-if="hasBootWorkflow"
+            size="lg"
             color="primary"
             label="Boot & preview"
             :loading="booting"

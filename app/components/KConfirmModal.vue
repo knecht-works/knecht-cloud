@@ -20,12 +20,14 @@ const emit = defineEmits<{ confirm: [] }>()
     <template #footer>
       <div class="flex w-full justify-end gap-2">
         <UButton
+          size="lg"
           color="neutral"
           variant="outline"
           label="Cancel"
           @click="() => { open = false }"
         />
         <UButton
+          size="lg"
           color="error"
           :label="confirmLabel ?? 'Delete'"
           :loading="loading"

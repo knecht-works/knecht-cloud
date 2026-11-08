@@ -164,21 +164,25 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
       v-if="!isComposite(step)"
       class="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-muted pt-3.5"
     >
-      <div class="flex items-center gap-2">
-        <span class="k-label">Timeout</span>
-        <UInput
-          :model-value="step.timeoutSeconds != null ? String(step.timeoutSeconds) : ''"
-          type="number"
-          :min="1"
-          :max="21600"
-          :disabled="!editable"
-          :placeholder="String(defaultStepTimeout(step.type))"
-          class="w-24"
-          :ui="{ base: 'k-mono text-xs' }"
-          @update:model-value="onTimeoutInput(String($event))"
-        />
-        <span class="text-2xs text-dimmed">s</span>
-      </div>
+      <UFormField
+        label="Timeout"
+        orientation="horizontal"
+      >
+        <div class="flex items-center gap-2">
+          <UInput
+            :model-value="step.timeoutSeconds != null ? String(step.timeoutSeconds) : ''"
+            type="number"
+            :min="1"
+            :max="21600"
+            :disabled="!editable"
+            :placeholder="String(defaultStepTimeout(step.type))"
+            size="sm"
+            class="w-24"
+            @update:model-value="onTimeoutInput(String($event))"
+          />
+          <span class="text-xs text-dimmed">s</span>
+        </div>
+      </UFormField>
       <USwitch
         :model-value="step.continueOnError ?? false"
         :disabled="!editable"
