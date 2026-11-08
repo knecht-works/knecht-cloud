@@ -58,7 +58,6 @@ async function removeProject() {
           <UButton
             size="lg"
             color="error"
-            variant="outline"
             label="Disconnect"
             @click="confirmDisconnect = true"
           />
