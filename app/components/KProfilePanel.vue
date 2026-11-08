@@ -73,13 +73,16 @@ async function saveName() {
     accent="var(--primary)"
   >
     <template #action>
-      <UButton
-        label="Sign out"
-        color="neutral"
-        variant="ghost"
-        size="xs"
-        @click="logout"
-      />
+      <UTooltip text="Sign out">
+        <UButton
+          icon="i-lucide-log-out"
+          aria-label="Sign out"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          @click="logout"
+        />
+      </UTooltip>
     </template>
 
     <div class="flex flex-col gap-6">
