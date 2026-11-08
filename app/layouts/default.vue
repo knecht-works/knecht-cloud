@@ -2,6 +2,8 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 
 const { user, clear } = useUserSession()
+const { data: members } = useMembers()
+const isOwner = computed(() => !!members.value.find(m => m.id === user.value?.id)?.isOwner)
 const route = useRoute()
 
 const collapsed = useCookie<boolean>('knecht-sidebar-collapsed', { default: () => false })
@@ -221,7 +223,7 @@ const updateTarget = computed(() =>
                   {{ user?.name || user?.login }}
                 </div>
                 <div class="truncate text-2xs leading-snug text-dimmed">
-                  Admin
+                  {{ isOwner ? 'Owner' : 'Member' }}
                 </div>
               </div>
               <UIcon
