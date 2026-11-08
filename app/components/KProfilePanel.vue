@@ -194,7 +194,8 @@ async function saveName() {
     <KConfirmModal
       v-model:open="confirmingRemove"
       title="Remove your picture?"
-      description="Members see your initials instead. You can upload a new picture any time."
+      description="You can upload a new one any time."
+      detail="Members see your initials instead of your picture."
       confirm-label="Remove"
       :loading="removing"
       @confirm="removePicture"

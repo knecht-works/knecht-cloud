@@ -288,7 +288,8 @@ const menuItems = computed(() => {
     <KConfirmModal
       v-model:open="confirmDelete"
       title="Delete run"
-      :description="`Deletes run #${runId} including its log and preview environment. This cannot be undone.`"
+      description="This cannot be undone."
+      :detail="`Deletes run #${runId} including its log and preview environment.`"
       confirm-label="Delete"
       :loading="deleting"
       @confirm="remove"

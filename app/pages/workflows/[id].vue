@@ -1076,7 +1076,8 @@ const pr = computed(() => {
     <KConfirmModal
       v-model:open="confirmDelete"
       title="Delete workflow"
-      :description="`Deletes ${meta.name || saved?.name} along with its configured triggers.`"
+      description="This cannot be undone."
+      :detail="`Deletes ${meta.name || saved?.name} along with its configured triggers.`"
       confirm-label="Delete"
       :loading="removing"
       @confirm="removeWorkflow"

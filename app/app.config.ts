@@ -65,6 +65,7 @@ export default defineAppConfig({
       variants: { ...pointer.variants, multiple: { true: { base: 'h-auto' } } },
     },
     modal: {
+      slots: { header: 'p-5 sm:pt-6 pe-16 sm:pe-16', body: 'pt-3 sm:pt-5' },
       variants: { overlay: { true: { overlay: 'backdrop-blur-sm' } } },
     },
     formField: {

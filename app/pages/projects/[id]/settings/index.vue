@@ -560,7 +560,8 @@ watch(bootCommands, () => {
     <KConfirmModal
       v-model:open="confirmRemoveDump"
       title="Remove database dump"
-      :description="`Removes ${dumpName}. New environments no longer import a dump until you upload another one.`"
+      description="New environments start without its data."
+      :detail="`Removes ${dumpName}. New environments no longer import a dump until you upload another one.`"
       confirm-label="Remove"
       :loading="removingDump"
       @confirm="confirmDumpRemoval"

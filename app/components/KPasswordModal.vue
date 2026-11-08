@@ -41,7 +41,6 @@ async function save() {
   >
     <template #body>
       <form
-        id="password-form"
         class="flex flex-col gap-4"
         @submit.prevent="save"
       >
@@ -57,25 +56,15 @@ async function save() {
             class="w-full"
           />
         </UFormField>
+        <div class="flex justify-end">
+          <UButton
+            size="lg"
+            type="submit"
+            label="Save password"
+            :loading="saving"
+          />
+        </div>
       </form>
-    </template>
-    <template #footer>
-      <div class="flex w-full justify-end gap-2">
-        <UButton
-          size="lg"
-          color="neutral"
-          variant="outline"
-          label="Cancel"
-          @click="open = false"
-        />
-        <UButton
-          size="lg"
-          type="submit"
-          form="password-form"
-          label="Save password"
-          :loading="saving"
-        />
-      </div>
     </template>
   </UModal>
 </template>

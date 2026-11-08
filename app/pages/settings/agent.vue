@@ -284,7 +284,8 @@ async function saveAiKey() {
     <KConfirmModal
       v-model:open="confirmingProvider"
       title="Switch the provider?"
-      description="The default and subtask model are cleared, because their names don't exist at the new provider. Pick new ones afterwards."
+      description="Your model choices are cleared."
+      detail="The default and subtask model don't exist at the new provider, so you pick new ones afterwards."
       confirm-label="Switch"
       @confirm="confirmProvider"
     />
