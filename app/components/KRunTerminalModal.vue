@@ -78,7 +78,6 @@ async function copySshCommand() {
           color="neutral"
           variant="outline"
           size="xs"
-          icon="i-lucide-copy"
           label="Copy SSH command"
           @click="copySshCommand"
         />

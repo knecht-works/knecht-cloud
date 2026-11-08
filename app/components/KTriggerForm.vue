@@ -345,7 +345,6 @@ watch(built, () => {
       <div>
         <UDropdownMenu :items="def.filters.map(f => ({ label: f.label, onSelect: () => conditions.push(newCondition(f.key)) }))">
           <UButton
-            icon="i-lucide-plus"
             :label="conditions.length ? 'and' : 'Add condition'"
             color="neutral"
             variant="outline"

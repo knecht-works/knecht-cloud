@@ -173,7 +173,6 @@ function compact() {
         size="xs"
         block
         class="mt-3"
-        icon="i-lucide-fold-vertical"
         label="Compact context"
         :disabled="percent === null"
         @click="compact"

@@ -94,3 +94,23 @@ export const defaultControlSize = {
     })
   },
 }
+
+// A button says what it does with an icon or a label, not both. A trailing icon
+// (the arrow of the GitHub sign-in) may go with them.
+export const iconOrLabel = {
+  meta: { type: 'problem', schema: [] },
+  create(context) {
+    return visitor(context, {
+      VElement(el) {
+        if (name(el) !== 'UButton') return
+        const icon = hasAttr(el, 'icon') || hasAttr(el, 'leading-icon')
+        const text = hasAttr(el, 'label') || el.children.some(c => (c.type === 'VText' && c.value.trim()) || c.type === 'VExpressionContainer'
+          || (c.type === 'VElement' && !(c.rawName === 'template' && c.startTag.attributes.some(a => a.directive && a.key.name.name === 'slot' && ['leading', 'trailing'].includes(a.key.argument?.name)))))
+        const trailing = hasAttr(el, 'trailing-icon') || hasAttr(el, 'trailing') || el.children.some(c => c.type === 'VElement' && c.rawName === 'template' && c.startTag.attributes.some(a => a.directive && a.key.name.name === 'slot' && a.key.argument?.name === 'trailing'))
+        if (icon && text && !trailing) {
+          context.report({ node: el.startTag, message: 'Give this button an icon or a label, not both.' })
+        }
+      },
+    })
+  },
+}

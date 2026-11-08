@@ -82,7 +82,6 @@ async function saveName() {
         <template #action>
           <UButton
             label="Sign out"
-            icon="i-lucide-log-out"
             color="neutral"
             variant="ghost"
             size="xs"
