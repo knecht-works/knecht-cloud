@@ -79,3 +79,18 @@ export const themedOnly = {
     })
   },
 }
+
+// Fields use the default size; only the compact editors (turned off for them in
+// eslint.config.mjs) pick a smaller one.
+export const defaultControlSize = {
+  meta: { type: 'problem', schema: [] },
+  create(context) {
+    return visitor(context, {
+      VElement(el) {
+        if (CONTROLS.has(name(el)) && hasAttr(el, 'size')) {
+          context.report({ node: el.startTag, message: `Leave ${name(el)} at the default size; only the compact editors set one.` })
+        }
+      },
+    })
+  },
+}
