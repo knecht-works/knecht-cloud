@@ -153,7 +153,6 @@ async function submitSecret() {
           <UInput
             v-model="secretDraft"
             type="password"
-            size="sm"
             aria-label="Webhook secret"
             :color="secretError ? 'error' : undefined"
             :highlight="!!secretError"
@@ -165,13 +164,11 @@ async function submitSecret() {
               v-if="secretEditing"
               color="neutral"
               variant="ghost"
-              size="sm"
               label="Cancel"
               @click="() => { secretEditing = false; secretDraft = ''; secretError = '' }"
             />
             <UButton
               color="primary"
-              size="sm"
               label="Save"
               :loading="secretSaving"
               @click="submitSecret"

@@ -36,7 +36,6 @@ async function copy() {
         <KCodeInput
           :model-value="url"
           readonly
-          size="sm"
           class="flex-1"
           aria-label="Link"
           @focus="(e: FocusEvent) => (e.target as HTMLInputElement).select()"
@@ -46,7 +45,6 @@ async function copy() {
           :label="done ? 'Copied' : 'Copy'"
           color="neutral"
           variant="outline"
-          size="sm"
           @click="copy"
         />
       </div>

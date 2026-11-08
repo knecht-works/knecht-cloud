@@ -1,5 +1,5 @@
 import withNuxt from './.nuxt/eslint.config.mjs'
-import { controlRowSize, labeledControl, themedOnly } from './eslint/form-rules.mjs'
+import { controlRowSize, defaultControlSize, labeledControl, themedOnly } from './eslint/form-rules.mjs'
 
 // Every query goes through a store, so live updates cannot be skipped.
 const storeQueries = {
@@ -29,8 +29,13 @@ export default withNuxt(
   },
   {
     files: ['app/**/*.vue'],
-    plugins: { 'knecht-forms': { rules: { 'control-row-size': controlRowSize, 'labeled-control': labeledControl, 'themed-only': themedOnly } } },
-    rules: { 'knecht-forms/control-row-size': 'error', 'knecht-forms/labeled-control': 'error', 'knecht-forms/themed-only': 'error' },
+    plugins: { 'knecht-forms': { rules: { 'control-row-size': controlRowSize, 'default-control-size': defaultControlSize, 'labeled-control': labeledControl, 'themed-only': themedOnly } } },
+    rules: { 'knecht-forms/control-row-size': 'error', 'knecht-forms/default-control-size': 'error', 'knecht-forms/labeled-control': 'error', 'knecht-forms/themed-only': 'error' },
+  },
+  {
+    // The compact editors: trigger conditions, the workflow editor and the chat model picker.
+    files: ['app/components/KTriggerForm.vue', 'app/components/workflow/**/*.vue', 'app/pages/workflows/[[]id].vue', 'app/components/chat/ModelPicker.vue'],
+    rules: { 'knecht-forms/default-control-size': 'off' },
   },
   {
     // The field components define their look once and are labeled by the UFormField around them.
