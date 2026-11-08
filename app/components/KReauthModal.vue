@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { LAST_LOGIN_COOKIE, type LoginMethod } from '#shared/utils/account'
+
 const { open, finish } = useElevation()
 const route = useRoute()
 const router = useRouter()
@@ -6,6 +8,7 @@ const toast = useToast()
 
 // The cache of useSignInMethods: loaded here only when no page has loaded it yet.
 const { data: methods } = useNuxtData<{ password: boolean, github: { username: string | null } }>('me:sign-in')
+const lastUsed = useCookie<LoginMethod | null>(LAST_LOGIN_COOKIE)
 const password = ref('')
 const error = ref<string | undefined>()
 const confirming = ref(false)
@@ -73,67 +76,67 @@ async function confirmPassword() {
     <template #body>
       <div
         v-if="methods"
-        class="flex flex-col gap-4"
+        class="flex flex-col gap-5"
       >
+        <UButton
+          v-if="methods.github.username"
+          icon="i-simple-icons-github"
+          color="neutral"
+          block
+          class="justify-start"
+          @click="confirmWithGithub"
+        >
+          Confirm with GitHub
+          <template #trailing>
+            <span class="ms-auto flex items-center gap-2">
+              <KLastUsedBadge v-if="lastUsed === 'github'" />
+              <UIcon
+                name="i-lucide-arrow-right"
+                class="size-4"
+              />
+            </span>
+          </template>
+        </UButton>
+        <p
+          v-if="error && !methods.password"
+          class="-mt-3 text-sm text-error"
+        >
+          {{ error }}
+        </p>
+        <USeparator
+          v-if="methods.password && methods.github.username"
+          label="or"
+        />
         <form
           v-if="methods.password"
-          id="reauth-form"
           @submit.prevent="confirmPassword"
         >
           <UFormField
             label="Password"
             :error="error"
           >
-            <UInput
-              v-model="password"
-              type="password"
-              autocomplete="current-password"
-              placeholder="Your password"
-              size="lg"
-              autofocus
-              class="w-full"
-            />
+            <template
+              v-if="lastUsed === 'password'"
+              #hint
+            >
+              <KLastUsedBadge />
+            </template>
+            <div class="flex gap-2">
+              <KPasswordInput
+                v-model="password"
+                autocomplete="current-password"
+                placeholder="Your password"
+                autofocus
+                class="flex-1"
+              />
+              <UButton
+                type="submit"
+                label="Confirm"
+                :loading="confirming"
+              />
+            </div>
           </UFormField>
         </form>
-        <USeparator
-          v-if="methods.password && methods.github.username"
-          label="or"
-        />
-        <UButton
-          v-if="methods.github.username"
-          icon="i-simple-icons-github"
-          color="neutral"
-          size="lg"
-          block
-          @click="confirmWithGithub"
-        >
-          Confirm with GitHub
-        </UButton>
-        <p
-          v-if="error && !methods.password"
-          class="text-sm text-error"
-        >
-          {{ error }}
-        </p>
-      </div>
-    </template>
-    <template
-      v-if="methods?.password"
-      #footer
-    >
-      <div class="flex w-full justify-end gap-2">
-        <UButton
-          color="neutral"
-          variant="outline"
-          label="Cancel"
-          @click="finish(false)"
-        />
-        <UButton
-          type="submit"
-          form="reauth-form"
-          label="Confirm"
-          :loading="confirming"
-        />
       </div>
     </template>
   </UModal>
