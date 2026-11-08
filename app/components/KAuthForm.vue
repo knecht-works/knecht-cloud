@@ -89,7 +89,7 @@ async function submit() {
         <UInput
           v-model="username"
           :placeholder="newAccount ? 'Choose a username' : 'Your username'"
-          :readonly="!!fixedUsername"
+          :disabled="!!fixedUsername"
           :autofocus="!fixedUsername"
           autocomplete="username"
           autocapitalize="off"
