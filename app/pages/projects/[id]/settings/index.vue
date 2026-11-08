@@ -250,7 +250,7 @@ watch(bootCommands, () => {
                 text="Where the site's base URLs live. Applies to new runs."
                 :content="{ side: 'top', align: 'start' }"
               >
-                <span class="k-label flex items-center gap-1.5">
+                <span class="text-xs font-medium flex items-center gap-1.5">
                   Base URLs
                   <UIcon
                     name="i-lucide-info"
@@ -266,7 +266,7 @@ watch(bootCommands, () => {
                 >
                   <button
                     type="button"
-                    class="k-mono cursor-pointer rounded px-2.5 py-1 text-2xs transition-colors"
+                    class="cursor-pointer rounded px-2.5 py-1 text-2xs transition-colors"
                     :class="urlMode === option.value ? 'bg-(--surface-accented) text-highlighted' : 'text-dimmed hover:text-muted'"
                     :aria-pressed="urlMode === option.value"
                     @click="setUrlMode(option.value)"
