@@ -22,7 +22,7 @@ async function invite() {
     const { invite, token } = await withElevation(() => $fetch('/api/invites', { method: 'POST' }))
     inviteUrls.value[invite.id] = `${window.location.origin}/join/${token}`
     await invalidate(liveTopics.invites)
-    await copyInvite(invite.id)
+    await showLink('Invite link created', 'It works for one person and expires in 7 days.', inviteUrls.value[invite.id]!)
   }
   catch (e) {
     toastError('Could not create the invite link', e)
@@ -40,6 +40,18 @@ async function copyInvite(id: number) {
   catch {
     toast.add({ title: 'Could not copy the invite link', description: inviteUrls.value[id], color: 'warning' })
   }
+}
+
+const sharedLink = ref<{ title: string, description: string, url: string, copied: boolean } | null>(null)
+const sharingLink = computed({
+  get: () => sharedLink.value !== null,
+  set: (open) => { if (!open) sharedLink.value = null },
+})
+// After a "Confirm it's you" via GitHub the click is used up and browsers refuse to copy,
+// so the link is always shown with a Copy button of its own.
+async function showLink(title: string, description: string, url: string) {
+  const copied = await copyText(url).then(() => true, () => false)
+  sharedLink.value = { title, description, url, copied }
 }
 
 function expiresIn(at: string): string {
@@ -65,14 +77,7 @@ async function revoke(id: number) {
 async function createResetLink(login: string) {
   try {
     const { token } = await withElevation(() => $fetch(`/api/members/${login}/password-reset`, { method: 'POST' }))
-    const url = `${window.location.origin}/reset/${token}`
-    try {
-      await copyText(url)
-      toast.add({ title: `Reset link for @${login} copied`, description: 'It works once and expires in 24 hours.', color: 'success' })
-    }
-    catch {
-      toast.add({ title: `Reset link for @${login}`, description: url, color: 'warning' })
-    }
+    await showLink(`Reset link for @${login}`, 'It works once and expires in 24 hours.', `${window.location.origin}/reset/${token}`)
   }
   catch (e) {
     toastError('Could not create the reset link', e)
@@ -285,6 +290,14 @@ async function remove() {
         </button>
       </template>
     </div>
+
+    <KLinkModal
+      v-model:open="sharingLink"
+      :title="sharedLink?.title ?? ''"
+      :description="sharedLink?.description ?? ''"
+      :url="sharedLink?.url ?? ''"
+      :copied="sharedLink?.copied"
+    />
 
     <KConfirmModal
       v-model:open="confirmingRemove"
