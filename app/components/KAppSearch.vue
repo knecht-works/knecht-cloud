@@ -6,7 +6,7 @@ const { data: workflows } = useWorkflows()
 const { data: integrations } = useIntegrations()
 
 const SETTINGS = [
-  { label: 'Profile', suffix: 'Picture, name, password, GitHub, sign out', icon: 'i-lucide-user-round', to: '/profile' },
+  { label: 'Profile', suffix: 'Picture, name, password, GitHub, sign out', icon: 'i-lucide-user-round', to: '/settings' },
   { label: 'Members', suffix: 'Invite, owner, remove', icon: 'i-lucide-users', to: '/settings' },
   { label: 'Agent', suffix: 'Provider, API key, default model, subtask model', icon: 'i-lucide-sparkles', to: '/settings/agent' },
   { label: 'Instructions', suffix: 'Agent instructions', icon: 'i-lucide-list-checks', to: '/settings/agent' },

@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
       const session = await getUserSession(event)
       const current = getMemberById(session.user?.id)
       if (!current) return sendRedirect(event, '/login')
-      return sendRedirect(event, `/profile?github=${linkIdentity(current.id, 'github', account)}`)
+      return sendRedirect(event, `/settings?github=${linkIdentity(current.id, 'github', account)}`)
     }
     let member = loginWithIdentity('github', account, profile)
     if (!member && inviteToken) {

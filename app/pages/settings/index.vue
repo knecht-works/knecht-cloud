@@ -127,171 +127,165 @@ async function remove() {
 </script>
 
 <template>
-  <KPanel
-    title="Members"
-    icon="i-lucide-users"
-    accent="var(--primary)"
-  >
-    <template #action>
-      <span class="k-mono text-2xs text-dimmed">
-        {{ members?.length ?? 0 }} {{ (members?.length ?? 0) === 1 ? 'member' : 'members' }}
-      </span>
-    </template>
+  <div class="flex flex-col gap-5">
+    <KProfilePanel />
 
-    <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-      <div class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3">
-        <UAvatar
-          :src="user?.avatarUrl ?? undefined"
-          :alt="user?.login"
-          size="sm"
-          class="flex-none"
-        />
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <span class="truncate text-sm text-toned">{{ user?.name || user?.login }}</span>
-            <UBadge
-              :color="me?.isOwner ? 'primary' : 'neutral'"
-              variant="subtle"
-              size="sm"
-              :label="me?.isOwner ? 'Owner' : 'You'"
-            />
-          </div>
-          <div class="k-mono text-2xs text-dimmed">
-            @{{ user?.login }}
-          </div>
-        </div>
-        <UTooltip text="Edit profile">
-          <UButton
-            to="/profile"
-            icon="i-lucide-pencil"
-            color="neutral"
-            variant="ghost"
+    <KPanel
+      title="Members"
+      icon="i-lucide-users"
+      accent="var(--primary)"
+    >
+      <template #action>
+        <span class="k-mono text-2xs text-dimmed">
+          {{ members?.length ?? 0 }} {{ (members?.length ?? 0) === 1 ? 'member' : 'members' }}
+        </span>
+      </template>
+
+      <div class="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3">
+          <UAvatar
+            :src="user?.avatarUrl ?? undefined"
+            :alt="user?.login"
             size="sm"
-            aria-label="Edit profile"
+            class="flex-none"
           />
-        </UTooltip>
-      </div>
-
-      <div
-        v-for="m in others"
-        :key="m.login"
-        class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3"
-      >
-        <UAvatar
-          :src="m.avatarUrl ?? undefined"
-          :alt="m.login"
-          size="sm"
-          class="flex-none"
-        />
-        <div class="min-w-0 flex-1">
-          <div class="flex items-center gap-2">
-            <span class="truncate text-sm text-toned">{{ m.name || m.login }}</span>
-            <UBadge
-              v-if="m.isOwner"
-              color="primary"
-              variant="subtle"
-              size="sm"
-              label="Owner"
-            />
-          </div>
-          <div class="k-mono text-2xs text-dimmed">
-            @{{ m.login }}
-          </div>
-        </div>
-        <UDropdownMenu
-          v-if="isOwner"
-          :items="memberActions(m)"
-          :content="{ align: 'end' }"
-        >
-          <UButton
-            icon="i-lucide-ellipsis-vertical"
-            color="neutral"
-            variant="ghost"
-            size="sm"
-            :aria-label="`Actions for ${m.login}`"
-          />
-        </UDropdownMenu>
-      </div>
-
-      <template v-if="isOwner">
-        <div
-          v-for="i in invites"
-          :key="`invite-${i.id}`"
-          class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3"
-        >
-          <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
-            <UIcon
-              name="i-lucide-link"
-              class="size-3.5"
-            />
-          </span>
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
-              <span class="truncate text-sm text-toned">Invite link</span>
+              <span class="truncate text-sm text-toned">{{ user?.name || user?.login }}</span>
               <UBadge
-                color="neutral"
+                :color="me?.isOwner ? 'primary' : 'neutral'"
                 variant="subtle"
                 size="sm"
-                label="Pending"
+                :label="me?.isOwner ? 'Owner' : 'You'"
               />
             </div>
-            <div class="k-mono truncate text-2xs text-dimmed">
-              expires {{ expiresIn(i.expiresAt) }}<template v-if="i.createdBy">
-                · @{{ i.createdBy }}
-              </template>
+            <div class="k-mono text-2xs text-dimmed">
+              @{{ user?.login }}
             </div>
           </div>
-          <UTooltip
-            v-if="inviteUrls[i.id]"
-            text="Copy link"
-          >
-            <UButton
-              icon="i-lucide-copy"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              aria-label="Copy invite link"
-              @click="copyInvite(i.id)"
-            />
-          </UTooltip>
-          <UTooltip text="Revoke">
-            <UButton
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              :loading="revoking === i.id"
-              aria-label="Revoke invite link"
-              @click="revoke(i.id)"
-            />
-          </UTooltip>
         </div>
 
-        <button
-          type="button"
-          class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3 text-left text-sm text-muted hover:text-toned disabled:opacity-60"
-          :disabled="inviting"
-          @click="invite"
+        <div
+          v-for="m in others"
+          :key="m.login"
+          class="flex items-center gap-3 rounded-lg border border-default bg-(--surface-muted) px-3.5 py-3"
         >
-          <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
-            <UIcon
-              :name="inviting ? 'i-lucide-loader-circle' : 'i-lucide-plus'"
-              class="size-3.5"
-              :class="{ 'animate-spin': inviting }"
+          <UAvatar
+            :src="m.avatarUrl ?? undefined"
+            :alt="m.login"
+            size="sm"
+            class="flex-none"
+          />
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <span class="truncate text-sm text-toned">{{ m.name || m.login }}</span>
+              <UBadge
+                v-if="m.isOwner"
+                color="primary"
+                variant="subtle"
+                size="sm"
+                label="Owner"
+              />
+            </div>
+            <div class="k-mono text-2xs text-dimmed">
+              @{{ m.login }}
+            </div>
+          </div>
+          <UDropdownMenu
+            v-if="isOwner"
+            :items="memberActions(m)"
+            :content="{ align: 'end' }"
+          >
+            <UButton
+              icon="i-lucide-ellipsis-vertical"
+              color="neutral"
+              variant="ghost"
+              size="sm"
+              :aria-label="`Actions for ${m.login}`"
             />
-          </span>
-          Create invite link
-        </button>
-      </template>
-    </div>
+          </UDropdownMenu>
+        </div>
 
-    <KConfirmModal
-      v-model:open="confirmingRemove"
-      :title="`Remove @${removeTarget}?`"
-      description="They lose access right away and can only come back with a new invite link. This can't be undone."
-      confirm-label="Remove"
-      :loading="removing"
-      @confirm="remove"
-    />
-  </KPanel>
+        <template v-if="isOwner">
+          <div
+            v-for="i in invites"
+            :key="`invite-${i.id}`"
+            class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3"
+          >
+            <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
+              <UIcon
+                name="i-lucide-link"
+                class="size-3.5"
+              />
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="truncate text-sm text-toned">Invite link</span>
+                <UBadge
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                  label="Pending"
+                />
+              </div>
+              <div class="k-mono truncate text-2xs text-dimmed">
+                expires {{ expiresIn(i.expiresAt) }}<template v-if="i.createdBy">
+                  · @{{ i.createdBy }}
+                </template>
+              </div>
+            </div>
+            <UTooltip
+              v-if="inviteUrls[i.id]"
+              text="Copy link"
+            >
+              <UButton
+                icon="i-lucide-copy"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                aria-label="Copy invite link"
+                @click="copyInvite(i.id)"
+              />
+            </UTooltip>
+            <UTooltip text="Revoke">
+              <UButton
+                icon="i-lucide-x"
+                color="neutral"
+                variant="ghost"
+                size="sm"
+                :loading="revoking === i.id"
+                aria-label="Revoke invite link"
+                @click="revoke(i.id)"
+              />
+            </UTooltip>
+          </div>
+
+          <button
+            type="button"
+            class="flex items-center gap-3 rounded-lg border border-dashed border-default px-3.5 py-3 text-left text-sm text-muted hover:text-toned disabled:opacity-60"
+            :disabled="inviting"
+            @click="invite"
+          >
+            <span class="flex size-7 flex-none items-center justify-center rounded-full border border-dashed border-default text-dimmed">
+              <UIcon
+                :name="inviting ? 'i-lucide-loader-circle' : 'i-lucide-plus'"
+                class="size-3.5"
+                :class="{ 'animate-spin': inviting }"
+              />
+            </span>
+            Create invite link
+          </button>
+        </template>
+      </div>
+
+      <KConfirmModal
+        v-model:open="confirmingRemove"
+        :title="`Remove @${removeTarget}?`"
+        description="They lose access right away and can only come back with a new invite link. This can't be undone."
+        confirm-label="Remove"
+        :loading="removing"
+        @confirm="remove"
+      />
+    </KPanel>
+  </div>
 </template>
