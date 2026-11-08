@@ -12,6 +12,7 @@ export default defineAppConfig({
     // Lime "knecht" green is the brand accent; neutral chrome is zinc.
     colors: {
       primary: 'knecht',
+      success: 'knecht',
       neutral: 'zinc',
     },
     button: {
