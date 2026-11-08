@@ -22,10 +22,10 @@ export async function shoot(name, { url, w = 1440, h = 900, dpr = 2, act }) {
       throw e
     })
   }
-  await page.evaluate(() => document.activeElement?.blur())
+  if (!process.env.KEEP) await page.evaluate(() => document.activeElement?.blur())
   const d = page.getByRole('dialog')
-  if (await d.count()) await d.getByText(/^(New|Edit) trigger$/).click().catch(() => {})
-  await page.mouse.move(0, 0)
+  if (!process.env.KEEP && await d.count()) await d.getByText(/^(New|Edit) trigger$/).click().catch(() => {})
+  if (!process.env.KEEP) await page.mouse.move(0, 0)
   await page.waitForTimeout(600)
   await page.screenshot({ path: new URL(`./new/${name}.png`, import.meta.url).pathname })
   await browser.close()
