@@ -1,8 +1,12 @@
 export const dlg = p => p.getByRole('dialog')
-export async function open(p, source) {
+export async function open(p, source, names) {
   await p.getByRole('button', { name: /add trigger/i }).click()
+  await projects(p, names)
   await dlg(p).getByRole('button', { name: source, exact: true }).click()
   await p.waitForTimeout(300)
+}
+export async function scope(p, values) {
+  await pick(p, dlg(p).locator('button[aria-haspopup="listbox"]').filter({ hasText: 'Any status' }), values)
 }
 export async function projects(p, names) {
   await dlg(p).getByText('Select projects…').click()

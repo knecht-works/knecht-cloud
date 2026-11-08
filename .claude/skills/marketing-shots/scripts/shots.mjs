@@ -66,6 +66,12 @@ export default {
     })
   } },
   'knecht-settings-user': { url: '/settings', w: 1440, h: 779 },
+  'knecht-settings-members': { url: '/settings', w: 1440, h: 779, act: async (p) => {
+    await p.getByText('Create invite link', { exact: true }).click()
+    await p.waitForTimeout(1500)
+    await p.getByRole('button').filter({ has: p.locator('[class*="ellipsis-vertical"]') }).first().click()
+    await p.waitForTimeout(600)
+  } },
   'knecht-settings-ai': { url: '/settings/agent', w: 1440, h: 779 },
   'knecht-project-settings': { url: '/projects/2/settings', w: 1440, h: 1080 },
   'knecht-integration-settings-jira': { url: '/settings/integrations', w: 1440, h: 779, act: onlyIntegration('Jira') },
@@ -75,57 +81,44 @@ export default {
   'knecht-project-settings-plane': { url: '/projects/2/settings/integrations', w: 1440, h: 620, act: onlyLink('Plane') },
   'knecht-project-settings-linear': { url: '/projects/2/settings/integrations', w: 1440, h: 620, act: onlyLink('Linear') },
   'knecht-trigger-github': { ...TRIG, act: async (p) => {
-    await t.open(p, 'GitHub')
-    await t.projects(p, ['knecht-works/test-laravel', 'knecht-works/test-craftcms'])
-    for (const l of ['Opened', 'Ready for review', 'New commits pushed']) await t.check(p, l)
+    await t.open(p, 'GitHub', ['knecht-works/test-laravel', 'knecht-works/test-craftcms'])
+    await t.check(p, 'Ready for review')
     await t.condition(p, 'Add condition', 'Base branch', 'is', ['main'])
-    await t.condition(p, 'or group', 'Label', 'is', ['bug'])
+    await t.condition(p, 'and', 'Label', 'is', ['bug'])
   } },
   'knecht-trigger-github-issue': { ...TRIG, act: async (p) => {
-    await t.open(p, 'GitHub')
-    await t.projects(p, ['knecht-works/test-laravel', 'knecht-works/test-craftcms'])
+    await t.open(p, 'GitHub', ['knecht-works/test-laravel', 'knecht-works/test-craftcms'])
     await t.dlg(p).getByRole('button', { name: 'Issue', exact: true }).click()
-    await t.check(p, 'Opened')
     await t.check(p, 'Label added')
     await t.pick(p, p.locator('[role=dialog] button[aria-haspopup="listbox"]').nth(1), ['bug', 'enhancement'])
     await t.condition(p, 'Add condition', 'Author', 'is not', ['*[bot]'])
   } },
   'knecht-trigger-jira': { ...TRIG, act: async (p) => {
-    await t.open(p, 'Jira')
-    await t.projects(p, ['knecht-works/test-craftcms', 'knecht-works/test-php'])
-    await t.check(p, 'Assigned to Knecht')
+    await t.open(p, 'Jira', ['knecht-works/test-craftcms', 'knecht-works/test-php'])
     await t.check(p, 'Label added')
     await t.pick(p, p.locator('[role=dialog] button[aria-haspopup="listbox"]').nth(1), ['knecht'])
+    await t.scope(p, ['Any To Do'])
     await t.condition(p, 'Add condition', 'Issue type', 'is', ['Bug'])
-    await t.condition(p, 'and', 'Status', 'is not', ['Any Done'])
   } },
   'knecht-trigger-jira-status-error': { ...TRIG, act: async (p) => {
-    await t.open(p, 'Jira')
-    await t.projects(p, ['knecht-works/test-craftcms', 'knecht-works/test-php'])
-    await t.dlg(p).getByLabel('Assigned to Knecht', { exact: true }).uncheck()
+    await t.open(p, 'Jira', ['knecht-works/test-craftcms', 'knecht-works/test-php'])
     await t.check(p, 'Status reached')
     await p.locator('[role=dialog] button[aria-haspopup="listbox"]').nth(1).click()
-    await p.waitForTimeout(400)
-    await p.getByRole('option', { name: 'Any Done', exact: true }).click()
-    await p.getByRole('option', { name: /In Planning/ }).last().click()
-    await p.keyboard.press('Escape')
+    await p.waitForTimeout(600)
+    await p.getByRole('option', { name: /In Planning/ }).last().hover()
   } },
   'knecht-trigger-linear': { ...TRIG, act: async (p) => {
-    await t.open(p, 'Linear')
-    await t.projects(p, ['knecht-works/test-craftcms'])
+    await t.open(p, 'Linear', ['knecht-works/test-craftcms'])
     await t.check(p, 'Created')
-    await t.dlg(p).getByLabel('Assigned to Knecht', { exact: true }).uncheck()
-    await t.condition(p, 'Add condition', 'Status', 'is', ['Any Triage'])
+    await t.scope(p, ['Any Triage'])
   } },
   'knecht-trigger-plane': { ...TRIG, act: async (p) => {
-    await t.open(p, 'Plane')
-    await t.projects(p, ['knecht-works/test-craftcms'])
+    await t.open(p, 'Plane', ['knecht-works/test-craftcms'])
     await t.check(p, 'Assigned to Knecht')
     await t.condition(p, 'Add condition', 'Label', 'is', ['Bug'])
     await t.condition(p, 'and', 'Priority', 'is', ['urgent'])
   } },
   'knecht-trigger-schedule': { ...TRIG, act: async (p) => {
-    await t.open(p, 'Schedule')
-    await t.projects(p, ['knecht-works/test-laravel', 'knecht-works/test-drupal11', 'knecht-works/test-craftcms'])
+    await t.open(p, 'Schedule', ['knecht-works/test-laravel', 'knecht-works/test-drupal11', 'knecht-works/test-craftcms'])
   } },
 }
