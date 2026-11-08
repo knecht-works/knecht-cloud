@@ -78,25 +78,13 @@ async function confirmPassword() {
         v-if="methods"
         class="flex flex-col gap-5"
       >
-        <UButton
+        <KGithubButton
           v-if="methods.github.username"
-          icon="i-simple-icons-github"
-          color="neutral"
-          block
-          class="justify-start"
+          :last-used="lastUsed === 'github'"
           @click="confirmWithGithub"
         >
           Confirm with GitHub
-          <template #trailing>
-            <span class="ms-auto flex items-center gap-2">
-              <KLastUsedBadge v-if="lastUsed === 'github'" />
-              <UIcon
-                name="i-lucide-arrow-right"
-                class="size-4"
-              />
-            </span>
-          </template>
-        </UButton>
+        </KGithubButton>
         <p
           v-if="error && !methods.password"
           class="-mt-3 text-sm text-error"

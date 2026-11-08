@@ -76,16 +76,13 @@ const errorMessage = computed(() => {
           name="manifest"
           :value="setup ? JSON.stringify(setup.manifest) : ''"
         >
-        <UButton
+        <KGithubButton
           type="submit"
-          icon="i-simple-icons-github"
-          color="neutral"
-          block
           :loading="!setup"
           :disabled="!setup"
         >
           Create GitHub App
-        </UButton>
+        </KGithubButton>
       </form>
     </template>
   </div>

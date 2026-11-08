@@ -478,7 +478,6 @@ watch(bootCommands, () => {
           <UButton
             v-if="!dumpName"
             label="Upload dump"
-            icon="i-lucide-upload"
             variant="outline"
             color="neutral"
             size="sm"

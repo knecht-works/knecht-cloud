@@ -55,25 +55,13 @@ async function submit() {
 <template>
   <div class="flex flex-col gap-6">
     <template v-if="githubUrl">
-      <UButton
+      <KGithubButton
         :to="githubUrl"
         external
-        icon="i-simple-icons-github"
-        color="neutral"
-        block
-        class="justify-start"
+        :last-used="showLastUsed('github')"
       >
         {{ githubLabel }}
-        <template #trailing>
-          <span class="ms-auto flex items-center gap-2">
-            <KLastUsedBadge v-if="showLastUsed('github')" />
-            <UIcon
-              name="i-lucide-arrow-right"
-              class="size-4"
-            />
-          </span>
-        </template>
-      </UButton>
+      </KGithubButton>
       <USeparator label="or" />
     </template>
 

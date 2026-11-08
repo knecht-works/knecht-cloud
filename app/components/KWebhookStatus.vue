@@ -98,7 +98,6 @@ async function submitSecret() {
         target="_blank"
         color="primary"
         size="sm"
-        icon="i-lucide-external-link"
         :label="`Set up in ${name}`"
       />
     </div>

@@ -308,7 +308,6 @@ watch(open, (isOpen) => {
           <UButton
             class="mt-3"
             :label="dumpName ? 'Replace dump' : 'Upload dump'"
-            icon="i-lucide-upload"
             variant="outline"
             color="neutral"
             size="sm"
