@@ -1,7 +1,7 @@
 // md and lg match the button sizes below, so a control and a button of the
 // same size are the same height (enforced by knecht-forms/control-row-size).
 const controlSizes = {
-  md: { base: 'px-3 py-2 text-base/5 gap-2' },
+  md: { base: 'px-3 py-2 text-base/5 gap-2', leadingIcon: 'size-4', trailingIcon: 'size-4', itemLeadingIcon: 'size-4' },
   lg: { base: 'px-3 py-2.5 text-base/5 gap-2' },
 }
 
@@ -63,6 +63,9 @@ export default defineAppConfig({
       ...pointer,
       // Selected items wrap onto more lines instead of being cut off.
       variants: { ...pointer.variants, multiple: { true: { base: 'h-auto' } } },
+    },
+    modal: {
+      variants: { overlay: { true: { overlay: 'backdrop-blur-sm' } } },
     },
     formField: {
       variants: {
