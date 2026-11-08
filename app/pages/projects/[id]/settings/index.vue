@@ -156,6 +156,16 @@ async function saveFolders(folders: string[]) {
   }
 }
 
+const removeFolderTarget = ref<string | null>(null)
+const confirmingFolderRemoval = computed({
+  get: () => removeFolderTarget.value !== null,
+  set: (open) => { if (!open) removeFolderTarget.value = null },
+})
+async function removeFolder() {
+  await saveFolders(sharedFolders.value.filter(f => f !== removeFolderTarget.value))
+  removeFolderTarget.value = null
+}
+
 async function addFolder() {
   const path = newFolder.value.trim()
   if (!path) return
@@ -522,7 +532,7 @@ watch(bootCommands, () => {
                 variant="ghost"
                 icon="i-lucide-trash-2"
                 :aria-label="`Stop persisting ${folder}`"
-                @click="saveFolders(sharedFolders.filter(f => f !== folder))"
+                @click="removeFolderTarget = folder"
               />
             </UTooltip>
           </div>
@@ -565,6 +575,16 @@ watch(bootCommands, () => {
       confirm-label="Remove"
       :loading="removingDump"
       @confirm="confirmDumpRemoval"
+    />
+
+    <KConfirmModal
+      v-model:open="confirmingFolderRemoval"
+      :title="`Stop persisting ${removeFolderTarget}?`"
+      description="Its files stay stored. Add the folder again to get them back."
+      :detail="`From now on, every run and preview gets ${removeFolderTarget} as it is in the repository, without the shared files.`"
+      confirm-label="Stop persisting"
+      :loading="savingFolders"
+      @confirm="removeFolder"
     />
   </div>
 </template>
