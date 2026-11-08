@@ -51,6 +51,7 @@ export default defineAppConfig({
           variant: 'solid',
           class: 'shadow-sm transition-shadow hover:shadow-md',
         },
+        { color: 'error', variant: 'solid', class: 'text-black' },
         { square: true, size: 'md', class: 'p-2' },
         { square: true, size: 'lg', class: 'p-2.5' },
       ],
