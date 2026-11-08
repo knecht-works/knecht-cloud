@@ -87,7 +87,7 @@ watch(form, () => {
           :highlight="!!errors[f.key]"
           class="flex-1"
         />
-        <span class="w-9 text-xs text-dimmed">{{ f.unit }}</span>
+        <span class="w-9 text-xs text-highlighted">{{ f.unit }}</span>
       </div>
       <p
         v-if="errors[f.key]"
