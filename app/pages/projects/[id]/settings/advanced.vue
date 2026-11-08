@@ -16,12 +16,11 @@ const disconnectDescription = computed(() => {
     : ''
   return `Removes ${project.value?.fullName} from Knecht: all its runs, sessions and preview environments, uploaded DB dumps, shared folders and agent memory.${abort} The GitHub repo itself is not touched.`
 })
-const { withElevation } = useElevation()
 const removing = ref(false)
 async function removeProject() {
   removing.value = true
   try {
-    await withElevation(() => $fetch(`/api/projects/${id}`, { method: 'DELETE' }))
+    await $fetch(`/api/projects/${id}`, { method: 'DELETE' })
     toast.add({ title: 'Project disconnected', description: 'Its environments are being removed in the background.', color: 'success' })
     await navigateTo('/projects')
   }

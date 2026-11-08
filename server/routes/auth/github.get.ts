@@ -1,13 +1,12 @@
 import { randomBytes } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { withQuery } from 'ufo'
-import { dashboardOrigin, localPath } from '../../utils/origin'
+import { dashboardOrigin } from '../../utils/origin'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { consumeInvite } from '../../stores/invites'
 import { rememberLoginMethod } from '../../utils/last-login'
-import { addMember, getMember, getMemberById, linkIdentity, listIdentities, loginWithIdentity } from '../../stores/members'
-import { isElevated } from '../../../shared/utils/elevation'
-import { elevateSession, startMemberSession } from '../../utils/member-session'
+import { addMember, getMember, getMemberById, linkIdentity, loginWithIdentity } from '../../stores/members'
+import { startMemberSession } from '../../utils/member-session'
 
 // Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
 export default defineEventHandler(async (event) => {
@@ -22,9 +21,7 @@ export default defineEventHandler(async (event) => {
   if (!query.code) {
     const state = randomBytes(16).toString('hex')
     setFlowCookie(event, 'oauth-state', state)
-    if (query.link || query.elevate) setFlowCookie(event, 'link', query.link ? 'link' : 'elevate')
-    const returnTo = localPath(query.return)
-    if (returnTo) setFlowCookie(event, 'return', returnTo)
+    if (query.link) setFlowCookie(event, 'link', 'link')
     if (typeof query.invite === 'string') setFlowCookie(event, 'invite', query.invite)
     return sendRedirect(event, withQuery('https://github.com/login/oauth/authorize', {
       client_id: creds.clientId,
@@ -37,7 +34,6 @@ export default defineEventHandler(async (event) => {
   const expected = popFlowCookie(event, 'oauth-state')
   const inviteToken = popFlowCookie(event, 'invite')
   const mode = popFlowCookie(event, 'link')
-  const returnTo = localPath(popFlowCookie(event, 'return')) ?? '/'
   if (!expected || query.state !== expected) {
     console.error('GitHub OAuth error: state mismatch')
     return sendRedirect(event, '/login?error=oauth')
@@ -67,16 +63,10 @@ export default defineEventHandler(async (event) => {
     const account = { subject: String(user.id), username: user.login }
     const profile = { name: user.name, avatarUrl: user.avatar_url }
 
-    if (mode === 'link' || mode === 'elevate') {
+    if (mode === 'link') {
       const session = await getUserSession(event)
       const current = getMemberById(session.user?.id)
       if (!current) return sendRedirect(event, '/login')
-      if (mode === 'elevate') {
-        const own = listIdentities(current.id).some(i => i.provider === 'github' && i.subject === account.subject)
-        if (own) await elevateSession(event)
-        return sendRedirect(event, withQuery(returnTo, { reauth: own ? 'done' : 'mismatch' }))
-      }
-      if (!isElevated(session.elevatedAt)) return sendRedirect(event, '/profile?github=reauth')
       return sendRedirect(event, `/profile?github=${linkIdentity(current.id, 'github', account)}`)
     }
     let member = loginWithIdentity('github', account, profile)

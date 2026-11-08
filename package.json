@@ -17,7 +17,6 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:browser": "vitest run --config vitest.browser.config.ts",
     "typecheck": "nuxt typecheck",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
@@ -75,7 +74,6 @@
     "@types/turndown": "^5.0.6",
     "drizzle-kit": "^0.31.10",
     "eslint": "^10.5.0",
-    "playwright": "^1.65.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.7"

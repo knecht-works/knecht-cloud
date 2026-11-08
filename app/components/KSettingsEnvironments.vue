@@ -5,7 +5,6 @@ import type { DashboardSettings } from '~/composables/useSettings'
 defineProps<{ editable: boolean }>()
 
 const { data: settings } = useSettings()
-const { withElevation } = useElevation()
 
 type EnvSettings = Pick<DashboardSettings, 'idleStopMinutes' | 'previewRetentionDays' | 'archiveRetentionDays' | 'maxConcurrentRuns'>
 const form = reactive<EnvSettings>({ idleStopMinutes: 30, previewRetentionDays: 7, archiveRetentionDays: 30, maxConcurrentRuns: 2 })
@@ -43,7 +42,7 @@ function validate(): boolean {
 }
 
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
-  await withElevation(() => patchSettings(settings, { ...form }))
+  await patchSettings(settings, { ...form })
   original.value = JSON.stringify({ ...form })
 })
 watch(form, () => {

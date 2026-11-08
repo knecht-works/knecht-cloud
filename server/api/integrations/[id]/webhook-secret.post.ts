@@ -1,13 +1,11 @@
 import { z } from 'zod'
 import { connectionOf } from '../../../utils/integration-routes'
 import { requireOwner } from '../../../utils/owner'
-import { requireElevated } from '../../../utils/member-session'
 
 const bodySchema = z.object({ webhookSecret: z.string().trim().min(1, 'Paste the secret key of the webhook') })
 
 export default defineEventHandler(async (event) => {
   await requireOwner(event)
-  await requireElevated(event)
   const { integration, connection } = connectionOf(event)
   if (connection.form.webhook.secret !== 'pasted') {
     throw createError({ statusCode: 404, statusMessage: `${integration.name} uses the secret Knecht generates` })

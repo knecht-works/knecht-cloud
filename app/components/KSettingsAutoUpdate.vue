@@ -2,13 +2,12 @@
 defineProps<{ editable: boolean }>()
 
 const { data: settings } = useSettings()
-const { withElevation } = useElevation()
 const autoUpdateCron = ref('')
 watch(settings, (s) => {
   if (s) autoUpdateCron.value = s.autoUpdateCron
 }, { immediate: true })
 const { state: saveState, error: saveError, schedule } = useAutosave(() =>
-  withElevation(() => patchSettings(settings, { autoUpdateCron: autoUpdateCron.value.trim() })))
+  patchSettings(settings, { autoUpdateCron: autoUpdateCron.value.trim() }))
 watch(autoUpdateCron, () => {
   if (autoUpdateCron.value.trim() === (settings.value?.autoUpdateCron ?? '')) return
   schedule()

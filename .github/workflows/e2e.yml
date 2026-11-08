@@ -57,48 +57,6 @@ jobs:
         if: failure() || cancelled()
         run: bash scripts/dev-compose.sh logs --tail 200 knecht
 
-  # Browser scenarios (test/browser/**, vitest.browser.config.ts) against the
-  # same dev container. Playwright runs on the runner itself: the dev
-  # container has no browser.
-  browser:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    env:
-      KNECHT_TEST_GITHUB_TOKEN: ${{ secrets.KNECHT_TEST_GITHUB_TOKEN }}
-      KNECHT_BASE_URL: http://lvh.me:3333
-      KNECHT_BASE_DOMAIN: lvh.me
-      KNECHT_E2E_BASE_URL: http://lvh.me:3333
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Require the e2e secret
-        run: |
-          if [ -z "$KNECHT_TEST_GITHUB_TOKEN" ]; then
-            echo "::error::Set the KNECHT_TEST_GITHUB_TOKEN repo secret (a no-scope PAT) to run the e2e suite."
-            exit 1
-          fi
-
-      - name: Start the dev container
-        run: bash scripts/ci-dev-server.sh
-
-      # The readiness probe pins lvh.me with --resolve; the browser needs it in /etc/hosts.
-      - run: echo "127.0.0.1 lvh.me" | sudo tee -a /etc/hosts
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - run: npm install -g npm@11.9.0
-      # The tests only drive the running instance, so no `nuxt prepare` postinstall.
-      - run: npm ci --ignore-scripts
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
-
-      - name: Dump the server log on failure
-        if: failure() || cancelled()
-        run: bash scripts/dev-compose.sh logs --tail 200 knecht
-
   # The boot e2e: on the runner's own Docker, start the PR's code as a dev
   # server and let the boot test connect the fixture repo, boot it with the
   # suite's own bare boot workflow and hit the preview origins.
@@ -178,15 +136,15 @@ jobs:
             exit 1
           fi
 
-  # The single check the main ruleset requires: green only when api, browser
-  # and every fixture boot passed. Same `always()` and fork guard as boot above.
+  # The single check the main ruleset requires: green only when api and every
+  # fixture boot passed. Same `always()` and fork guard as boot above.
   e2e:
-    needs: [api, browser, boot]
+    needs: [api, boot]
     if: always() && (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - run: |
-          if [ "${{ needs.api.result }}" != "success" ] || [ "${{ needs.browser.result }}" != "success" ] || [ "${{ needs.boot.result }}" != "success" ]; then
-            echo "::error::e2e failed (api: ${{ needs.api.result }}, browser: ${{ needs.browser.result }}, boot: ${{ needs.boot.result }})."
+          if [ "${{ needs.api.result }}" != "success" ] || [ "${{ needs.boot.result }}" != "success" ]; then
+            echo "::error::e2e failed (api: ${{ needs.api.result }}, boot: ${{ needs.boot.result }})."
             exit 1
           fi

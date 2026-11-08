@@ -7,14 +7,6 @@ export function dashboardOrigin(): string {
   return domain ? `https://${domain}` : ''
 }
 
-// Parsed like a browser would, which turns `/\evil.com` into another host.
-export function localPath(value: unknown): string | undefined {
-  if (typeof value !== 'string' || !value.startsWith('/')) return undefined
-  const url = new URL(value, 'http://knecht.invalid')
-  const path = `${url.pathname}${url.search}${url.hash}`
-  return url.host === 'knecht.invalid' && !path.startsWith('//') ? path : undefined
-}
-
 // The previews are the same site as the dashboard, so SameSite cookies do not
 // stop them: cookie-authenticated requests check the Origin browsers send.
 export function isForeignOrigin(origin: string | null | undefined, host: string): boolean {

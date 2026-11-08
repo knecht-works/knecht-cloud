@@ -4,7 +4,6 @@ import { liveTopics } from '#shared/utils/live-topics'
 
 export function useIntegrationConnection(id: IntegrationId, name: string) {
   const toast = useToast()
-  const { withElevation } = useElevation()
   const connection = ref<ConnectionStatus>()
   const path = `/api/integrations/${id}`
   const request = (method: 'GET' | 'POST' | 'DELETE', body?: Record<string, string>) => $fetch<ConnectionStatus>(`${path}/connection`, { method, body })
@@ -24,13 +23,13 @@ export function useIntegrationConnection(id: IntegrationId, name: string) {
     error.value = ''
     connecting.value = true
     try {
-      const next = await withElevation(() => request('POST', body))
+      const next = await request('POST', body)
       connection.value = next
       toast.add({ title: `Connected as ${next.accountName}`, color: 'success' })
       return true
     }
     catch (e) {
-      if (!isReauthError(e)) error.value = errMsg(e, `Could not connect to ${name}.`)
+      error.value = errMsg(e, `Could not connect to ${name}.`)
       return false
     }
     finally {
@@ -42,12 +41,12 @@ export function useIntegrationConnection(id: IntegrationId, name: string) {
     error.value = ''
     disconnecting.value = true
     try {
-      connection.value = await withElevation(() => request('DELETE'))
+      connection.value = await request('DELETE')
       toast.add({ title: `${name} disconnected`, color: 'success' })
       return true
     }
     catch (e) {
-      if (!isReauthError(e)) error.value = errMsg(e, 'Could not disconnect.')
+      error.value = errMsg(e, 'Could not disconnect.')
       return false
     }
     finally {
@@ -56,7 +55,7 @@ export function useIntegrationConnection(id: IntegrationId, name: string) {
   }
 
   async function saveSecret(webhookSecret: string) {
-    connection.value = await withElevation(() => $fetch<ConnectionStatus>(`${path}/webhook-secret`, { method: 'POST', body: { webhookSecret } }))
+    connection.value = await $fetch<ConnectionStatus>(`${path}/webhook-secret`, { method: 'POST', body: { webhookSecret } })
   }
 
   return { connection, error, connecting, disconnecting, connect, disconnect, saveSecret }

@@ -147,7 +147,7 @@ describe('owner role', () => {
 })
 
 describe('own password', () => {
-  it('changes without the current one while the session is fresh', async () => {
+  it('changes without the current one', async () => {
     const signIn = (pw: string) => fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: pw }) })
     const sessionCookie = (res: Response) => res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
     const cookie = sessionCookie(await signIn('a brand new password'))
@@ -161,29 +161,6 @@ describe('own password', () => {
 
     expect((await signIn('a brand new password')).status).toBe(401)
     expect((await signIn('the third password')).status).toBe(200)
-  })
-})
-
-describe('confirm it is you', () => {
-  it('asks a session past its hour to confirm before sensitive actions', async () => {
-    const secret = process.env.KNECHT_TEST_AUTH!
-    const stale = await fetch(`${BASE_URL}/_test/login?secret=${encodeURIComponent(secret)}&stale=1`)
-    const cookie = stale.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
-
-    expect((await fetch(`${BASE_URL}/api/members`, { headers: { cookie } })).status).toBe(200)
-    for (const [path, method] of [['/api/invites', 'POST'], [`/api/members/${username}/password-reset`, 'POST'], ['/api/me/elevated', 'GET'], ['/api/projects/999999', 'DELETE']]) {
-      const res = await fetch(`${BASE_URL}${path}`, { method, headers: { cookie } })
-      expect(res.status).toBe(403)
-      expect(((await res.json()) as { data: { reauth: boolean } }).data.reauth).toBe(true)
-    }
-  })
-
-  it('lets a member confirm with their password', async () => {
-    const res = await fetch(`${BASE_URL}/auth/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: 'the third password' }) })
-    const cookie = res.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
-    const elevate = (password: string) => fetch(`${BASE_URL}/auth/elevate`, { method: 'POST', headers: { 'Content-Type': 'application/json', cookie }, body: JSON.stringify({ password }) })
-    expect((await elevate('not my password')).status).toBe(400)
-    expect((await elevate('the third password')).status).toBe(200)
   })
 })
 
