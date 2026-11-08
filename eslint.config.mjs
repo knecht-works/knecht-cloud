@@ -39,7 +39,7 @@ export default withNuxt(
   },
   {
     // The field components define their look once and are labeled by the UFormField around them.
-    files: ['app/components/{KSecretField,KCodeInput,KPasswordInput}.vue', 'app/components/chat/ModelPicker.vue'],
+    files: ['app/components/{KSecretField,KCodeInput,KPasswordInput,KUnitInput}.vue', 'app/components/chat/ModelPicker.vue'],
     rules: { 'knecht-forms/labeled-control': 'off', 'knecht-forms/themed-only': 'off' },
   },
 )

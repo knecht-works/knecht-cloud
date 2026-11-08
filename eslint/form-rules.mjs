@@ -1,7 +1,7 @@
-const CONTROLS = new Set(['UInput', 'UInputNumber', 'USelect', 'USelectMenu', 'UTextarea', 'KSecretField', 'KCodeInput', 'KPasswordInput'])
-const ROW_CONTROLS = new Set(['UInput', 'UInputNumber', 'USelect', 'USelectMenu', 'KSecretField', 'KCodeInput', 'KPasswordInput'])
+const CONTROLS = new Set(['UInput', 'UInputNumber', 'USelect', 'USelectMenu', 'UTextarea', 'KSecretField', 'KCodeInput', 'KPasswordInput', 'KUnitInput'])
+const ROW_CONTROLS = new Set(['UInput', 'UInputNumber', 'USelect', 'USelectMenu', 'KSecretField', 'KCodeInput', 'KPasswordInput', 'KUnitInput'])
 const THEMED = new Set(['UFormField', 'UInput', 'UInputNumber', 'USelect', 'USelectMenu', 'UTextarea', 'UButton'])
-const SPACED = new Set(['UFormField', 'UInput', 'UInputNumber', 'USelect', 'USelectMenu', 'UTextarea', 'KSecretField', 'KCodeInput', 'KPasswordInput'])
+const SPACED = new Set(['UFormField', 'UInput', 'UInputNumber', 'USelect', 'USelectMenu', 'UTextarea', 'KSecretField', 'KCodeInput', 'KPasswordInput', 'KUnitInput'])
 
 const name = el => el.rawName
 const attr = (el, key) => el.startTag.attributes.find(a => !a.directive && a.key.name === key)

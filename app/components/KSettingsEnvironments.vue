@@ -76,19 +76,16 @@ watch(form, () => {
       :hint="f.hint"
       :preset="isPreset(settings, f.key)"
     >
-      <div class="flex items-center gap-2">
-        <UInput
-          v-model.number="form[f.key]"
-          type="number"
-          :min="SETTINGS_LIMITS[f.key].min"
-          :max="SETTINGS_LIMITS[f.key].max"
-          :disabled="!editable || isPreset(settings, f.key)"
-          :color="errors[f.key] ? 'error' : undefined"
-          :highlight="!!errors[f.key]"
-          class="flex-1"
-        />
-        <span class="w-9 text-xs text-highlighted">{{ f.unit }}</span>
-      </div>
+      <KUnitInput
+        v-model="form[f.key]"
+        :unit="f.unit"
+        :min="SETTINGS_LIMITS[f.key].min"
+        :max="SETTINGS_LIMITS[f.key].max"
+        :disabled="!editable || isPreset(settings, f.key)"
+        :color="errors[f.key] ? 'error' : undefined"
+        :highlight="!!errors[f.key]"
+        class="w-full"
+      />
       <p
         v-if="errors[f.key]"
         class="mt-2 text-xs leading-normal text-error"
