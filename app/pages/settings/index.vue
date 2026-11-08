@@ -281,7 +281,8 @@ async function remove() {
       <KConfirmModal
         v-model:open="confirmingRemove"
         :title="`Remove @${removeTarget}?`"
-        description="They lose access right away and can only come back with a new invite link. This can't be undone."
+        description="This cannot be undone."
+        detail="They lose access right away and can only come back with a new invite link."
         confirm-label="Remove"
         :loading="removing"
         @confirm="remove"

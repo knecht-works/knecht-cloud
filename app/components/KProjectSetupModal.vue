@@ -225,13 +225,6 @@ watch(open, (isOpen) => {
         <div class="flex justify-end gap-2">
           <UButton
             size="lg"
-            color="neutral"
-            variant="outline"
-            label="Cancel"
-            @click="() => { open = false }"
-          />
-          <UButton
-            size="lg"
             label="Connect"
             color="primary"
             :loading="connecting"

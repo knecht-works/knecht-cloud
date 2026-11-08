@@ -9,12 +9,12 @@ const activeRunCount = computed(() =>
   (runs.value ?? []).filter(r => r.status === 'running' || r.status === 'queued').length)
 
 const confirmDisconnect = ref(false)
-const disconnectDescription = computed(() => {
+const disconnectDetail = computed(() => {
   const active = activeRunCount.value
   const abort = active
     ? ` ${active === 1 ? '1 run is' : `${active} runs are`} still active and will be cancelled.`
     : ''
-  return `Removes ${project.value?.fullName} from Knecht: all its runs, sessions and preview environments, uploaded DB dumps, shared folders and agent memory.${abort} The GitHub repo itself is not touched.`
+  return `Removes ${project.value?.fullName} from Knecht: all its runs, sessions and preview environments, uploaded DB dumps, shared folders and agent memory.${abort}`
 })
 const removing = ref(false)
 async function removeProject() {
@@ -69,7 +69,8 @@ async function removeProject() {
     <KConfirmModal
       v-model:open="confirmDisconnect"
       title="Disconnect project"
-      :description="disconnectDescription"
+      description="This cannot be undone. The GitHub repo is not touched."
+      :detail="disconnectDetail"
       confirm-label="Disconnect"
       :loading="removing"
       @confirm="removeProject"

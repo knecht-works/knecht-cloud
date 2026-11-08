@@ -167,7 +167,8 @@ const setupUrl = computed(() => props.form.webhook.setupUrl.replace(/\{(\w+)\}/g
     <KConfirmModal
       v-model:open="confirmingDisconnect"
       :title="`Disconnect ${name}?`"
-      :description="`Knecht deletes the stored credentials and the webhook secret. Triggers from ${name} stop working until you connect again and set up the webhook anew.`"
+      :description="`Triggers from ${name} stop working.`"
+      :detail="`Knecht deletes the stored credentials and the webhook secret. To use ${name} again, connect it and set up the webhook anew.`"
       confirm-label="Disconnect"
       :loading="disconnecting"
       @confirm="confirmDisconnect"
