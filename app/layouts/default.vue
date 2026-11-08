@@ -240,7 +240,5 @@ const updateTarget = computed(() =>
         <slot />
       </div>
     </main>
-
-    <KReauthModal />
   </div>
 </template>

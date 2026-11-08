@@ -2,7 +2,6 @@
 import { AI_PROVIDERS, type AiProviderId, type LangdockRegion } from '#shared/utils/ai'
 
 const toastError = useToastError()
-const { withElevation } = useElevation()
 const { user } = useUserSession()
 const { data: settings } = await useSettings()
 const { data: members } = await useMembers()
@@ -64,12 +63,12 @@ const REGION_ITEMS = [
 ]
 
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
-  await withElevation(() => patchSettings(settings, {
+  await patchSettings(settings, {
     aiProvider: aiProvider.value,
     aiRegion: aiRegion.value,
     aiModel: aiModel.value.trim() || null,
     aiSubtaskModel: aiSubtaskModel.value === NO_SUBTASK_MODEL ? null : aiSubtaskModel.value,
-  }))
+  })
   await refreshNuxtData('ai-models')
 })
 watch([aiProvider, aiRegion, aiModel, aiSubtaskModel], () => {
@@ -101,7 +100,7 @@ async function saveAiKey() {
   if (!aiKeyChanged.value) return
   savingAiKey.value = true
   try {
-    await withElevation(() => patchSettings(settings, { aiKey: aiKey.value.trim() }))
+    await patchSettings(settings, { aiKey: aiKey.value.trim() })
     aiKey.value = ''
     await refreshNuxtData('ai-models')
   }

@@ -4,7 +4,6 @@ import { liveTopics } from '#shared/utils/live-topics'
 const { user } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()
-const { withElevation } = useElevation()
 
 const { data: members } = await useMembers()
 
@@ -19,10 +18,10 @@ const inviting = ref(false)
 async function invite() {
   inviting.value = true
   try {
-    const { invite, token } = await withElevation(() => $fetch('/api/invites', { method: 'POST' }))
+    const { invite, token } = await $fetch('/api/invites', { method: 'POST' })
     inviteUrls.value[invite.id] = `${window.location.origin}/join/${token}`
     await invalidate(liveTopics.invites)
-    await showLink('Invite link created', 'It works for one person and expires in 7 days.', inviteUrls.value[invite.id]!)
+    await copyInvite(invite.id)
   }
   catch (e) {
     toastError('Could not create the invite link', e)
@@ -42,18 +41,6 @@ async function copyInvite(id: number) {
   }
 }
 
-const sharedLink = ref<{ title: string, description: string, url: string, copied: boolean } | null>(null)
-const sharingLink = computed({
-  get: () => sharedLink.value !== null,
-  set: (open) => { if (!open) sharedLink.value = null },
-})
-// After a "Confirm it's you" via GitHub the click is used up and browsers refuse to copy,
-// so the link is always shown with a Copy button of its own.
-async function showLink(title: string, description: string, url: string) {
-  const copied = await copyText(url).then(() => true, () => false)
-  sharedLink.value = { title, description, url, copied }
-}
-
 function expiresIn(at: string): string {
   const days = Math.ceil((new Date(at).getTime() - Date.now()) / 86_400_000)
   return days > 1 ? `in ${days} days` : 'within a day'
@@ -63,7 +50,7 @@ const revoking = ref<number | null>(null)
 async function revoke(id: number) {
   revoking.value = id
   try {
-    await withElevation(() => $fetch(`/api/invites/${id}`, { method: 'DELETE' }))
+    await $fetch(`/api/invites/${id}`, { method: 'DELETE' })
     await invalidate(liveTopics.invites)
   }
   catch (e) {
@@ -76,8 +63,15 @@ async function revoke(id: number) {
 
 async function createResetLink(login: string) {
   try {
-    const { token } = await withElevation(() => $fetch(`/api/members/${login}/password-reset`, { method: 'POST' }))
-    await showLink(`Reset link for @${login}`, 'It works once and expires in 24 hours.', `${window.location.origin}/reset/${token}`)
+    const { token } = await $fetch(`/api/members/${login}/password-reset`, { method: 'POST' })
+    const url = `${window.location.origin}/reset/${token}`
+    try {
+      await copyText(url)
+      toast.add({ title: `Reset link for @${login} copied`, description: 'It works once and expires in 24 hours.', color: 'success' })
+    }
+    catch {
+      toast.add({ title: `Reset link for @${login}`, description: url, color: 'warning' })
+    }
   }
   catch (e) {
     toastError('Could not create the reset link', e)
@@ -86,7 +80,7 @@ async function createResetLink(login: string) {
 
 async function setOwner(login: string, isOwner: boolean) {
   try {
-    await withElevation(() => $fetch(`/api/members/${login}`, { method: 'PATCH', body: { isOwner } }))
+    await $fetch(`/api/members/${login}`, { method: 'PATCH', body: { isOwner } })
     await invalidate(liveTopics.members)
     toast.add({ title: isOwner ? `@${login} is now an owner` : `@${login} is no longer an owner`, color: 'success' })
   }
@@ -118,7 +112,7 @@ async function remove() {
   if (!login) return
   removing.value = true
   try {
-    await withElevation(() => $fetch(`/api/members/${login}`, { method: 'DELETE' }))
+    await $fetch(`/api/members/${login}`, { method: 'DELETE' })
     await invalidate(liveTopics.members)
     toast.add({ title: `Removed @${login}`, color: 'success' })
     removeTarget.value = null
@@ -290,14 +284,6 @@ async function remove() {
         </button>
       </template>
     </div>
-
-    <KLinkModal
-      v-model:open="sharingLink"
-      :title="sharedLink?.title ?? ''"
-      :description="sharedLink?.description ?? ''"
-      :url="sharedLink?.url ?? ''"
-      :copied="sharedLink?.copied"
-    />
 
     <KConfirmModal
       v-model:open="confirmingRemove"

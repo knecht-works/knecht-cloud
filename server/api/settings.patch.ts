@@ -7,7 +7,6 @@ import { isValidCron } from '../utils/cron'
 import { loadModelCatalog } from '../utils/ai-catalog'
 import { encrypt } from '../utils/crypto'
 import { requireOwner } from '../utils/owner'
-import { requireElevated } from '../utils/member-session'
 
 // PATCH /api/settings → update the tunable settings. Each field is optional so
 // the UI can send only what changed; values are bounded (SETTINGS_LIMITS, also
@@ -47,7 +46,6 @@ export default defineEventHandler(async (event) => {
   // receives every run's code and prompts, or runs and deletes things for the whole instance.
   if (Object.keys(result.data).some(f => f !== 'agentInstructions')) {
     await requireOwner(event)
-    await requireElevated(event)
   }
   // Fields pinned by the installation's env preset are read-only: the write
   // would be shadowed on every read anyway, and silently accepting it would

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { setPasswordHash } from '../../stores/members'
-import { requireElevated, updateMemberSession } from '../../utils/member-session'
+import { updateMemberSession } from '../../utils/member-session'
 import { passwordProblem } from '../../../shared/utils/account'
 
 const bodySchema = z.object({
@@ -11,7 +11,7 @@ const bodySchema = z.object({
 })
 
 export default defineEventHandler(async (event) => {
-  const { user } = await requireElevated(event)
+  const { user } = await requireUserSession(event)
   const result = bodySchema.safeParse(await readBody(event))
   if (!result.success) {
     throw createError({ statusCode: 400, statusMessage: result.error.issues[0]!.message, data: { field: 'password' } })

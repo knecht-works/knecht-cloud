@@ -4,7 +4,6 @@ import { SSH_TARGET_RE } from '#shared/utils/settings-limits'
 // The address is validated against the server's charset because it is spliced
 // verbatim into the copy-pasteable ssh command.
 const { data: settings } = useSettings()
-const { withElevation } = useElevation()
 const { user } = useUserSession()
 const { data: members } = await useMembers()
 const isOwner = computed(() => !!members.value?.find(m => m.id === user.value?.id)?.isOwner)
@@ -31,7 +30,7 @@ function validate(): boolean {
 }
 
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(() =>
-  withElevation(() => patchSettings(settings, { sshTarget: sshTarget.value.trim() || null })))
+  patchSettings(settings, { sshTarget: sshTarget.value.trim() || null }))
 watch(sshTarget, () => {
   if (sshTarget.value === (settings.value?.sshTarget ?? '')) return
   if (!validate()) return invalid('Not saved, check the value')

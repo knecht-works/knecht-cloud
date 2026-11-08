@@ -1,13 +1,11 @@
 import { z } from 'zod'
 import { getMember, listMembers, setOwner } from '../../stores/members'
 import { requireOwner } from '../../utils/owner'
-import { requireElevated } from '../../utils/member-session'
 
 const bodySchema = z.object({ isOwner: z.boolean() })
 
 export default defineEventHandler(async (event) => {
   await requireOwner(event)
-  await requireElevated(event)
   const member = getMember(getRouterParam(event, 'login') ?? '')
   if (!member) {
     throw createError({ statusCode: 404, statusMessage: 'No such member.' })

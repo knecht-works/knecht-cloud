@@ -7,7 +7,6 @@ const emit = defineEmits<{ saved: [] }>()
 
 const password = ref('')
 const saving = ref(false)
-const { withElevation } = useElevation()
 const errors = ref<{ password?: string }>({})
 watch(password, () => delete errors.value.password)
 watch(open, (isOpen) => {
@@ -21,12 +20,12 @@ async function save() {
   if (errors.value.password) return
   saving.value = true
   try {
-    await withElevation(() => $fetch('/api/me/password', { method: 'POST', body: { password: password.value } }))
+    await $fetch('/api/me/password', { method: 'POST', body: { password: password.value } })
     open.value = false
     emit('saved')
   }
   catch (e) {
-    if (!isReauthError(e)) errors.value.password = errMsg(e, 'Could not save the password.')
+    errors.value.password = errMsg(e, 'Could not save the password.')
   }
   finally {
     saving.value = false

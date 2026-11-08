@@ -9,13 +9,11 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 const toastError = useToastError()
-const { withElevation } = useElevation()
 
 onMounted(() => {
   const result = route.query.github
   if (result === 'linked') toast.add({ title: 'GitHub connected', color: 'success' })
   if (result === 'taken') toast.add({ title: 'Could not connect GitHub', description: 'This GitHub account belongs to another member.', color: 'error' })
-  if (result === 'reauth') toast.add({ title: 'Could not connect GitHub', description: 'Confirm it’s you and try again.', color: 'error' })
   if (result) router.replace({ query: { ...route.query, github: undefined } })
 })
 
@@ -26,20 +24,14 @@ async function passwordSaved() {
 }
 
 async function connect() {
-  try {
-    await withElevation(() => $fetch('/api/me/elevated'))
-    await navigateTo('/auth/github?link=1', { external: true })
-  }
-  catch (e) {
-    toastError('Could not connect GitHub', e)
-  }
+  await navigateTo('/auth/github?link=1', { external: true })
 }
 
 const disconnecting = ref(false)
 async function disconnect() {
   disconnecting.value = true
   try {
-    await withElevation(() => $fetch('/api/me/identities/github', { method: 'DELETE' }))
+    await $fetch('/api/me/identities/github', { method: 'DELETE' })
     await invalidate(liveTopics.members)
     toast.add({ title: 'GitHub disconnected', color: 'success' })
   }

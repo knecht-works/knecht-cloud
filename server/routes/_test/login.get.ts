@@ -36,8 +36,6 @@ export default defineEventHandler(async (event) => {
   }
 
   await startMemberSession(event, member)
-  // `?stale=1` seeds a session past its elevation, to test the "Confirm it's you" path.
-  if (getQuery(event).stale) await replaceUserSession(event, { user: (await getUserSession(event)).user, sessionVersion: member.sessionVersion, elevatedAt: 0 })
 
   return { ok: true, login: ghUser.login }
 })

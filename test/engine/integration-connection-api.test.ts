@@ -6,7 +6,7 @@ const myself = async () => {
   if (vendor.rejects) throw new Error('401')
   return { displayName: 'Knecht', accountId: 'acc-1' }
 }
-const access = vi.hoisted(() => ({ owner: true, elevated: true }))
+const access = vi.hoisted(() => ({ owner: true }))
 vi.mock('../../server/utils/owner', async () => {
   const { createError } = await import('h3')
   return {
@@ -15,12 +15,6 @@ vi.mock('../../server/utils/owner', async () => {
     },
     isOwner: async () => access.owner,
   }
-})
-vi.mock('../../server/utils/member-session', async () => {
-  const { createError } = await import('h3')
-  return { requireElevated: async () => {
-    if (!access.elevated) throw createError({ statusCode: 403, statusMessage: 'Confirm it’s you to continue.', data: { reauth: true } })
-  } }
 })
 vi.mock('../../server/utils/github-app', () => ({}))
 vi.mock('../../server/integrations/jira/api', async importOriginal => ({
@@ -108,7 +102,7 @@ describe.each(INTEGRATIONS.filter(i => i.connection).map(i => [i.id, i] as const
     expect(integration.connection!.store.secrets()).toEqual(Object.fromEntries(secrets.map(k => [k, body[k]])))
   })
 
-  it('lets only an owner with a confirmed session change the connection', async () => {
+  it('lets only an owner change the connection', async () => {
     const attempts = () => Promise.all([
       call('post', id, { body }),
       call('delete', id, { method: 'DELETE' }),
@@ -117,9 +111,6 @@ describe.each(INTEGRATIONS.filter(i => i.connection).map(i => [i.id, i] as const
     access.owner = false
     for (const res of await attempts()) expect(res.status).toBe(403)
     access.owner = true
-    access.elevated = false
-    for (const res of await attempts()) expect(res.json).toMatchObject({ statusCode: 403, data: { reauth: true } })
-    access.elevated = true
     expect((await call('get', id, { method: 'GET' })).json).toMatchObject({ configured: true })
   })
 
