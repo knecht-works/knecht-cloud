@@ -89,7 +89,8 @@ async function submitSecret() {
         color="neutral"
         variant="ghost"
         size="sm"
-        :label="detailsOpen ? 'Hide webhook' : 'Show webhook'"
+        :icon="detailsOpen ? 'i-lucide-minus' : 'i-lucide-plus'"
+        :aria-label="detailsOpen ? 'Hide webhook' : 'Show webhook'"
         @click="() => { detailsOpen = !detailsOpen }"
       />
       <UButton
