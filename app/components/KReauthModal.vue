@@ -22,12 +22,27 @@ watch(password, () => {
 
 const githubUrl = computed(() => `/auth/github?elevate=1&return=${encodeURIComponent(route.fullPath)}`)
 
+let popup: Window | null = null
+function confirmWithGithub() {
+  popup = window.open('/auth/github?elevate=1&return=/reauth', 'knecht-reauth', 'popup,width=600,height=760')
+  if (!popup) window.location.href = githubUrl.value
+}
+
+function onPopupMessage(e: MessageEvent) {
+  if (e.origin !== window.location.origin || e.source !== popup || e.data?.type !== 'knecht:reauth') return
+  popup = null
+  if (e.data.result === 'done') finish(true)
+  else error.value = 'That GitHub account is not linked to you.'
+}
+
 onMounted(() => {
+  window.addEventListener('message', onPopupMessage)
   const result = route.query.reauth
   if (result === 'done') toast.add({ title: 'Confirmed', description: 'Try the action again.', color: 'success' })
   if (result === 'mismatch') toast.add({ title: 'Could not confirm', description: 'That GitHub account is not linked to you.', color: 'error' })
   if (result) router.replace({ query: { ...route.query, reauth: undefined } })
 })
+onBeforeUnmount(() => window.removeEventListener('message', onPopupMessage))
 
 async function confirmPassword() {
   if (!password.value) {
@@ -86,15 +101,20 @@ async function confirmPassword() {
         />
         <UButton
           v-if="methods.github.username"
-          :to="githubUrl"
-          external
           icon="i-simple-icons-github"
           color="neutral"
           size="lg"
           block
+          @click="confirmWithGithub"
         >
           Confirm with GitHub
         </UButton>
+        <p
+          v-if="error && !methods.password"
+          class="text-sm text-error"
+        >
+          {{ error }}
+        </p>
       </div>
     </template>
     <template
