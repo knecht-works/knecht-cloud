@@ -1,18 +1,24 @@
 // md and lg match the button sizes below, so a control and a button of the
-// same size are the same height (enforced by knecht/control-row-size).
+// same size are the same height (enforced by knecht-forms/control-row-size).
 const controlSizes = {
   md: { base: 'px-3 py-2 text-base/5 gap-2' },
   lg: { base: 'px-3 py-2.5 text-base/5 gap-2' },
+}
+
+// A disabled field drops its frame and reads as a fixed value.
+const disabledField = {
+  base: 'disabled:opacity-100',
+  outline: 'disabled:ring-0 disabled:bg-(--surface-glass) disabled:text-muted',
 }
 
 const pointer = {
   slots: {
     // Pointer cursor on the trigger and on each option; disabled states still
     // get cursor-not-allowed from the base theme's data-disabled variants.
-    base: 'cursor-pointer',
+    base: `cursor-pointer ${disabledField.base}`,
     item: 'cursor-pointer',
   },
-  variants: { size: controlSizes },
+  variants: { size: controlSizes, variant: { outline: disabledField.outline } },
 }
 
 export default defineAppConfig({
@@ -49,9 +55,9 @@ export default defineAppConfig({
         { square: true, size: 'lg', class: 'p-2.5' },
       ],
     },
-    input: { variants: { size: controlSizes } },
-    textarea: { variants: { size: controlSizes } },
-    inputNumber: { variants: { size: { md: controlSizes.md.base, lg: controlSizes.lg.base } } },
+    input: { slots: { base: disabledField.base }, variants: { size: controlSizes, variant: { outline: disabledField.outline } } },
+    textarea: { slots: { base: disabledField.base }, variants: { size: controlSizes, variant: { outline: disabledField.outline } } },
+    inputNumber: { slots: { base: disabledField.base }, variants: { size: { md: controlSizes.md.base, lg: controlSizes.lg.base }, variant: { outline: disabledField.outline } } },
     select: pointer,
     selectMenu: {
       ...pointer,
