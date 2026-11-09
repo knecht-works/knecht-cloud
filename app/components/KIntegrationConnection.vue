@@ -4,7 +4,7 @@ import type { IntegrationId } from '#shared/utils/integrations'
 
 const props = defineProps<{ id: IntegrationId, name: string, form: ConnectionFormDef, editable: boolean }>()
 
-const { connection, error, connecting, disconnecting, connect, disconnect, saveSecret } = useIntegrationConnection(props.id, props.name)
+const { connection, error, connecting, disconnecting, connect, disconnect, saveSecret } = await useIntegrationConnection(props.id, props.name)
 
 const secretKeys = computed(() => props.form.fields.filter(f => f.type === 'secret').map(f => f.key))
 const values = reactive<Record<string, string>>({})
