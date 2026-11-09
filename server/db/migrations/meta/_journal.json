@@ -463,6 +463,13 @@
       "when": 1794092456250,
       "tag": "0065_member-session-version",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "6",
+      "when": 1794230705134,
+      "tag": "0066_preview-access",
+      "breakpoints": true
     }
   ]
 }

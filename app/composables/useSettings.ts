@@ -1,10 +1,13 @@
 import type { Ref } from 'vue'
+import type { PreviewAccess } from '#shared/utils/preview-access'
 
 export interface DashboardSettings {
   idleStopMinutes: number
   previewRetentionDays: number
   archiveRetentionDays: number
   maxConcurrentRuns: number
+  previewAccess: PreviewAccess
+  shareLinkHours: number | null
   aiProvider: string
   aiRegion: string
   aiModel: string | null

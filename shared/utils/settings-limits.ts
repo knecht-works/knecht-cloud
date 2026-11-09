@@ -3,6 +3,7 @@ export const SETTINGS_LIMITS = {
   previewRetentionDays: { min: 0, max: 365 },
   archiveRetentionDays: { min: 0, max: 3650 },
   maxConcurrentRuns: { min: 1, max: 20 },
+  shareLinkHours: { min: 1, max: 8760 },
 } as const
 
 // Charset excludes whitespace and quotes: the value is spliced verbatim into the ssh command line.

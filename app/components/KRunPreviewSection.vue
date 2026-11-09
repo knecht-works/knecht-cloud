@@ -66,6 +66,7 @@ async function runAgain() {
     :hosts="previewHosts"
     :online="previewOnline"
     :busy="busy ?? (isLive && !previewOnline ? 'booting' : null)"
+    shareable
   >
     <KEnvLifecycle
       :env-state="envState"

@@ -5,6 +5,7 @@ import type { EnvVar } from '../../shared/utils/env'
 import { DDEV_DATABASES, PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
 import { INTEGRATION_IDS, OBJECT_KINDS, REPO_PROVIDERS, TRACKER_IDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
 import type { Step } from '../../shared/utils/workflow'
+import { PREVIEW_ACCESS } from '../../shared/utils/preview-access'
 
 export interface DdevEnv {
   webserver: string | null
@@ -56,6 +57,8 @@ export const projects = sqliteTable('projects', {
   database: text('database', { enum: DDEV_DATABASES }),
   devServer: text('dev_server'),
   previewPort: integer('preview_port'),
+  previewAccess: text('preview_access', { enum: PREVIEW_ACCESS }),
+  shareLinkHours: integer('share_link_hours'),
 
   mentionsEnabled: integer('mentions_enabled', { mode: 'boolean' }).notNull().default(true),
   // PRAGMA foreign_keys is off, so onDelete is declarative; the delete route nulls this.
@@ -130,6 +133,7 @@ export const sessions = sqliteTable('sessions', {
   // Pinned at first boot for the same reason.
   previewPort: integer('preview_port'),
   previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),
+  shareExpiresAt: integer('share_expires_at', { mode: 'timestamp' }),
   // The chat thread's session at the agent. Workflow ai steps never use it: each gets a fresh one.
   agentSessionId: text('agent_session_id'),
   // Written by /compact, read once by the next turn as the fresh session's opening context.
@@ -337,6 +341,9 @@ export const settings = sqliteTable('settings', {
   previewRetentionDays: integer('preview_retention_days').notNull().default(7),
   archiveRetentionDays: integer('archive_retention_days').notNull().default(30),
   maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
+
+  previewAccess: text('preview_access', { enum: PREVIEW_ACCESS }).notNull().default('login'),
+  shareLinkHours: integer('share_link_hours'),
 
   aiProvider: text('ai_provider').notNull().default('opencode'),
   aiRegion: text('ai_region', { enum: ['eu', 'us'] }).notNull().default('eu'),
