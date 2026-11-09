@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { getSessionRow, makeProject } from '../helpers/db'
-import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
+import { describeIntegrationWebhook, makeTrigger, replyToLastMention, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { allOf } from '../helpers/trigger-conditions'
 
@@ -312,15 +312,17 @@ describe('linear webhook route, vendor specifics', () => {
   it('accepts the plain @knecht text as a mention', async () => {
     const project = makeLinearProject()
     const res = await deliver(commented(project, { id: 'c-78', body: '@knecht have a look', userId: 'user-2' }))
-    expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
+    expect(res.json).toMatchObject({ outcome: expect.stringContaining('queued setup run') })
   })
 
   it('replies under the top comment of the thread the mention is in, addressed to its author by handle', async () => {
     const project = makeLinearProject()
     await deliver(commented(project, { id: 'c-90', body: '@knecht have a look', userId: 'user-2' }))
-    expect(api.replies.at(-1)).toMatchObject({ parentId: 'c-90', body: expect.stringMatching(/^@bob I can pick this up/) })
+    await replyToLastMention(linear, project, 'On it')
+    expect(api.replies.at(-1)).toMatchObject({ parentId: 'c-90', body: expect.stringMatching(/^@bob On it/) })
 
     await deliver(commented(project, { id: 'c-91', body: '@knecht and now?', userId: 'user-1', parentId: 'c-90' }))
+    await replyToLastMention(linear, project, 'On it')
     expect(api.replies.at(-1)).toMatchObject({ parentId: 'c-90', body: expect.stringMatching(/^@annexample /) })
   })
 

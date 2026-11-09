@@ -1,15 +1,20 @@
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import type { EventHandler } from 'h3'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { db, schema } from '../../server/db'
 import type { Project } from '../../server/db/schema'
 import type { Integration } from '../../server/integrations/types'
 import { gitTriggerForm } from '../../server/integrations/git-trigger-form'
-import { resolveSession, type SessionObject } from '../../server/utils/sessions'
+import { resolveSession, sessionObject, type SessionObject } from '../../server/utils/sessions'
 import { integrationRole, isTrackerId, type IntegrationId } from '../../shared/utils/integrations'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { getSessionRow } from './db'
 import { callRoute } from './routes'
+
+export async function replyToLastMention(integration: Integration, project: Project, text: string): Promise<void> {
+  const followup = db.select().from(schema.followups).orderBy(desc(schema.followups.id)).get()!
+  await integration.capabilities.comment(project, sessionObject(getSessionRow(followup.sessionId))!, text, followup.replyTo!)
+}
 
 export interface WebhookRequest {
   body: string
@@ -188,12 +193,10 @@ export function describeIntegrationWebhook<P extends Project, D>(fx: WebhookFixt
       expect(getSessionRow(session.id).status).toBe('open')
     })
 
-    it('answers a mention on the object and opens its session', async () => {
+    it('queues a mention on the object and opens its session', async () => {
       const project = fx.makeProject()
-      const replies = fx.comment.replyCount(project)
       const res = await deliver(fx.comment.mention(project))
-      expect(res.json).toMatchObject({ ok: true, outcome: expect.stringContaining('setup hint') })
-      expect(fx.comment.replyCount(project)).toBe(replies + 1)
+      expect(res.json).toMatchObject({ ok: true, outcome: expect.stringContaining('queued setup run') })
       expect(getSessionRow(resolveSession(project, fx.object(project), null).id).objectIntegration).toBe(id)
     })
 

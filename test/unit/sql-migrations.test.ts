@@ -52,3 +52,20 @@ describe('0060_member-identities', () => {
     expect(sqlite.prepare('SELECT count(*) AS n FROM member_identities').get()).toEqual({ n: 1 })
   })
 })
+
+describe('0067_mention-preview', () => {
+  it('lets mentions of existing projects boot a preview and keeps their setup workflow', () => {
+    const { sqlite, upgrade } = databaseAt('0066_preview-access')
+    sqlite.exec(`
+      INSERT INTO workflows (name, steps) VALUES ('w', '[]');
+      INSERT INTO projects (repo_id, owner, name, full_name, default_branch, starter_workflow_id)
+      VALUES ('1', 'acme', 'app', 'acme/app', 'main', 1);
+    `)
+
+    upgrade()
+
+    expect(sqlite.prepare('SELECT starter_workflow_id, mention_preview FROM projects').all()).toEqual([
+      { starter_workflow_id: 1, mention_preview: 1 },
+    ])
+  })
+})

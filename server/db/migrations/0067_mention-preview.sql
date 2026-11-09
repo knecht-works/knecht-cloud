@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `mention_preview` integer DEFAULT true NOT NULL;

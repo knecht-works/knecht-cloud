@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
-import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
+import { describeIntegrationWebhook, makeTrigger, replyToLastMention, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
 import { allOf } from '../helpers/trigger-conditions'
 import { eq } from 'drizzle-orm'
@@ -337,15 +337,17 @@ describe('plane webhook route, vendor specifics', () => {
   it('accepts the plain @knecht text as a mention', async () => {
     const project = makePlaneProject()
     const res = await deliver(commented(project, { id: '78', comment_html: '<p>@knecht have a look</p>', actor: 'user-2', created_at: '' }))
-    expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
+    expect(res.json).toMatchObject({ outcome: expect.stringContaining('queued setup run') })
   })
 
   it('replies under the top comment of the thread the mention is in, addressed to its author', async () => {
     const project = makePlaneProject()
     await deliver(commented(project, { id: '90', comment_html: '<p>@knecht have a look</p>', actor: 'user-2', created_at: '' }))
-    expect(api.comments.at(-1)).toMatchObject({ parent: '90', html: expect.stringMatching(/^<p><mention-component [^>]*entity_identifier="user-2"[^>]*><\/mention-component> I can pick this up/) })
+    await replyToLastMention(plane, project, 'On it')
+    expect(api.comments.at(-1)).toMatchObject({ parent: '90', html: expect.stringMatching(/^<p><mention-component [^>]*entity_identifier="user-2"[^>]*><\/mention-component> On it/) })
 
     await deliver(commented(project, { id: '91', comment_html: '<p>@knecht and now?</p>', actor: 'user-2', created_at: '', parent: '90' }))
+    await replyToLastMention(plane, project, 'On it')
     expect(api.comments.at(-1)).toMatchObject({ parent: '90' })
   })
 })

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import type { TriggerEventConfig } from '../../shared/utils/trigger-form'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
-import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
+import { describeIntegrationWebhook, makeTrigger, replyToLastMention, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import { allOf } from '../helpers/trigger-conditions'
 
 const api = vi.hoisted(() => ({
@@ -313,16 +313,18 @@ describe('jira webhook route, vendor specifics', () => {
   it('accepts the plain @knecht text as a mention', async () => {
     const project = makeJiraProject()
     const res = await deliver(commented(project, { id: '78', body: doc('@knecht have a look'), author: { accountId: 'user-2', displayName: 'Bob' } }))
-    expect(res.json).toMatchObject({ outcome: expect.stringContaining('setup hint') })
+    expect(res.json).toMatchObject({ outcome: expect.stringContaining('queued setup run') })
   })
 
   it('replies under the top comment of the thread the mention is in, addressed to its author', async () => {
     const project = makeJiraProject()
     const bob = { accountId: 'user-2', displayName: 'Bob' }
     await deliver(commented(project, { id: '81', body: doc('@knecht have a look'), author: bob }))
+    await replyToLastMention(jira, project, 'On it')
     expect(api.comments.at(-1)).toMatchObject({ parentId: '81' })
 
     await deliver(commented(project, { id: '83', body: doc('@knecht and now?'), author: bob, parentId: '81' }))
+    await replyToLastMention(jira, project, 'On it')
     const reply = api.comments.at(-1) as { parentId: string, body: { content: { content: unknown[] }[] } }
     expect(reply.parentId).toBe('81')
     expect(reply.body.content[0]!.content[0]).toEqual({ type: 'mention', attrs: { id: 'user-2', text: '@Bob' } })

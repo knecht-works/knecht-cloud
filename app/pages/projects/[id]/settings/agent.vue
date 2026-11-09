@@ -19,6 +19,19 @@ watch(agentInstructions, () => {
   scheduleInstructions()
 })
 
+const mentionPreview = ref(project.value?.mentionPreview ?? true)
+async function setMentionPreview(value: boolean) {
+  mentionPreview.value = value
+  try {
+    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { mentionPreview: value } })
+  }
+  catch (e) {
+    mentionPreview.value = !value
+    toastError('Failed to save', e)
+  }
+}
+const hasBootCommands = computed(() => !!project.value?.bootCommands.trim())
+
 const { data: workflows } = await useWorkflows()
 const starterItems = computed(() =>
   (workflows.value ?? [])
@@ -27,11 +40,13 @@ const starterItems = computed(() =>
 )
 const starterWorkflowId = ref<number | null>(project.value?.starterWorkflowId ?? null)
 async function setStarter(value: number | null) {
+  const previous = starterWorkflowId.value
   starterWorkflowId.value = value
   try {
     await $fetch(`/api/projects/${id}`, { method: 'PATCH', body: { starterWorkflowId: value } })
   }
   catch (e) {
+    starterWorkflowId.value = previous
     toastError('Failed to save', e)
   }
 }
@@ -47,7 +62,7 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
 <template>
   <div
     v-if="project"
-    class="flex flex-col gap-4.5"
+    class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]"
   >
     <KPanel
       title="Agent instructions"
@@ -83,25 +98,56 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
       icon="i-lucide-at-sign"
       accent="var(--accent-orange)"
     >
-      <KSettingRow
-        label="Starter workflow"
-        hint="Mention Knecht in a comment and it does what the comment says, then answers in the thread. The first mention in a thread boots the environment with the starter workflow."
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0">
+          <div class="text-sm text-highlighted">
+            Start with a preview
+          </div>
+          <p class="mt-0.5 text-xs leading-relaxed text-muted">
+            Boots the app so Knecht can check its work. Off: code only, faster.
+          </p>
+        </div>
+        <USwitch
+          :model-value="mentionPreview"
+          aria-label="Start with a preview"
+          class="mt-0.5"
+          @update:model-value="setMentionPreview"
+        />
+      </div>
+      <p
+        v-if="mentionPreview && !hasBootCommands"
+        class="mt-2.5 text-xs leading-relaxed text-dimmed"
       >
+        Needs boot commands. Until then, mentions work on the code only.
+        <NuxtLink
+          :to="`/projects/${id}/settings`"
+          class="text-toned underline underline-offset-2 hover:text-highlighted"
+        >Add them in Environment</NuxtLink>.
+      </p>
+      <div class="mt-5">
+        <div class="text-sm text-highlighted">
+          Setup workflow
+        </div>
+        <p class="mt-0.5 mb-2.5 text-xs leading-relaxed text-muted">
+          Runs once before the first mention in a thread, for example to seed test data.
+        </p>
         <USelectMenu
           :model-value="starterItems.find(i => i.value === starterWorkflowId)"
           :items="starterItems"
-          placeholder="Choose a workflow…"
+          placeholder="None"
+          clear
+          aria-label="Setup workflow"
           class="w-full"
-          @update:model-value="(item: { value: number } | undefined) => setStarter(item?.value ?? null)"
+          @update:model-value="(item: { value: number } | null | undefined) => setStarter(item?.value ?? null)"
         />
-        <p
-          v-if="!starterWorkflowId"
-          class="mt-2 text-xs text-dimmed"
-        >
-          Until one is chosen, Knecht answers mentions with a setup hint.
+      </div>
+      <div class="mt-5">
+        <div class="text-sm text-highlighted">
+          Works in
+        </div>
+        <p class="mt-0.5 mb-2.5 text-xs leading-relaxed text-muted">
+          Mention Knecht in a comment. It does what you ask and replies in the thread.
         </p>
-      </KSettingRow>
-      <KSettingRow label="Works in">
         <div class="flex flex-wrap items-center gap-1.5">
           <UTooltip
             v-for="i in configuredIntegrations"
@@ -118,7 +164,7 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
             </span>
           </UTooltip>
         </div>
-      </KSettingRow>
+      </div>
     </KPanel>
   </div>
 </template>

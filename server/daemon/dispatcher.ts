@@ -36,7 +36,7 @@ export function dispatchRuns(): void {
     capacity--
   }
 
-  // A mention's starter run must boot the env before the mention prompt runs.
+  // A mention's boot run must prepare the env before the mention prompt runs.
   for (const { run } of queued) {
     if (!active.has(run.id)) busy.add(run.sessionId)
   }
