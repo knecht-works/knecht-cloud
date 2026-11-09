@@ -83,25 +83,26 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
       icon="i-lucide-at-sign"
       accent="var(--accent-orange)"
     >
-      <div class="flex flex-col gap-4">
-        <p class="text-xs leading-relaxed text-dimmed">
-          Mention Knecht in a comment and it does what the comment says, then answers in the thread.
-          The first mention in a thread boots the environment with the starter workflow.
-        </p>
-        <UFormField
-          label="Starter workflow"
-          :help="starterWorkflowId ? undefined : 'Until one is chosen, Knecht answers mentions with a setup hint.'"
+      <KSettingRow
+        label="Starter workflow"
+        hint="Mention Knecht in a comment and it does what the comment says, then answers in the thread. The first mention in a thread boots the environment with the starter workflow."
+      >
+        <USelectMenu
+          :model-value="starterItems.find(i => i.value === starterWorkflowId)"
+          :items="starterItems"
+          placeholder="Choose a workflow…"
+          class="w-full"
+          @update:model-value="(item: { value: number } | undefined) => setStarter(item?.value ?? null)"
+        />
+        <p
+          v-if="!starterWorkflowId"
+          class="mt-2 text-xs text-dimmed"
         >
-          <USelectMenu
-            :model-value="starterItems.find(i => i.value === starterWorkflowId)"
-            :items="starterItems"
-            placeholder="Choose a workflow…"
-            class="w-full"
-            @update:model-value="(item: { value: number } | undefined) => setStarter(item?.value ?? null)"
-          />
-        </UFormField>
+          Until one is chosen, Knecht answers mentions with a setup hint.
+        </p>
+      </KSettingRow>
+      <KSettingRow label="Works in">
         <div class="flex flex-wrap items-center gap-1.5">
-          <span class="mr-1 text-xs text-dimmed">Works in</span>
           <UTooltip
             v-for="i in configuredIntegrations"
             :key="i.id"
@@ -117,7 +118,7 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
             </span>
           </UTooltip>
         </div>
-      </div>
+      </KSettingRow>
     </KPanel>
   </div>
 </template>
