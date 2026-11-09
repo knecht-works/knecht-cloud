@@ -48,7 +48,7 @@ const open = ref(true)
     </component>
     <div
       v-show="open"
-      :style="{ padding: `${props.pad * 0.7}px ${props.pad}px` }"
+      :style="{ padding: `${props.pad * 0.85}px ${props.pad}px` }"
     >
       <slot />
     </div>
