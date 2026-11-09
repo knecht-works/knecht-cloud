@@ -5,7 +5,7 @@ import { makeProject } from '../helpers/db'
 vi.mock('../../server/utils/github-app', () => ({}))
 
 const handler = (await import('../../server/api/projects/[id]/link.put')).default
-const { linkedProject, projectLinks } = await import('../../server/stores/project-links')
+const { linkedProject, projectLinks, refreshLinkNames, withLinks } = await import('../../server/stores/project-links')
 
 const put = (projectId: number, body: object) =>
   callRoute(handler, { method: 'PUT', route: '/:id', path: `/${projectId}`, body })
@@ -19,6 +19,21 @@ describe('PUT /api/projects/:id/link', () => {
     expect(linkedProject('jira', 'ONE')).toBeUndefined()
     expect((await put(project.id, { integration: 'jira', key: null })).json).toEqual({})
     expect(projectLinks(project.id)).toEqual({})
+  })
+
+  it('keeps the name of the linked target and drops it with the link', async () => {
+    const project = makeProject()
+    await put(project.id, { integration: 'jira', key: 'NAMED', name: 'Website' })
+    expect(withLinks([project])[0]!.linkNames).toEqual({ jira: 'Website' })
+    await put(project.id, { integration: 'jira', key: null, name: 'Website' })
+    expect(withLinks([project])[0]!.linkNames).toEqual({})
+  })
+
+  it('picks up a renamed target whenever the target list is fetched', async () => {
+    const project = makeProject()
+    await put(project.id, { integration: 'jira', key: 'RENAMED' })
+    refreshLinkNames('jira', [{ key: 'RENAMED', name: 'New name' }, { key: 'UNLINKED', name: 'Other' }])
+    expect(withLinks([project])[0]!.linkNames).toEqual({ jira: 'New name' })
   })
 
   it('refuses a target that already feeds another project', async () => {

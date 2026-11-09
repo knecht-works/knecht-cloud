@@ -1,0 +1,1 @@
+ALTER TABLE `project_links` ADD `external_name` text;

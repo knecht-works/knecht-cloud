@@ -7,6 +7,7 @@ import { requireProject } from '../../../stores/projects'
 const bodySchema = z.object({
   integration: z.enum(INTEGRATION_IDS),
   key: z.string().trim().min(1).nullable(),
+  name: z.string().trim().min(1).max(200).nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({ statusCode: 400, statusMessage: 'Invalid project link' })
   }
-  const { integration, key } = result.data
+  const { integration, key, name } = result.data
   const link = getIntegration(integration).link
   if (!link) {
     throw createError({ statusCode: 400, statusMessage: `${integration} has no project links` })
@@ -28,6 +29,6 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: `${link.label} ${key} is already linked to ${taken.fullName}` })
     }
   }
-  setProjectLink(id, integration, key)
+  setProjectLink(id, integration, key, key ? name ?? null : null)
   return projectLinks(id)
 })

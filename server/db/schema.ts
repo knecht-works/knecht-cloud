@@ -88,6 +88,7 @@ export const projectLinks = sqliteTable('project_links', {
     .references(() => projects.id, { onDelete: 'cascade' }),
   integration: text('integration', { enum: INTEGRATION_IDS }).notNull(),
   externalKey: text('external_key').notNull(),
+  externalName: text('external_name'),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),

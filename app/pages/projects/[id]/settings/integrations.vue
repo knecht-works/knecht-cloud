@@ -3,7 +3,7 @@ const id = Number(useRoute().params.id)
 
 const { data: project } = await useProject(id)
 
-const { data: integrations, status } = useIntegrations()
+const { data: integrations, status } = await useIntegrations()
 const linkableIntegrations = computed(() =>
   integrations.value.filter(i => i.configured).flatMap(i => i.link ? [{ ...i, link: i.link }] : []))
 </script>
@@ -19,6 +19,7 @@ const linkableIntegrations = computed(() =>
       :project-id="id"
       :integration="i"
       :model-value="project.links[i.id] ?? null"
+      :name="project.linkNames[i.id] ?? null"
     />
 
     <div
