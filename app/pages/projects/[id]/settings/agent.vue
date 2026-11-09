@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { IntegrationId } from '#shared/utils/integrations'
-import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
 
 const toastError = useToastError()
 const id = Number(useRoute().params.id)
@@ -81,16 +80,14 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
           Rules the agent follows in this project only, on top of the
           instance-wide instructions from Settings → Agent.
         </p>
-        <UTextarea
-          v-model="agentInstructions"
-          :rows="4"
-          autoresize
-          :maxrows="16"
-          :maxlength="AGENT_INSTRUCTIONS_MAX"
-          placeholder="Styles live in src/css. Use the existing design tokens, never raw hex values."
-          aria-label="Project instructions"
-          class="w-full"
-        />
+        <div class="k-code-box">
+          <WorkflowCodeEditor
+            v-model="agentInstructions"
+            lang="markdown"
+            :rows="12"
+            placeholder="Styles live in src/css. Use the existing design tokens, never raw hex values."
+          />
+        </div>
       </div>
     </KPanel>
     <KPanel
