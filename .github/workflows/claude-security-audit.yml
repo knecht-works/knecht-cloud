@@ -33,11 +33,18 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
-            /security-audit Focused review (guidance mode, no report files) of the diff
-            `git diff origin/${{ github.base_ref }}...HEAD` in PR
-            ${{ github.repository }}/pull/${{ github.event.pull_request.number }}.
-            Only report confirmed findings, as inline comments on the affected lines.
+            Load the security-audit skill with the Skill tool first, then run a focused review
+            (guidance mode, no report files) of the diff `git diff origin/${{ github.base_ref }}...HEAD`
+            in PR ${{ github.repository }}/pull/${{ github.event.pull_request.number }}.
+
+            Cover the whole diff: list the changed files with `git diff --stat`, then read the diff of
+            every changed source file, migration and workflow, without truncating it with head or tail.
+            Do not stop until every changed file has been looked at.
+
+            Report each confirmed finding as an inline comment on the affected lines. When you are done,
+            post exactly one summary comment on the PR with `gh pr comment`: the areas you reviewed, the
+            findings you reported, and anything you noted but did not report, or that nothing was found.
 
             CI note: this is a non-interactive run that terminates the moment your turn ends. Never launch background agents. Run every agent synchronously (run_in_background: false) and finish the entire review, including posting comments, before ending your turn.
-          claude_args: '--allowedTools "Skill,Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),mcp__github_inline_comment__create_inline_comment"'
+          claude_args: '--allowedTools "Skill,Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"'
           show_full_output: true
