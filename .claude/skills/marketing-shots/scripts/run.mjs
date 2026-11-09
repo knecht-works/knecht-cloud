@@ -6,7 +6,7 @@ const cookies = jar.map((l) => {
   const p = l.replace(/^#HttpOnly_/, '').split('\t')
   return { name: p[5], value: p[6], domain: '.' + p[0].replace(/^\./, ''), path: p[2], httpOnly: l.startsWith('#HttpOnly_') }
 })
-const HIDE = 'aside a[href="/system"]{display:none!important}'
+const HIDE = 'aside a[href="/system"][style*="color-mix"]{display:none!important}'
 export async function shoot(name, { url, w = 1440, h = 900, dpr = 2, act }) {
   const browser = await chromium.launch({ channel: 'chrome' })
   const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, colorScheme: 'dark' })
@@ -19,6 +19,7 @@ export async function shoot(name, { url, w = 1440, h = 900, dpr = 2, act }) {
   if (act) {
     await act(page).catch(async (e) => {
       await page.screenshot({ path: new URL(`./new/${name}-err.png`, import.meta.url).pathname })
+      await browser.close()
       throw e
     })
   }

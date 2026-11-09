@@ -32,10 +32,11 @@ const onlyLink = name => async (p) => {
 }
 export default {
   'dashboard': { url: '/', ...HOME },
-  'project': { url: '/projects/3', ...HOME },
-  'workflow': { url: '/workflows/10', ...HOME },
+  'project': { url: '/projects/2', ...HOME },
+  'workflow': { url: '/workflows/74', ...HOME },
+  'running-workflow': { url: '/workflows/74', ...HOME },
   'knecht-run': { url: '/projects/3', w: 1440, h: 900 },
-  'knecht-run-follow-up': { url: '/runs/144', w: 1440, h: 900, act: async (p) => {
+  'knecht-run-follow-up': { url: '/runs/312', w: 1440, h: 900, act: async (p) => {
     await p.getByText('Follow-up', { exact: true }).first().evaluate((el) => {
       const out = []
       for (let e = el.parentElement; e; e = e.parentElement) {
@@ -50,7 +51,7 @@ export default {
       }
       return out
     })
-    await p.getByText('Can you implement a dark mode', { exact: false }).first().evaluate((el) => {
+    await p.getByText('Can you add a dark mode toggle', { exact: false }).first().evaluate((el) => {
       for (let e = el.parentElement; e && e.tagName !== 'MAIN'; e = e.parentElement)
         if (e.scrollHeight > e.clientHeight + 10 && /auto|scroll/.test(getComputedStyle(e).overflowY)) e.scrollTop = 0
     })
@@ -60,7 +61,7 @@ export default {
     await p.mouse.down()
     await p.mouse.move(h.x + h.width / 2, h.y + 330, { steps: 10 })
     await p.mouse.up()
-    await p.getByText('Can you implement a dark mode', { exact: false }).first().evaluate((el) => {
+    await p.getByText('Can you add a dark mode toggle', { exact: false }).first().evaluate((el) => {
       for (let e = el.parentElement; e && e.tagName !== 'MAIN'; e = e.parentElement)
         if (e.scrollHeight > e.clientHeight + 10 && /auto|scroll/.test(getComputedStyle(e).overflowY)) e.scrollTop = 0
     })
@@ -94,7 +95,7 @@ export default {
     await t.condition(p, 'Add condition', 'Author', 'is not', ['*[bot]'])
   } },
   'knecht-trigger-jira': { ...TRIG, act: async (p) => {
-    await t.open(p, 'Jira', ['knecht-works/test-craftcms', 'knecht-works/test-php'])
+    await t.open(p, 'Jira', ['knecht-works/test-craftcms'])
     await t.check(p, 'Label added')
     await t.pick(p, p.locator('[role=dialog] button[aria-haspopup="listbox"]').nth(1), ['knecht'])
     await t.scope(p, ['Any To Do'])
