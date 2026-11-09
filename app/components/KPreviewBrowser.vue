@@ -313,16 +313,18 @@ const hostItems = computed(() => props.hosts.map(host => ({
           @click="share"
         />
       </UTooltip>
-      <UButton
-        icon="i-lucide-external-link"
-        color="neutral"
-        variant="ghost"
-        size="xs"
-        aria-label="Open preview in a new tab"
-        :disabled="!live"
-        :to="live ? currentUrl : undefined"
-        target="_blank"
-      />
+      <UTooltip text="Open in new tab">
+        <UButton
+          icon="i-lucide-external-link"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          aria-label="Open preview in a new tab"
+          :disabled="!live"
+          :to="live ? currentUrl : undefined"
+          target="_blank"
+        />
+      </UTooltip>
     </div>
 
     <div
