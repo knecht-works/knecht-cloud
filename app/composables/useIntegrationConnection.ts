@@ -2,18 +2,15 @@ import type { ConnectionStatus } from '#shared/utils/connection-form'
 import type { IntegrationId } from '#shared/utils/integrations'
 import { liveTopics } from '#shared/utils/live-topics'
 
-export function useIntegrationConnection(id: IntegrationId, name: string) {
+export async function useIntegrationConnection(id: IntegrationId, name: string) {
   const toast = useToast()
-  const connection = ref<ConnectionStatus>()
   const path = `/api/integrations/${id}`
-  const request = (method: 'GET' | 'POST' | 'DELETE', body?: Record<string, string>) => $fetch<ConnectionStatus>(`${path}/connection`, { method, body })
-  const refresh = async () => {
-    connection.value = await request('GET')
-  }
+  const request = (method: 'POST' | 'DELETE', body?: Record<string, string>) => $fetch<ConnectionStatus>(`${path}/connection`, { method, body })
+  const fetched = useFetch<ConnectionStatus>(`${path}/connection`, { key: `integration-connection:${id}` })
+  const { data: connection, refresh } = fetched
 
   // These tools show no delivery log, so the settings page is where the admin sees the webhook arrive.
-  onMounted(() => void refresh())
-  onLiveTopics(() => [liveTopics.integrations], () => refresh().catch(() => {}))
+  onLiveTopics(() => [liveTopics.integrations], () => refresh())
 
   const error = ref('')
   const connecting = ref(false)
@@ -58,5 +55,7 @@ export function useIntegrationConnection(id: IntegrationId, name: string) {
     connection.value = await $fetch<ConnectionStatus>(`${path}/webhook-secret`, { method: 'POST', body: { webhookSecret } })
   }
 
+  // Awaited last: hooks registered after an await lose the component instance.
+  await fetched
   return { connection, error, connecting, disconnecting, connect, disconnect, saveSecret }
 }
