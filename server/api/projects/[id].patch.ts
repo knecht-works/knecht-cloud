@@ -26,6 +26,7 @@ const bodySchema = z.object({
   agentInstructions: z.string().max(AGENT_INSTRUCTIONS_MAX).optional(),
   bootCommands: z.string().max(4000).optional(),
   mentionsEnabled: z.boolean().optional(),
+  mentionPreview: z.boolean().optional(),
   starterWorkflowId: z.number().int().nullable().optional(),
   phpVersion: z.enum(DDEV_PHP_VERSIONS).nullable().optional(),
   nodeVersion: z.string().regex(NODE_VERSION_PATTERN, 'Node version is a major or major.minor').nullable().optional(),

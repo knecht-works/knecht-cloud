@@ -2,10 +2,11 @@ import type { Project, Session } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import type { Integration, ReplyTarget, WebhookComment } from '../integrations'
 import { emptyInputs } from './inputs'
-import { resolveSession, sessionHasActiveWork, type SessionObject } from './sessions'
+import { resolveSession, sessionHasActiveWork } from './sessions'
 import { emitFollowup } from './transcript'
+import { appendRunLog, createRun } from '../stores/runs'
 import { getWorkflowRow } from '../stores/workflows'
-import { createRun } from '../stores/runs'
+import { ensureStepIds, type Step } from '../../shared/utils/workflow'
 import { createFollowup } from '../stores/followups'
 
 export async function handleMention(integration: Integration, project: Project, comment: WebhookComment): Promise<string> {
@@ -22,23 +23,26 @@ export async function handleMention(integration: Integration, project: Project, 
   const replyTo: ReplyTarget = { thread: comment.thread ?? null, person: comment.author }
 
   if (session.envState === 'down' && !sessionHasActiveWork(session.id)) {
-    const starter = project.starterWorkflowId ? getWorkflowRow(project.starterWorkflowId) : undefined
-    if (!starter || !starter.publishedAt) {
-      await postHint(integration, project, object, replyTo, starter ? 'starter-unpublished' : 'no-starter')
-      return 'replied with a setup hint (no usable starter workflow)'
-    }
+    const preview = project.mentionPreview && !!project.bootCommands.trim()
+    const starterRow = project.starterWorkflowId ? getWorkflowRow(project.starterWorkflowId) : undefined
+    const starter = starterRow?.publishedAt ? starterRow : undefined
+    const bootStep: Step[] = preview ? [{ type: 'ddev-start', id: 'mention-preview' }] : []
     const run = createRun({
       projectId: project.id,
       sessionId: session.id,
-      workflow: starter.name,
-      workflowId: starter.id,
+      workflow: starter?.name ?? (preview ? 'Boot preview' : 'Checkout'),
+      workflowId: starter?.id ?? null,
       trigger: 'mention',
       branch: session.branch ?? project.defaultBranch,
       inputs: emptyInputs('mention'),
+      steps: [...bootStep, ...ensureStepIds(starter?.steps ?? [])],
     })
+    if (starterRow && !starter) {
+      appendRunLog(run.id, `Skipped the setup workflow '${starterRow.name}': it is not published.\n`)
+    }
     queueMentionRun(project, session, comment.body, replyTo)
     dispatchRuns()
-    return `queued starter run ${run.id} + mention run on session ${session.id}`
+    return `queued setup run ${run.id} + mention run on session ${session.id}`
   }
 
   const runId = queueMentionRun(project, session, comment.body, replyTo)
@@ -66,16 +70,4 @@ function queueMentionRun(project: Project, session: Session, prompt: string, rep
   })
   emitFollowup(followup.id)
   return runId
-}
-
-async function postHint(integration: Integration, project: Project, object: SessionObject, replyTo: ReplyTarget, reason: 'no-starter' | 'starter-unpublished'): Promise<void> {
-  const text = reason === 'no-starter'
-    ? 'I can pick this up once the project has a starter workflow: it boots the environment my work runs in. Choose one in the project settings under Mentions, then mention me again.'
-    : 'The project\'s starter workflow is not published yet, so I cannot boot an environment for this thread. Publish it, then mention me again.'
-  try {
-    await integration.capabilities.comment(project, object, text, replyTo)
-  }
-  catch (e) {
-    console.error(`mention hint reply failed: ${(e as Error).message}`)
-  }
 }

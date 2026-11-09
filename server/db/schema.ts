@@ -61,6 +61,7 @@ export const projects = sqliteTable('projects', {
   shareLinkHours: integer('share_link_hours'),
 
   mentionsEnabled: integer('mentions_enabled', { mode: 'boolean' }).notNull().default(true),
+  mentionPreview: integer('mention_preview', { mode: 'boolean' }).notNull().default(true),
   // PRAGMA foreign_keys is off, so onDelete is declarative; the delete route nulls this.
   starterWorkflowId: integer('starter_workflow_id')
     .references(() => workflows.id, { onDelete: 'set null' }),

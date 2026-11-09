@@ -36,14 +36,6 @@ async function handleMention(project: Project, body: ReturnType<typeof payload>)
   return handle(github, delivery!.project, delivery!.comment!)
 }
 
-function makeStarter() {
-  return db.insert(schema.workflows).values({
-    name: `starter-${Math.random().toString(36).slice(2, 8)}`,
-    steps: [{ type: 'ddev-start', id: 'boot' }],
-    publishedAt: new Date(),
-  }).returning().get()
-}
-
 beforeAll(() => {
   db.insert(schema.githubApp).values({
     id: 1,
@@ -70,35 +62,43 @@ describe('handleMention', () => {
 
   it('answers to the fixed @knecht-works handle as well as the instance slug', async () => {
     const project = makeProject()
-    expect(await handleMention(project, payload('@knecht-works please fix'))).toContain('setup hint')
-    expect(await handleMention(project, payload('@Knecht-Works please fix'))).toContain('setup hint')
+    expect(await handleMention(project, payload('@knecht-works please fix'))).toContain('queued')
+    expect(await handleMention(project, payload('@Knecht-Works please fix'))).toContain('queued')
     expect(await handleMention(project, payload('@knecht-worksy please fix'))).toContain('no mention')
   })
 
-  it('replies with a setup hint when no starter workflow is configured', async () => {
+  function bootRun(project: Project) {
+    return db.select().from(schema.runs).where(eq(schema.runs.projectId, project.id)).all().find(r => r.kind === 'workflow')!
+  }
+
+  it('only checks out the code when the project has no boot commands', async () => {
     const project = makeProject()
-    const outcome = await handleMention(project, payload('@knecht-test please fix'))
-    expect(outcome).toContain('setup hint')
-    expect(comments.at(-1)?.body).toContain('starter workflow')
+    expect(await handleMention(project, payload('@knecht-test please fix'))).toContain('queued setup run')
+    expect(bootRun(project)).toMatchObject({ workflow: 'Checkout', steps: [] })
   })
 
-  it('boots a starter run and queues the mention as its own run + follow-up', async () => {
-    const starter = makeStarter()
-    const project = makeProject({ starterWorkflowId: starter.id })
+  it('only checks out the code when mentions should not boot a preview', async () => {
+    const project = makeProject({ bootCommands: 'npm ci', mentionPreview: false })
+    expect(await handleMention(project, payload('@knecht-test please fix'))).toContain('queued setup run')
+    expect(bootRun(project)).toMatchObject({ workflow: 'Checkout', steps: [] })
+  })
+
+  it('boots a preview run and queues the mention as its own run + follow-up', async () => {
+    const project = makeProject({ bootCommands: 'npm ci' })
     reactions.length = 0
 
     const outcome = await handleMention(project, payload('@Knecht-Test check the login page'))
-    expect(outcome).toContain('queued starter run')
+    expect(outcome).toContain('queued setup run')
     expect(reactions).toEqual([99])
 
     const runs = db.select().from(schema.runs).where(eq(schema.runs.projectId, project.id)).all()
     expect(runs).toHaveLength(2)
-    const [starterRun, mentionRun] = runs as [typeof runs[0], typeof runs[0]]
-    expect(starterRun.workflowId).toBe(starter.id)
-    expect(starterRun.kind).toBe('workflow')
+    const [setupRun, mentionRun] = runs as [typeof runs[0], typeof runs[0]]
+    expect(setupRun).toMatchObject({ workflow: 'Boot preview', workflowId: null, steps: [{ type: 'ddev-start', id: 'mention-preview' }] })
+    expect(setupRun.kind).toBe('workflow')
     expect(mentionRun.kind).toBe('mention')
     expect(mentionRun.trigger).toBe('mention')
-    const session = getSessionRow(starterRun.sessionId)
+    const session = getSessionRow(setupRun.sessionId)
     expect(session).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5' })
 
     const followup = db.select().from(schema.followups).where(eq(schema.followups.sessionId, session.id)).get()!
@@ -108,9 +108,36 @@ describe('handleMention', () => {
     expect(followup.requestedBy).toBe('samuelreichor')
   })
 
-  it('a second mention while the starter is pending adds only a mention run', async () => {
-    const starter = makeStarter()
-    const project = makeProject({ starterWorkflowId: starter.id })
+  function makeWorkflow(publishedAt: Date | null) {
+    return db.insert(schema.workflows).values({
+      name: `seed-${Math.random().toString(36).slice(2, 8)}`,
+      steps: [{ type: 'bash', id: 'seed', command: 'npm run seed' }],
+      publishedAt,
+    }).returning().get()
+  }
+
+  it('runs the setup workflow after booting the preview', async () => {
+    const workflow = makeWorkflow(new Date())
+    const project = makeProject({ bootCommands: 'npm ci', starterWorkflowId: workflow.id })
+    await handleMention(project, payload('@knecht-test please fix'))
+    expect(bootRun(project)).toMatchObject({
+      workflow: workflow.name,
+      workflowId: workflow.id,
+      steps: [{ type: 'ddev-start', id: 'mention-preview' }, { type: 'bash', id: 'seed' }],
+    })
+  })
+
+  it('skips an unpublished setup workflow and says so in the run log', async () => {
+    const workflow = makeWorkflow(null)
+    const project = makeProject({ starterWorkflowId: workflow.id })
+    await handleMention(project, payload('@knecht-test please fix'))
+    const run = bootRun(project)
+    expect(run).toMatchObject({ workflow: 'Checkout', workflowId: null, steps: [] })
+    expect(run.log).toContain(`Skipped the setup workflow '${workflow.name}'`)
+  })
+
+  it('a second mention while the boot run is pending adds only a mention run', async () => {
+    const project = makeProject()
     await handleMention(project, payload('@knecht-test first'))
     await handleMention(project, payload('@knecht-test second'))
 
@@ -140,11 +167,11 @@ describe('handleMention', () => {
   })
 
   it('a comment on a pull request is a mention on that pull request', async () => {
-    const project = makeProject({ starterWorkflowId: makeStarter().id })
+    const project = makeProject()
     const outcome = await handleMention(project, payload('@knecht-test review this', {
       issue: { number: 7, title: 'Recolor the pill', html_url: 'https://x/pull/7', pull_request: { url: 'https://api/pulls/7' } },
     }))
-    expect(outcome).toContain('queued starter run')
+    expect(outcome).toContain('queued setup run')
     const run = db.select().from(schema.runs).where(eq(schema.runs.projectId, project.id)).get()!
     expect(getSessionRow(run.sessionId)).toMatchObject({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '7' })
   })
