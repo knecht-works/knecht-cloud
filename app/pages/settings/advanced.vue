@@ -41,6 +41,7 @@ watch(sshTarget, () => {
 <template>
   <div class="flex flex-col gap-4.5">
     <KSettingsEnvironments :editable="isOwner" />
+    <KSettingsPreviews :editable="isOwner" />
     <KSettingsAutoUpdate :editable="isOwner" />
     <KPanel
       title="Remote access"

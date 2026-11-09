@@ -19,6 +19,7 @@ describe('PATCH /api/settings', () => {
     const changes = [
       { aiProvider: 'anthropic' }, { aiRegion: 'eu' }, { aiKey: 'sk-new' }, { aiModel: 'claude-opus-5-5' }, { aiSubtaskModel: null },
       { idleStopMinutes: 10 }, { previewRetentionDays: 1 }, { archiveRetentionDays: 1 }, { maxConcurrentRuns: 1 },
+      { previewAccess: 'public' }, { shareLinkHours: 1 },
       { sshTarget: 'knecht@example.com' }, { autoUpdateCron: '0 3 * * *' },
     ]
     access.owner = false

@@ -6,6 +6,10 @@ import { credentialDevServerTags, devServerCorsOrigin, looksLikeDevServerLabel, 
 import { sessionMember } from './member-session'
 import { sessionCheckoutDir } from './storage'
 import { getSessionRow, touchSessionPreview } from '../stores/sessions'
+import { envTransition, reviveEnv } from '../daemon/envs'
+import { guestAllowed, shareCookieName, shareTokenValid } from './preview-share'
+import { SHARE_PARAM } from '../../shared/utils/preview-access'
+import type { Session } from '../db/schema'
 
 // Two URL modes per session (sessions.urlMode), see internals/docs/preview-contract.md.
 
@@ -34,13 +38,13 @@ function injectBridge(html: string): string {
   return html + BRIDGE_SCRIPT
 }
 
-const DASHBOARD_COOKIE = 'nuxt-session'
+const KNECHT_COOKIE = /^(?:nuxt-session|knecht-share-\d+)=/
 
-export function withoutDashboardCookie(header: string | undefined): string | undefined {
-  return header?.split(';').map(c => c.trim()).filter(c => c && !c.startsWith(`${DASHBOARD_COOKIE}=`)).join('; ') || undefined
+export function withoutKnechtCookies(header: string | undefined): string | undefined {
+  return header?.split(';').map(c => c.trim()).filter(c => c && !KNECHT_COOKIE.test(c)).join('; ') || undefined
 }
 
-export async function proxyRunPreview(event: H3Event, sessionId: number, label: string | undefined, internal: boolean): Promise<void> {
+export async function proxyRunPreview(event: H3Event, sessionId: number, label: string | undefined, internal: boolean, shareCookie?: string): Promise<void> {
   const devOrigin = looksLikeDevServerLabel(label)
   if (devOrigin && !verifyDevServerLabel(sessionId, label)) {
     throw createError({ statusCode: 404, statusMessage: 'Unknown preview host' })
@@ -54,7 +58,10 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
   if (devOrigin && event.method === 'OPTIONS' && getRequestHeader(event, 'access-control-request-method')) {
     return answerDevServerPreflight(event, sessionId)
   }
-  if (!internal) {
+  const env = getSessionRow(sessionId)
+  const shared = getQuery(event)[SHARE_PARAM]
+  if (env && typeof shared === 'string') return acceptShareLink(event, env, shared, !!session?.user)
+  if (!internal && !(env && guestAllowed(env, shareCookie))) {
     if (!session?.user) {
       const reqUrl = getRequestURL(event)
       if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
@@ -77,10 +84,10 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
     }
   }
 
-  const env = getSessionRow(sessionId)
   if (!env) {
     throw createError({ statusCode: 404, statusMessage: 'Session not found' })
   }
+  if (env.envState === 'stopped' || env.envState === 'archived') return wakePreview(event, sessionId)
   if (env.envState !== 'up') {
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
@@ -213,6 +220,42 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
     }
     throw e
   })
+}
+
+// The token moves into a cookie on all of the session's preview hosts and leaves the
+// URL, so the app never sees it and the address bar can be copied on without it.
+function acceptShareLink(event: H3Event, env: Session, token: string, member: boolean): Promise<void> {
+  const url = getRequestURL(event)
+  if (shareTokenValid(env, token)) {
+    const domain = process.env.KNECHT_BASE_DOMAIN
+    setCookie(event, shareCookieName(env.id), token, {
+      domain: domain ? `preview.${domain}` : undefined,
+      path: '/',
+      expires: env.shareExpiresAt!,
+      httpOnly: true,
+      secure: url.protocol === 'https:',
+      sameSite: 'lax',
+    })
+  }
+  else if (!member) {
+    throw createError({ statusCode: 410, statusMessage: 'This share link has expired' })
+  }
+  url.searchParams.delete(SHARE_PARAM)
+  return sendRedirect(event, url.toString(), 302)
+}
+
+const WAKING_PAGE = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="10"><title>Starting preview</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;background:#0b0b0c;color:#d4d4d8}p{margin:0;max-width:28rem;padding:0 16px;text-align:center}</style></head><body><p>This preview was asleep and is starting now. The page reloads by itself once it is ready, which can take a few minutes.</p></body></html>`
+
+function wakePreview(event: H3Event, sessionId: number): Promise<void> {
+  if (!envTransition(sessionId)) {
+    reviveEnv(sessionId).catch(e => console.error(`[preview] waking session ${sessionId} failed:`, e))
+  }
+  if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
+    throw createError({ statusCode: 503, statusMessage: 'Environment is starting' })
+  }
+  setResponseStatus(event, 503)
+  setResponseHeaders(event, { 'retry-after': 10, 'cache-control': 'no-store' })
+  return send(event, WAKING_PAGE, 'text/html; charset=utf-8')
 }
 
 // Also matches PHP json_encode's escaped slashes (`https:\/\/host`) at any

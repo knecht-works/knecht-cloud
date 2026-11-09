@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { withoutDashboardCookie } from '../../server/utils/preview-proxy'
+import { withoutKnechtCookies } from '../../server/utils/preview-proxy'
 import { isForeignOrigin } from '../../server/utils/origin'
 
 describe('isForeignOrigin', () => {
@@ -16,10 +16,11 @@ describe('isForeignOrigin', () => {
   })
 })
 
-describe('withoutDashboardCookie', () => {
-  it('drops only the dashboard session', () => {
-    expect(withoutDashboardCookie('CraftSessionId=a; nuxt-session=secret; theme=dark')).toBe('CraftSessionId=a; theme=dark')
-    expect(withoutDashboardCookie('nuxt-session=secret')).toBeUndefined()
-    expect(withoutDashboardCookie(undefined)).toBeUndefined()
+describe('withoutKnechtCookies', () => {
+  it('drops only the dashboard session and share cookies', () => {
+    expect(withoutKnechtCookies('CraftSessionId=a; nuxt-session=secret; theme=dark')).toBe('CraftSessionId=a; theme=dark')
+    expect(withoutKnechtCookies('nuxt-session=secret')).toBeUndefined()
+    expect(withoutKnechtCookies(undefined)).toBeUndefined()
+    expect(withoutKnechtCookies('knecht-share-7=token; theme=dark')).toBe('theme=dark')
   })
 })

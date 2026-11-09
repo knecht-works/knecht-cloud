@@ -38,6 +38,10 @@ async function removeProject() {
     v-if="project"
     class="flex flex-col gap-4.5"
   >
+    <KSettingsPreviews
+      :project="project"
+      editable
+    />
     <KPanel
       title="Danger zone"
       icon="i-lucide-triangle-alert"

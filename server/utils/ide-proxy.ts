@@ -10,6 +10,7 @@ import { sessionMember } from './member-session'
 import { isForeignOrigin } from './origin'
 import { knownSessionService, type SessionService } from './session-services'
 import { getSessionRow, touchSessionPreview } from '../stores/sessions'
+import { cookieValue, guestAllowed, shareCookieName } from './preview-share'
 
 // Route-based ws handlers cannot serve the workbench's arbitrary paths, so
 // wrapWebsocketResolve intercepts h3's ws route resolution instead.
@@ -174,6 +175,7 @@ interface WsTarget {
   sessionId: number
   port: number
   devOrigin: boolean
+  app: boolean
   container?: string
 }
 
@@ -181,16 +183,16 @@ function wsTarget(source: { headers?: unknown, request?: { headers?: unknown } }
   const host = upgradeHost(source).split(':')[0] ?? ''
   const ref = parsePreviewHost(host)
   if (!ref) return null
-  if (ref.label === IDE_LABEL) return { sessionId: ref.sessionId, port: IDE_PORT, devOrigin: false }
+  if (ref.label === IDE_LABEL) return { sessionId: ref.sessionId, port: IDE_PORT, devOrigin: false, app: false }
   if (looksLikeDevServerLabel(ref.label)) {
     if (!verifyDevServerLabel(ref.sessionId, ref.label)) return null
-    return { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, devOrigin: true }
+    return { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, devOrigin: true, app: true }
   }
   const service = ref.label ? knownSessionService(ref.sessionId, ref.label) : undefined
-  if (service) return { sessionId: ref.sessionId, port: service.port, devOrigin: false, container: service.container }
+  if (service) return { sessionId: ref.sessionId, port: service.port, devOrigin: false, app: false, container: service.container }
   if (ref.label) return null
   const session = getSessionRow(ref.sessionId)
-  return session && devServerIsPreview(session) ? { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, devOrigin: false } : null
+  return session && devServerIsPreview(session) ? { sessionId: ref.sessionId, port: PREVIEW_FORWARD_PORT, devOrigin: false, app: true } : null
 }
 
 interface Pipe {
@@ -213,16 +215,22 @@ const pipeWsHooks = {
     if (isForeignOrigin(origin, host) && !fromSessionPage) {
       throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
     }
-    const session = await getUserSession(request as Parameters<typeof getUserSession>[0])
-    if (!session?.user) {
-      throw createError({ statusCode: 401, statusMessage: 'Login required' })
-    }
-    if (!sessionMember(session)) {
-      throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
-    }
     const env = target === null
       ? null
       : getSessionRow(target.sessionId)
+    const cookies = upgradeHeader(request, 'cookie')
+    if (!(target?.app && env && guestAllowed(env, cookieValue(cookies, shareCookieName(env.id))))) {
+      // Without a session cookie getUserSession tries to create one, which an upgrade cannot.
+      const session = cookieValue(cookies, 'nuxt-session') === undefined
+        ? null
+        : await getUserSession(request as Parameters<typeof getUserSession>[0])
+      if (!session?.user) {
+        throw createError({ statusCode: 401, statusMessage: 'Login required' })
+      }
+      if (!sessionMember(session)) {
+        throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
+      }
+    }
     if (!env || env.envState !== 'up') {
       throw createError({ statusCode: 409, statusMessage: 'Environment is not running' })
     }

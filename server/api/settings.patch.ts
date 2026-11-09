@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { AI_PROVIDERS, type AiProviderId, LANGDOCK_REGIONS, MODEL_NAME_RE } from '../../shared/utils/ai'
+import { PREVIEW_ACCESS } from '../../shared/utils/preview-access'
 import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS, SSH_TARGET_RE } from '../../shared/utils/settings-limits'
 import { getSettings, publicSettings, type SettingsPatch, updateSettings } from '../utils/settings'
 import { settingsPreset } from '../utils/settings-preset'
@@ -19,6 +20,8 @@ const bodySchema = z.object({
   previewRetentionDays: z.number().int().min(L.previewRetentionDays.min).max(L.previewRetentionDays.max).optional(),
   archiveRetentionDays: z.number().int().min(L.archiveRetentionDays.min).max(L.archiveRetentionDays.max).optional(),
   maxConcurrentRuns: z.number().int().min(L.maxConcurrentRuns.min).max(L.maxConcurrentRuns.max).optional(),
+  previewAccess: z.enum(PREVIEW_ACCESS).optional(),
+  shareLinkHours: z.number().int().min(L.shareLinkHours.min).max(L.shareLinkHours.max).nullable().optional(),
   aiProvider: z.enum(AI_PROVIDERS.map(p => p.id) as [AiProviderId, ...AiProviderId[]]).optional(),
   aiRegion: z.enum(LANGDOCK_REGIONS).optional(),
   aiKey: z.string().min(1).max(500).nullable().optional(),

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { EnvTransition } from '#shared/utils/run'
+import { SHARE_PARAM } from '#shared/utils/preview-access'
 
 const props = withDefaults(defineProps<{
   sessionId: number
   hosts?: string[]
   online?: boolean
   busy?: EnvTransition | null
+  shareable?: boolean
 }>(), {
   hosts: () => [],
   online: false,
@@ -57,6 +59,31 @@ function originFor(host: string | null): string {
 }
 
 const homeUrl = `${originFor(null)}/`
+
+const toast = useToast()
+const toastError = useToastError()
+const sharing = ref(false)
+async function share() {
+  sharing.value = true
+  try {
+    const { token, expiresAt } = await $fetch(`/api/sessions/${props.sessionId}/share`, { method: 'POST' })
+    const url = `${homeUrl}?${SHARE_PARAM}=${token}`
+    const until = new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    try {
+      await copyText(url)
+      toast.add({ title: 'Share link copied', description: `Anyone with it can open the preview until ${until}.`, color: 'success' })
+    }
+    catch {
+      toast.add({ title: `Share link, valid until ${until}`, description: url, color: 'warning' })
+    }
+  }
+  catch (e) {
+    toastError('Could not create the share link', e)
+  }
+  finally {
+    sharing.value = false
+  }
+}
 
 const frame = ref<HTMLIFrameElement>()
 const { el: viewport, height: viewportHeight, resizing, startResize } = useResizableHeight(240)
@@ -272,6 +299,20 @@ const hostItems = computed(() => props.hosts.map(host => ({
         />
         {{ live ? 'live' : busyCopy?.label ?? 'offline' }}
       </span>
+      <UTooltip
+        v-if="shareable"
+        text="Copy share link"
+      >
+        <UButton
+          icon="i-lucide-share-2"
+          color="neutral"
+          variant="ghost"
+          size="xs"
+          aria-label="Copy share link"
+          :loading="sharing"
+          @click="share"
+        />
+      </UTooltip>
       <UButton
         icon="i-lucide-external-link"
         color="neutral"

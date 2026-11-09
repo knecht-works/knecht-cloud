@@ -1,7 +1,8 @@
 import { z } from 'zod'
-import { AGENT_INSTRUCTIONS_MAX } from '#shared/utils/settings-limits'
+import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS } from '#shared/utils/settings-limits'
 import { DDEV_DATABASES, DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGERS } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
+import { PREVIEW_ACCESS } from '#shared/utils/preview-access'
 import { updateProjectConfig, requireProject } from '../../stores/projects'
 
 const bodySchema = z.object({
@@ -32,6 +33,8 @@ const bodySchema = z.object({
   database: z.enum(DDEV_DATABASES).nullable().optional(),
   devServer: z.string().trim().max(500).transform(v => v || null).nullable().optional(),
   previewPort: z.number().int().min(1).max(65535).nullable().optional(),
+  previewAccess: z.enum(PREVIEW_ACCESS).nullable().optional(),
+  shareLinkHours: z.number().int().min(SETTINGS_LIMITS.shareLinkHours.min).max(SETTINGS_LIMITS.shareLinkHours.max).nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {

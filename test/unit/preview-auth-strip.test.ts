@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import * as h3 from 'h3'
 import { parsePreviewHost } from '../../shared/utils/preview-host'
 import { isPreviewAuthToken, PREVIEW_AUTH_HEADER, previewAwareFetch } from '../../server/utils/preview-fetch'
-import { withoutDashboardCookie } from '../../server/utils/preview-proxy'
+import { withoutKnechtCookies } from '../../server/utils/preview-proxy'
 
 const seen: { proxy: string, headers: IncomingHttpHeaders, internal?: boolean }[] = []
 function recorder(proxy: string) {
@@ -18,7 +18,8 @@ Object.assign(globalThis, h3, {
   parsePreviewHost,
   isPreviewAuthToken,
   PREVIEW_AUTH_HEADER,
-  withoutDashboardCookie,
+  withoutKnechtCookies,
+  shareCookieName: (id: number) => `knecht-share-${id}`,
   getUserSession: async () => ({}),
   isIdeLabel: (label?: string) => label === 'ide',
   findSessionService: async (_id: number, label: string) => label === 'mailpit' ? { label } : undefined,
