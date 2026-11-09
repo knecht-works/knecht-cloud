@@ -46,19 +46,12 @@ async function removeProject() {
       title="Danger zone"
       icon="i-lucide-triangle-alert"
       accent="var(--status-error)"
-      :pad="0"
     >
-      <div class="divide-y divide-(--border-muted)">
-        <div class="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-          <div class="min-w-0">
-            <div class="text-sm font-medium text-toned">
-              Disconnect project
-            </div>
-            <p class="mt-1 max-w-140 text-xs leading-relaxed text-dimmed">
-              Removes the project from Knecht with all its runs, sessions, preview environments,
-              DB dumps, shared folders and agent memory. The GitHub repo is not touched.
-            </p>
-          </div>
+      <KSettingRow
+        label="Disconnect project"
+        hint="Removes the project from Knecht with all its runs, sessions, preview environments, DB dumps, shared folders and agent memory. The GitHub repo is not touched."
+      >
+        <div class="flex lg:justify-end">
           <UButton
             size="lg"
             color="error"
@@ -66,7 +59,7 @@ async function removeProject() {
             @click="confirmDisconnect = true"
           />
         </div>
-      </div>
+      </KSettingRow>
     </KPanel>
 
     <KConfirmModal

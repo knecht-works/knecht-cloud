@@ -985,9 +985,8 @@ const pr = computed(() => {
                 title="Run result"
                 icon="i-lucide-check"
                 accent="var(--primary)"
-                :pad="0"
               >
-                <div class="flex flex-col gap-3.5 p-5">
+                <div class="flex flex-col gap-3.5">
                   <a
                     v-if="pr"
                     :href="pr.url"
