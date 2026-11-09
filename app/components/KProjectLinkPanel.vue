@@ -5,23 +5,31 @@ const props = defineProps<{
   projectId: number
   integration: { id: IntegrationId, name: string, link: { label: string } }
   modelValue: string | null
+  name: string | null
 }>()
 
 const toastError = useToastError()
 const ui = integrationUi(props.integration.id)
 
 const { data: targets } = useFetch<{ key: string, name: string }[]>(`/api/integrations/${props.integration.id}/link-targets`, { default: () => [], lazy: true })
+const key = ref<string | null>(props.modelValue)
+const label = (k: string, n: string | null) => (n ? `${k} · ${n}` : k)
+// Until the targets arrive from the tracker, the stored link stands in for them.
 const items = computed(() => [
   { label: 'Not linked', value: null as string | null },
-  ...targets.value.map(t => ({ label: `${t.key} · ${t.name}`, value: t.key as string | null })),
+  ...(key.value && !targets.value.some(t => t.key === key.value) ? [{ label: label(key.value, props.name), value: key.value as string | null }] : []),
+  ...targets.value.map(t => ({ label: label(t.key, t.name), value: t.key as string | null })),
 ])
 
-const key = ref<string | null>(props.modelValue)
 async function setLink(value: string | null) {
   const previous = key.value
   key.value = value
   try {
-    await $fetch(`/api/projects/${props.projectId}/link`, { method: 'PUT', body: { integration: props.integration.id, key: value } })
+    await $fetch(`/api/projects/${props.projectId}/link`, { method: 'PUT', body: {
+      integration: props.integration.id,
+      key: value,
+      name: targets.value.find(t => t.key === value)?.name ?? null,
+    } })
   }
   catch (e) {
     key.value = previous

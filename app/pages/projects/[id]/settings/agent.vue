@@ -49,7 +49,7 @@ async function setStarter(value: number | null) {
     toastError('Failed to save', e)
   }
 }
-const { data: integrations } = useIntegrations()
+const { data: integrations } = await useIntegrations()
 const configuredIntegrations = computed(() => integrations.value.filter(i => i.configured))
 function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
   const { as, on } = integrationUi(i.id).mention
