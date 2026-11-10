@@ -70,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fixture: [php, craftcms, kirby, drupal10, drupal11, laravel, typo3, no-ddev]
+        fixture: [php, craftcms, kirby, drupal10, drupal11, laravel, typo3, wordpress, no-ddev]
     # Provisioning plus one boot (composer install and a vite build for the
     # CMS fixtures) fits comfortably; a wedged boot still dies.
     timeout-minutes: 30
