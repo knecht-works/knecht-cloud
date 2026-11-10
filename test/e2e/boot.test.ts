@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { previewLabel } from '../../shared/utils/preview-host'
 import type { DdevDatabase } from '../../shared/utils/env-spec'
+import type { UrlMode } from '../../server/daemon/ddev'
 import type { E2eClient, PreviewResponse } from './client'
-import { expectJson, login, previewFetch } from './client'
+import { BASE_URL, expectJson, login, previewFetch } from './client'
 
 interface BootFixture {
   repo: string
@@ -12,11 +13,11 @@ interface BootFixture {
   bootCommands: string
   devServer?: string
   previewPort?: number
-  /** For a repo without its own ddev config: the database Knecht adds to the generated environment. */
   database?: DdevDatabase
-  /** A JSON POST to the booted site, then a GET of the same path that must contain every string. */
+  /** The mode Knecht must pick for the detected framework when it connects the repo; 'env' when unset. */
+  urlMode?: UrlMode
+  loginPath?: string
   dbProbe?: { path: string, json: Record<string, string>, expect: string[] }
-  /** Fetched raw from the fixture repo, so it must be public. */
   seedDbPath?: string
   bootDeadlineMs?: number
 }
@@ -79,6 +80,7 @@ const FIXTURES: BootFixture[] = [
     seedDbPath: 'seed/db.sql.gz',
     bootCommands: `ddev composer install && ddev drush cr\n${JS_BOOT}`,
     bootDeadlineMs: 12 * 60_000,
+    loginPath: '/user/login',
   },
   {
     repo: 'knecht-works/test-drupal11',
@@ -86,6 +88,7 @@ const FIXTURES: BootFixture[] = [
     seedDbPath: 'seed/db.sql.gz',
     bootCommands: `ddev composer install && ddev drush cr\n${JS_BOOT}`,
     bootDeadlineMs: 12 * 60_000,
+    loginPath: '/user/login',
   },
   {
     repo: 'knecht-works/test-laravel',
@@ -117,6 +120,15 @@ const FIXTURES: BootFixture[] = [
     seedDbPath: 'seed/db.sql.gz',
     bootCommands: PHP_BOOT,
     bootDeadlineMs: 12 * 60_000,
+  },
+  {
+    repo: 'knecht-works/test-wordpress',
+    primaryHost: 'test-wordpress.ddev.site',
+    seedDbPath: 'seed/db.sql.gz',
+    bootCommands: PHP_BOOT,
+    bootDeadlineMs: 12 * 60_000,
+    urlMode: 'rewrite',
+    loginPath: '/wp/wp-login.php',
   },
   {
     repo: 'knecht-works/test-no-ddev',
@@ -177,7 +189,7 @@ async function pollUntilFinished(client: E2eClient, runId: number, deadlineMs: n
   }
 }
 
-async function connectFixture(client: E2eClient, fullName: string): Promise<{ projectId: number, own: boolean, defaultBranch: string }> {
+async function connectFixture(client: E2eClient, fullName: string): Promise<{ projectId: number, own: boolean, defaultBranch: string, urlMode?: UrlMode }> {
   const repos = await expectJson<RepoData[]>(await client.fetch('/api/github/repos'))
   const repo = repos.find(r => r.fullName === fullName)
   if (!repo) {
@@ -196,7 +208,8 @@ async function connectFixture(client: E2eClient, fullName: string): Promise<{ pr
     if (!existing) throw new Error(`Project create for ${fullName} conflicted but the project is not listed`)
     return { projectId: existing, own: false, defaultBranch }
   }
-  return { projectId: (await expectJson<{ id: number }>(created)).id, own: true, defaultBranch }
+  const project = await expectJson<{ id: number, urlMode: UrlMode }>(created)
+  return { projectId: project.id, own: true, defaultBranch, urlMode: project.urlMode }
 }
 
 function previewFailure(origin: string, res: PreviewResponse): string {
@@ -235,6 +248,7 @@ for (const fixture of selected) {
       ownProject = connected.own
 
       if (ownProject) {
+        expect(connected.urlMode).toBe(fixture.urlMode ?? 'env')
         const { envVars, bootCommands, devServer, previewPort, database } = fixture
         const patched = await client.fetch(`/api/projects/${projectId}`, {
           method: 'PATCH',
@@ -283,6 +297,15 @@ for (const fixture of selected) {
       const primary = await previewFetch(run.sessionId, { cookie: client.cookie })
       expect(primary.status, previewFailure('primary origin', primary)).toBe(200)
       expect(primary.body.length).toBeGreaterThan(0)
+
+      if (fixture.loginPath) {
+        const loginPage = await previewFetch(run.sessionId, { path: fixture.loginPath, cookie: client.cookie })
+        expect(loginPage.status, `${fixture.loginPath} answered ${loginPage.status}, location: ${loginPage.location}`).toBe(200)
+        // A browser drops Secure cookies on an http dashboard, and with them the CMS login.
+        if (BASE_URL.startsWith('http:')) {
+          expect(loginPage.setCookie.filter(c => /;\s*secure/i.test(c))).toEqual([])
+        }
+      }
 
       if (fixture.dbProbe) {
         const { path, json, expect: expected } = fixture.dbProbe

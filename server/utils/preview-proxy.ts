@@ -1,4 +1,4 @@
-import { request as httpRequest } from 'node:http'
+import { request as httpRequest, type IncomingHttpHeaders } from 'node:http'
 import type { H3Event } from 'h3'
 import { previewTargetPort, readDdevHosts, type DdevHosts } from '../daemon/ddev'
 import { resolvePreview, forgetPreview } from '../daemon/sandbox'
@@ -122,22 +122,8 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
   const req = event.node.req
   const res = event.node.res
 
-  const headers = { ...req.headers }
-  if (rewriteMode) {
-    // Origin/Referer are mapped too: Craft's CP login rejects a POST whose Origin
-    // does not match the Host. identity encoding so the body can be rewritten.
-    headers['host'] = appHost
-    headers['accept-encoding'] = 'identity'
-    for (const key of ['origin', 'referer'] as const) {
-      if (!headers[key]) continue
-      let value = String(headers[key])
-      for (const m of mappings) {
-        value = value.replaceAll(`${url.protocol}//${m.previewHost}`, `http://${m.host}`)
-      }
-      headers[key] = value
-    }
-  }
-  else if (String(headers['accept'] ?? '').includes('text/html')) {
+  const headers = rewriteMode ? rewriteModeRequestHeaders(req.headers, appHost, mappings, url.protocol) : { ...req.headers }
+  if (!rewriteMode && String(headers['accept'] ?? '').includes('text/html')) {
     // HTML must arrive uncompressed for the bridge injection.
     headers['accept-encoding'] = 'identity'
   }
@@ -172,6 +158,12 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
             continue
           }
           if (buffer && (lower === 'content-length' || lower === 'transfer-encoding')) continue
+          // The site was told https (rewriteModeRequestHeaders), so it marks its
+          // cookies Secure, and a browser drops those on a dashboard served over http.
+          if (rewriteMode && lower === 'set-cookie' && url.protocol === 'http:') {
+            res.setHeader(key, [value].flat().map(withoutSecureFlag))
+            continue
+          }
           if (rewriteMode && lower === 'location') {
             res.setHeader(key, rewriteUrls(String(value), mappings, url.protocol))
             continue
@@ -256,6 +248,34 @@ function wakePreview(event: H3Event, sessionId: number): Promise<void> {
   setResponseStatus(event, 503)
   setResponseHeaders(event, { 'retry-after': 10, 'cache-control': 'no-store' })
   return send(event, WAKING_PAGE, 'text/html; charset=utf-8')
+}
+
+export function rewriteModeRequestHeaders(
+  incoming: IncomingHttpHeaders,
+  appHost: string,
+  mappings: { host: string, previewHost: string }[],
+  protocol: string,
+): IncomingHttpHeaders {
+  // Origin/Referer are mapped too: Craft's CP login rejects a POST whose Origin
+  // does not match the Host. identity encoding so the body can be rewritten.
+  const headers: IncomingHttpHeaders = { ...incoming, 'host': appHost, 'accept-encoding': 'identity' }
+  // The site keeps its own https URL in this mode. Told the request came over
+  // http (a dashboard without TLS in front), WordPress redirects its login to
+  // that https URL, which is rewritten back to the preview origin, forever.
+  headers['x-forwarded-proto'] = 'https'
+  for (const key of ['origin', 'referer'] as const) {
+    if (!headers[key]) continue
+    let value = String(headers[key])
+    for (const m of mappings) {
+      value = value.replaceAll(`${protocol}//${m.previewHost}`, `http://${m.host}`)
+    }
+    headers[key] = value
+  }
+  return headers
+}
+
+export function withoutSecureFlag(cookie: string): string {
+  return cookie.replace(/;\s*secure(?=\s*(?:;|$))/i, '')
 }
 
 // Also matches PHP json_encode's escaped slashes (`https:\/\/host`) at any

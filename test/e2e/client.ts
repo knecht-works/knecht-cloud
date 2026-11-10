@@ -35,6 +35,7 @@ export interface PreviewResponse {
   status: number
   body: string
   location?: string
+  setCookie: string[]
 }
 
 // Preview hosts are wildcard subdomains a CI runner cannot resolve, so the preview origin
@@ -69,6 +70,7 @@ export function previewFetch(
           status: res.statusCode ?? 0,
           body: Buffer.concat(chunks).toString(),
           location: res.headers.location,
+          setCookie: res.headers['set-cookie'] ?? [],
         }))
       },
     )
