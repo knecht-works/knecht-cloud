@@ -270,7 +270,7 @@ async function remove() {
               <UIcon
                 :name="inviting ? 'i-lucide-loader-circle' : 'i-lucide-plus'"
                 class="size-3.5"
-                :class="{ 'animate-spin': inviting }"
+                :class="{ 'animate-spin motion-reduce:animate-none': inviting }"
               />
             </span>
             Create invite link

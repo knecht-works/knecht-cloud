@@ -191,7 +191,7 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
                 <UIcon
                   v-if="diagnosis?.state === 'pending'"
                   name="i-lucide-loader-circle"
-                  class="mr-1 inline-block size-3 animate-spin align-[-1px] text-dimmed"
+                  class="mr-1 inline-block size-3 animate-spin motion-reduce:animate-none align-[-1px] text-dimmed"
                 />{{ mascotLine }}
               </p>
               <div

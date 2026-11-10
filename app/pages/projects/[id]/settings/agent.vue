@@ -151,7 +151,10 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
             :key="i.id"
             :text="mentionHint(i)"
           >
-            <span class="k-mono flex items-center gap-1.5 rounded-full border border-default px-2.5 py-1 text-2xs text-muted">
+            <span
+              tabindex="0"
+              class="k-mono flex items-center gap-1.5 rounded-full border border-default px-2.5 py-1 text-2xs text-muted outline-hidden"
+            >
               <UIcon
                 :name="integrationUi(i.id).icon"
                 class="size-3"
