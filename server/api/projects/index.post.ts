@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { createProject, getProjectByRepo } from '../../stores/projects'
 import { REPO_PROVIDERS } from '../../../shared/utils/integrations'
+import { frameworkUrlMode } from '../../../shared/utils/frameworks'
 import type { ProjectMeta } from '../../utils/framework'
 import { gitProvider } from '../../git'
 
@@ -32,5 +33,5 @@ export default defineEventHandler(async (event) => {
     // Connect anyway, the backfill retries.
   }
 
-  return createProject({ ...result.data, ...meta })
+  return createProject({ ...result.data, ...meta, urlMode: frameworkUrlMode(meta?.framework) })
 })

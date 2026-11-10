@@ -4,6 +4,8 @@ export interface Framework {
   color?: string
   composer?: string[]
   npm?: string[]
+  /** Set where the site's base URL lives in the database, so env variables cannot move it. */
+  urlMode?: 'rewrite'
 }
 
 // Detection takes the first entry whose package the repo requires, so a CMS sits
@@ -13,16 +15,20 @@ export const FRAMEWORKS: Framework[] = [
   { id: 'statamic', label: 'Statamic', color: 'var(--accent-violet)', composer: ['statamic/cms'] },
   { id: 'kirby', label: 'Kirby', color: 'var(--accent-mint)', composer: ['getkirby/cms'] },
   { id: 'typo3', label: 'TYPO3', color: 'var(--accent-orange)', composer: ['typo3/cms-core'] },
-  { id: 'shopware6', label: 'Shopware', color: 'var(--primary)', composer: ['shopware/core'] },
-  { id: 'magento2', label: 'Magento', color: 'var(--accent-orange)', composer: ['magento/product-community-edition', 'magento/framework'] },
+  { id: 'shopware6', label: 'Shopware', color: 'var(--primary)', composer: ['shopware/core'], urlMode: 'rewrite' },
+  { id: 'magento2', label: 'Magento', color: 'var(--accent-orange)', composer: ['magento/product-community-edition', 'magento/framework'], urlMode: 'rewrite' },
   { id: 'drupal', label: 'Drupal', color: '#7aa8d8', composer: ['drupal/core', 'drupal/core-recommended'] },
-  { id: 'wordpress', label: 'WordPress', color: 'var(--accent-violet)', composer: ['roots/wordpress', 'johnpbloch/wordpress-core'] },
+  { id: 'wordpress', label: 'WordPress', color: 'var(--accent-violet)', composer: ['roots/wordpress', 'johnpbloch/wordpress-core'], urlMode: 'rewrite' },
   { id: 'silverstripe', label: 'SilverStripe', color: '#7aa8d8', composer: ['silverstripe/framework'] },
   { id: 'laravel', label: 'Laravel', color: 'var(--accent-clay)', composer: ['laravel/framework'] },
   { id: 'nuxt', label: 'Nuxt', color: 'var(--primary)', npm: ['nuxt'] },
   { id: 'next', label: 'Next.js', color: 'var(--accent-ink)', npm: ['next'] },
   { id: 'vue', label: 'Vue', color: 'var(--accent-mint)', npm: ['vue'] },
-  { id: 'magento', label: 'Magento', color: 'var(--accent-orange)' },
+  { id: 'magento', label: 'Magento', color: 'var(--accent-orange)', urlMode: 'rewrite' },
   { id: 'backdrop', label: 'Backdrop', color: '#7aa8d8' },
   { id: 'php', label: 'PHP' },
 ]
+
+export function frameworkUrlMode(id: string | null | undefined): 'env' | 'rewrite' {
+  return FRAMEWORKS.find(f => f.id === id)?.urlMode ?? 'env'
+}
