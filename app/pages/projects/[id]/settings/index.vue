@@ -360,7 +360,7 @@ watch(bootCommands, () => {
           </div>
           <div
             v-else
-            class="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2"
+            class="flex flex-col gap-3"
           >
             <UFormField label="Framework">
               <span class="text-xs text-toned">{{ fwLabel }}</span>
