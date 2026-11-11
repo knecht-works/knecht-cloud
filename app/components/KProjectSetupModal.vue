@@ -93,8 +93,7 @@ async function saveEnvAndContinue() {
   }
 }
 
-const dumpInput = ref<HTMLInputElement>()
-const { uploading: uploadingDump, dumpName, upload: uploadDump } = useProjectDump(project)
+const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, uploaded: dumpUploaded } = useProjectDump(project)
 
 const { data: workflowRows } = useWorkflows()
 const bootWorkflow = computed(() => workflowRows.value.find(w => w.name === 'boot-and-preview' && workflowRunnable(w)))
@@ -291,21 +290,16 @@ watch(open, (isOpen) => {
               class="size-4 flex-none text-primary"
             />
           </div>
-          <input
-            ref="dumpInput"
-            type="file"
-            class="hidden"
-            accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
-            @change="uploadDump"
-          >
-          <UButton
+          <KUploadButton
             class="mt-3"
+            :upload-key="dumpUploadKey"
+            :url="dumpUploadUrl"
+            accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
             :label="dumpName ? 'Replace dump' : 'Upload dump'"
             variant="outline"
             color="neutral"
             size="sm"
-            :loading="uploadingDump"
-            @click="dumpInput?.click()"
+            @uploaded="dumpUploaded"
           />
         </div>
         <div class="flex justify-end gap-2">
