@@ -262,9 +262,11 @@ for (const fixture of selected) {
         const seedUrl = `https://raw.githubusercontent.com/${fixture.repo}/${connected.defaultBranch}/${fixture.seedDbPath}`
         const seed = await fetch(seedUrl)
         if (!seed.ok) throw new Error(`Fetching the fixture seed at ${seedUrl} failed: ${seed.status}`)
-        const form = new FormData()
-        form.append('file', new Blob([await seed.arrayBuffer()], { type: 'application/gzip' }), 'seed.sql.gz')
-        const uploaded = await client.fetch(`/api/projects/${projectId}/dump`, { method: 'POST', body: form })
+        const uploaded = await client.fetch(`/api/projects/${projectId}/dump?name=seed.sql.gz`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/octet-stream' },
+          body: await seed.arrayBuffer(),
+        })
         expect(uploaded.ok).toBe(true)
       }
 
