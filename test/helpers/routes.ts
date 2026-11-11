@@ -19,7 +19,7 @@ export interface RouteCall {
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE'
   route?: string
   path?: string
-  body?: string | Uint8Array | object
+  body?: string | Uint8Array | ReadableStream | object
   form?: FormData
   headers?: Record<string, string>
 }
@@ -32,12 +32,13 @@ export async function callRoute(handler: EventHandler, opts: RouteCall = {}): Pr
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
     const { port } = server.address() as AddressInfo
-    const body = opts.form ?? (opts.body === undefined ? undefined : typeof opts.body === 'string' || opts.body instanceof Uint8Array ? opts.body : JSON.stringify(opts.body))
+    const body = opts.form ?? (opts.body === undefined ? undefined : typeof opts.body === 'string' || opts.body instanceof Uint8Array || opts.body instanceof ReadableStream ? opts.body : JSON.stringify(opts.body))
     const res = await fetch(`http://127.0.0.1:${port}${opts.path ?? '/'}`, {
       method: opts.method ?? 'POST',
       headers: { ...(body !== undefined && !opts.form ? { 'content-type': 'application/json' } : {}), ...opts.headers },
       body,
-    })
+      duplex: 'half',
+    } as RequestInit)
     const text = await res.text()
     let json: unknown = null
     try {

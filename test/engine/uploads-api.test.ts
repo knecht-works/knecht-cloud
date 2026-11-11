@@ -17,7 +17,7 @@ const { projectSharedDir } = await import('../../server/utils/storage')
 const dumpHandler = (await import('../../server/api/projects/[id]/dump.post')).default
 const sharedHandler = (await import('../../server/api/projects/[id]/shared.post')).default
 
-function upload(handler: typeof dumpHandler, path: string, body: string | Uint8Array) {
+function upload(handler: typeof dumpHandler, path: string, body: string | Uint8Array | ReadableStream) {
   return callRoute(handler, { route: '/projects/:id/x', path, body, headers: { 'content-type': 'application/octet-stream' } })
 }
 
@@ -35,6 +35,19 @@ describe('POST /api/projects/:id/dump', () => {
   it('requires a file name', async () => {
     const project = makeProject()
     expect((await upload(dumpHandler, `/projects/${project.id}/x`, 'x')).status).toBe(400)
+  })
+
+  it('refuses a chunked body that announces no size', async () => {
+    const project = makeProject()
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('CREATE TABLE t (id int);'))
+        controller.close()
+      },
+    })
+    const res = await upload(dumpHandler, `/projects/${project.id}/x?name=chunked.sql`, body)
+    expect(res.status).toBe(411)
+    expect(requireProject(project.id).dbDumpPath).toBeNull()
   })
 
   it('refuses a dump larger than the free disk space before writing anything', async () => {
