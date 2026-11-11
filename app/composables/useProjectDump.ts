@@ -14,9 +14,12 @@ export function useProjectDump<T extends { id: number, dbDumpPath: string | null
     if (!file || !project.value) return
     uploading.value = true
     try {
-      const form = new FormData()
-      form.append('file', file)
-      project.value = await $fetch(`/api/projects/${project.value.id}/dump`, { method: 'POST', body: form }) as T
+      project.value = await $fetch(`/api/projects/${project.value.id}/dump`, {
+        method: 'POST',
+        query: { name: file.name },
+        headers: { 'content-type': 'application/octet-stream' },
+        body: file,
+      }) as T
       toast.add({ title: 'Database dump uploaded', color: 'success' })
     }
     catch (e) {

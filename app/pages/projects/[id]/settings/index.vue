@@ -188,10 +188,12 @@ async function uploadSeed(event: Event) {
   if (!file || !seedTarget.value) return
   seeding.value = true
   try {
-    const form = new FormData()
-    form.append('path', seedTarget.value)
-    form.append('file', file)
-    const { files } = await $fetch<{ files: number }>(`/api/projects/${id}/shared`, { method: 'POST', body: form })
+    const { files } = await $fetch<{ files: number }>(`/api/projects/${id}/shared`, {
+      method: 'POST',
+      query: { path: seedTarget.value },
+      headers: { 'content-type': 'application/octet-stream' },
+      body: file,
+    })
     toast.add({ title: `${files} file${files === 1 ? '' : 's'} added to ${seedTarget.value}`, color: 'success' })
   }
   catch (e) {

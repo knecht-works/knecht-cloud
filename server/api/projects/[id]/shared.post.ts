@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import AdmZip from 'adm-zip'
 import { rebootEnv } from '../../../daemon/envs'
@@ -8,27 +9,33 @@ import { sessionContainer } from '../../../daemon/session-sandbox'
 import { workspaceRunning } from '../../../daemon/workspace'
 import { requireProject } from '../../../stores/projects'
 import { listSessionsInEnvState } from '../../../stores/sessions'
+import { dataDir, normalizeSharedFolder, projectSharedDir } from '../../../utils/storage'
+import { receiveUpload } from '../../../utils/upload'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
   const project = requireProject(id)
 
-  const form = await readMultipartFormData(event)
-  const file = form?.find(part => part.name === 'file' && part.filename)
-  const target = normalizeSharedFolder(form?.find(part => part.name === 'path')?.data.toString() ?? '')
-  if (!file?.filename || !target) {
+  const path = getQuery(event).path
+  const target = normalizeSharedFolder(typeof path === 'string' ? path : '')
+  if (!target) {
     throw createError({ statusCode: 400, statusMessage: 'Zip file and target folder required' })
   }
   if (!project.sharedFolders.includes(target)) {
     throw createError({ statusCode: 400, statusMessage: 'Folder is not configured as shared' })
   }
 
+  const zipPath = join(dataDir(), 'uploads', `${randomUUID()}.zip`)
+  await receiveUpload(event, zipPath)
   let entries
   try {
-    entries = new AdmZip(file.data).getEntries().filter(e => !e.isDirectory)
+    entries = new AdmZip(zipPath).getEntries().filter(e => !e.isDirectory)
   }
   catch {
     throw createError({ statusCode: 400, statusMessage: 'Not a readable zip file' })
+  }
+  finally {
+    rmSync(zipPath, { force: true })
   }
 
   const files = entries
