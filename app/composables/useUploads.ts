@@ -4,6 +4,7 @@ export interface Upload {
   loaded: number
   total: number
   promise: Promise<unknown>
+  cancel: () => void
 }
 
 export interface UploadRequest {
@@ -27,6 +28,7 @@ export function useUploads() {
   function start({ key, url, file }: UploadRequest): void {
     if (uploads.has(key)) return
     const xhr = new XMLHttpRequest()
+    let cancelled = false
     const promise = new Promise<unknown>((resolve, reject) => {
       xhr.upload.onprogress = (e) => {
         upload.loaded = e.loaded
@@ -43,11 +45,16 @@ export function useUploads() {
         else reject({ data: { statusMessage: body?.statusMessage ?? `HTTP ${xhr.status}` } })
       }
       xhr.onerror = () => reject({ data: { statusMessage: 'Connection lost' } })
+      xhr.onabort = () => reject(null)
     })
     const upload = reactive<Upload>({
       loaded: 0,
       total: file.size,
       promise,
+      cancel: () => {
+        cancelled = true
+        xhr.abort()
+      },
     })
     uploads.set(key, upload)
 
@@ -69,7 +76,7 @@ export function useUploads() {
     // A fresh toast instead of toast.update: the Toaster measures a toast's height only on mount.
     promise
       .catch((e) => {
-        toast.add({ title: `Upload of ${file.name} failed`, description: errMsg(e, ''), color: 'error' })
+        if (!cancelled) toast.add({ title: `Upload of ${file.name} failed`, description: errMsg(e, ''), color: 'error' })
       })
       .finally(() => {
         toast.remove(id)
