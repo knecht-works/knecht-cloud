@@ -5,30 +5,11 @@ export function useProjectDump<T extends { id: number, dbDumpPath: string | null
 ) {
   const toast = useToast()
   const toastError = useToastError()
-  const uploading = ref(false)
   const dumpName = computed(() => project.value?.dbDumpPath?.split('/').pop() ?? null)
-
-  async function upload(event: Event) {
-    const input = event.target as HTMLInputElement
-    const file = input.files?.[0]
-    if (!file || !project.value) return
-    uploading.value = true
-    try {
-      project.value = await $fetch(`/api/projects/${project.value.id}/dump`, {
-        method: 'POST',
-        query: { name: file.name },
-        headers: { 'content-type': 'application/octet-stream' },
-        body: file,
-      }) as T
-      toast.add({ title: 'Database dump uploaded', color: 'success' })
-    }
-    catch (e) {
-      toastError('Upload failed', e)
-    }
-    finally {
-      uploading.value = false
-      input.value = ''
-    }
+  const uploadKey = computed(() => `dump:${project.value?.id}`)
+  const uploadUrl = (file: File) => `/api/projects/${project.value?.id}/dump?name=${encodeURIComponent(file.name)}`
+  const uploaded = (result: unknown) => {
+    project.value = result as T
   }
 
   async function remove() {
@@ -42,5 +23,5 @@ export function useProjectDump<T extends { id: number, dbDumpPath: string | null
     }
   }
 
-  return { uploading, dumpName, upload, remove }
+  return { dumpName, uploadKey, uploadUrl, uploaded, remove }
 }

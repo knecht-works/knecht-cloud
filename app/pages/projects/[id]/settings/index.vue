@@ -2,7 +2,6 @@
 import { DDEV_DATABASE_GROUPS, DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type DdevDatabase, type PackageManagerName, formatDatabase, formatPackageManager, projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 
-const toast = useToast()
 const toastError = useToastError()
 const id = Number(useRoute().params.id)
 
@@ -125,8 +124,7 @@ async function setUrlMode(mode: 'env' | 'rewrite') {
   }
 }
 
-const dumpInput = ref<HTMLInputElement>()
-const { uploading: uploadingDump, dumpName, upload: uploadDump, remove: removeDump } = useProjectDump(project)
+const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, uploaded: dumpUploaded, remove: removeDump } = useProjectDump(project)
 const confirmRemoveDump = ref(false)
 const removingDump = ref(false)
 async function confirmDumpRemoval() {
@@ -173,37 +171,7 @@ async function addFolder() {
   newFolder.value = ''
 }
 
-const seedInput = ref<HTMLInputElement>()
-const seedTarget = ref('')
-const seeding = ref(false)
-
-function pickSeed(path: string) {
-  seedTarget.value = path
-  seedInput.value?.click()
-}
-
-async function uploadSeed(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file || !seedTarget.value) return
-  seeding.value = true
-  try {
-    const { files } = await $fetch<{ files: number }>(`/api/projects/${id}/shared`, {
-      method: 'POST',
-      query: { path: seedTarget.value },
-      headers: { 'content-type': 'application/octet-stream' },
-      body: file,
-    })
-    toast.add({ title: `${files} file${files === 1 ? '' : 's'} added to ${seedTarget.value}`, color: 'success' })
-  }
-  catch (e) {
-    toastError('Upload failed', e)
-  }
-  finally {
-    seeding.value = false
-    input.value = ''
-  }
-}
+const seedUrl = (folder: string) => () => `/api/projects/${id}/shared?path=${encodeURIComponent(folder)}`
 
 const bootCommands = ref(project.value?.bootCommands ?? '')
 const { state: bootState, error: bootError, schedule: scheduleBoot } = useAutosave(async () => {
@@ -458,17 +426,18 @@ watch(bootCommands, () => {
               class="size-4 flex-none text-dimmed"
             />
             <span class="k-mono flex-1 truncate text-2xs text-muted">{{ dumpName }}</span>
-            <UTooltip text="Replace dump">
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-refresh-cw"
-                aria-label="Replace dump"
-                :loading="uploadingDump"
-                @click="dumpInput?.click()"
-              />
-            </UTooltip>
+            <KUploadButton
+              :upload-key="dumpUploadKey"
+              :url="dumpUploadUrl"
+              accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
+              tooltip="Replace dump"
+              aria-label="Replace dump"
+              icon="i-lucide-refresh-cw"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              @uploaded="dumpUploaded"
+            />
             <UTooltip text="Remove dump">
               <UButton
                 size="xs"
@@ -480,21 +449,16 @@ watch(bootCommands, () => {
               />
             </UTooltip>
           </div>
-          <input
-            ref="dumpInput"
-            type="file"
-            class="hidden"
-            accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
-            @change="uploadDump"
-          >
-          <UButton
+          <KUploadButton
             v-if="!dumpName"
+            :upload-key="dumpUploadKey"
+            :url="dumpUploadUrl"
+            accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
             label="Upload dump"
             variant="outline"
             color="neutral"
             size="sm"
-            :loading="uploadingDump"
-            @click="dumpInput?.click()"
+            @uploaded="dumpUploaded"
           />
         </div>
       </KPanel>
@@ -516,17 +480,17 @@ watch(bootCommands, () => {
               class="size-4 flex-none text-dimmed"
             />
             <span class="k-mono flex-1 truncate text-2xs text-muted">{{ folder }}</span>
-            <UTooltip text="Fill this folder from a zip">
-              <UButton
-                size="xs"
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-upload"
-                :aria-label="`Fill ${folder} from a zip`"
-                :loading="seeding && seedTarget === folder"
-                @click="pickSeed(folder)"
-              />
-            </UTooltip>
+            <KUploadButton
+              :upload-key="`shared:${id}:${folder}`"
+              :url="seedUrl(folder)"
+              accept=".zip"
+              tooltip="Fill this folder from a zip"
+              :aria-label="`Fill ${folder} from a zip`"
+              icon="i-lucide-upload"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+            />
             <UTooltip text="Stop persisting this folder">
               <UButton
                 size="xs"
@@ -538,13 +502,6 @@ watch(bootCommands, () => {
               />
             </UTooltip>
           </div>
-          <input
-            ref="seedInput"
-            type="file"
-            class="hidden"
-            accept=".zip"
-            @change="uploadSeed"
-          >
           <form
             class="mt-2.5 flex items-center gap-2"
             @submit.prevent="addFolder"
