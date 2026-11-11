@@ -93,7 +93,7 @@ async function saveEnvAndContinue() {
   }
 }
 
-const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, uploaded: dumpUploaded } = useProjectDump(project)
+const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, settingsPath, uploaded: dumpUploaded } = useProjectDump(project)
 
 const { data: workflowRows } = useWorkflows()
 const bootWorkflow = computed(() => workflowRows.value.find(w => w.name === 'boot-and-preview' && workflowRunnable(w)))
@@ -294,6 +294,7 @@ watch(open, (isOpen) => {
             class="mt-3"
             :upload-key="dumpUploadKey"
             :url="dumpUploadUrl"
+            :to="settingsPath"
             accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
             :label="dumpName ? 'Replace dump' : 'Upload dump'"
             variant="outline"

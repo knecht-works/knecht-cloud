@@ -124,7 +124,7 @@ async function setUrlMode(mode: 'env' | 'rewrite') {
   }
 }
 
-const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, uploaded: dumpUploaded, remove: removeDump } = useProjectDump(project)
+const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, settingsPath, uploaded: dumpUploaded, remove: removeDump } = useProjectDump(project)
 const confirmRemoveDump = ref(false)
 const removingDump = ref(false)
 async function confirmDumpRemoval() {
@@ -429,6 +429,7 @@ watch(bootCommands, () => {
             <KUploadButton
               :upload-key="dumpUploadKey"
               :url="dumpUploadUrl"
+              :to="settingsPath"
               accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
               tooltip="Replace dump"
               aria-label="Replace dump"
@@ -453,6 +454,7 @@ watch(bootCommands, () => {
             v-if="!dumpName"
             :upload-key="dumpUploadKey"
             :url="dumpUploadUrl"
+            :to="settingsPath"
             accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
             label="Upload dump"
             variant="outline"
@@ -483,6 +485,7 @@ watch(bootCommands, () => {
             <KUploadButton
               :upload-key="`shared:${id}:${folder}`"
               :url="seedUrl(folder)"
+              :to="settingsPath"
               accept=".zip"
               tooltip="Fill this folder from a zip"
               :aria-label="`Fill ${folder} from a zip`"

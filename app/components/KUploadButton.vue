@@ -4,6 +4,7 @@ import type { ButtonProps } from '@nuxt/ui'
 const props = defineProps<{
   uploadKey: string
   url: (file: File) => string
+  to?: string
   accept?: string
   label?: string
   tooltip?: string
@@ -28,7 +29,7 @@ watch(() => upload.value?.promise, (promise) => {
 function pick() {
   const file = input.value?.files?.[0]
   if (input.value) input.value.value = ''
-  if (file) start({ key: props.uploadKey, url: props.url(file), file })
+  if (file) start({ key: props.uploadKey, url: props.url(file), file, to: props.to })
 }
 </script>
 

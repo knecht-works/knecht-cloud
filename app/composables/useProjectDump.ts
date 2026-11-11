@@ -8,6 +8,7 @@ export function useProjectDump<T extends { id: number, dbDumpPath: string | null
   const dumpName = computed(() => project.value?.dbDumpPath?.split('/').pop() ?? null)
   const uploadKey = computed(() => `dump:${project.value?.id}`)
   const uploadUrl = (file: File) => `/api/projects/${project.value?.id}/dump?name=${encodeURIComponent(file.name)}`
+  const settingsPath = computed(() => `/projects/${project.value?.id}/settings`)
   const uploaded = (result: unknown) => {
     project.value = result as T
   }
@@ -23,5 +24,5 @@ export function useProjectDump<T extends { id: number, dbDumpPath: string | null
     }
   }
 
-  return { dumpName, uploadKey, uploadUrl, uploaded, remove }
+  return { dumpName, uploadKey, uploadUrl, settingsPath, uploaded, remove }
 }
