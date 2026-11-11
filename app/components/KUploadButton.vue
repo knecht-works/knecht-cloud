@@ -41,7 +41,7 @@ function pick() {
     @change="pick"
   >
   <UTooltip
-    :text="upload ? 'Uploading' : tooltip"
+    :text="upload ? 'Cancel upload' : tooltip"
     :disabled="!upload && !tooltip"
   >
     <UButton
@@ -50,9 +50,9 @@ function pick() {
       :variant="variant"
       :icon="label || upload ? undefined : icon"
       :label="label && upload ? 'Uploading' : label"
-      :aria-label="upload ? 'Uploading' : ariaLabel"
+      :aria-label="upload ? 'Cancel upload' : ariaLabel"
       v-bind="$attrs"
-      @click="upload || input?.click()"
+      @click="upload ? upload.cancel() : input?.click()"
     >
       <template
         v-if="upload && !label"
