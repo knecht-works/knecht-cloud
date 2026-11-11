@@ -11,6 +11,7 @@ export interface UploadRequest {
   key: string
   url: string
   file: File
+  to?: string
 }
 
 // Module scope so an upload outlives the component that started it.
@@ -25,7 +26,7 @@ if (import.meta.client) {
 export function useUploads() {
   const toast = useToast()
 
-  function start({ key, url, file }: UploadRequest): void {
+  function start({ key, url, file, to }: UploadRequest): void {
     if (uploads.has(key)) return
     const xhr = new XMLHttpRequest()
     let cancelled = false
@@ -71,6 +72,7 @@ export function useUploads() {
       ]),
       duration: 0,
       progress: false,
+      onClick: to ? () => navigateTo(to) : undefined,
     })
 
     // A fresh toast instead of toast.update: the Toaster measures a toast's height only on mount.
