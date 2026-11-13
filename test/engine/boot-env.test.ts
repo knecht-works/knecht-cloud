@@ -32,6 +32,10 @@ vi.mock('../../server/daemon/workspace', () => ({
   ensureWorkspaceUp: async () => { calls.push('workspace up') },
   removeWorkspace: async () => { calls.push('workspace removed') },
 }))
+vi.mock('../../server/daemon/db-base', () => ({
+  cloneDbBase: async (_sessionId: number, base: { volume: string }) => { calls.push(`clone ${base.volume}`) },
+  readyDbBase: async () => null,
+}))
 const waitForDevServer = vi.fn(async (_sessionId: number, _port: number) => {})
 vi.mock('../../server/daemon/dev-server', () => ({
   restartDevServer: async (exec: (command: string[]) => Promise<number>) => {
@@ -70,6 +74,18 @@ describe('bootEnv', () => {
       'supervisorctl restart webextradaemons:*',
     ])
     expect(waitForDevServer).toHaveBeenCalledWith(session.id, 3000)
+  })
+
+  it('copies the project\'s base database before ddev starts instead of importing', async () => {
+    const session = freshSession(makeProject())
+    await bootEnv(session.id, { dbFile: null, dbBase: { volume: 'knecht-base-1-x-mariadb', database: 'mariadb:11.8' }, projectCommands: 'pnpm install' })
+    expect(calls).toEqual([
+      'workspace removed',
+      'clone knecht-base-1-x-mariadb',
+      'ddev start',
+      'bash -lc pnpm install',
+      'supervisorctl restart webextradaemons:*',
+    ])
   })
 
   it('stops the stack and leaves the session a code session when a boot command fails', async () => {
