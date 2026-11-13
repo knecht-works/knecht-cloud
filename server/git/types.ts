@@ -38,4 +38,6 @@ export interface GitProvider {
   // null when the branch has no commits over the base.
   createPullRequest(repo: GitRepo, params: { head: string, base: string, title: string, body: string }): Promise<PullRequest | null>
   projectMeta(repo: GitRepo, ref?: string): Promise<ProjectMeta>
+  // The files directly in `dir` by name; empty when the directory does not exist.
+  readDir(repo: GitRepo, dir: string, ref?: string): Promise<Record<string, string>>
 }
