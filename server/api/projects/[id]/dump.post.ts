@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { projectDetectedEnv, resolveEnv } from '../../../../shared/utils/env-spec'
 import { setProjectDump, requireProject } from '../../../stores/projects'
+import { startDbBaseBuild } from '../../../daemon/db-base'
 import { projectDumpDir, sanitizeFilename } from '../../../utils/storage'
 import { receiveUpload } from '../../../utils/upload'
 
@@ -19,5 +20,6 @@ export default defineEventHandler(async (event) => {
   const filePath = join(projectDumpDir(id), sanitizeFilename(name))
   await receiveUpload(event, filePath)
 
-  return setProjectDump(id, filePath)
+  setProjectDump(id, filePath)
+  return startDbBaseBuild(id)
 })

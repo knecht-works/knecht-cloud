@@ -17,6 +17,11 @@ export interface DdevEnv {
   detected?: DetectedEnv
 }
 
+export type DbBase
+  = | { state: 'building', builder: string }
+    | { state: 'ready', volume: string, database: string, builtAt: string }
+    | { state: 'failed', error: string }
+
 export const projects = sqliteTable('projects', {
   id: integer('id').primaryKey({ autoIncrement: true }),
 
@@ -43,6 +48,7 @@ export const projects = sqliteTable('projects', {
     .default('env'),
   dbDumpPath: text('db_dump_path'),
   dbImported: integer('db_imported', { mode: 'boolean' }).notNull().default(false),
+  dbBase: text('db_base', { mode: 'json' }).$type<DbBase>(),
   sharedFolders: text('shared_folders', { mode: 'json' })
     .$type<string[]>()
     .notNull()

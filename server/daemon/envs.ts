@@ -7,6 +7,7 @@ import { getSettings } from '../utils/settings'
 import { gitProvider } from '../git'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
 import { configureSessionEnv, readDdevConfig } from './ddev'
+import { cloneDbBase, readyDbBase, type ReadyDbBase } from './db-base'
 import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
 import { ensureWorkspaceUp, removeWorkspace } from './workspace'
@@ -73,6 +74,7 @@ export function promoteToPreview(sessionId: number): void {
 
 export interface BootPlan {
   dbFile: string | null
+  dbBase?: ReadyDbBase | null
   projectCommands: string
   stepCommands?: string
   log?: (text: string) => void
@@ -86,6 +88,10 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
   warmPreviewCertificates(sessionId)
   try {
     await removeWorkspace(sessionId)
+    if (plan.dbBase) {
+      log(`\n▶ Copying the database from the project's base (${plan.dbBase.database})\n`)
+      await cloneDbBase(sessionId, plan.dbBase)
+    }
     await startEnvStack(sessionId, log)
     if (plan.dbFile) {
       log(`\n▶ import-db (${basename(plan.dbFile)})\n`)
@@ -192,7 +198,7 @@ async function restoreFromArchive(sessionId: number): Promise<void> {
   const bootStep = lastBootStep(sessionId)
   if (session.tier === 'preview' || bootStep) {
     await bootEnv(sessionId, {
-      dbFile: archivedDbFile(sessionId, project),
+      ...await dbSource(sessionId, project),
       projectCommands: bootStep ? project.bootCommands : '',
       stepCommands: bootStep?.commands,
     })
@@ -229,7 +235,7 @@ async function rebootLostPreview(sessionId: number, log?: (text: string) => void
     const dir = sessionCheckoutDir(sessionId)
     if (existsSync(dir)) pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
     await bootEnv(sessionId, {
-      dbFile: archivedDbFile(sessionId, project),
+      ...await dbSource(sessionId, project),
       projectCommands: project.bootCommands,
       stepCommands: lastBootStep(sessionId)?.commands,
       log,
@@ -399,10 +405,13 @@ export async function reapExpiredArchives(): Promise<void> {
   }
 }
 
-function archivedDbFile(sessionId: number, project: Project): string | null {
+async function dbSource(sessionId: number, project: Project): Promise<Pick<BootPlan, 'dbFile' | 'dbBase'>> {
   const archived = join(sessionArchiveDir(sessionId), 'db.sql.gz')
+  if (existsSync(archived)) return { dbFile: archived }
+  const dbBase = await readyDbBase(project.id, sessionCheckoutDir(sessionId))
+  if (dbBase) return { dbFile: null, dbBase }
   const fallback = project.dbDumpPath && join(projectDumpDir(project.id), basename(project.dbDumpPath))
-  return existsSync(archived) ? archived : fallback && existsSync(fallback) ? fallback : null
+  return { dbFile: fallback && existsSync(fallback) ? fallback : null }
 }
 
 export async function teardownSession(sessionId: number): Promise<void> {

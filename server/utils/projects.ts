@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { teardownSession } from '../daemon/envs'
+import { dropDbBase } from '../daemon/db-base'
 import { cancelFollowupWork } from '../daemon/followups'
 import { cancelRun } from '../daemon/runner'
 import { projectMemoryDir } from './agent-memory'
@@ -17,6 +18,7 @@ export function deleteProject(id: number): Promise<void> {
   for (const sessionId of sessionIds) cancelFollowupWork(sessionId)
 
   removeAttachments(listFollowupIds({ sessionIds }))
+  dropDbBase(id)
   deleteProjectCascade(id, sessionIds)
 
   return cleanupFiles(id, sessionIds).catch((e) => {
