@@ -6,12 +6,12 @@ import type { EnvState, EnvTransition, SessionTier } from '../../shared/utils/ru
 import { getSettings } from '../utils/settings'
 import { gitProvider } from '../git'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'
-import { configureSessionEnv, readDdevConfig } from './ddev'
-import { cloneDbBase, readyDbBase, type ReadyDbBase } from './db-base'
+import { configureSessionEnv } from './ddev'
+import { archiveDbVolume, archivedDbVolume, cloneDbBase, readyDbBase, restoreDbVolume, type ReadyDbBase } from './db-base'
 import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
 import { ensureWorkspaceUp, removeWorkspace } from './workspace'
-import { envStackRunning, execInSandbox, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
+import { envStackRunning, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
 import { warmPreviewCertificates } from '../utils/preview-certs'
 import { getProject } from '../stores/projects'
 import { getSessionRow, listSessionsInEnvState, moveSession, sessionChanged, updateSession, touchSessionPreview } from '../stores/sessions'
@@ -75,6 +75,7 @@ export function promoteToPreview(sessionId: number): void {
 export interface BootPlan {
   dbFile: string | null
   dbBase?: ReadyDbBase | null
+  dbArchive?: string | null
   projectCommands: string
   stepCommands?: string
   log?: (text: string) => void
@@ -88,7 +89,11 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
   warmPreviewCertificates(sessionId)
   try {
     await removeWorkspace(sessionId)
-    if (plan.dbBase) {
+    if (plan.dbArchive) {
+      log(`\n▶ Restoring the archived database\n`)
+      await restoreDbVolume(sessionId, plan.dbArchive)
+    }
+    else if (plan.dbBase) {
       log(`\n▶ Copying the database from the project's base (${plan.dbBase.database})\n`)
       await cloneDbBase(sessionId, plan.dbBase)
     }
@@ -280,7 +285,6 @@ export async function stopEnv(sessionId: number): Promise<void> {
   await inTransition(sessionId, 'stopping', async () => {
     if (!stillIn(sessionId, 'up')) return
     if (getSessionRow(sessionId)?.tier === 'preview') {
-      await exportSessionDb(sessionId)
       // `ddev stop` on an unregistered project fails and would wedge the env in 'up'.
       if (await envStackRunning(sessionId)) await stopEnvStack(sessionId)
     }
@@ -289,17 +293,6 @@ export async function stopEnv(sessionId: number): Promise<void> {
     }
     moveEnv(sessionId, 'up', 'stopped')
   })
-}
-
-async function exportSessionDb(sessionId: number): Promise<void> {
-  if (readDdevConfig(sessionCheckoutDir(sessionId))?.hasDb === false) return
-  try {
-    mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
-    await execInSandbox(sessionId, ['ddev', 'export-db', `--file=${join(sessionArchiveDir(sessionId), 'db.sql.gz')}`])
-  }
-  catch {
-    // Restore falls back to the project dump.
-  }
 }
 
 // Stopping under a running step would SIGKILL the agent inside (exit 137).
@@ -346,6 +339,7 @@ export async function archiveEnv(sessionId: number): Promise<void> {
   await inTransition(sessionId, 'archiving', async () => {
     if (!stillIn(sessionId, 'stopped') || sessionHasActiveRun(sessionId) || sessionHasActiveFollowup(sessionId)) return
     await snapshotCheckout(sessionId)
+    await snapshotDb(sessionId)
     await teardownSession(sessionId)
     moveEnv(sessionId, 'stopped', 'archived')
   })
@@ -383,6 +377,16 @@ async function snapshotCheckout(sessionId: number): Promise<void> {
   }
 }
 
+async function snapshotDb(sessionId: number): Promise<void> {
+  try {
+    mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
+    await archiveDbVolume(sessionId, sessionArchiveDir(sessionId))
+  }
+  catch {
+    // Restore falls back to the project's base or dump.
+  }
+}
+
 export async function reapExpiredArchives(): Promise<void> {
   const { archiveRetentionDays } = getSettings()
   if (archiveRetentionDays <= 0) return
@@ -405,7 +409,9 @@ export async function reapExpiredArchives(): Promise<void> {
   }
 }
 
-async function dbSource(sessionId: number, project: Project): Promise<Pick<BootPlan, 'dbFile' | 'dbBase'>> {
+async function dbSource(sessionId: number, project: Project): Promise<Pick<BootPlan, 'dbFile' | 'dbBase' | 'dbArchive'>> {
+  const dbArchive = archivedDbVolume(sessionArchiveDir(sessionId))
+  if (dbArchive) return { dbFile: null, dbArchive }
   const archived = join(sessionArchiveDir(sessionId), 'db.sql.gz')
   if (existsSync(archived)) return { dbFile: archived }
   const dbBase = await readyDbBase(project.id, sessionCheckoutDir(sessionId))
