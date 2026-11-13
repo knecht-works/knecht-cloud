@@ -1,5 +1,5 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { execa } from 'execa'
 import { stringify } from 'yaml'
 import type { DbBase, Project } from '../db/schema'
@@ -35,8 +35,15 @@ export function dbBaseBuilding(volume: string): boolean {
   return [...running].some(builder => volume.includes(builder))
 }
 
+type DbVolumeKind = 'mariadb' | 'postgres'
+const DB_VOLUME_KINDS: DbVolumeKind[] = ['mariadb', 'postgres']
+
+function volumeKind(database: string): DbVolumeKind {
+  return database.startsWith('postgres:') ? 'postgres' : 'mariadb'
+}
+
 function dbVolume(ddevName: string, database: string): string {
-  return `${ddevName}-${database.startsWith('postgres:') ? 'postgres' : 'mariadb'}`
+  return `${ddevName}-${volumeKind(database)}`
 }
 
 // Null when a type or version alone is pinned: ddev's default for that type is not worth guessing.
@@ -68,16 +75,54 @@ export async function readyDbBase(projectId: number, checkoutDir: string): Promi
 }
 
 // ddev takes a db volume that already exists as is. The label is the one ddev gives its own.
-export async function cloneDbBase(sessionId: number, base: ReadyDbBase): Promise<void> {
+async function freshSessionDbVolume(sessionId: number, kind: DbVolumeKind): Promise<string> {
   const name = sessionSandboxName(sessionId)
-  const volume = dbVolume(name, base.database)
+  const volume = `${name}-${kind}`
   await execa('docker', ['volume', 'rm', '-f', volume])
   await execa('docker', ['volume', 'create', '--label', `com.docker.compose.project=ddev-${name}`, volume])
+  return volume
+}
+
+async function runAsRoot(entrypoint: string, mounts: string[], args: string[]): Promise<void> {
   await execa('docker', [
-    'run', '--rm', '--user', '0:0', '--entrypoint', 'cp',
-    '-v', `${base.volume}:/from:ro`, '-v', `${volume}:/to`,
-    await ddevWebImage(), '-a', '--reflink=auto', '/from/.', '/to/',
+    'run', '--rm', '--user', '0:0', '--entrypoint', entrypoint,
+    ...mounts.flatMap(m => ['-v', m]),
+    await ddevWebImage(), ...args,
   ])
+}
+
+export async function cloneDbBase(sessionId: number, base: ReadyDbBase): Promise<void> {
+  const volume = await freshSessionDbVolume(sessionId, volumeKind(base.database))
+  await runAsRoot('cp', [`${base.volume}:/from:ro`, `${volume}:/to`], ['-a', '--reflink=auto', '/from/.', '/to/'])
+}
+
+function dbArchiveName(kind: DbVolumeKind): string {
+  return `db-${kind}.tar.gz`
+}
+
+export function archivedDbVolume(archiveDir: string): string | null {
+  const file = DB_VOLUME_KINDS.map(kind => join(archiveDir, dbArchiveName(kind))).find(existsSync)
+  return file ?? null
+}
+
+// The stopped volume as files: a restore unpacks it instead of replaying SQL.
+export async function archiveDbVolume(sessionId: number, archiveDir: string): Promise<void> {
+  for (const kind of DB_VOLUME_KINDS) {
+    const volume = `${sessionSandboxName(sessionId)}-${kind}`
+    if (!await execa('docker', ['volume', 'inspect', volume]).then(() => true, () => false)) continue
+    const file = dbArchiveName(kind)
+    // Renamed into place: a half-written archive must not look restorable.
+    await runAsRoot('tar', [`${volume}:/from:ro`, `${archiveDir}:/to`], ['-czf', `/to/${file}.partial`, '-C', '/from', '.'])
+    renameSync(join(archiveDir, `${file}.partial`), join(archiveDir, file))
+    return
+  }
+}
+
+export async function restoreDbVolume(sessionId: number, archive: string): Promise<void> {
+  const kind = DB_VOLUME_KINDS.find(k => basename(archive) === dbArchiveName(k))
+  if (!kind) throw new Error(`Not a database volume archive: ${archive}`)
+  const volume = await freshSessionDbVolume(sessionId, kind)
+  await runAsRoot('tar', [`${dirname(archive)}:/from:ro`, `${volume}:/to`], ['-xzf', `/from/${basename(archive)}`, '-C', '/to'])
 }
 
 export function startDbBaseBuild(projectId: number): Project | undefined {
