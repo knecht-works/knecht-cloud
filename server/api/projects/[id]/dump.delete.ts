@@ -1,5 +1,6 @@
 import { rmSync } from 'node:fs'
 import { setProjectDump, requireProject } from '../../../stores/projects'
+import { dropDbBase } from '../../../daemon/db-base'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)
@@ -14,5 +15,6 @@ export default defineEventHandler((event) => {
     }
   }
 
+  dropDbBase(id)
   return setProjectDump(id, null)
 })

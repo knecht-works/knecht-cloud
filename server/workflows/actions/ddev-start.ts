@@ -8,6 +8,7 @@ import { sessionPreviewUrl } from '../../utils/preview-target'
 import { readDdevConfig } from '../../daemon/ddev'
 import { waitForDevServer } from '../../daemon/dev-server'
 import { bootEnv, inTransition, promoteToPreview } from '../../daemon/envs'
+import { readyDbBase } from '../../daemon/db-base'
 import { defineAction, type ActionRuntime } from './types'
 import { getSessionRow } from '../../stores/sessions'
 
@@ -42,8 +43,10 @@ export const ddevStartAction = defineAction({
       throw new Error('A database dump is configured, but this environment has no database container. Remove the dump or give the environment a database.')
     }
     await inTransition(rt.sessionId, 'booting', async () => {
+      const dbBase = rt.project.dbDumpPath ? await readyDbBase(rt.project.id, rt.checkoutDir) : null
       await bootEnv(rt.sessionId, {
-        dbFile: dumpFile(rt),
+        dbFile: dbBase ? null : dumpFile(rt),
+        dbBase,
         projectCommands: rt.project.bootCommands,
         stepCommands: step.commands,
         log: rt.log,

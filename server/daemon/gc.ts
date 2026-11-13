@@ -2,8 +2,10 @@ import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
 import { listProjects } from '../stores/projects'
+import type { DbBase } from '../db/schema'
 import { dataDir, projectsDir } from '../utils/storage'
 import { removeEnvStack } from './sandbox'
+import { DB_BASE_PREFIX, dbBaseBuilding } from './db-base'
 import { removeWorkspace, WORKSPACE_LABEL, workspaceContainerName } from './workspace'
 import { listSessionIds } from '../stores/sessions'
 import { deleteToolCallsBefore } from '../stores/tool-calls'
@@ -16,6 +18,7 @@ export interface GcResult {
   archives: string[]
   dumpDirs: string[]
   dumpFiles: string[]
+  dbBases: string[]
   sharedDirs: string[]
   memoryDirs: string[]
   dockerPruned: string[]
@@ -26,12 +29,13 @@ export async function collectGarbage(): Promise<GcResult> {
   const projects = listProjects()
   const liveProjects = new Set(projects.map(p => p.id))
 
-  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], sharedDirs: [], memoryDirs: [], dockerPruned: [] }
+  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], dbBases: [], sharedDirs: [], memoryDirs: [], dockerPruned: [] }
   result.sandboxes = [...await reapOrphanSandboxes(liveSessions), ...await reapOrphanWorkspaces(liveSessions)]
   result.checkouts = reapOrphanCheckouts(liveSessions)
   result.archives = reapOrphanArchives(liveSessions)
   result.dumpDirs = reapOrphanDumpDirs(liveProjects)
   result.dumpFiles = reapStaleDumpFiles(projects)
+  result.dbBases = await reapOrphanDbBases(projects)
   result.sharedDirs = reapOrphanSharedDirs(liveProjects)
   result.memoryDirs = reapOrphanMemoryDirs(liveProjects)
   result.dockerPruned = await pruneHostDocker()
@@ -130,6 +134,31 @@ function removeMatching(dir: string, pattern: RegExp, isOrphan: (id: number) => 
     if (!id || !isOrphan(id)) continue
     rmSync(join(dir, name), { recursive: true, force: true })
     removed.push(name)
+  }
+  return removed
+}
+
+// A volume still copied into a booting session refuses removal and is retried on the next run.
+async function reapOrphanDbBases(projects: { dbBase: DbBase | null }[]): Promise<string[]> {
+  const keep = new Set(projects.flatMap(p => p.dbBase?.state === 'ready' ? [p.dbBase.volume] : []))
+  let volumes: string[]
+  try {
+    const { stdout } = await execa('docker', ['volume', 'ls', '-q', '--filter', `name=${DB_BASE_PREFIX}`])
+    volumes = stdout.split('\n').map(v => v.trim()).filter(Boolean)
+  }
+  catch {
+    return []
+  }
+  const removed: string[] = []
+  for (const volume of volumes) {
+    if (keep.has(volume) || dbBaseBuilding(volume)) continue
+    try {
+      await execa('docker', ['volume', 'rm', volume])
+      removed.push(volume)
+    }
+    catch {
+      // In use.
+    }
   }
   return removed
 }

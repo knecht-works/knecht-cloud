@@ -107,6 +107,25 @@ export function ddevWebImage(): Promise<string> {
   return webImage
 }
 
+let defaultDatabase: Promise<string> | undefined
+
+// What ddev runs for a config without a `database:` entry, as `type:version`.
+export function ddevDefaultDatabase(): Promise<string> {
+  defaultDatabase ??= ddevWarm
+    .then(() => execa('ddev', ['version', '-j'], { env: DDEV_ENV }))
+    .then(({ stdout }) => {
+      const image = (JSON.parse(stdout) as { raw?: { db?: string } }).raw?.db ?? ''
+      const match = /ddev-dbserver-(mariadb|mysql)-([\d.]+):/.exec(image)
+      if (!match) throw new Error('`ddev version -j` names no db image')
+      return `${match[1]}:${match[2]}`
+    })
+    .catch((e: unknown) => {
+      defaultDatabase = undefined
+      throw e
+    })
+  return defaultDatabase
+}
+
 export async function startEnvStack(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
   await ddevWarm
   forgetPreview(sessionId)
@@ -185,7 +204,7 @@ async function removeLabelledContainers(sessionId: number): Promise<void> {
 
 // GitHub runners export XDG_CONFIG_HOME and ddev honors it for its global
 // config dir; unsetting it pins every ddev call to ~/.ddev.
-const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true', NO_COLOR: '1', XDG_CONFIG_HOME: undefined }
+export const DDEV_ENV = { DDEV_NONINTERACTIVE: 'true', NO_COLOR: '1', XDG_CONFIG_HOME: undefined }
 
 function execDdev(sessionId: number, args: string[], options?: Options) {
   return execa('ddev', args, {
