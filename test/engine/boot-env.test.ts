@@ -17,7 +17,10 @@ const stopEnvStack = vi.fn(async (_sessionId: number) => {
 })
 vi.mock('../../server/daemon/sandbox', () => ({
   envStackRunning: async () => true,
-  execInSandbox: async () => ({ stdout: '' }),
+  execInSandbox: async (_sessionId: number, command: string[]) => {
+    calls.push(command.join(' '))
+    return { stdout: '' }
+  },
   forgetPreview: () => {},
   removeEnvStack: async () => {},
   startEnvStack: (sessionId: number, log?: (text: string) => void) => startEnvStack(sessionId, log),
@@ -33,8 +36,11 @@ vi.mock('../../server/daemon/workspace', () => ({
   removeWorkspace: async () => { calls.push('workspace removed') },
 }))
 vi.mock('../../server/daemon/db-base', () => ({
+  archiveDbVolume: async () => { calls.push('archive db volume') },
+  archivedDbVolume: () => null,
   cloneDbBase: async (_sessionId: number, base: { volume: string }) => { calls.push(`clone ${base.volume}`) },
   readyDbBase: async () => null,
+  restoreDbVolume: async (_sessionId: number, archive: string) => { calls.push(`restore ${archive}`) },
 }))
 const waitForDevServer = vi.fn(async (_sessionId: number, _port: number) => {})
 vi.mock('../../server/daemon/dev-server', () => ({
@@ -45,7 +51,7 @@ vi.mock('../../server/daemon/dev-server', () => ({
 }))
 
 const { db, schema } = await import('../../server/db')
-const { archiveEnv, bootEnv, rehydrateEnv, reviveEnv } = await import('../../server/daemon/envs')
+const { archiveEnv, bootEnv, rehydrateEnv, reviveEnv, stopEnv } = await import('../../server/daemon/envs')
 const { sessionCheckoutDir } = await import('../../server/utils/storage')
 const { ddevStartAction } = await import('../../server/workflows/actions/ddev-start')
 
@@ -86,6 +92,12 @@ describe('bootEnv', () => {
       'bash -lc pnpm install',
       'supervisorctl restart webextradaemons:*',
     ])
+  })
+
+  it('restores an archived database volume ahead of a base or a dump', async () => {
+    const session = freshSession(makeProject())
+    await bootEnv(session.id, { dbFile: null, dbArchive: '/archives/db-mariadb.tar.gz', projectCommands: '' })
+    expect(calls.slice(0, 3)).toEqual(['workspace removed', 'restore /archives/db-mariadb.tar.gz', 'ddev start'])
   })
 
   it('stops the stack and leaves the session a code session when a boot command fails', async () => {
@@ -248,6 +260,16 @@ describe('archive and restore', () => {
     await archiveEnv(session.id)
     await rehydrateEnv(session.id)
     expect(readFileSync(join(dir, 'vendor', 'lib.php'), 'utf8')).toBe('lib\n')
+  })
+})
+
+describe('stopEnv', () => {
+  it('stops a preview without exporting its database', async () => {
+    const session = makeSession(makeProject())
+    db.update(schema.sessions).set({ envState: 'up', tier: 'preview' }).where(eq(schema.sessions.id, session.id)).run()
+    await stopEnv(session.id)
+    expect(calls).toEqual(['ddev stop'])
+    expect(getSessionRow(session.id).envState).toBe('stopped')
   })
 })
 

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeProject } from '../helpers/db'
@@ -23,7 +23,7 @@ vi.mock('../../server/daemon/sandbox', () => ({
   ddevWebImage: async () => 'ddev/ddev-webserver:test',
 }))
 
-const { cloneDbBase, readyDbBase, startDbBaseBuild } = await import('../../server/daemon/db-base')
+const { archiveDbVolume, cloneDbBase, readyDbBase, restoreDbVolume, startDbBaseBuild } = await import('../../server/daemon/db-base')
 const { getProject, setProjectDbBase } = await import('../../server/stores/projects')
 const { projectDumpDir } = await import('../../server/utils/storage')
 
@@ -81,6 +81,27 @@ describe('cloneDbBase', () => {
       'docker volume rm -f knecht-run-7-mariadb',
       'docker volume create --label com.docker.compose.project=ddev-knecht-run-7 knecht-run-7-mariadb',
       'docker run --rm --user 0:0 --entrypoint cp -v knecht-base-1-x-mariadb:/from:ro -v knecht-run-7-mariadb:/to ddev/ddev-webserver:test -a --reflink=auto /from/. /to/',
+    ])
+  })
+})
+
+describe('database volume archive', () => {
+  it('packs the session\'s db volume, whichever database it holds', async () => {
+    const dir = join(projectDumpDir(0), '..', 'archive-pack')
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'db-postgres.tar.gz.partial'), '')
+    missingVolumes.add('knecht-run-8-mariadb')
+    await archiveDbVolume(8, dir)
+    expect(commands.at(-1)).toBe(`docker run --rm --user 0:0 --entrypoint tar -v knecht-run-8-postgres:/from:ro -v ${dir}:/to ddev/ddev-webserver:test -czf /to/db-postgres.tar.gz.partial -C /from .`)
+    expect(existsSync(join(dir, 'db-postgres.tar.gz'))).toBe(true)
+  })
+
+  it('unpacks an archive into a fresh volume of the same kind', async () => {
+    await restoreDbVolume(9, '/archives/run-9/db-mariadb.tar.gz')
+    expect(commands).toEqual([
+      'docker volume rm -f knecht-run-9-mariadb',
+      'docker volume create --label com.docker.compose.project=ddev-knecht-run-9 knecht-run-9-mariadb',
+      'docker run --rm --user 0:0 --entrypoint tar -v /archives/run-9:/from:ro -v knecht-run-9-mariadb:/to ddev/ddev-webserver:test -xzf /from/db-mariadb.tar.gz -C /to',
     ])
   })
 })
