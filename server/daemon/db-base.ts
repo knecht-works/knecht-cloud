@@ -4,6 +4,7 @@ import { execa } from 'execa'
 import { stringify } from 'yaml'
 import type { DbBase, Project } from '../db/schema'
 import { projectDetectedEnv, resolveEnv } from '../../shared/utils/env-spec'
+import { gitProvider } from '../git'
 import { finishProjectDbBase, getProject, listBuildingDbBases, setProjectDbBase } from '../stores/projects'
 import { dataDir, projectDumpDir, sessionSandboxName } from '../utils/storage'
 import { freeHostPorts, readDdevConfig } from './ddev'
@@ -14,7 +15,8 @@ export const DB_BASE_PREFIX = 'knecht-base-'
 const BUILD_DB_MEM_LIMIT = '3g'
 
 // Only the build runs like this: a crash mid-import just fails the build.
-// `loose-` keeps a server that lacks an option from refusing to start.
+// `loose-` keeps a server that lacks an option from refusing to start. Loads after
+// the repo's own files: none of these change the data files a session reads.
 const IMPORT_TUNING = `[mysqld]
 loose-innodb-buffer-pool-size = 2G
 loose-innodb-log-file-size = 1G
@@ -150,7 +152,9 @@ async function buildDbBase(projectId: number, builder: string): Promise<void> {
     const dump = project?.dbDumpPath && join(projectDumpDir(projectId), basename(project.dbDumpPath))
     const database = project && await projectDatabase(project)
     if (!dump || !database) throw new Error('The project has no dump or no database type to build a base from')
-    await writeBuilderConfig(dir, builder, database)
+    // Settings like lower_case_table_names are fixed into the data files, so the base must be built under the repo's own.
+    const repoConfig = database.startsWith('postgres:') ? {} : await gitProvider(project).readDir(project, '.ddev/mysql', project.defaultBranch)
+    await writeBuilderConfig(dir, builder, database, repoConfig)
     await ddev(['start', '-y'])
     await ddev(['import-db', `--file=${dump}`])
     // ddev stop gives the db 10s, too short to flush a large buffer pool: every clone would then start in crash recovery.
@@ -170,7 +174,7 @@ async function buildDbBase(projectId: number, builder: string): Promise<void> {
   if (!finishProjectDbBase(projectId, builder, result) && result.state === 'ready') await removeVolumes([result.volume])
 }
 
-async function writeBuilderConfig(dir: string, builder: string, database: string): Promise<void> {
+async function writeBuilderConfig(dir: string, builder: string, database: string, repoConfig: Record<string, string>): Promise<void> {
   const [type, version] = database.split(':')
   const [dbPort, webserverPort, httpsPort, mailpitPort] = await freeHostPorts(4)
   mkdirSync(join(dir, '.ddev'), { recursive: true })
@@ -191,7 +195,10 @@ async function writeBuilderConfig(dir: string, builder: string, database: string
   }))
   if (type !== 'postgres') {
     mkdirSync(join(dir, '.ddev', 'mysql'))
-    writeFileSync(join(dir, '.ddev', 'mysql', '00-knecht-import.cnf'), IMPORT_TUNING)
+    for (const [name, text] of Object.entries(repoConfig)) {
+      if (name.endsWith('.cnf')) writeFileSync(join(dir, '.ddev', 'mysql', name), text)
+    }
+    writeFileSync(join(dir, '.ddev', 'mysql', 'zzz-knecht-import.cnf'), IMPORT_TUNING)
   }
 }
 
