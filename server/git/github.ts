@@ -1,4 +1,5 @@
 import { resolveProjectMeta } from '../utils/framework'
+import { readRepoDir } from '../utils/github'
 import { createPullRequest, getInstallationClient, getInstallationToken, listAppRepositories, listRepoAssignees, listRepoBranches, listRepoLabels } from '../utils/github-app'
 import type { GitProvider } from './types'
 
@@ -36,5 +37,9 @@ export const githubProvider: GitProvider = {
 
   async projectMeta(repo, ref) {
     return resolveProjectMeta(await getInstallationClient(repo.owner, repo.name), repo.owner, repo.name, ref)
+  },
+
+  async readDir(repo, dir, ref) {
+    return readRepoDir(await getInstallationClient(repo.owner, repo.name), repo.owner, repo.name, dir, ref)
   },
 }

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeProject } from '../helpers/db'
@@ -6,15 +6,24 @@ import { makeProject } from '../helpers/db'
 const commands: string[] = []
 const failing = new Set<string>()
 const missingVolumes = new Set<string>()
+const builderMysqlDir: Record<string, string>[] = []
 vi.mock('execa', () => ({
-  execa: async (file: string, args: string[]) => {
+  execa: async (file: string, args: string[], options?: { cwd?: string }) => {
     const line = [file, ...args].join(' ')
     commands.push(line)
+    if (line === 'ddev start -y' && options?.cwd) {
+      const dir = join(options.cwd, '.ddev', 'mysql')
+      builderMysqlDir.push(Object.fromEntries(readdirSync(dir).map(name => [name, readFileSync(join(dir, name), 'utf8')])))
+    }
     if (failing.has(line) || (args[0] === 'volume' && args[1] === 'inspect' && missingVolumes.has(args[2]!))) {
       throw Object.assign(new Error(`${line} failed`), { stderr: 'boom: the import broke' })
     }
     return { stdout: '' }
   },
+}))
+const readDir = vi.fn(async (_repo: unknown, _dir: string, _ref?: string): Promise<Record<string, string>> => ({}))
+vi.mock('../../server/git', () => ({
+  gitProvider: () => ({ readDir }),
 }))
 vi.mock('../../server/daemon/sandbox', () => ({
   DDEV_ENV: {},
@@ -118,6 +127,17 @@ describe('startDbBaseBuild', () => {
       `docker stop --time 3600 ddev-${builder}-db`,
       `ddev stop --unlist ${builder}`,
     ])
+  })
+
+  it('builds under the repo\'s own MySQL settings from the default branch, with the import tuning last', async () => {
+    const project = projectWithDump()
+    readDir.mockResolvedValueOnce({ 'case.cnf': '[mysqld]\nlower_case_table_names = 1\n', 'README.md': 'not a config' })
+    builderMysqlDir.length = 0
+    startDbBaseBuild(project.id)
+    await settled(project.id)
+    expect(readDir).toHaveBeenLastCalledWith(expect.objectContaining({ id: project.id }), '.ddev/mysql', 'main')
+    expect(Object.keys(builderMysqlDir[0]!).sort()).toEqual(['case.cnf', 'zzz-knecht-import.cnf'])
+    expect(builderMysqlDir[0]!['case.cnf']).toContain('lower_case_table_names = 1')
   })
 
   it('records why a build failed and removes what it started', async () => {

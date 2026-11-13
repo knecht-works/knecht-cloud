@@ -17,6 +17,26 @@ async function readRepoFile(
   return Buffer.from(data.content, 'base64').toString('utf8')
 }
 
+export async function readRepoDir(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  dir: string,
+  ref?: string,
+): Promise<Record<string, string>> {
+  let entries: unknown
+  try {
+    entries = (await octokit.rest.repos.getContent({ owner, repo, path: dir, ref })).data
+  }
+  catch (e) {
+    if ((e as { status?: number }).status === 404) return {}
+    throw e
+  }
+  if (!Array.isArray(entries)) return {}
+  const files = (entries as { type: string, name: string, path: string }[]).filter(e => e.type === 'file')
+  return Object.fromEntries(await Promise.all(files.map(async f => [f.name, await readRepoFile(octokit, owner, repo, f.path, ref) ?? ''])))
+}
+
 export async function repoReader(
   octokit: Octokit,
   owner: string,
