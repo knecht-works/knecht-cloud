@@ -8,6 +8,7 @@
 // Plain CommonJS on purpose: it runs from /usr/local/bin under any Node the
 // project pins.
 const net = require('node:net')
+const tls = require('node:tls')
 
 const [listenPort, targetPort] = process.argv.slice(2).map(Number)
 if (!listenPort || !targetPort) {
@@ -15,9 +16,55 @@ if (!listenPort || !targetPort) {
   process.exit(2)
 }
 
-net.createServer((client) => {
-  const upstream = net.connect(targetPort, '127.0.0.1')
+// A dev server started with https (mkcert, basic-ssl) only speaks TLS while
+// Knecht speaks plain http, so the forwarder wraps the upstream side when needed.
+const HANDSHAKE_TIMEOUT_MS = 1000
+let mode = 'unknown'
+
+function connect(secure) {
+  return new Promise((resolve) => {
+    const socket = secure
+      ? tls.connect({ port: targetPort, host: '127.0.0.1', rejectUnauthorized: false })
+      : net.connect(targetPort, '127.0.0.1')
+    // A plain server may wait for a header end that a TLS hello never sends.
+    socket.setTimeout(HANDSHAKE_TIMEOUT_MS, () => socket.destroy(new Error('handshake timeout')))
+    socket.once(secure ? 'secureConnect' : 'connect', () => {
+      socket.setTimeout(0)
+      resolve({ socket })
+    })
+    socket.once('error', (error) => {
+      socket.destroy()
+      resolve({ error })
+    })
+  })
+}
+
+async function connectUpstream() {
+  if (mode !== 'plain') {
+    const { socket, error } = await connect(true)
+    if (socket) {
+      mode = 'tls'
+      return socket
+    }
+    if (error.code === 'ECONNREFUSED') return null
+  }
+  const { socket } = await connect(false)
+  if (socket) mode = 'plain'
+  return socket ?? null
+}
+
+net.createServer(async (client) => {
+  client.on('error', () => client.destroy())
+  const upstream = await connectUpstream()
+  if (!upstream || client.destroyed) {
+    client.destroy()
+    upstream?.destroy()
+    return
+  }
+  let answered = false
   const drop = () => {
+    // A TLS-only server closes a plain request without a byte: detect again next time.
+    if (!answered && mode === 'plain' && client.bytesRead > 0) mode = 'unknown'
     client.destroy()
     upstream.destroy()
   }
@@ -26,4 +73,7 @@ net.createServer((client) => {
   client.on('close', drop)
   upstream.on('close', drop)
   client.pipe(upstream).pipe(client)
+  upstream.on('data', () => {
+    answered = true
+  })
 }).listen(listenPort, '0.0.0.0')
