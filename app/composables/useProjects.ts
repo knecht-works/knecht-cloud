@@ -10,3 +10,9 @@ export function useProject(id: number) {
   useLiveTopics(key, [liveTopics.project(id)])
   return useFetch(`/api/projects/${id}`, { key })
 }
+
+// Session changes are published on the runs topic.
+export function useProjectActivity() {
+  useLiveTopics('project-activity', [liveTopics.runs])
+  return useFetch('/api/projects/activity', { key: 'project-activity', default: () => [] })
+}

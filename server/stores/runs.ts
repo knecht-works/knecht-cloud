@@ -88,6 +88,7 @@ export function listRunViews(projectId: number | undefined, limit: number, statu
 export function listRunStats(since: Date) {
   return db
     .select({
+      projectId: schema.runs.projectId,
       status: schema.runs.status,
       trigger: schema.runs.trigger,
       startedAt: schema.runs.startedAt,
