@@ -23,6 +23,8 @@ defineProps<{
   selectedRunId?: number | null
   showProject?: boolean
 }>()
+
+const now = useNow()
 </script>
 
 <template>
@@ -67,7 +69,7 @@ defineProps<{
         v-if="showProject && !g.object"
         class="k-mono hidden min-w-0 truncate text-2xs text-muted md:block"
       >{{ r.project }}</span>
-      <span class="k-mono ml-auto w-14 flex-none text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
+      <span class="k-mono ml-auto w-14 flex-none text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt, now) }}</span>
       <span class="k-mono hidden w-16 flex-none text-right text-2xs text-dimmed sm:block">{{ timeAgo(r.createdAt) }}</span>
     </NuxtLink>
   </div>
