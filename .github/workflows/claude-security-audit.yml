@@ -6,7 +6,7 @@ on:
 
 jobs:
   security-audit:
-    if: startsWith(github.head_ref, 'releases/') && github.event.pull_request.draft == false
+    if: github.event.pull_request.draft == false
 
     runs-on: ubuntu-latest
     permissions:
