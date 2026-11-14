@@ -78,8 +78,9 @@ const preludeStatusMeta = computed(() => {
   if (props.live) return RUN_STATUS_META.running
   return RUN_STATUS_META[props.runStatus]
 })
+const now = useNow()
 const preludeDuration = computed(() =>
-  runDuration(props.runStartedAt, props.rows[0]?.startedAt ?? props.runFinishedAt))
+  runDuration(props.runStartedAt, props.rows[0]?.startedAt ?? props.runFinishedAt, now.value))
 
 const { el: container, height: logHeight, startResize } = useResizableHeight(160)
 const { stick, onScroll } = useStickToBottom(container, () => props.log)
@@ -194,7 +195,7 @@ function jumpTo(key: number | 'prelude') {
               :class="r.status === 'running' ? 'text-highlighted' : 'text-muted'"
               :style="r.status === 'failed' ? 'color: var(--status-error)' : undefined"
             >{{ r.label }}</span>
-            <span class="k-mono text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt) }}</span>
+            <span class="k-mono text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt, now) }}</span>
             <KStatusDot
               :color="r.statusMeta.dot"
               :pulse="r.statusMeta.pulse"

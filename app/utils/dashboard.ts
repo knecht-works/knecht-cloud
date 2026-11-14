@@ -208,11 +208,11 @@ export function timeAgo(value: TimeValue): string {
   return `${days}d ago`
 }
 
-export function runDuration(start: TimeValue, end: TimeValue): string {
+export function runDuration(start: TimeValue, end: TimeValue, now: number): string {
   const from = toDate(start)
   if (!from) return ''
-  const to = toDate(end) ?? new Date()
-  return formatDuration((to.getTime() - from.getTime()) / 1000)
+  const to = toDate(end)?.getTime() ?? now
+  return formatDuration((to - from.getTime()) / 1000)
 }
 
 export function formatDuration(totalSeconds: number): string {
