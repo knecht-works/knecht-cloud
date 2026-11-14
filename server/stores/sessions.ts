@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewSession, Run, Session } from '../db/schema'
@@ -55,6 +55,16 @@ export function listSessionsInEnvState(
     ))
     .orderBy(desc(schema.sessions.previewLastSeen))
     .all()
+}
+
+export function listProjectSessionCounts() {
+  const s = schema.sessions
+  return db.select({
+    projectId: s.projectId,
+    open: sql<number>`coalesce(sum(${s.status} = 'open'), 0)`,
+    live: sql<number>`coalesce(sum(${s.envState} = 'up' and ${s.tier} = 'preview'), 0)`,
+    prs: sql<number>`coalesce(sum(${s.status} = 'open' and exists (select 1 from ${schema.runs} where ${schema.runs.sessionId} = ${s.id} and ${schema.runs.prUrl} is not null)), 0)`,
+  }).from(s).groupBy(s.projectId).all()
 }
 
 export function createSession(values: NewSession): Session {

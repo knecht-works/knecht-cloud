@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
+import { computeRunStats } from '#shared/utils/run-stats'
 
 const { data: projects } = await useProjects()
 const { data: runs } = useRuns()
@@ -13,6 +14,18 @@ const runsByProject = computed(() => {
   }
   return { latest, counts }
 })
+
+const { data: statsRuns } = useRunStats()
+const { data: activity } = useProjectActivity()
+
+const statsByProject = computed(() => {
+  const grouped = new Map<number, NonNullable<typeof statsRuns.value>>()
+  for (const r of statsRuns.value ?? []) grouped.set(r.projectId, [...(grouped.get(r.projectId) ?? []), r])
+  const now = new Date()
+  return new Map([...grouped].map(([id, list]) => [id, computeRunStats(list, now)]))
+})
+
+const activityByProject = computed(() => new Map((activity.value ?? []).map(a => [a.projectId, a])))
 
 const activeFw = useCookie<string | null>('knecht-projects-filter', { default: () => null })
 
@@ -108,25 +121,27 @@ const open = ref(false)
 
     <div
       v-else
-      class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+      class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
     >
       <KProjectCard
         v-for="p in filtered"
         :id="p.id"
         :key="p.id"
         :full-name="p.fullName"
-        :default-branch="p.defaultBranch"
         :private="p.private"
         :framework="p.framework"
         :framework-version="p.frameworkVersion"
         :favicon="p.favicon"
         :latest="runsByProject.latest.get(p.id) ?? null"
-        :runs-count="runsByProject.counts.get(p.id) ?? 0"
+        :stats="statsByProject.get(p.id) ?? null"
+        :activity="activityByProject.get(p.id) ?? null"
+        :links="p.links"
+        :repo-provider="p.repoProvider"
       />
 
       <button
         type="button"
-        class="flex h-full min-h-45 flex-col items-center justify-center gap-3.5 rounded-lg border border-dashed border-accented p-6 text-center transition-colors hover:bg-(--surface-glass) cursor-pointer"
+        class="flex h-full flex-col items-center justify-center gap-3.5 rounded-lg border border-dashed border-accented p-6 text-center transition-colors hover:bg-(--surface-glass) cursor-pointer"
         @click="open = true"
       >
         <span class="grid size-12 place-items-center rounded-xl border border-accented bg-(--surface-muted) text-primary">
