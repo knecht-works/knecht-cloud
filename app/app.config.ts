@@ -1,9 +1,14 @@
-// md and lg match the button sizes below, so a control and a button of the
+// sm, md and lg match the button sizes below, so a control and a button of the
 // same size are the same height (enforced by knecht-forms/control-row-size).
 const controlSizes = {
+  sm: { base: 'px-3 py-1.5 text-sm/5 gap-1.5', leadingIcon: 'size-4', trailingIcon: 'size-4', itemLeadingIcon: 'size-4' },
   md: { base: 'px-3 py-2 text-base/5 gap-2', leadingIcon: 'size-4', trailingIcon: 'size-4', itemLeadingIcon: 'size-4' },
   lg: { base: 'px-3 py-2.5 text-base/5 gap-2' },
 }
+
+// Nuxt UI drops sm fields to text-xs from md up, which shrinks the line height
+// and makes them shorter than an sm button.
+const smFieldText = [{ fixed: false, size: 'sm' as const, class: 'md:text-sm/5' }]
 
 // A disabled field drops its frame and reads as a fixed value.
 const disabledField = {
@@ -19,6 +24,7 @@ const pointer = {
     item: 'cursor-pointer',
   },
   variants: { size: controlSizes, variant: { outline: disabledField.outline } },
+  compoundVariants: smFieldText,
 }
 
 export default defineAppConfig({
@@ -37,6 +43,11 @@ export default defineAppConfig({
       },
       variants: {
         size: {
+          sm: {
+            base: 'px-3 py-1.5 text-sm/5 font-medium',
+            leadingIcon: 'size-4',
+            trailingIcon: 'size-4',
+          },
           md: {
             base: 'px-4 py-2 text-sm/5 font-medium',
           },
@@ -52,13 +63,14 @@ export default defineAppConfig({
           class: 'shadow-sm transition-shadow hover:shadow-md',
         },
         { color: 'error', variant: 'solid', class: 'text-black' },
+        { square: true, size: 'sm', class: 'p-2' },
         { square: true, size: 'md', class: 'p-2' },
         { square: true, size: 'lg', class: 'p-2.5' },
       ],
     },
-    input: { slots: { base: disabledField.base }, variants: { size: controlSizes, variant: { outline: disabledField.outline } } },
+    input: { slots: { base: disabledField.base }, variants: { size: controlSizes, variant: { outline: disabledField.outline } }, compoundVariants: smFieldText },
     textarea: { slots: { base: disabledField.base }, variants: { size: controlSizes, variant: { outline: disabledField.outline } } },
-    inputNumber: { slots: { base: disabledField.base }, variants: { size: { md: controlSizes.md.base, lg: controlSizes.lg.base }, variant: { outline: disabledField.outline } } },
+    inputNumber: { slots: { base: disabledField.base }, variants: { size: { sm: controlSizes.sm.base, md: controlSizes.md.base, lg: controlSizes.lg.base }, variant: { outline: disabledField.outline } } },
     select: pointer,
     selectMenu: {
       ...pointer,

@@ -104,7 +104,6 @@ const onSettings = computed(() => route.path.startsWith(`/projects/${props.proje
           variant="outline"
           :icon="onSettings ? 'i-lucide-box' : 'i-lucide-settings'"
           :aria-label="onSettings ? 'Back to project' : 'Project settings'"
-          class="size-10 justify-center"
         />
       </UTooltip>
     </div>
