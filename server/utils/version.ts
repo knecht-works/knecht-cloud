@@ -58,3 +58,8 @@ export function isNewerVersion(candidate: string, current: string): boolean {
   const cur = semver.valid(current)
   return cur !== null && semver.gt(candidate, cur)
 }
+
+export function clearVersionCache(): void {
+  cache = null
+  releasesCache = null
+}

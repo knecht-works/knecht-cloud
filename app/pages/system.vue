@@ -1,15 +1,23 @@
 <script setup lang="ts">
+import { GC_AUTO_CATEGORIES, GC_CATEGORIES, type GcCategory } from '~~/shared/utils/gc'
+
 const toast = useToast()
 const toastError = useToastError()
 
 interface GcResult { total: number }
+const selected = ref<GcCategory[]>([...GC_AUTO_CATEGORIES])
 const runningGc = ref(false)
+
+function toggle(id: GcCategory, checked: boolean) {
+  selected.value = checked ? [...selected.value, id] : selected.value.filter(c => c !== id)
+}
+
 async function runGc() {
   runningGc.value = true
   try {
-    const { total } = await $fetch<GcResult>('/api/gc', { method: 'POST' })
+    const { total } = await $fetch<GcResult>('/api/gc', { method: 'POST', body: { categories: selected.value } })
     toast.add({
-      title: total ? `Reclaimed ${total} orphaned item${total === 1 ? '' : 's'}` : 'Nothing to clean up',
+      title: total ? `Cleaned up ${total} item${total === 1 ? '' : 's'}` : 'Nothing to clean up',
       color: 'success',
     })
   }
@@ -37,23 +45,30 @@ async function runGc() {
       accent="var(--primary)"
       class="mt-4.5"
     >
-      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p class="max-w-2xl text-2sm leading-relaxed text-muted">
-          Reclaims leftovers whose run or project is already gone: orphaned sandboxes, checkouts,
-          archives and dump folders, superseded database dumps, images of removed previews and old
-          ddev versions, and package cache files unused for 30 days. This runs
-          automatically every hour; use the button to run it now.
-        </p>
-        <UButton
-          size="lg"
-          color="neutral"
-          variant="outline"
-          label="Run cleanup now"
-          :loading="runningGc"
-          class="flex-none"
-          @click="runGc"
+      <p class="max-w-2xl text-2sm leading-relaxed text-muted">
+        Pick what to clean up. Everything except the Knecht cache is also cleaned automatically every hour.
+      </p>
+      <div class="mt-4 flex flex-col gap-3">
+        <UCheckbox
+          v-for="category in GC_CATEGORIES"
+          :key="category.id"
+          :model-value="selected.includes(category.id)"
+          :label="category.label"
+          :description="category.hint"
+          :disabled="runningGc"
+          @update:model-value="toggle(category.id, $event === true)"
         />
       </div>
+      <UButton
+        size="lg"
+        color="neutral"
+        variant="outline"
+        :label="selected.length ? `Clean up ${selected.length} selected` : 'Clean up'"
+        :loading="runningGc"
+        :disabled="!selected.length"
+        class="mt-5"
+        @click="runGc"
+      />
     </KPanel>
   </div>
 </template>
