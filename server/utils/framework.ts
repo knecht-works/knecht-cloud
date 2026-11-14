@@ -107,3 +107,10 @@ export async function backfillFrameworks(projects: Project[]): Promise<void> {
     }
   }))
 }
+
+// A run checking out the default branch is the moment an upgrade is known to have landed.
+export async function refreshFramework(project: Project): Promise<void> {
+  const { framework, frameworkVersion } = await gitProvider(project).projectMeta(project, project.defaultBranch)
+  if (framework === project.framework && frameworkVersion === project.frameworkVersion) return
+  setProjectMeta(project.id, { framework, frameworkVersion })
+}
