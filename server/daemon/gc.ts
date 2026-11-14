@@ -3,6 +3,7 @@ import { basename, join } from 'node:path'
 import { execa } from 'execa'
 import { listProjects } from '../stores/projects'
 import type { DbBase } from '../db/schema'
+import { GC_AUTO_CATEGORIES, type GcCategory } from '../../shared/utils/gc'
 import { dataDir, projectsDir } from '../utils/storage'
 import { ddevWebImage, removeEnvStack } from './sandbox'
 import { DB_BASE_PREFIX, dbBaseBuilding } from './db-base'
@@ -10,6 +11,8 @@ import { envTransition } from './envs'
 import { removeWorkspace, WORKSPACE_LABEL, workspaceContainerName } from './workspace'
 import { listSessionIds, listSessionsInEnvState } from '../stores/sessions'
 import { deleteToolCallsBefore } from '../stores/tool-calls'
+import { clearModelCatalogCache } from '../utils/ai-catalog'
+import { clearVersionCache } from '../utils/version'
 
 const TOOL_CALL_RETENTION_MS = 90 * 24 * 60 * 60_000
 const PACKAGE_CACHE_MAX_AGE_DAYS = 30
@@ -28,25 +31,33 @@ export interface GcResult {
   images: string[]
   packageCache: string[]
   dockerPruned: string[]
+  appCache: string[]
 }
 
-export async function collectGarbage(): Promise<GcResult> {
+export async function collectGarbage(categories: readonly GcCategory[] = GC_AUTO_CATEGORIES): Promise<GcResult> {
   const liveSessions = new Set(listSessionIds())
   const projects = listProjects()
   const liveProjects = new Set(projects.map(p => p.id))
 
-  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], dbBases: [], sharedDirs: [], memoryDirs: [], images: [], packageCache: [], dockerPruned: [] }
-  result.sandboxes = [...await reapOrphanSandboxes(liveSessions), ...await reapOrphanWorkspaces(liveSessions)]
-  result.checkouts = reapOrphanCheckouts(liveSessions)
-  result.archives = reapOrphanArchives(liveSessions)
-  result.dumpDirs = reapOrphanDumpDirs(liveProjects)
-  result.dumpFiles = reapStaleDumpFiles(projects)
-  result.dbBases = await reapOrphanDbBases(projects)
-  result.sharedDirs = reapOrphanSharedDirs(liveProjects)
-  result.memoryDirs = reapOrphanMemoryDirs(liveProjects)
-  result.images = await reapStaleImages()
-  result.packageCache = await reapOldPackageCache()
-  result.dockerPruned = await pruneHostDocker()
+  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], dbBases: [], sharedDirs: [], memoryDirs: [], images: [], packageCache: [], dockerPruned: [], appCache: [] }
+  if (categories.includes('sessions')) {
+    result.sandboxes = [...await reapOrphanSandboxes(liveSessions), ...await reapOrphanWorkspaces(liveSessions)]
+    result.checkouts = reapOrphanCheckouts(liveSessions)
+    result.archives = reapOrphanArchives(liveSessions)
+  }
+  if (categories.includes('projects')) {
+    result.dumpDirs = reapOrphanDumpDirs(liveProjects)
+    result.dumpFiles = reapStaleDumpFiles(projects)
+    result.dbBases = await reapOrphanDbBases(projects)
+    result.sharedDirs = reapOrphanSharedDirs(liveProjects)
+    result.memoryDirs = reapOrphanMemoryDirs(liveProjects)
+  }
+  if (categories.includes('images')) {
+    result.images = await reapStaleImages()
+    result.dockerPruned = await pruneHostDocker()
+  }
+  if (categories.includes('packageCache')) result.packageCache = await reapOldPackageCache()
+  if (categories.includes('appCache')) result.appCache = await clearAppCache()
   deleteToolCallsBefore(new Date(Date.now() - TOOL_CALL_RETENTION_MS))
 
   return result
@@ -233,6 +244,13 @@ async function reapOldPackageCache(): Promise<string[]> {
   catch {
     return []
   }
+}
+
+async function clearAppCache(): Promise<string[]> {
+  await useStorage('cache').clear()
+  clearModelCatalogCache()
+  clearVersionCache()
+  return ['Nitro cache', 'model catalog', 'release check']
 }
 
 // Dangling-only, so tagged images (knecht-sandbox, the pinned release image) survive.

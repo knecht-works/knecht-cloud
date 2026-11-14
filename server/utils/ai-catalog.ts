@@ -114,3 +114,8 @@ async function registryModels(provider: AiProviderId): Promise<AiModel[]> {
     .map(([id, m]) => ({ id, name: m.name ?? id, provider: label }))
     .sort((a, b) => a.id.localeCompare(b.id))
 }
+
+export function clearModelCatalogCache(): void {
+  cache = null
+  registryCache = null
+}
