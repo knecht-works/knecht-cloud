@@ -40,8 +40,8 @@ async function runGc() {
       <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p class="max-w-2xl text-2sm leading-relaxed text-muted">
           Reclaims leftovers whose run or project is already gone: orphaned sandboxes, checkouts,
-          archives and dump folders, superseded database dumps, and images of removed previews and old
-          ddev versions. This runs
+          archives and dump folders, superseded database dumps, images of removed previews and old
+          ddev versions, and package cache files unused for 30 days. This runs
           automatically every hour; use the button to run it now.
         </p>
         <UButton
