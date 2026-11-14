@@ -28,14 +28,6 @@ async function logout() {
   await navigateTo('/login')
 }
 
-const userMenu: DropdownMenuItem[][] = [
-  [
-    { label: 'Settings', icon: 'i-lucide-settings-2', to: '/settings' },
-    { label: 'Logout', icon: 'i-lucide-log-out', color: 'error', onSelect: logout },
-  ],
-]
-
-const instanceHost = useRequestURL().host
 const { data: system, status: systemStatus } = useSystemInfo()
 const systemLine = computed(() => {
   if (systemStatus.value === 'pending') return { color: 'neutral' as const, text: 'Checking host…' }
@@ -44,6 +36,15 @@ const systemLine = computed(() => {
   const n = system.value.hostContainers.length
   return { color: 'primary' as const, text: `${n} container${n === 1 ? '' : 's'} up` }
 })
+
+const userMenu: DropdownMenuItem[][] = [
+  [{ type: 'label', slot: 'account' }],
+  [
+    { label: 'Settings', icon: 'i-lucide-settings-2', to: '/settings' },
+    { label: 'System', icon: 'i-lucide-server', to: '/system', slot: 'system' },
+  ],
+  [{ label: 'Logout', icon: 'i-lucide-log-out', color: 'error', onSelect: logout }],
+]
 
 const updateTarget = computed(() =>
   system.value?.version.updateAvailable ? system.value.version.latest : null,
@@ -116,23 +117,22 @@ const updateTarget = computed(() =>
         </UTooltip>
       </nav>
 
-      <div class="mt-auto flex flex-col gap-3 p-3">
+      <div class="mt-auto flex flex-col gap-2 p-3">
         <template v-if="updateTarget">
           <NuxtLink
             v-if="!collapsed"
             to="/system"
-            class="flex items-center gap-2.5 rounded-lg border border-(--primary-border) px-3.5 py-3 transition-colors hover:bg-(--surface-glass)"
-            style="background: color-mix(in oklab, var(--primary) 8%, transparent)"
+            class="flex items-center gap-2.5 rounded-lg border border-(--primary-border) bg-[color-mix(in_oklab,var(--primary)_8%,transparent)] px-3 py-2 transition-colors hover:border-primary hover:bg-[color-mix(in_oklab,var(--primary)_16%,transparent)]"
           >
             <UIcon
               name="i-lucide-arrow-up-circle"
               class="size-4 flex-none text-primary"
             />
-            <div class="min-w-0">
-              <div class="k-mono truncate whitespace-nowrap text-2xs leading-snug text-primary">
+            <div class="min-w-0 flex-1">
+              <div class="truncate text-2sm font-medium leading-snug text-primary">
                 Update available
               </div>
-              <div class="k-mono mt-1 whitespace-nowrap text-3xs text-dimmed">
+              <div class="mt-0.5 whitespace-nowrap text-2xs tabular-nums text-dimmed">
                 {{ system?.version.current }} → {{ updateTarget }}
               </div>
             </div>
@@ -145,8 +145,7 @@ const updateTarget = computed(() =>
             <NuxtLink
               to="/system"
               :aria-label="`Update ${updateTarget} available`"
-              class="flex items-center justify-center rounded-md border border-(--primary-border) py-2.5 transition-colors hover:bg-(--surface-glass)"
-              style="background: color-mix(in oklab, var(--primary) 8%, transparent)"
+              class="flex items-center justify-center rounded-md border border-(--primary-border) bg-[color-mix(in_oklab,var(--primary)_8%,transparent)] py-2.5 transition-colors hover:border-primary hover:bg-[color-mix(in_oklab,var(--primary)_16%,transparent)]"
             >
               <UIcon
                 name="i-lucide-arrow-up-circle"
@@ -156,58 +155,19 @@ const updateTarget = computed(() =>
           </UTooltip>
         </template>
 
-        <NuxtLink
-          v-if="!collapsed"
-          to="/system"
-          class="flex items-center gap-2.5 rounded-lg border bg-(--surface-muted) px-3.5 py-3 transition-colors"
-          :class="route.path.startsWith('/system')
-            ? 'border-default bg-(--surface-glass)'
-            : 'border-default hover:bg-(--surface-glass)'"
-        >
-          <UIcon
-            name="i-lucide-server"
-            class="size-4 flex-none text-primary"
-          />
-          <div class="min-w-0">
-            <div class="k-mono truncate whitespace-nowrap text-2xs leading-snug text-toned">
-              {{ instanceHost }}
-            </div>
-            <div class="k-mono mt-1 flex items-center gap-1.5 whitespace-nowrap text-3xs uppercase tracking-wider text-dimmed">
-              <KStatusDot
-                :color="systemLine.color"
-                :size="5"
-              /> {{ systemLine.text }}
-            </div>
-          </div>
-        </NuxtLink>
-        <UTooltip
-          v-else
-          text="System"
-          :content="{ side: 'right' }"
-        >
-          <NuxtLink
-            to="/system"
-            aria-label="System"
-            class="flex items-center justify-center rounded-md border border-transparent py-2.5 transition-colors hover:bg-(--surface-glass)"
-          >
-            <UIcon
-              name="i-lucide-server"
-              class="size-4.5 text-primary"
-            />
-          </NuxtLink>
-        </UTooltip>
-
         <UDropdownMenu
           :items="userMenu"
-          :content="{ side: 'top', align: 'start' }"
+          :content="collapsed ? { side: 'right', align: 'end' } : { side: 'top', align: 'start' }"
+          :ui="{ content: collapsed ? 'w-52' : 'w-(--reka-dropdown-menu-trigger-width)' }"
         >
           <button
-            class="flex w-full items-center gap-2.5 rounded-md py-1 text-left transition-colors hover:bg-(--surface-glass)"
-            :class="collapsed ? 'justify-center px-0' : 'px-1'"
+            class="group flex w-full items-center gap-2.5 rounded-md py-1.5 text-left transition-colors hover:bg-(--surface-elevated) data-[state=open]:bg-(--surface-elevated)"
+            :class="collapsed ? 'justify-center' : 'px-2'"
+            aria-label="Account menu"
           >
             <span
               v-if="!user?.avatarUrl"
-              class="grid size-7.5 flex-none place-items-center rounded-full border text-xs font-semibold text-primary"
+              class="grid size-6 flex-none place-items-center rounded-full border text-3xs font-semibold text-primary"
               style="background: var(--lime-950); border-color: var(--primary-border); font-family: var(--font-mono)"
             >{{ initials }}</span>
             <UAvatar
@@ -218,20 +178,39 @@ const updateTarget = computed(() =>
               class="flex-none"
             />
             <template v-if="!collapsed">
-              <div class="min-w-0 flex-1">
-                <div class="truncate text-2sm leading-tight text-toned">
-                  {{ user?.name || user?.login }}
-                </div>
-                <div class="truncate text-2xs leading-snug text-dimmed">
-                  {{ isOwner ? 'Owner' : 'Member' }}
-                </div>
-              </div>
+              <span class="min-w-0 flex-1 truncate text-2sm text-toned group-hover:text-highlighted">
+                {{ user?.name || user?.login }}
+              </span>
+              <KStatusDot
+                v-if="systemLine.color === 'error'"
+                color="error"
+                :size="6"
+              />
               <UIcon
-                name="i-lucide-settings-2"
-                class="size-4 flex-none text-dimmed"
+                name="i-lucide-chevrons-up-down"
+                class="size-3.5 flex-none text-dimmed"
               />
             </template>
           </button>
+
+          <template #account>
+            <div class="min-w-0">
+              <div class="truncate text-2sm font-medium text-highlighted">
+                {{ user?.name || user?.login }}
+              </div>
+              <div class="truncate text-2xs font-normal text-dimmed">
+                {{ isOwner ? 'Owner' : 'Member' }}
+              </div>
+            </div>
+          </template>
+          <template #system-trailing>
+            <span class="ml-auto flex items-center gap-1.5 text-2xs text-dimmed">
+              <KStatusDot
+                :color="systemLine.color"
+                :size="5"
+              /> {{ systemLine.text }}
+            </span>
+          </template>
         </UDropdownMenu>
       </div>
     </aside>
