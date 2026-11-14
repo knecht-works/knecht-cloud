@@ -14,6 +14,7 @@ import { getIntegration, type CommentAuthor } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { addressee } from '../integrations/capabilities'
 import { prepareSessionCheckout } from './git'
+import { refreshFramework } from '../utils/framework'
 import { configureSessionEnv } from './ddev'
 import { startEnvStack } from './sandbox'
 import { removeWorkspace } from './workspace'
@@ -98,8 +99,13 @@ async function execRun(runId: number, project: Project): Promise<void> {
     }
     log(`▶ Preparing isolated checkout\n`)
     const credentials = await gitProvider(project).credentials(project)
-    const dir = await prepareSessionCheckout(project, sessionId, credentials, log, session.branch ?? run.branch ?? project.defaultBranch)
+    const branch = session.branch ?? run.branch ?? project.defaultBranch
+    const dir = await prepareSessionCheckout(project, sessionId, credentials, log, branch)
     markCheckedOut(sessionId)
+    if (branch === project.defaultBranch) {
+      // The run does not depend on it; the next default-branch run retries.
+      refreshFramework(project).catch(() => {})
+    }
 
     // urlMode is pinned on the first run: the proxy must match the env baked into
     // the environment even if the project setting changes later.
@@ -109,7 +115,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
       previewHosts: env.hosts.value,
       urlMode,
       previewPort: devServerPort,
-      branch: session.branch ?? run.branch ?? project.defaultBranch,
+      branch,
     })
     log(`Environment: ${sessionSandboxName(sessionId)} (${formatEnvSummary(env)}, +${injected} env var(s))\n`)
     for (const warning of warnings) log(`Warning: ${warning}\n`)
