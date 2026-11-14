@@ -41,11 +41,43 @@ watchEffect(() => {
   if (activeFw.value && !frameworks.value.includes(activeFw.value)) activeFw.value = null
 })
 
-const filtered = computed(() =>
-  (projects.value ?? []).filter(p =>
+type SortKey = 'activity' | 'attention' | 'runs' | 'name'
+
+const SORT_OPTIONS: { value: SortKey, label: string }[] = [
+  { value: 'activity', label: 'Last activity' },
+  { value: 'attention', label: 'Needs attention' },
+  { value: 'runs', label: 'Most runs (14d)' },
+  { value: 'name', label: 'Name' },
+]
+
+const sort = useCookie<SortKey>('knecht-projects-sort', { default: () => 'activity' })
+
+function lastActivity(id: number) {
+  const at = runsByProject.value.latest.get(id)?.createdAt
+  return at ? new Date(at).getTime() : 0
+}
+
+function attentionRank(id: number) {
+  const run = runsByProject.value.latest.get(id)
+  if (run?.status === 'failed') return 0
+  if (run && (isLiveStatus(run.status) || run.envTransition)) return 1
+  if (activityByProject.value.get(id)?.live) return 2
+  return 3
+}
+
+const filtered = computed(() => {
+  const list = (projects.value ?? []).filter(p =>
     !activeFw.value || frameworkMeta(p.framework).label === activeFw.value,
-  ),
-)
+  )
+  const byActivity = (a: { id: number }, b: { id: number }) => lastActivity(b.id) - lastActivity(a.id)
+  const compare: Record<SortKey, (a: (typeof list)[number], b: (typeof list)[number]) => number> = {
+    activity: byActivity,
+    attention: (a, b) => attentionRank(a.id) - attentionRank(b.id) || byActivity(a, b),
+    runs: (a, b) => (statsByProject.value.get(b.id)?.total ?? 0) - (statsByProject.value.get(a.id)?.total ?? 0) || byActivity(a, b),
+    name: (a, b) => a.name.localeCompare(b.name),
+  }
+  return list.toSorted(compare[sort.value] ?? byActivity)
+})
 
 const view = useCookie<'grid' | 'list'>('knecht-projects-view', { default: () => 'grid' })
 
@@ -73,10 +105,18 @@ const open = ref(false)
         v-model="activeFw"
         :items="[{ value: null, label: 'All' }, ...frameworks.map(f => ({ value: f, label: f }))]"
       />
-      <KViewToggle
-        v-model="view"
-        class="ml-auto"
-      />
+      <div class="ml-auto flex items-center gap-2">
+        <USelect
+          v-model="sort"
+          :items="SORT_OPTIONS"
+          color="neutral"
+          variant="outline"
+          aria-label="Sort projects"
+          size="sm"
+          class="w-44"
+        />
+        <KViewToggle v-model="view" />
+      </div>
     </div>
 
     <div
