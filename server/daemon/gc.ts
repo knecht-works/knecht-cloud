@@ -12,6 +12,9 @@ import { listSessionIds, listSessionsInEnvState } from '../stores/sessions'
 import { deleteToolCallsBefore } from '../stores/tool-calls'
 
 const TOOL_CALL_RETENTION_MS = 90 * 24 * 60 * 60_000
+const PACKAGE_CACHE_MAX_AGE_DAYS = 30
+// pnpm and bun stores are left alone: both trust their index over the files on disk.
+const PACKAGE_CACHE_DIRS = ['npm/_cacache', 'composer', 'yarn']
 
 export interface GcResult {
   sandboxes: string[]
@@ -23,6 +26,7 @@ export interface GcResult {
   sharedDirs: string[]
   memoryDirs: string[]
   images: string[]
+  packageCache: string[]
   dockerPruned: string[]
 }
 
@@ -31,7 +35,7 @@ export async function collectGarbage(): Promise<GcResult> {
   const projects = listProjects()
   const liveProjects = new Set(projects.map(p => p.id))
 
-  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], dbBases: [], sharedDirs: [], memoryDirs: [], images: [], dockerPruned: [] }
+  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], dbBases: [], sharedDirs: [], memoryDirs: [], images: [], packageCache: [], dockerPruned: [] }
   result.sandboxes = [...await reapOrphanSandboxes(liveSessions), ...await reapOrphanWorkspaces(liveSessions)]
   result.checkouts = reapOrphanCheckouts(liveSessions)
   result.archives = reapOrphanArchives(liveSessions)
@@ -41,6 +45,7 @@ export async function collectGarbage(): Promise<GcResult> {
   result.sharedDirs = reapOrphanSharedDirs(liveProjects)
   result.memoryDirs = reapOrphanMemoryDirs(liveProjects)
   result.images = await reapStaleImages()
+  result.packageCache = await reapOldPackageCache()
   result.dockerPruned = await pruneHostDocker()
   deleteToolCallsBefore(new Date(Date.now() - TOOL_CALL_RETENTION_MS))
 
@@ -211,6 +216,23 @@ async function reapStaleImages(): Promise<string[]> {
     }
   }
   return removed
+}
+
+async function reapOldPackageCache(): Promise<string[]> {
+  try {
+    const dirs = PACKAGE_CACHE_DIRS.map(dir => `/cache/${dir}`).join(' ')
+    const { stdout } = await execa('docker', [
+      'run', '--rm', '--user', '0:0', '--entrypoint', 'sh',
+      '-v', 'ddev-global-cache:/cache',
+      await ddevWebImage(),
+      '-c', `find ${dirs} -type f -atime +${PACKAGE_CACHE_MAX_AGE_DAYS} -print -delete 2>/dev/null | wc -l`,
+    ])
+    const files = Number(stdout.trim())
+    return files > 0 ? [`${files} files unused for ${PACKAGE_CACHE_MAX_AGE_DAYS} days`] : []
+  }
+  catch {
+    return []
+  }
 }
 
 // Dangling-only, so tagged images (knecht-sandbox, the pinned release image) survive.
