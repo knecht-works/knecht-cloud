@@ -5,6 +5,7 @@ import { flattenSteps } from '#shared/utils/workflow'
 const route = useRoute()
 const toast = useToast()
 const toastError = useToastError()
+const now = useNow()
 
 const id = computed(() => Number(route.params.id))
 
@@ -705,7 +706,7 @@ const pr = computed(() => {
             <div class="text-2sm leading-snug text-toned">
               <b>Test succeeded.</b> All {{ steps.length }} steps green<template v-if="pr">
                 · Pull Request #{{ pr.number }} created
-              </template> · runtime {{ runDuration(activeRun!.startedAt, activeRun!.finishedAt) }}
+              </template> · runtime {{ runDuration(activeRun!.startedAt, activeRun!.finishedAt, now) }}
             </div>
           </div>
           <div
@@ -1013,7 +1014,7 @@ const pr = computed(() => {
                   </a>
                   <div class="flex items-center gap-6">
                     <span class="k-mono text-2xs text-dimmed">Steps <span class="text-primary">{{ steps.length }} / {{ steps.length }}</span></span>
-                    <span class="k-mono text-2xs text-dimmed">Runtime <span class="text-toned">{{ runDuration(activeRun.startedAt, activeRun.finishedAt) }}</span></span>
+                    <span class="k-mono text-2xs text-dimmed">Runtime <span class="text-toned">{{ runDuration(activeRun.startedAt, activeRun.finishedAt, now) }}</span></span>
                   </div>
                 </div>
                 <div class="border-t border-muted">
