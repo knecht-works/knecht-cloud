@@ -4,10 +4,11 @@ import { execa } from 'execa'
 import { listProjects } from '../stores/projects'
 import type { DbBase } from '../db/schema'
 import { dataDir, projectsDir } from '../utils/storage'
-import { removeEnvStack } from './sandbox'
+import { ddevWebImage, removeEnvStack } from './sandbox'
 import { DB_BASE_PREFIX, dbBaseBuilding } from './db-base'
+import { envTransition } from './envs'
 import { removeWorkspace, WORKSPACE_LABEL, workspaceContainerName } from './workspace'
-import { listSessionIds } from '../stores/sessions'
+import { listSessionIds, listSessionsInEnvState } from '../stores/sessions'
 import { deleteToolCallsBefore } from '../stores/tool-calls'
 
 const TOOL_CALL_RETENTION_MS = 90 * 24 * 60 * 60_000
@@ -21,6 +22,7 @@ export interface GcResult {
   dbBases: string[]
   sharedDirs: string[]
   memoryDirs: string[]
+  images: string[]
   dockerPruned: string[]
 }
 
@@ -29,7 +31,7 @@ export async function collectGarbage(): Promise<GcResult> {
   const projects = listProjects()
   const liveProjects = new Set(projects.map(p => p.id))
 
-  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], dbBases: [], sharedDirs: [], memoryDirs: [], dockerPruned: [] }
+  const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], dbBases: [], sharedDirs: [], memoryDirs: [], images: [], dockerPruned: [] }
   result.sandboxes = [...await reapOrphanSandboxes(liveSessions), ...await reapOrphanWorkspaces(liveSessions)]
   result.checkouts = reapOrphanCheckouts(liveSessions)
   result.archives = reapOrphanArchives(liveSessions)
@@ -38,6 +40,7 @@ export async function collectGarbage(): Promise<GcResult> {
   result.dbBases = await reapOrphanDbBases(projects)
   result.sharedDirs = reapOrphanSharedDirs(liveProjects)
   result.memoryDirs = reapOrphanMemoryDirs(liveProjects)
+  result.images = await reapStaleImages()
   result.dockerPruned = await pruneHostDocker()
   deleteToolCallsBefore(new Date(Date.now() - TOOL_CALL_RETENTION_MS))
 
@@ -155,6 +158,53 @@ async function reapOrphanDbBases(projects: { dbBase: DbBase | null }[]): Promise
     try {
       await execa('docker', ['volume', 'rm', volume])
       removed.push(volume)
+    }
+    catch {
+      // In use.
+    }
+  }
+  return removed
+}
+
+export interface ImageKeep {
+  ddevTag: string | null
+  sessions: Set<number>
+  building: (tag: string) => boolean
+}
+
+// ddev tags one image pair per project name and never removes it, and a ddev upgrade leaves the old version's set behind.
+export function staleImages(images: string[], keep: ImageKeep): string[] {
+  return images.filter((image) => {
+    const [repo = '', tag = ''] = image.split(':')
+    if (!repo.startsWith('ddev/') && repo !== 'knecht-workspace') return false
+    const session = /-knecht-run-(\d+)-built$/.exec(tag)
+    if (session) return !keep.sessions.has(Number(session[1]))
+    if (/-knecht-base-.+-built$/.test(tag)) return !keep.building(tag)
+    if (!keep.ddevTag || !/^v\d/.test(tag)) return false
+    return tag !== keep.ddevTag && !tag.startsWith(`${keep.ddevTag}-`)
+  })
+}
+
+async function reapStaleImages(): Promise<string[]> {
+  let images: string[]
+  try {
+    const { stdout } = await execa('docker', ['images', '--format', '{{.Repository}}:{{.Tag}}'])
+    images = stdout.split('\n').map(i => i.trim()).filter(Boolean)
+  }
+  catch {
+    return []
+  }
+  // A stopped session boots from its image again; a restore builds one before the session is 'up'.
+  const sessions = new Set([
+    ...[...listSessionsInEnvState('up'), ...listSessionsInEnvState('stopped')].map(s => s.id),
+    ...listSessionIds().filter(id => envTransition(id) !== null),
+  ])
+  const ddevTag = await ddevWebImage().then(image => image.split(':').at(-1) ?? null, () => null)
+  const removed: string[] = []
+  for (const image of staleImages(images, { ddevTag, sessions, building: dbBaseBuilding })) {
+    try {
+      await execa('docker', ['rmi', image])
+      removed.push(image)
     }
     catch {
       // In use.
