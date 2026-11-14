@@ -80,15 +80,34 @@ export const themedOnly = {
   },
 }
 
-// Fields use the default size; only the compact editors (turned off for them in
-// eslint.config.mjs) pick a smaller one.
+// Fields use the default size and toolbars sm; only the compact editors (turned
+// off for them in eslint.config.mjs) pick another one.
 export const defaultControlSize = {
   meta: { type: 'problem', schema: [] },
   create(context) {
     return visitor(context, {
       VElement(el) {
-        if (CONTROLS.has(name(el)) && hasAttr(el, 'size')) {
-          context.report({ node: el.startTag, message: `Leave ${name(el)} at the default size; only the compact editors set one.` })
+        if (CONTROLS.has(name(el)) && hasAttr(el, 'size') && staticSize(el) !== 'sm') {
+          context.report({ node: el.startTag, message: `Leave ${name(el)} at the default size (sm in a toolbar); only the compact editors set another.` })
+        }
+      },
+    })
+  },
+}
+
+// A button's size, spacing and shape come from its size prop (app.config.ts), so a
+// class must not override them. Layout around the button (margins, w-full, self-*) stays allowed.
+const BUTTON_OVERRIDE = /^-?(?:size|h|min-h|max-h|min-w|max-w|p[xytrblse]?|gap|rounded(?:-[a-z]+)?|leading|font|text-(?:xs|sm|base|lg|[2-9]?xl|\d|\[))(?:-|$)|^w-(?!full$)/
+
+export const buttonClasses = {
+  meta: { type: 'problem', schema: [] },
+  create(context) {
+    return visitor(context, {
+      VElement(el) {
+        if (name(el) !== 'UButton') return
+        const overrides = classes(el).filter(c => BUTTON_OVERRIDE.test(c.replace(/^(?:[a-z0-9/[\]-]+:)*/, '').replace(/!$/, '')))
+        if (overrides.length) {
+          context.report({ node: el.startTag, message: `Size the button with its size prop, not with ${overrides.join(' ')}.` })
         }
       },
     })

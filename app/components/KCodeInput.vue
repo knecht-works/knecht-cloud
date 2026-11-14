@@ -11,7 +11,7 @@ const model = defineModel<string>()
 // Mono at the code editor's 12px. The line height is pinned to the one of the
 // control size, or the smaller font would make the field shorter than a button.
 const attrs = useAttrs()
-const base = computed(() => `k-mono [font-size:var(--text-xs)]! ${['xs', 'sm'].includes(attrs.size as string) ? 'leading-4!' : 'leading-5!'}`)
+const base = computed(() => `k-mono [font-size:var(--text-xs)]! ${attrs.size === 'xs' ? 'leading-4!' : 'leading-5!'}`)
 </script>
 
 <template>

@@ -610,7 +610,6 @@ const pr = computed(() => {
                 variant="outline"
                 icon="i-lucide-ellipsis-vertical"
                 aria-label="More actions"
-                class="size-10 justify-center"
               />
             </UTooltip>
           </UDropdownMenu>

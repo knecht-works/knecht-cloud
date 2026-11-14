@@ -188,7 +188,6 @@ const menuItems = computed(() => {
             icon="i-lucide-circle-stop"
             aria-label="Cancel run"
             size="sm"
-            class="size-8 justify-center"
             :loading="cancelling"
             @click="cancel"
           />
@@ -202,7 +201,6 @@ const menuItems = computed(() => {
             icon="i-lucide-rotate-ccw"
             aria-label="Retry"
             size="sm"
-            class="size-8 justify-center"
             :loading="retrying"
             @click="retry"
           />
@@ -216,7 +214,6 @@ const menuItems = computed(() => {
             icon="i-lucide-git-pull-request"
             aria-label="Open Pull Request"
             size="sm"
-            class="size-8 justify-center"
             :to="prUrl"
             target="_blank"
           />
@@ -231,7 +228,6 @@ const menuItems = computed(() => {
             icon="i-lucide-file-code"
             aria-label="Open in IDE"
             size="sm"
-            class="size-8 justify-center"
             :disabled="!canTerminal"
             @click="openInVscode"
           />
@@ -247,7 +243,6 @@ const menuItems = computed(() => {
             :icon="t.icon"
             :aria-label="t.label"
             size="sm"
-            class="size-8 justify-center"
             :to="t.url"
             target="_blank"
           />
@@ -262,7 +257,6 @@ const menuItems = computed(() => {
             icon="i-lucide-square-terminal"
             aria-label="Terminal"
             size="sm"
-            class="size-8 justify-center"
             :disabled="!canTerminal"
             @click="emit('openTerminal')"
           />
@@ -278,7 +272,6 @@ const menuItems = computed(() => {
               icon="i-lucide-ellipsis-vertical"
               aria-label="More actions"
               size="sm"
-              class="size-8 justify-center"
             />
           </UTooltip>
         </UDropdownMenu>

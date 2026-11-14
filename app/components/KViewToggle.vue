@@ -21,7 +21,6 @@ const OPTIONS = [
         color="neutral"
         :variant="model === o.value ? 'outline' : 'ghost'"
         size="sm"
-        class="size-8 justify-center"
         @click="model = o.value"
       />
     </UTooltip>
