@@ -4,7 +4,7 @@ import { GC_AUTO_CATEGORIES, GC_CATEGORIES, type GcCategory } from '~~/shared/ut
 const toast = useToast()
 const toastError = useToastError()
 
-interface GcResult { total: number }
+interface GcResult { total: number, freedBytes: number }
 const selected = ref<GcCategory[]>([...GC_AUTO_CATEGORIES])
 const runningGc = ref(false)
 
@@ -15,9 +15,10 @@ function toggle(id: GcCategory, checked: boolean) {
 async function runGc() {
   runningGc.value = true
   try {
-    const { total } = await $fetch<GcResult>('/api/gc', { method: 'POST', body: { categories: selected.value } })
+    const { total, freedBytes } = await $fetch<GcResult>('/api/gc', { method: 'POST', body: { categories: selected.value } })
     toast.add({
       title: total ? `Cleaned up ${total} item${total === 1 ? '' : 's'}` : 'Nothing to clean up',
+      description: freedBytes ? `${formatBytes(freedBytes)} of disk space freed` : undefined,
       color: 'success',
     })
   }
