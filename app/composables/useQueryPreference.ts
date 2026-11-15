@@ -1,4 +1,5 @@
 import type { LocationQueryValue } from 'vue-router'
+import { parseFilters, serializeFilters, type FilterCondition, type FilterFields } from '#shared/utils/filter'
 
 type QueryValue = LocationQueryValue | LocationQueryValue[] | undefined
 
@@ -34,4 +35,13 @@ export function useQueryPreference<T>(key: string, options: QueryPreferenceOptio
 
 export function oneOf<T extends string>(values: readonly T[]) {
   return (value: QueryValue): T | null => values.find(v => v === value) ?? null
+}
+
+export function useFilterPreference(cookie: string, fields: FilterFields) {
+  return useQueryPreference('filter', {
+    cookie,
+    default: (): FilterCondition[] => [],
+    parse: value => value == null ? null : parseFilters(value, fields),
+    serialize: serializeFilters,
+  })
 }

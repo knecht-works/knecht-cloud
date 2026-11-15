@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchesFilters, parseFilters, serializeFilters, type FilterFacts, type FilterFields } from '../../shared/utils/filter'
+import { matchesFilters, parseFilters, serializeFilters, uniqueOptions, type FilterFacts, type FilterFields } from '../../shared/utils/filter'
 
 const FIELDS: FilterFields = {
   stack: { label: 'Stack', ops: ['is', 'is not'] },
@@ -63,5 +63,14 @@ describe('filter query', () => {
     expect(parseFilters('tracker:is:jira', FIELDS)).toEqual([{ field: 'tracker', op: 'is', value: 'jira' }])
     expect(parseFilters(['owner:is:me', 'version:>=:5', 'stack:is:', null], FIELDS)).toEqual([])
     expect(parseFilters(undefined, FIELDS)).toEqual([])
+  })
+})
+
+describe('uniqueOptions', () => {
+  it('dedupes and sorts the values', () => {
+    expect(uniqueOptions(['Laravel', 'Craft CMS', 'Laravel'])).toEqual([
+      { value: 'Craft CMS', label: 'Craft CMS' },
+      { value: 'Laravel', label: 'Laravel' },
+    ])
   })
 })

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
-import { computeRunStats } from '#shared/utils/run-stats'
-import { matchesFilters, parseFilters, serializeFilters, type FilterFields } from '#shared/utils/filter'
+import { matchesFilters, uniqueOptions, type FilterFields } from '#shared/utils/filter'
 import { TRACKER_IDS } from '#shared/utils/integrations'
 
 const { data: projects } = await useProjects()
@@ -15,22 +14,9 @@ const runsByProject = computed(() => {
   return { latest }
 })
 
-const { data: statsRuns } = useRunStats()
 const { data: activity } = useProjectActivity()
 
-// Stats bucket by the viewer's local days, which the server can't know, so they wait for hydration.
-const hydrated = ref(false)
-onMounted(() => {
-  hydrated.value = true
-})
-
-const statsByProject = computed(() => {
-  if (!hydrated.value) return new Map<number, ReturnType<typeof computeRunStats>>()
-  const grouped = new Map<number, NonNullable<typeof statsRuns.value>>()
-  for (const r of statsRuns.value ?? []) grouped.set(r.projectId, [...(grouped.get(r.projectId) ?? []), r])
-  const now = new Date()
-  return new Map([...grouped].map(([id, list]) => [id, computeRunStats(list, now)]))
-})
+const statsByProject = useRunStatsBy('projectId')
 
 const activityByProject = computed(() => new Map((activity.value ?? []).map(a => [a.projectId, a])))
 
@@ -50,10 +36,6 @@ function facts(p: NonNullable<typeof projects.value>[number]) {
   }
 }
 
-function uniqueOptions(values: string[]) {
-  return [...new Set(values)].sort().map(value => ({ value, label: value }))
-}
-
 const filterOptions = computed(() => {
   const all = (projects.value ?? []).map(facts)
   return {
@@ -63,12 +45,7 @@ const filterOptions = computed(() => {
   }
 })
 
-const filters = useQueryPreference('filter', {
-  cookie: 'knecht-projects-filters',
-  default: () => [],
-  parse: value => value == null ? null : parseFilters(value, FILTER_FIELDS),
-  serialize: serializeFilters,
-})
+const filters = useFilterPreference('knecht-projects-filters', FILTER_FIELDS)
 
 type SortKey = 'created' | 'activity' | 'attention' | 'runs' | 'name'
 
@@ -138,29 +115,15 @@ const open = ref(false)
       </template>
     </KTopBar>
 
-    <div class="mb-4.5 flex items-start gap-2">
-      <USelect
-        v-model="sort"
-        :items="SORT_OPTIONS"
-        color="neutral"
-        variant="outline"
-        aria-label="Sort projects"
-        size="sm"
-        class="w-40"
-      />
-      <KFilterBuilder
-        v-model="filters"
-        :fields="FILTER_FIELDS"
-        :options="filterOptions"
-      />
-      <KFilterChips
-        v-model="filters"
-        :fields="FILTER_FIELDS"
-        :options="filterOptions"
-        class="min-h-8 min-w-0 flex-1"
-      />
-      <KViewToggle v-model="view" />
-    </div>
+    <KListToolbar
+      v-model:sort="sort"
+      v-model:filters="filters"
+      v-model:view="view"
+      :sort-options="SORT_OPTIONS"
+      :fields="FILTER_FIELDS"
+      :options="filterOptions"
+      class="mb-4.5"
+    />
 
     <div
       v-if="view === 'list'"
