@@ -20,3 +20,8 @@ export function passwordProblem(password: string): string | null {
 
 export const LAST_LOGIN_COOKIE = 'knecht-last-login'
 export type LoginMethod = 'github' | 'password'
+
+export function safeRedirectPath(raw: unknown): string | null {
+  if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return null
+  return raw
+}

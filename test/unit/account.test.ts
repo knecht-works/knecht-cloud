@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { passwordProblem, usernameProblem } from '../../shared/utils/account'
+import { passwordProblem, safeRedirectPath, usernameProblem } from '../../shared/utils/account'
 
 describe('usernameProblem', () => {
   it.each(['samuel', 'Samuel.Reichor', 'samuel_reichor', 'samuel--r', 'a', 'octo-cat', 'x'.repeat(39)])('accepts %s', (name) => {
@@ -31,5 +31,17 @@ describe('passwordProblem', () => {
     ['Abcdefghijkl', 'Add a digit.'],
   ])('refuses %j', (password, problem) => {
     expect(passwordProblem(password)).toBe(problem)
+  })
+})
+
+describe('safeRedirectPath', () => {
+  it('keeps a local path with its query', () => {
+    expect(safeRedirectPath('/projects?filter=stack:is:Craft%20CMS&sort=runs')).toBe('/projects?filter=stack:is:Craft%20CMS&sort=runs')
+  })
+
+  it('rejects anything that could leave the dashboard', () => {
+    for (const raw of ['https://evil.test', '//evil.test', '/\\evil.test', 'projects', '', undefined, ['/projects']]) {
+      expect(safeRedirectPath(raw)).toBeNull()
+    }
   })
 })

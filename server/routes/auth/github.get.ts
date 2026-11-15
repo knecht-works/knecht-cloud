@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { withQuery } from 'ufo'
+import { safeRedirectPath } from '../../../shared/utils/account'
 import { dashboardOrigin } from '../../utils/origin'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { consumeInvite } from '../../stores/invites'
@@ -23,6 +24,8 @@ export default defineEventHandler(async (event) => {
     setFlowCookie(event, 'oauth-state', state)
     if (query.link) setFlowCookie(event, 'link', 'link')
     if (typeof query.invite === 'string') setFlowCookie(event, 'invite', query.invite)
+    const target = safeRedirectPath(query.redirect)
+    if (target) setFlowCookie(event, 'redirect', target)
     return sendRedirect(event, withQuery('https://github.com/login/oauth/authorize', {
       client_id: creds.clientId,
       redirect_uri: redirectUri,
@@ -34,6 +37,7 @@ export default defineEventHandler(async (event) => {
   const expected = popFlowCookie(event, 'oauth-state')
   const inviteToken = popFlowCookie(event, 'invite')
   const mode = popFlowCookie(event, 'link')
+  const target = safeRedirectPath(popFlowCookie(event, 'redirect'))
   if (!expected || query.state !== expected) {
     console.error('GitHub OAuth error: state mismatch')
     return sendRedirect(event, '/login?error=oauth')
@@ -84,7 +88,8 @@ export default defineEventHandler(async (event) => {
 
     await startMemberSession(event, member)
     rememberLoginMethod(event, 'github')
-    return sendRedirect(event, popRedirect(event))
+    const previewTarget = popRedirect(event)
+    return sendRedirect(event, target ?? previewTarget)
   }
   catch (error) {
     console.error('GitHub OAuth error:', error)
