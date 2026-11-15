@@ -3,7 +3,7 @@ const model = defineModel<'grid' | 'list'>({ required: true })
 
 const OPTIONS = [
   { value: 'grid', icon: 'i-lucide-layout-grid', label: 'Card view' },
-  { value: 'list', icon: 'i-lucide-list', label: 'List view' },
+  { value: 'list', icon: 'i-lucide-rows-3', label: 'List view' },
 ] as const
 </script>
 
