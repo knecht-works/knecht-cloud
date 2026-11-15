@@ -70,9 +70,10 @@ const filters = useQueryPreference('filter', {
   serialize: serializeFilters,
 })
 
-type SortKey = 'activity' | 'attention' | 'runs' | 'name'
+type SortKey = 'created' | 'activity' | 'attention' | 'runs' | 'name'
 
 const SORT_OPTIONS: { value: SortKey, label: string }[] = [
+  { value: 'created', label: 'Date created' },
   { value: 'activity', label: 'Last activity' },
   { value: 'attention', label: 'Needs attention' },
   { value: 'runs', label: 'Most runs (14d)' },
@@ -81,7 +82,7 @@ const SORT_OPTIONS: { value: SortKey, label: string }[] = [
 
 const sort = useQueryPreference('sort', {
   cookie: 'knecht-projects-sort',
-  default: (): SortKey => 'activity',
+  default: (): SortKey => 'created',
   parse: oneOf(SORT_OPTIONS.map(o => o.value)),
   serialize: value => value,
 })
@@ -103,6 +104,7 @@ const filtered = computed(() => {
   const list = (projects.value ?? []).filter(p => matchesFilters(facts(p), filters.value))
   const byActivity = (a: { id: number }, b: { id: number }) => lastActivity(b.id) - lastActivity(a.id)
   const compare: Record<SortKey, (a: (typeof list)[number], b: (typeof list)[number]) => number> = {
+    created: (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     activity: byActivity,
     attention: (a, b) => attentionRank(a.id) - attentionRank(b.id) || byActivity(a, b),
     runs: (a, b) => (statsByProject.value.get(b.id)?.total ?? 0) - (statsByProject.value.get(a.id)?.total ?? 0) || byActivity(a, b),
