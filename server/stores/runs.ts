@@ -89,6 +89,7 @@ export function listRunStats(since: Date) {
   return db
     .select({
       projectId: schema.runs.projectId,
+      workflowId: schema.runs.workflowId,
       status: schema.runs.status,
       trigger: schema.runs.trigger,
       startedAt: schema.runs.startedAt,

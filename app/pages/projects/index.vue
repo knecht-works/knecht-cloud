@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
 import { computeRunStats } from '#shared/utils/run-stats'
-import { matchesFilters, parseFilters, serializeFilters } from '#shared/utils/project-filter'
+import { matchesFilters, parseFilters, serializeFilters, type FilterFields } from '#shared/utils/filter'
 import { TRACKER_IDS } from '#shared/utils/integrations'
 
 const { data: projects } = await useProjects()
@@ -34,12 +34,19 @@ const statsByProject = computed(() => {
 
 const activityByProject = computed(() => new Map((activity.value ?? []).map(a => [a.projectId, a])))
 
+const FILTER_FIELDS: FilterFields = {
+  stack: { label: 'Stack', ops: ['is', 'is not'] },
+  version: { label: 'Version', ops: ['=', '<', '>'], input: 'version' },
+  state: { label: 'State', ops: ['is', 'is not'] },
+  tracker: { label: 'Linked tracker', ops: ['is'] },
+}
+
 function facts(p: NonNullable<typeof projects.value>[number]) {
   return {
     stack: frameworkMeta(p.framework).label,
     version: p.frameworkVersion,
     state: projectStatusMeta(runsByProject.value.latest.get(p.id)).label,
-    trackers: Object.keys(p.links ?? {}),
+    tracker: Object.keys(p.links ?? {}),
   }
 }
 
@@ -59,7 +66,7 @@ const filterOptions = computed(() => {
 const filters = useQueryPreference('filter', {
   cookie: 'knecht-projects-filters',
   default: () => [],
-  parse: value => value == null ? null : parseFilters(value),
+  parse: value => value == null ? null : parseFilters(value, FILTER_FIELDS),
   serialize: serializeFilters,
 })
 
@@ -139,12 +146,14 @@ const open = ref(false)
         size="sm"
         class="w-40"
       />
-      <KProjectFilters
+      <KFilterBuilder
         v-model="filters"
+        :fields="FILTER_FIELDS"
         :options="filterOptions"
       />
-      <KProjectFilterChips
+      <KFilterChips
         v-model="filters"
+        :fields="FILTER_FIELDS"
         :options="filterOptions"
         class="min-h-8 min-w-0 flex-1"
       />

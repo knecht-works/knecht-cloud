@@ -14,5 +14,6 @@ export default defineEventHandler(() => {
       enabled: row.enabled,
       repliesEnabled: row.repliesEnabled,
       publishedAt: row.publishedAt,
+      createdAt: row.createdAt,
     }))
 })
