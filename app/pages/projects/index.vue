@@ -173,10 +173,10 @@ const open = ref(false)
 
       <button
         type="button"
-        class="flex items-center gap-3 rounded-lg border border-dashed border-accented px-5 py-3.5 text-left transition-colors hover:bg-(--surface-glass) cursor-pointer"
+        class="k-dashed group flex items-center gap-3 rounded-lg bg-(--surface-muted) px-5 py-3.5 text-left cursor-pointer"
         @click="open = true"
       >
-        <span class="grid size-[34px] place-items-center rounded-lg border border-accented bg-(--surface-muted) text-primary">
+        <span class="grid size-[34px] place-items-center rounded-lg border border-accented bg-(--surface-muted) text-primary transition-colors group-hover:bg-(--surface-accented)">
           <UIcon
             name="i-lucide-plus"
             class="size-4"
@@ -215,10 +215,10 @@ const open = ref(false)
 
       <button
         type="button"
-        class="flex h-full flex-col items-center justify-center gap-3.5 rounded-lg border border-dashed border-accented p-6 text-center transition-colors hover:bg-(--surface-glass) cursor-pointer"
+        class="k-dashed group flex h-full flex-col items-center justify-center gap-3.5 rounded-lg bg-(--surface-muted) p-6 text-center cursor-pointer"
         @click="open = true"
       >
-        <span class="grid size-12 place-items-center rounded-xl border border-accented bg-(--surface-muted) text-primary">
+        <span class="grid size-12 place-items-center rounded-xl border border-accented bg-(--surface-muted) text-primary transition-colors group-hover:bg-(--surface-accented)">
           <UIcon
             name="i-lucide-plus"
             class="size-6"
