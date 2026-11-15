@@ -21,7 +21,12 @@ export function passwordProblem(password: string): string | null {
 export const LAST_LOGIN_COOKIE = 'knecht-last-login'
 export type LoginMethod = 'github' | 'password'
 
+const REDIRECT_BASE = 'http://knecht.invalid'
+
+// Compared after parsing: browsers drop tabs and newlines, so '/\t/evil.test' resolves to '//evil.test'.
 export function safeRedirectPath(raw: unknown): string | null {
-  if (typeof raw !== 'string' || !raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) return null
-  return raw
+  if (typeof raw !== 'string' || !raw.startsWith('/')) return null
+  const url = URL.parse(raw, REDIRECT_BASE)
+  if (url?.origin !== REDIRECT_BASE) return null
+  return url.pathname + url.search + url.hash
 }
