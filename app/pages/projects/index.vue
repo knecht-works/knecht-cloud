@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
 import { computeRunStats } from '#shared/utils/run-stats'
+import { matchesFilters, parseFilters, serializeFilters } from '#shared/utils/project-filter'
+import { TRACKER_IDS } from '#shared/utils/integrations'
 
 const { data: projects } = await useProjects()
 const { data: runs } = useRuns()
@@ -32,18 +34,33 @@ const statsByProject = computed(() => {
 
 const activityByProject = computed(() => new Map((activity.value ?? []).map(a => [a.projectId, a])))
 
-const activeFw = useCookie<string | null>('knecht-projects-filter', { default: () => null })
-
-const frameworks = computed(() => {
-  const labels = new Set<string>()
-  for (const p of projects.value ?? []) {
-    if (p.framework) labels.add(frameworkMeta(p.framework).label)
+function facts(p: NonNullable<typeof projects.value>[number]) {
+  return {
+    stack: frameworkMeta(p.framework).label,
+    version: p.frameworkVersion,
+    state: projectStatusMeta(runsByProject.value.latest.get(p.id)).label,
+    trackers: Object.keys(p.links ?? {}),
   }
-  return [...labels].sort()
+}
+
+function uniqueOptions(values: string[]) {
+  return [...new Set(values)].sort().map(value => ({ value, label: value }))
+}
+
+const filterOptions = computed(() => {
+  const all = (projects.value ?? []).map(facts)
+  return {
+    stack: uniqueOptions(all.map(f => f.stack)),
+    state: uniqueOptions(all.map(f => f.state)),
+    tracker: TRACKER_IDS.map(id => ({ value: id, label: integrationUi(id).label })),
+  }
 })
 
-watchEffect(() => {
-  if (activeFw.value && !frameworks.value.includes(activeFw.value)) activeFw.value = null
+const filters = useQueryPreference('filter', {
+  cookie: 'knecht-projects-filters',
+  default: () => [],
+  parse: value => value == null ? null : parseFilters(value),
+  serialize: serializeFilters,
 })
 
 type SortKey = 'activity' | 'attention' | 'runs' | 'name'
@@ -55,7 +72,12 @@ const SORT_OPTIONS: { value: SortKey, label: string }[] = [
   { value: 'name', label: 'Name' },
 ]
 
-const sort = useCookie<SortKey>('knecht-projects-sort', { default: () => 'activity' })
+const sort = useQueryPreference('sort', {
+  cookie: 'knecht-projects-sort',
+  default: (): SortKey => 'activity',
+  parse: oneOf(SORT_OPTIONS.map(o => o.value)),
+  serialize: value => value,
+})
 
 function lastActivity(id: number) {
   const at = runsByProject.value.latest.get(id)?.createdAt
@@ -71,9 +93,7 @@ function attentionRank(id: number) {
 }
 
 const filtered = computed(() => {
-  const list = (projects.value ?? []).filter(p =>
-    !activeFw.value || frameworkMeta(p.framework).label === activeFw.value,
-  )
+  const list = (projects.value ?? []).filter(p => matchesFilters(facts(p), filters.value))
   const byActivity = (a: { id: number }, b: { id: number }) => lastActivity(b.id) - lastActivity(a.id)
   const compare: Record<SortKey, (a: (typeof list)[number], b: (typeof list)[number]) => number> = {
     activity: byActivity,
@@ -84,7 +104,12 @@ const filtered = computed(() => {
   return list.toSorted(compare[sort.value] ?? byActivity)
 })
 
-const view = useCookie<'grid' | 'list'>('knecht-projects-view', { default: () => 'grid' })
+const view = useQueryPreference('view', {
+  cookie: 'knecht-projects-view',
+  default: (): 'grid' | 'list' => 'grid',
+  parse: oneOf(['grid', 'list'] as const),
+  serialize: value => value,
+})
 
 const open = ref(false)
 </script>
@@ -104,24 +129,26 @@ const open = ref(false)
       </template>
     </KTopBar>
 
-    <div class="mb-3.5 flex items-center justify-between gap-4">
-      <KFilterPills
-        v-if="frameworks.length"
-        v-model="activeFw"
-        :items="[{ value: null, label: 'All' }, ...frameworks.map(f => ({ value: f, label: f }))]"
+    <div class="mb-4.5 flex items-start gap-2">
+      <USelect
+        v-model="sort"
+        :items="SORT_OPTIONS"
+        color="neutral"
+        variant="outline"
+        aria-label="Sort projects"
+        size="sm"
+        class="w-40"
       />
-      <div class="ml-auto flex items-center gap-2">
-        <USelect
-          v-model="sort"
-          :items="SORT_OPTIONS"
-          color="neutral"
-          variant="outline"
-          aria-label="Sort projects"
-          size="sm"
-          class="w-44"
-        />
-        <KViewToggle v-model="view" />
-      </div>
+      <KProjectFilters
+        v-model="filters"
+        :options="filterOptions"
+      />
+      <KProjectFilterChips
+        v-model="filters"
+        :options="filterOptions"
+        class="min-h-8 min-w-0 flex-1"
+      />
+      <KViewToggle v-model="view" />
     </div>
 
     <div

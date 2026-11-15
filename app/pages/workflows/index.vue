@@ -85,14 +85,25 @@ async function importFile(e: Event) {
   }
 }
 
-const tab = useCookie<'all' | 'used' | 'unused'>('knecht-workflows-filter', { default: () => 'all' })
 const TABS = [
   { id: 'all', label: 'All' },
   { id: 'used', label: 'Automated' },
   { id: 'unused', label: 'Manual only' },
 ] as const
 
-const view = useCookie<'grid' | 'list'>('knecht-workflows-view', { default: () => 'list' })
+const tab = useQueryPreference('filter', {
+  cookie: 'knecht-workflows-filter',
+  default: (): 'all' | 'used' | 'unused' => 'all',
+  parse: oneOf(TABS.map(t => t.id)),
+  serialize: value => value,
+})
+
+const view = useQueryPreference('view', {
+  cookie: 'knecht-workflows-view',
+  default: (): 'grid' | 'list' => 'list',
+  parse: oneOf(['grid', 'list'] as const),
+  serialize: value => value,
+})
 
 const filtered = computed(() =>
   enriched.value.filter(w =>
