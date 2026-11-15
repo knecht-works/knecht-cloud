@@ -51,3 +51,7 @@ export function parseFilters(query: string | null | undefined | (string | null)[
     return ops?.includes(op) && isCompleteCondition(condition) ? [condition] : []
   })
 }
+
+export function uniqueOptions(values: string[]): { value: string, label: string }[] {
+  return [...new Set(values)].sort().map(value => ({ value, label: value }))
+}

@@ -2,7 +2,7 @@ import type { Step } from '#shared/utils/workflow'
 import type { EnvState, EnvTransition } from '#shared/utils/run'
 import { INTEGRATION_IDS, type IntegrationId, type ObjectKind } from '#shared/utils/integrations'
 import { FRAMEWORKS } from '#shared/utils/frameworks'
-import { INTEGRATION_UI, type SessionObjectMeta } from './integrations'
+import { INTEGRATION_UI, integrationUi, type SessionObjectMeta } from './integrations'
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
 
@@ -73,13 +73,23 @@ const SESSION_ENV_META: Record<EnvState, RunStatusMeta> = {
   down: { dot: 'neutral', pulse: false, text: 'var(--text-muted)', label: 'Idle' },
 }
 
-export function projectStatusMeta(run: {
+export interface ProjectRunSummary {
   status: RunStatus
   envState: EnvState
   previewReady: boolean
   envTransition?: EnvTransition | null
   sessionStatus: 'open' | 'closed'
-} | null | undefined): RunStatusMeta {
+  workflow: string
+  createdAt: string | number | Date | null
+}
+
+export interface ProjectActivity {
+  open: number
+  live: number
+  prs: number
+}
+
+export function projectStatusMeta(run: Omit<ProjectRunSummary, 'workflow' | 'createdAt'> | null | undefined): RunStatusMeta {
   if (!run || run.envTransition || isLiveStatus(run.status) || run.status === 'failed') return runStatusMeta(run)
   if (run.envState === 'up' && run.previewReady) return { ...SESSION_ENV_META.up, label: 'Live' }
   if (run.envState === 'down' && run.sessionStatus === 'closed') return { ...SESSION_ENV_META.down, label: 'Closed' }
@@ -110,6 +120,10 @@ export function triggerSourceMeta(source: string): TriggerSourceMeta {
 
 export function triggerMeta(trigger: { source: string, via: string | null }): TriggerSourceMeta {
   return triggerSourceMeta(trigger.via ?? trigger.source)
+}
+
+export function projectIntegrations(repoProvider: IntegrationId, links?: Partial<Record<IntegrationId, string>>) {
+  return [repoProvider, ...Object.keys(links ?? {}) as IntegrationId[]].map(integrationUi)
 }
 
 export type SessionObjectKind = ObjectKind
