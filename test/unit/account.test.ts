@@ -45,7 +45,7 @@ describe('safeRedirectPath', () => {
     }
   })
 
-  it.each(['/\t/evil.test', '/\n/evil.test', '/\r/evil.test', '/\t\\evil.test'])('rejects %j, which a browser resolves off-site', (raw) => {
+  it.each(['/\t/evil.test', '/\n/evil.test', '/\r/evil.test', '/\t\\evil.test', '/..//evil.test', '/.//evil.test', '/a/..//evil.test', '/%2e%2e//evil.test'])('rejects %j, which a browser resolves off-site', (raw) => {
     expect(safeRedirectPath(raw)).toBeNull()
   })
 })
