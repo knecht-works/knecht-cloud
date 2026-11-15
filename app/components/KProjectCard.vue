@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { RunStatus, RunStatusMeta } from '~/utils/dashboard'
+import type { RunStatus } from '~/utils/dashboard'
 import type { EnvState, EnvTransition } from '#shared/utils/run'
 import type { RunStats } from '#shared/utils/run-stats'
 import type { IntegrationId } from '#shared/utils/integrations'
@@ -42,28 +42,7 @@ const parts = computed(() => {
 const fw = computed(() => frameworkMeta(props.framework))
 const fwLabel = computed(() => props.frameworkVersion ? `${fw.value.label} ${props.frameworkVersion}` : fw.value.label)
 
-const ENV_META: Record<EnvState, RunStatusMeta> = {
-  up: { dot: 'primary', pulse: false, text: 'var(--text-primary)', label: 'Up' },
-  stopped: { dot: 'neutral', pulse: false, text: 'var(--text-muted)', label: 'Stopped' },
-  archived: { dot: 'neutral', pulse: false, text: 'var(--text-muted)', label: 'Archived' },
-  down: { dot: 'neutral', pulse: false, text: 'var(--text-muted)', label: 'Idle' },
-}
-
-const status = computed<RunStatusMeta>(() => {
-  const run = props.latest
-  if (!run || run.envTransition || isLiveStatus(run.status) || run.status === 'failed') return runStatusMeta(run)
-  if (run.envState === 'up' && run.previewReady) return { ...ENV_META.up, label: 'Live' }
-  if (run.envState === 'down' && run.sessionStatus === 'closed') return { ...ENV_META.down, label: 'Closed' }
-  return ENV_META[run.envState]
-})
-
-const daily = computed(() => props.stats?.days.map(d => d.success + d.failed) ?? Array.from({ length: 14 }, () => 0))
-
-const sparkPoints = computed(() => {
-  const max = Math.max(...daily.value) || 1
-  const step = 100 / (daily.value.length - 1)
-  return daily.value.map((v, i) => `${i * step},${34 - (v / max) * 32}`).join(' ')
-})
+const status = computed(() => projectStatusMeta(props.latest))
 
 const integrations = computed(() =>
   [props.repoProvider, ...Object.keys(props.links ?? {}) as IntegrationId[]].map(integrationUi),
@@ -106,36 +85,14 @@ const integrations = computed(() =>
           {{ parts.org }} · {{ fwLabel }}
         </div>
       </div>
-      <span
-        class="flex flex-none items-center gap-1.5 rounded-full px-2 py-0.5 text-xs"
-        :style="{ color: status.text, background: `color-mix(in srgb, ${DOT_COLOR_VAR[status.dot]} 12%, transparent)` }"
-      >
-        <KStatusDot
-          :color="status.dot"
-          :pulse="status.pulse"
-          :glow="false"
-        />
-        {{ status.label }}
-      </span>
+      <KStatusBadge :meta="status" />
     </div>
 
     <div class="mt-auto flex items-end gap-3 pt-4">
-      <svg
-        viewBox="0 0 100 36"
-        preserveAspectRatio="none"
-        class="h-9 w-44 min-w-0"
-        :class="(stats?.rate.value ?? 100) < 80 ? 'text-error' : 'text-primary'"
-        aria-hidden="true"
-      >
-        <polyline
-          :points="sparkPoints"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linejoin="round"
-          vector-effect="non-scaling-stroke"
-        />
-      </svg>
+      <KRunSparkline
+        :stats="stats"
+        class="h-9 w-44"
+      />
       <div class="ml-auto flex-none text-right text-xs leading-snug text-muted tabular-nums">
         {{ stats?.total ?? 0 }} runs / 14d<br>
         {{ stats?.rate.value == null ? '–' : `${stats.rate.value}%` }} ok

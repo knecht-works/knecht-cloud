@@ -66,6 +66,26 @@ export function runStatusMeta(run: { status: RunStatus, envState: EnvState, envT
   return { dot: 'neutral', pulse: false, text: 'var(--text-dimmed)', label: ENV_LABEL[run.envState] ?? meta.label }
 }
 
+const SESSION_ENV_META: Record<EnvState, RunStatusMeta> = {
+  up: { dot: 'primary', pulse: false, text: 'var(--text-primary)', label: 'Up' },
+  stopped: { dot: 'neutral', pulse: false, text: 'var(--text-muted)', label: 'Stopped' },
+  archived: { dot: 'neutral', pulse: false, text: 'var(--text-muted)', label: 'Archived' },
+  down: { dot: 'neutral', pulse: false, text: 'var(--text-muted)', label: 'Idle' },
+}
+
+export function projectStatusMeta(run: {
+  status: RunStatus
+  envState: EnvState
+  previewReady: boolean
+  envTransition?: EnvTransition | null
+  sessionStatus: 'open' | 'closed'
+} | null | undefined): RunStatusMeta {
+  if (!run || run.envTransition || isLiveStatus(run.status) || run.status === 'failed') return runStatusMeta(run)
+  if (run.envState === 'up' && run.previewReady) return { ...SESSION_ENV_META.up, label: 'Live' }
+  if (run.envState === 'down' && run.sessionStatus === 'closed') return { ...SESSION_ENV_META.down, label: 'Closed' }
+  return SESSION_ENV_META[run.envState]
+}
+
 interface TriggerSourceMeta {
   icon: string
   label: string
