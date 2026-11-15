@@ -74,7 +74,7 @@ describe('resolveProjectMeta', () => {
       'composer.lock': '{ "packages": [{ "name": "craftcms/cms", "version": "5.4.2" }] }',
     }), 'o', 'r')
     expect(meta.framework).toBe('craftcms')
-    expect(meta.frameworkVersion).toBe('5.4')
+    expect(meta.frameworkVersion).toBe('5.4.2')
   })
 
   it('detects Kirby from composer.json behind a plain php ddev type', async () => {
@@ -84,7 +84,7 @@ describe('resolveProjectMeta', () => {
       'composer.lock': '{ "packages": [{ "name": "getkirby/cms", "version": "4.3.1" }] }',
     }), 'o', 'r')
     expect(meta.framework).toBe('kirby')
-    expect(meta.frameworkVersion).toBe('4.3')
+    expect(meta.frameworkVersion).toBe('4.3.1')
   })
 
   it('detects the framework from package.json devDependencies without a ddev type', async () => {
