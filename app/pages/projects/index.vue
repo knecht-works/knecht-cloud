@@ -7,18 +7,23 @@ const { data: runs } = useRuns()
 
 const runsByProject = computed(() => {
   const latest = new Map<number, (typeof runs.value)[number]>()
-  const counts = new Map<number, number>()
   for (const r of runs.value ?? []) {
-    counts.set(r.projectId, (counts.get(r.projectId) ?? 0) + 1)
     if (!latest.has(r.projectId)) latest.set(r.projectId, r)
   }
-  return { latest, counts }
+  return { latest }
 })
 
 const { data: statsRuns } = useRunStats()
 const { data: activity } = useProjectActivity()
 
+// Stats bucket by the viewer's local days, which the server can't know, so they wait for hydration.
+const hydrated = ref(false)
+onMounted(() => {
+  hydrated.value = true
+})
+
 const statsByProject = computed(() => {
+  if (!hydrated.value) return new Map<number, ReturnType<typeof computeRunStats>>()
   const grouped = new Map<number, NonNullable<typeof statsRuns.value>>()
   for (const r of statsRuns.value ?? []) grouped.set(r.projectId, [...(grouped.get(r.projectId) ?? []), r])
   const now = new Date()
@@ -128,13 +133,15 @@ const open = ref(false)
         :id="p.id"
         :key="p.id"
         :full-name="p.fullName"
-        :default-branch="p.defaultBranch"
         :private="p.private"
         :framework="p.framework"
         :framework-version="p.frameworkVersion"
         :favicon="p.favicon"
         :latest="runsByProject.latest.get(p.id) ?? null"
-        :runs-count="runsByProject.counts.get(p.id) ?? 0"
+        :stats="statsByProject.get(p.id) ?? null"
+        :activity="activityByProject.get(p.id) ?? null"
+        :links="p.links"
+        :repo-provider="p.repoProvider"
       />
 
       <button
