@@ -50,10 +50,6 @@
   --shadow-panel:
     0 1px 2px -1px oklch(0 0 0 / 0.5),
     0 10px 24px -14px oklch(0 0 0 / 0.65);
-  --shadow-panel-lg:
-    inset 0 1px 0 0 oklch(1 0 0 / 0.05),
-    0 2px 6px -2px oklch(0 0 0 / 0.5),
-    0 30px 60px -28px oklch(0 0 0 / 0.8);
   --shadow-browser:
     inset 0 1px 0 0 oklch(1 0 0 / 0.08),
     0 18px 40px -24px oklch(0 0 0 / 0.65),
@@ -214,11 +210,28 @@ html {
 
 /* Hover-highlight variant: pair with `.k-card` on interactive cards. */
 @utility k-lift {
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: border-color 0.2s;
 }
 .k-lift:hover {
   border-color: var(--border-accented);
-  box-shadow: var(--shadow-panel-lg);
+}
+
+/* border-dashed has no gap control, so the dashes are a mask; rx matches rounded-lg. */
+@utility k-dashed {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: var(--border-default);
+    transition: background-color 0.2s;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' rx='8' fill='none' stroke='white' stroke-width='2' stroke-dasharray='6 6'/%3E%3C/svg%3E");
+  }
+  &:hover::after {
+    background: var(--border-accented);
+  }
 }
 
 /* Mono caption text: the load-bearing brand element. */
