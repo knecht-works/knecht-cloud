@@ -23,10 +23,11 @@ export type LoginMethod = 'github' | 'password'
 
 const REDIRECT_BASE = 'http://knecht.invalid'
 
-// Compared after parsing: browsers drop tabs and newlines, so '/\t/evil.test' resolves to '//evil.test'.
+// Browsers drop tabs and newlines ('/\t/evil.test') and collapse dot segments ('/..//evil.test'),
+// so both the parsed origin and the normalized path must stay local.
 export function safeRedirectPath(raw: unknown): string | null {
   if (typeof raw !== 'string' || !raw.startsWith('/')) return null
   const url = URL.parse(raw, REDIRECT_BASE)
-  if (url?.origin !== REDIRECT_BASE) return null
+  if (url?.origin !== REDIRECT_BASE || url.pathname.startsWith('//')) return null
   return url.pathname + url.search + url.hash
 }
