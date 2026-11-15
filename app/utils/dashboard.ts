@@ -66,6 +66,21 @@ export function runStatusMeta(run: { status: RunStatus, envState: EnvState, envT
   return { dot: 'neutral', pulse: false, text: 'var(--text-dimmed)', label: ENV_LABEL[run.envState] ?? meta.label }
 }
 
+const WORKFLOW_STATUS_META: Partial<Record<RunStatus, RunStatusMeta>> = {
+  success: RUN_STATUS_META.success,
+  failed: RUN_STATUS_META.failed,
+  cancelled: { ...RUN_STATUS_META.cancelled, text: 'var(--text-muted)', label: 'Stopped' },
+}
+
+// Only finished runs count, so a workflow shows how it ended last, not what is in flight.
+export function workflowStatusMeta(runs: { status: RunStatus }[]): RunStatusMeta | null {
+  for (const r of runs) {
+    const meta = WORKFLOW_STATUS_META[r.status]
+    if (meta) return meta
+  }
+  return null
+}
+
 const SESSION_ENV_META: Record<EnvState, RunStatusMeta> = {
   up: { dot: 'primary', pulse: false, text: 'var(--text-primary)', label: 'Up' },
   stopped: { dot: 'neutral', pulse: false, text: 'var(--text-muted)', label: 'Stopped' },
@@ -120,6 +135,11 @@ export function triggerSourceMeta(source: string): TriggerSourceMeta {
 
 export function triggerMeta(trigger: { source: string, via: string | null }): TriggerSourceMeta {
   return triggerSourceMeta(trigger.via ?? trigger.source)
+}
+
+export function workflowTriggerMetas(triggers: { source: string, via: string | null }[]): TriggerSourceMeta[] {
+  if (!triggers.length) return [triggerSourceMeta('manual')]
+  return [...new Map(triggers.map(triggerMeta).map(m => [m.label, m])).values()]
 }
 
 export function projectIntegrations(repoProvider: IntegrationId, links?: Partial<Record<IntegrationId, string>>) {

@@ -1,29 +1,11 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
-import { KWorkflowCard, KWorkflowRow } from '#components'
-import { computeRunStats } from '#shared/utils/run-stats'
-import { matchesFilters, parseFilters, serializeFilters, type FilterFields } from '#shared/utils/filter'
+import { matchesFilters, uniqueOptions, type FilterFields } from '#shared/utils/filter'
 
 const { data: workflows } = await useWorkflows()
 const { data: runs } = useRuns()
 const { data: triggers } = useTriggers()
-const { data: statsRuns } = useRunStats()
-
-// Stats bucket by the viewer's local days, which the server can't know, so they wait for hydration.
-const hydrated = ref(false)
-onMounted(() => {
-  hydrated.value = true
-})
-
-const runsLast14d = computed(() => {
-  if (!hydrated.value) return new Map<number, number>()
-  const grouped = new Map<number, NonNullable<typeof statsRuns.value>>()
-  for (const r of statsRuns.value ?? []) {
-    if (r.workflowId !== null) grouped.set(r.workflowId, [...(grouped.get(r.workflowId) ?? []), r])
-  }
-  const now = new Date()
-  return new Map([...grouped].map(([id, list]) => [id, computeRunStats(list, now).total]))
-})
+const statsByWorkflow = useRunStatsBy('workflowId')
 const toastError = useToastError()
 
 type WorkflowItem = NonNullable<typeof workflows.value>[number]
@@ -58,10 +40,6 @@ async function createWorkflow() {
 
 const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const wRuns = (runs.value ?? []).filter(r => r.workflowId === w.id)
-  const completed = wRuns.filter(r => r.status === 'success' || r.status === 'failed')
-  const successCount = wRuns.filter(r => r.status === 'success').length
-  const rate = completed.length ? Math.round((successCount / completed.length) * 100) : null
-
   const durations = wRuns
     .filter(r => r.status === 'success' && r.startedAt && r.finishedAt)
     .map(r => (new Date(r.finishedAt!).getTime() - new Date(r.startedAt!).getTime()) / 1000)
@@ -69,26 +47,19 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
   const avg = durations.length ? formatDuration(durations.reduce((a, b) => a + b, 0) / durations.length) : null
 
   const latest = wRuns[0] ?? null
-  const status = runStatusMeta(latest)
-  const statusText = latest ? `${status.label} · ${timeAgo(latest.createdAt)}` : 'No runs yet'
+  const status = workflowStatusMeta(wRuns)
 
   const wTriggers = (triggers.value ?? []).filter(t => t.workflowId === w.id)
   const names = [...new Set(wTriggers.flatMap(t => t.projects))]
-  const projects = names.length > 3 ? [...names.slice(0, 2), `+${names.length - 2}`] : names
-  const trigger = wTriggers.length === 0
-    ? 'Manual'
-    : wTriggers.length === 1
-      ? triggerMeta(wTriggers[0]!).label
-      : `${wTriggers.length} triggers`
-
+  const triggerMetas = workflowTriggerMetas(wTriggers)
   const facts = {
-    trigger: wTriggers.length ? wTriggers.map(t => triggerMeta(t).label) : ['Manual'],
+    trigger: triggerMetas.map(m => m.label),
     project: names,
     automation: w.enabled ? 'On' : 'Paused',
-    status: status.label,
+    status: status?.label ?? null,
   }
 
-  return { ...w, rate, avg, status, statusText, projects, trigger, latest, facts }
+  return { ...w, avg, status, triggerMetas, latest, facts }
 }))
 
 const importInput = ref<HTMLInputElement>()
@@ -118,23 +89,14 @@ const FILTER_FIELDS: FilterFields = {
   status: { label: 'Last run', ops: ['is', 'is not'] },
 }
 
-function uniqueOptions(values: string[]) {
-  return [...new Set(values)].sort().map(value => ({ value, label: value }))
-}
-
 const filterOptions = computed(() => ({
   trigger: uniqueOptions(enriched.value.flatMap(w => w.facts.trigger)),
   project: uniqueOptions(enriched.value.flatMap(w => w.facts.project)),
   automation: [{ value: 'On', label: 'On' }, { value: 'Paused', label: 'Paused' }],
-  status: uniqueOptions(enriched.value.map(w => w.facts.status)),
+  status: uniqueOptions(enriched.value.flatMap(w => w.facts.status ?? [])),
 }))
 
-const filters = useQueryPreference('filter', {
-  cookie: 'knecht-workflows-filters',
-  default: () => [],
-  parse: value => value == null ? null : parseFilters(value, FILTER_FIELDS),
-  serialize: serializeFilters,
-})
+const filters = useFilterPreference('knecht-workflows-filters', FILTER_FIELDS)
 
 type SortKey = 'created' | 'activity' | 'attention' | 'runs' | 'name'
 
@@ -177,7 +139,7 @@ const filtered = computed(() => {
     created: (a, b) => time(b.createdAt) - time(a.createdAt),
     activity: byActivity,
     attention: (a, b) => attentionRank(a) - attentionRank(b) || byActivity(a, b),
-    runs: (a, b) => (runsLast14d.value.get(b.id) ?? 0) - (runsLast14d.value.get(a.id) ?? 0) || byActivity(a, b),
+    runs: (a, b) => (statsByWorkflow.value.get(b.id)?.total ?? 0) - (statsByWorkflow.value.get(a.id)?.total ?? 0) || byActivity(a, b),
     name: (a, b) => a.name.localeCompare(b.name),
   }
   return list.toSorted(compare[sort.value])
@@ -217,29 +179,15 @@ const filtered = computed(() => {
       </template>
     </KTopBar>
 
-    <div class="mb-4.5 flex items-start gap-2">
-      <USelect
-        v-model="sort"
-        :items="SORT_OPTIONS"
-        color="neutral"
-        variant="outline"
-        aria-label="Sort workflows"
-        size="sm"
-        class="w-40"
-      />
-      <KFilterBuilder
-        v-model="filters"
-        :fields="FILTER_FIELDS"
-        :options="filterOptions"
-      />
-      <KFilterChips
-        v-model="filters"
-        :fields="FILTER_FIELDS"
-        :options="filterOptions"
-        class="min-h-8 min-w-0 flex-1"
-      />
-      <KViewToggle v-model="view" />
-    </div>
+    <KListToolbar
+      v-model:sort="sort"
+      v-model:filters="filters"
+      v-model:view="view"
+      :sort-options="SORT_OPTIONS"
+      :fields="FILTER_FIELDS"
+      :options="filterOptions"
+      class="mb-4.5"
+    />
 
     <div
       v-if="!filtered.length"
@@ -255,23 +203,41 @@ const filtered = computed(() => {
     </div>
 
     <div
-      v-else
-      :class="view === 'grid' ? 'grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3' : 'flex flex-col gap-3'"
+      v-else-if="view === 'grid'"
+      class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
     >
-      <component
-        :is="view === 'grid' ? KWorkflowCard : KWorkflowRow"
+      <KWorkflowCard
         v-for="w in filtered"
         :id="w.id"
         :key="w.id"
         :name="w.name"
         :steps="w.draftSteps ?? w.steps"
         :status="w.status"
-        :status-text="w.statusText"
-        :trigger="w.trigger"
+        :triggers="w.triggerMetas"
         :enabled="w.enabled"
-        :rate="w.rate"
+        :stats="statsByWorkflow.get(w.id) ?? null"
         :avg="w.avg"
-        :projects="w.projects"
+        :projects="w.facts.project"
+        @toggle="toggleEnabled(w)"
+      />
+    </div>
+
+    <div
+      v-else
+      class="flex flex-col gap-3"
+    >
+      <KWorkflowRow
+        v-for="w in filtered"
+        :id="w.id"
+        :key="w.id"
+        :name="w.name"
+        :steps="w.draftSteps ?? w.steps"
+        :status="w.status"
+        :triggers="w.triggerMetas"
+        :enabled="w.enabled"
+        :stats="statsByWorkflow.get(w.id) ?? null"
+        :avg="w.avg"
+        :projects="w.facts.project"
         @toggle="toggleEnabled(w)"
       />
     </div>

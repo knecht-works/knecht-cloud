@@ -1,137 +1,73 @@
 <script setup lang="ts">
 import type { RunStatusMeta, WorkflowStep } from '~/utils/dashboard'
+import type { RunStats } from '#shared/utils/run-stats'
 
-const props = defineProps<{
+defineProps<{
   id: number
   name: string
   steps: WorkflowStep[]
-  status: RunStatusMeta
-  statusText: string
-  trigger?: string
+  status: RunStatusMeta | null
+  triggers: { icon: string, label: string, color: string }[]
   enabled: boolean
-  rate: number | null
+  stats?: RunStats | null
   avg: string | null
   projects: string[]
 }>()
 
 const emit = defineEmits<{ toggle: [] }>()
-
-const stepMetas = computed(() => props.steps.map(workflowStepMeta))
-const rateColor = computed(() => {
-  if (props.rate === null) return 'var(--text-dimmed)'
-  if (props.rate >= 90) return 'var(--primary)'
-  if (props.rate >= 80) return 'var(--accent-orange)'
-  return 'var(--status-error)'
-})
 </script>
 
 <template>
   <NuxtLink
     :to="`/workflows/${id}`"
-    class="k-card k-lift flex items-center gap-5 overflow-hidden px-5 py-4"
+    class="k-card k-lift @container block px-5 py-3.5"
     :style="{ opacity: enabled ? 1 : 0.6 }"
   >
-    <div class="flex w-56 min-w-0 flex-none items-center gap-3">
-      <KStepIcon
-        icon="i-lucide-workflow"
-        color="var(--text-primary)"
-        :size="38"
-        :radius="9"
+    <div class="flex items-center gap-4 @4xl:gap-6">
+      <KWorkflowTitle
+        :name="name"
+        :step-count="steps.length"
+        class="min-w-0 flex-1 @4xl:w-56 @4xl:flex-none"
       />
-      <div class="min-w-0">
-        <div class="truncate text-sm font-medium text-highlighted">
-          {{ name }}
-        </div>
-        <div class="mt-1 flex items-center gap-1.5">
-          <KStatusDot
-            :color="status.dot"
-            :pulse="status.pulse"
-            :size="5"
-          />
-          <span
-            class="k-mono truncate text-2xs"
-            :style="{ color: status.text }"
-          >{{ statusText }}</span>
-        </div>
-      </div>
-    </div>
 
-    <div class="hidden w-30 flex-none items-center gap-2 lg:flex">
-      <UIcon
-        name="i-lucide-play"
-        class="size-4 flex-none text-dimmed"
+      <KIntegrationIcons
+        :items="triggers"
+        class="hidden w-24 flex-none @xl:flex"
       />
-      <div class="min-w-0">
-        <div class="k-label">
-          Trigger
-        </div>
-        <span class="text-xs text-toned">{{ trigger ?? 'Manual' }}</span>
-      </div>
-    </div>
 
-    <div class="hidden min-w-0 flex-1 items-center overflow-hidden md:flex">
-      <template
-        v-for="(s, i) in stepMetas"
-        :key="i"
-      >
-        <span
-          class="grid size-7 flex-none place-items-center rounded-lg border border-default bg-(--surface-accented)"
-          :style="{ color: STEP_KIND_COLOR[s.kind] }"
-        >
-          <UIcon
-            :name="s.icon"
-            class="size-3.5"
-          />
-        </span>
-        <span
-          v-if="i < stepMetas.length - 1"
-          class="h-px w-2.5 flex-none bg-(--border-accented)"
+      <KStepChain
+        :steps="steps"
+        class="hidden flex-1 @3xl:flex"
+      />
+
+      <KProjectChips
+        :projects="projects"
+        class="hidden w-40 flex-none @6xl:block"
+      />
+
+      <div class="hidden flex-none items-center gap-3 @5xl:flex">
+        <KRunSparkline
+          :stats="stats"
+          class="h-7 w-28"
         />
-      </template>
-    </div>
+        <KRunStatsText
+          :stats="stats"
+          :avg="avg"
+          class="w-28"
+        />
+      </div>
 
-    <div class="ml-auto flex flex-none items-center gap-5 lg:ml-6">
-      <div class="w-14.5 flex-none text-right">
-        <div
-          class="k-mono text-lg font-bold"
-          :style="{ color: rateColor }"
-        >
-          {{ rate === null ? '–' : `${rate}%` }}
-        </div>
-        <div class="k-label !text-3xs">
-          Success
-        </div>
+      <div class="flex w-24 flex-none justify-end">
+        <KStatusBadge
+          v-if="status"
+          :meta="status"
+        />
       </div>
-      <div class="hidden w-20 flex-none text-right sm:block">
-        <div class="k-mono whitespace-nowrap text-base text-toned">
-          {{ avg ?? '–' }}
-        </div>
-        <div class="k-label !text-3xs">
-          Avg run
-        </div>
-      </div>
-      <div class="hidden w-37.5 flex-none flex-wrap justify-end gap-1.5 overflow-hidden xl:flex">
-        <span
-          v-for="p in projects"
-          :key="p"
-          class="k-code max-w-full truncate text-2xs"
-          :title="p"
-        >{{ p }}</span>
-      </div>
-    </div>
 
-    <UTooltip :text="enabled ? 'Automation on, click to pause' : 'Automation paused, click to enable'">
-      <KToggle
-        :active="enabled"
-        :aria-label="enabled ? 'Pause automation' : 'Enable automation'"
-        style="opacity: 1"
+      <KAutomationToggle
+        :enabled="enabled"
         @toggle="emit('toggle')"
       />
-    </UTooltip>
-
-    <UIcon
-      name="i-lucide-chevron-right"
-      class="size-4 flex-none text-dimmed"
-    />
+    </div>
   </NuxtLink>
 </template>
