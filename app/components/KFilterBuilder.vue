@@ -1,23 +1,26 @@
 <script setup lang="ts">
-import { FILTER_FIELD_LABEL, FILTER_OPS, isCompleteCondition, type FilterCondition, type FilterField } from '#shared/utils/project-filter'
+import { isCompleteCondition, type FilterCondition, type FilterFields } from '#shared/utils/filter'
 
-interface Option { value: string, label: string }
-
-defineProps<{
-  options: Record<Exclude<FilterField, 'version'>, Option[]>
+const props = defineProps<{
+  fields: FilterFields
+  options: Record<string, { value: string, label: string }[]>
 }>()
 
 const conditions = defineModel<FilterCondition[]>({ required: true })
 
 const active = computed(() => conditions.value.filter(isCompleteCondition).length)
 
-const FIELD_ITEMS = (Object.keys(FILTER_FIELD_LABEL) as FilterField[]).map(value => ({ value, label: FILTER_FIELD_LABEL[value] }))
+const fieldItems = computed(() => Object.entries(props.fields).map(([value, f]) => ({ value, label: f.label })))
 
-function newCondition(field: FilterField): FilterCondition {
-  return { field, op: FILTER_OPS[field][0]!, value: '' }
+function newCondition(field: string): FilterCondition {
+  return { field, op: props.fields[field]?.ops[0] ?? 'is', value: '' }
 }
 
-function setField(i: number, field: FilterField) {
+function opItems(field: string): string[] {
+  return [...props.fields[field]?.ops ?? []]
+}
+
+function setField(i: number, field: string) {
   conditions.value = conditions.value.map((c, ci) => ci === i ? newCondition(field) : c)
 }
 
@@ -29,18 +32,19 @@ function remove(i: number) {
   conditions.value = conditions.value.filter((_, ci) => ci !== i)
 }
 
-function add(field: FilterField) {
+function add(field: string) {
   conditions.value = [...conditions.value, newCondition(field)]
 }
 
-const open = defineModel<boolean>('open', { default: false })
+const open = ref(false)
 
 watch(open, (isOpen) => {
-  if (isOpen && !conditions.value.length) add('stack')
+  const first = fieldItems.value[0]
+  if (isOpen && !conditions.value.length && first) add(first.value)
   if (!isOpen) conditions.value = conditions.value.filter(isCompleteCondition)
 })
 
-const addItems = FIELD_ITEMS.map(f => ({ label: f.label, onSelect: () => add(f.value) }))
+const addItems = computed(() => fieldItems.value.map(f => ({ label: f.label, onSelect: () => add(f.value) })))
 </script>
 
 <template>
@@ -66,17 +70,17 @@ const addItems = FIELD_ITEMS.map(f => ({ label: f.label, onSelect: () => add(f.v
         >
           <USelectMenu
             :model-value="c.field"
-            :items="FIELD_ITEMS"
+            :items="fieldItems"
             value-key="value"
             :search-input="false"
             aria-label="Field"
             size="sm"
             class="w-36 shrink-0"
-            @update:model-value="(field: FilterField) => setField(i, field)"
+            @update:model-value="(field: string) => setField(i, field)"
           />
           <USelectMenu
             :model-value="c.op"
-            :items="FILTER_OPS[c.field]"
+            :items="opItems(c.field)"
             :search-input="false"
             aria-label="Operator"
             size="sm"
@@ -84,7 +88,7 @@ const addItems = FIELD_ITEMS.map(f => ({ label: f.label, onSelect: () => add(f.v
             @update:model-value="(op: string) => update(i, { op })"
           />
           <UInput
-            v-if="c.field === 'version'"
+            v-if="fields[c.field]?.input === 'version'"
             :model-value="c.value"
             placeholder="e.g. 5.4.3"
             aria-label="Version"
@@ -95,7 +99,7 @@ const addItems = FIELD_ITEMS.map(f => ({ label: f.label, onSelect: () => add(f.v
           <USelectMenu
             v-else
             :model-value="c.value || undefined"
-            :items="options[c.field]"
+            :items="options[c.field] ?? []"
             value-key="value"
             :search-input="false"
             placeholder="Choose"

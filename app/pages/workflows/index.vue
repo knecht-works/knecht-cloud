@@ -1,10 +1,29 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
 import { KWorkflowCard, KWorkflowRow } from '#components'
+import { computeRunStats } from '#shared/utils/run-stats'
+import { matchesFilters, parseFilters, serializeFilters, type FilterFields } from '#shared/utils/filter'
 
 const { data: workflows } = await useWorkflows()
 const { data: runs } = useRuns()
 const { data: triggers } = useTriggers()
+const { data: statsRuns } = useRunStats()
+
+// Stats bucket by the viewer's local days, which the server can't know, so they wait for hydration.
+const hydrated = ref(false)
+onMounted(() => {
+  hydrated.value = true
+})
+
+const runsLast14d = computed(() => {
+  if (!hydrated.value) return new Map<number, number>()
+  const grouped = new Map<number, NonNullable<typeof statsRuns.value>>()
+  for (const r of statsRuns.value ?? []) {
+    if (r.workflowId !== null) grouped.set(r.workflowId, [...(grouped.get(r.workflowId) ?? []), r])
+  }
+  const now = new Date()
+  return new Map([...grouped].map(([id, list]) => [id, computeRunStats(list, now).total]))
+})
 const toastError = useToastError()
 
 type WorkflowItem = NonNullable<typeof workflows.value>[number]
@@ -62,7 +81,14 @@ const enriched = computed(() => (workflows.value ?? []).map((w) => {
       ? triggerMeta(wTriggers[0]!).label
       : `${wTriggers.length} triggers`
 
-  return { ...w, rate, avg, status, statusText, projects, trigger, triggerCount: wTriggers.length }
+  const facts = {
+    trigger: wTriggers.length ? wTriggers.map(t => triggerMeta(t).label) : ['Manual'],
+    project: names,
+    automation: w.enabled ? 'On' : 'Paused',
+    status: status.label,
+  }
+
+  return { ...w, rate, avg, status, statusText, projects, trigger, latest, facts }
 }))
 
 const importInput = ref<HTMLInputElement>()
@@ -85,16 +111,45 @@ async function importFile(e: Event) {
   }
 }
 
-const TABS = [
-  { id: 'all', label: 'All' },
-  { id: 'used', label: 'Automated' },
-  { id: 'unused', label: 'Manual only' },
-] as const
+const FILTER_FIELDS: FilterFields = {
+  trigger: { label: 'Trigger', ops: ['is', 'is not'] },
+  project: { label: 'Project', ops: ['is', 'is not'] },
+  automation: { label: 'Automation', ops: ['is'] },
+  status: { label: 'Last run', ops: ['is', 'is not'] },
+}
 
-const tab = useQueryPreference('filter', {
-  cookie: 'knecht-workflows-filter',
-  default: (): 'all' | 'used' | 'unused' => 'all',
-  parse: oneOf(TABS.map(t => t.id)),
+function uniqueOptions(values: string[]) {
+  return [...new Set(values)].sort().map(value => ({ value, label: value }))
+}
+
+const filterOptions = computed(() => ({
+  trigger: uniqueOptions(enriched.value.flatMap(w => w.facts.trigger)),
+  project: uniqueOptions(enriched.value.flatMap(w => w.facts.project)),
+  automation: [{ value: 'On', label: 'On' }, { value: 'Paused', label: 'Paused' }],
+  status: uniqueOptions(enriched.value.map(w => w.facts.status)),
+}))
+
+const filters = useQueryPreference('filter', {
+  cookie: 'knecht-workflows-filters',
+  default: () => [],
+  parse: value => value == null ? null : parseFilters(value, FILTER_FIELDS),
+  serialize: serializeFilters,
+})
+
+type SortKey = 'created' | 'activity' | 'attention' | 'runs' | 'name'
+
+const SORT_OPTIONS: { value: SortKey, label: string }[] = [
+  { value: 'created', label: 'Date created' },
+  { value: 'activity', label: 'Last activity' },
+  { value: 'attention', label: 'Needs attention' },
+  { value: 'runs', label: 'Most runs (14d)' },
+  { value: 'name', label: 'Name' },
+]
+
+const sort = useQueryPreference('sort', {
+  cookie: 'knecht-workflows-sort',
+  default: (): SortKey => 'created',
+  parse: oneOf(SORT_OPTIONS.map(o => o.value)),
   serialize: value => value,
 })
 
@@ -105,11 +160,28 @@ const view = useQueryPreference('view', {
   serialize: value => value,
 })
 
-const filtered = computed(() =>
-  enriched.value.filter(w =>
-    tab.value === 'all' || (tab.value === 'used' ? w.triggerCount > 0 : w.triggerCount === 0),
-  ),
-)
+function time(value: string | number | Date | null | undefined) {
+  return value ? new Date(value).getTime() : 0
+}
+
+function attentionRank(w: (typeof enriched.value)[number]) {
+  if (w.latest?.status === 'failed') return 0
+  if (w.latest && (isLiveStatus(w.latest.status) || w.latest.envTransition)) return 1
+  return 2
+}
+
+const filtered = computed(() => {
+  const list = enriched.value.filter(w => matchesFilters(w.facts, filters.value))
+  const byActivity = (a: (typeof list)[number], b: (typeof list)[number]) => time(b.latest?.createdAt) - time(a.latest?.createdAt)
+  const compare: Record<SortKey, (a: (typeof list)[number], b: (typeof list)[number]) => number> = {
+    created: (a, b) => time(b.createdAt) - time(a.createdAt),
+    activity: byActivity,
+    attention: (a, b) => attentionRank(a) - attentionRank(b) || byActivity(a, b),
+    runs: (a, b) => (runsLast14d.value.get(b.id) ?? 0) - (runsLast14d.value.get(a.id) ?? 0) || byActivity(a, b),
+    name: (a, b) => a.name.localeCompare(b.name),
+  }
+  return list.toSorted(compare[sort.value])
+})
 </script>
 
 <template>
@@ -145,10 +217,26 @@ const filtered = computed(() =>
       </template>
     </KTopBar>
 
-    <div class="mb-3.5 flex items-center justify-between gap-4">
-      <KFilterPills
-        v-model="tab"
-        :items="TABS.map(t => ({ value: t.id, label: t.label }))"
+    <div class="mb-4.5 flex items-start gap-2">
+      <USelect
+        v-model="sort"
+        :items="SORT_OPTIONS"
+        color="neutral"
+        variant="outline"
+        aria-label="Sort workflows"
+        size="sm"
+        class="w-40"
+      />
+      <KFilterBuilder
+        v-model="filters"
+        :fields="FILTER_FIELDS"
+        :options="filterOptions"
+      />
+      <KFilterChips
+        v-model="filters"
+        :fields="FILTER_FIELDS"
+        :options="filterOptions"
+        class="min-h-8 min-w-0 flex-1"
       />
       <KViewToggle v-model="view" />
     </div>
@@ -162,7 +250,7 @@ const filtered = computed(() =>
         class="size-7 text-dimmed"
       />
       <p class="text-2sm text-muted">
-        {{ tab !== 'all' ? 'No workflows match.' : 'No workflows configured yet.' }}
+        {{ enriched.length ? 'No workflows match.' : 'No workflows configured yet.' }}
       </p>
     </div>
 
