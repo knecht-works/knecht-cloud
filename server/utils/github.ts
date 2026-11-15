@@ -120,8 +120,7 @@ export async function fetchFrameworkVersion(
     }
     const found = lock.packages?.find(p => p.name === pkg)
     if (!found) return null
-    const m = found.version.replace(/^v/, '').match(/^(\d+)\.(\d+)/)
-    return m ? `${m[1]}.${m[2]}` : null
+    return found.version.replace(/^v/, '').match(/^\d+\.\d+(?:\.\d+)?/)?.[0] ?? null
   }
   catch {
     return null
