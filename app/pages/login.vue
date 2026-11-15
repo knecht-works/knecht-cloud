@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { safeRedirectPath } from '#shared/utils/account'
+
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()
@@ -8,6 +10,8 @@ const { data: setupStatus } = await useFetch('/api/_setup/status', { server: fal
 watch(setupStatus, (s) => {
   if (s && !s.configured) navigateTo('/setup', { replace: true })
 }, { immediate: true })
+
+const redirect = computed(() => safeRedirectPath(route.query.redirect) ?? undefined)
 
 const error = computed(() => {
   if (!route.query.error) return null
@@ -38,7 +42,8 @@ const error = computed(() => {
     <div class="flex flex-col gap-3">
       <KAuthForm
         endpoint="/auth/password"
-        github-url="/auth/github"
+        :github-url="redirect ? `/auth/github?redirect=${encodeURIComponent(redirect)}` : '/auth/github'"
+        :redirect="redirect"
         github-label="Sign in with GitHub"
         submit-label="Sign in"
       />

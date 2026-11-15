@@ -10,6 +10,7 @@ const props = defineProps<{
   newAccount?: boolean
   // Shown read-only, for setting a new password of a known member.
   fixedUsername?: string
+  redirect?: string
 }>()
 
 const lastUsed = useCookie<LoginMethod | null>(LAST_LOGIN_COOKIE)
@@ -39,7 +40,7 @@ async function submit() {
   try {
     await $fetch(props.endpoint, { method: 'POST', body: { username: username.value, password: password.value } })
     await refreshSession()
-    await navigateTo('/')
+    await navigateTo(props.redirect ?? '/')
   }
   catch (e) {
     const field = (e as { data?: { data?: { field?: string } } }).data?.data?.field

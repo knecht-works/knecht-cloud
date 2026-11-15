@@ -6,7 +6,7 @@ export default defineNuxtRouteMiddleware((to) => {
   const isPublic = PUBLIC_ROUTES.includes(to.path) || to.path.startsWith('/join/') || to.path.startsWith('/reset/')
 
   if (!loggedIn.value && !isPublic) {
-    return navigateTo('/login')
+    return navigateTo({ path: '/login', query: to.fullPath === '/' ? {} : { redirect: to.fullPath } })
   }
   if (loggedIn.value && isPublic) {
     return navigateTo('/')
