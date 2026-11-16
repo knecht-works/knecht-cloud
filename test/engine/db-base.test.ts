@@ -32,7 +32,7 @@ vi.mock('../../server/daemon/sandbox', () => ({
   ddevWebImage: async () => 'ddev/ddev-webserver:test',
 }))
 
-const { archiveDbVolume, cloneDbBase, readyDbBase, restoreDbVolume, startDbBaseBuild } = await import('../../server/daemon/db-base')
+const { archiveDbVolume, cloneDbBase, readyDbBase, restoreDbVolume, startDbBaseBuild, waitForDbBaseBuild } = await import('../../server/daemon/db-base')
 const { getProject, setProjectDbBase } = await import('../../server/stores/projects')
 const { projectDumpDir } = await import('../../server/utils/storage')
 
@@ -154,5 +154,30 @@ describe('startDbBaseBuild', () => {
     setProjectDbBase(project.id, null)
     await vi.waitFor(() => expect(commands).toContain(`docker volume rm -f ${builder}-mariadb`))
     expect(getProject(project.id)!.dbBase).toBeNull()
+  })
+})
+
+describe('waitForDbBaseBuild', () => {
+  it('returns once the running build has settled', async () => {
+    const project = projectWithDump()
+    startDbBaseBuild(project.id)
+    await waitForDbBaseBuild(project.id)
+    expect(getProject(project.id)!.dbBase!.state).toBe('ready')
+  })
+
+  it('stops waiting when the boot is cancelled', async () => {
+    const project = projectWithDump()
+    startDbBaseBuild(project.id)
+    const cancel = new AbortController()
+    cancel.abort()
+    await expect(waitForDbBaseBuild(project.id, cancel.signal)).rejects.toThrow('Cancelled')
+    await settled(project.id)
+  })
+
+  it('does not wait for a build that no longer runs', async () => {
+    const project = makeProject()
+    setProjectDbBase(project.id, { state: 'building', builder: 'knecht-base-gone' })
+    await waitForDbBaseBuild(project.id)
+    expect(getProject(project.id)!.dbBase!.state).toBe('building')
   })
 })

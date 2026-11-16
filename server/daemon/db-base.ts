@@ -31,10 +31,26 @@ export interface ReadyDbBase {
   database: string
 }
 
-const running = new Set<string>()
+const running = new Map<string, Promise<void>>()
 
 export function dbBaseBuilding(volume: string): boolean {
-  return [...running].some(builder => volume.includes(builder))
+  return [...running.keys()].some(builder => volume.includes(builder))
+}
+
+// A boot that imported the dump next to a running build would do the same work twice, on the same disk.
+export async function waitForDbBaseBuild(projectId: number, signal?: AbortSignal): Promise<void> {
+  const base = getProject(projectId)?.dbBase
+  const build = base?.state === 'building' ? running.get(base.builder) : undefined
+  if (!build) return
+  await new Promise<void>((resolve, reject) => {
+    const abort = () => reject(new Error('Cancelled'))
+    if (signal?.aborted) return abort()
+    signal?.addEventListener('abort', abort, { once: true })
+    void build.then(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    })
+  })
 }
 
 type DbVolumeKind = 'mariadb' | 'postgres'
@@ -132,7 +148,7 @@ export function startDbBaseBuild(projectId: number): Project | undefined {
   const builder = `${DB_BASE_PREFIX}${projectId}-${Date.now().toString(36)}`
   const project = setProjectDbBase(projectId, { state: 'building', builder })
   if (prior?.state === 'ready') void removeVolumes([prior.volume])
-  void buildDbBase(projectId, builder)
+  running.set(builder, buildDbBase(projectId, builder))
   return project
 }
 
@@ -143,7 +159,6 @@ export function dropDbBase(projectId: number): void {
 }
 
 async function buildDbBase(projectId: number, builder: string): Promise<void> {
-  running.add(builder)
   const dir = join(dataDir(), 'db-bases', builder)
   const ddev = (args: string[]) => execa('ddev', args, { cwd: dir, env: DDEV_ENV })
   let result: DbBase

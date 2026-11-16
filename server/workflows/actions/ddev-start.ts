@@ -8,8 +8,10 @@ import { sessionPreviewUrl } from '../../utils/preview-target'
 import { readDdevConfig } from '../../daemon/ddev'
 import { waitForDevServer } from '../../daemon/dev-server'
 import { bootEnv, inTransition, promoteToPreview } from '../../daemon/envs'
-import { readyDbBase } from '../../daemon/db-base'
+import { readyDbBase, waitForDbBaseBuild, type ReadyDbBase } from '../../daemon/db-base'
+import type { DbBase } from '../../db/schema'
 import { defineAction, type ActionRuntime } from './types'
+import { getProject } from '../../stores/projects'
 import { getSessionRow } from '../../stores/sessions'
 
 const yamlParams = z.object({ commands: z.string().optional() })
@@ -43,7 +45,7 @@ export const ddevStartAction = defineAction({
       throw new Error('A database dump is configured, but this environment has no database container. Remove the dump or give the environment a database.')
     }
     await inTransition(rt.sessionId, 'booting', async () => {
-      const dbBase = rt.project.dbDumpPath ? await readyDbBase(rt.project.id, rt.checkoutDir) : null
+      const dbBase = rt.project.dbDumpPath ? await dbBaseForBoot(rt) : null
       await bootEnv(rt.sessionId, {
         dbFile: dbBase ? null : dumpFile(rt),
         dbBase,
@@ -59,6 +61,23 @@ export const ddevStartAction = defineAction({
     return outputs
   },
 })
+
+async function dbBaseForBoot(rt: ActionRuntime): Promise<ReadyDbBase | null> {
+  if (getProject(rt.project.id)?.dbBase?.state === 'building') {
+    rt.log(`\n▶ Waiting for the project's base database to finish building\n`)
+    await waitForDbBaseBuild(rt.project.id, rt.signal)
+  }
+  const base = await readyDbBase(rt.project.id, rt.checkoutDir)
+  if (!base) rt.log(`\nThe project has no usable base database (${baseGap(getProject(rt.project.id)?.dbBase)}): importing the dump instead\n`)
+  return base
+}
+
+function baseGap(base: DbBase | null | undefined): string {
+  if (!base) return 'none was built'
+  if (base.state === 'failed') return `its build failed: ${base.error}`
+  if (base.state === 'ready') return `it was built for ${base.database}, or its volume is gone`
+  return 'its build was interrupted'
+}
 
 function previewOutputs(rt: ActionRuntime): { url: string } | undefined {
   const session = getSessionRow(rt.sessionId)
