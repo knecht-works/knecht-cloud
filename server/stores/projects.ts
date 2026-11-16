@@ -69,8 +69,8 @@ export function setProjectDbBase(id: number, dbBase: DbBase | null): Project | u
   return project
 }
 
-// False when a newer build or a removed dump has replaced the one that finished.
-export function finishProjectDbBase(id: number, builder: string, dbBase: DbBase): boolean {
+// False when a newer build or a removed dump has replaced this one.
+export function advanceProjectDbBase(id: number, builder: string, dbBase: DbBase): boolean {
   const updated = db.update(schema.projects)
     .set({ dbBase })
     .where(and(eq(schema.projects.id, id), sql`json_extract(${schema.projects.dbBase}, '$.builder') = ${builder}`))

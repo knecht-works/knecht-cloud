@@ -24,5 +24,25 @@ export function useProjectDump<T extends { id: number, dbDumpPath: string | null
     }
   }
 
-  return { dumpName, uploadKey, uploadUrl, settingsPath, uploaded, remove }
+  async function rebuildBase() {
+    if (!project.value) return
+    try {
+      project.value = await $fetch(`/api/projects/${project.value.id}/db-base`, { method: 'POST' }) as T
+    }
+    catch (e) {
+      toastError('Failed to start the import', e)
+    }
+  }
+
+  async function cancelBase() {
+    if (!project.value) return
+    try {
+      project.value = await $fetch(`/api/projects/${project.value.id}/db-base`, { method: 'DELETE' }) as T
+    }
+    catch (e) {
+      toastError('Failed to cancel the import', e)
+    }
+  }
+
+  return { dumpName, uploadKey, uploadUrl, settingsPath, uploaded, remove, rebuildBase, cancelBase }
 }

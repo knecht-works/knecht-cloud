@@ -1,11 +1,14 @@
-import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
+import { Transform, type Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { createGunzip } from 'node:zlib'
 import { execa } from 'execa'
 import { stringify } from 'yaml'
 import type { DbBase, Project } from '../db/schema'
 import { projectDetectedEnv, resolveEnv } from '../../shared/utils/env-spec'
 import { gitProvider } from '../git'
-import { finishProjectDbBase, getProject, listBuildingDbBases, setProjectDbBase } from '../stores/projects'
+import { advanceProjectDbBase, getProject, listBuildingDbBases, setProjectDbBase } from '../stores/projects'
 import { dataDir, projectDumpDir, sessionSandboxName } from '../utils/storage'
 import { freeHostPorts, readDdevConfig } from './ddev'
 import { DDEV_ENV, ddevDefaultDatabase, ddevWebImage } from './sandbox'
@@ -31,7 +34,12 @@ export interface ReadyDbBase {
   database: string
 }
 
+const PROGRESS_POLL_MS = 3000
+// For the formats only ddev can unpack. pv shows nothing without a terminal, but its read position is the same number.
+const IMPORT_POSITION = 'pid=$(pgrep -x pv) && echo "$(sed -n "s/^pos:[[:space:]]*//p" /proc/$pid/fdinfo/3) $(stat -Lc %s /proc/$pid/fd/3)"'
+
 const running = new Map<string, Promise<void>>()
+const cancels = new Map<string, AbortController>()
 
 export function dbBaseBuilding(volume: string): boolean {
   return [...running.keys()].some(builder => volume.includes(builder))
@@ -146,8 +154,8 @@ export async function restoreDbVolume(sessionId: number, archive: string): Promi
 export function startDbBaseBuild(projectId: number): Project | undefined {
   const prior = getProject(projectId)?.dbBase
   const builder = `${DB_BASE_PREFIX}${projectId}-${Date.now().toString(36)}`
-  const project = setProjectDbBase(projectId, { state: 'building', builder })
-  if (prior?.state === 'ready') void removeVolumes([prior.volume])
+  const project = setProjectDbBase(projectId, { state: 'building', builder, step: 'starting' })
+  retire(prior)
   running.set(builder, buildDbBase(projectId, builder))
   return project
 }
@@ -155,38 +163,100 @@ export function startDbBaseBuild(projectId: number): Project | undefined {
 export function dropDbBase(projectId: number): void {
   const prior = getProject(projectId)?.dbBase
   setProjectDbBase(projectId, null)
+  retire(prior)
+}
+
+function retire(prior: DbBase | null | undefined): void {
   if (prior?.state === 'ready') void removeVolumes([prior.volume])
+  if (prior?.state === 'building') cancels.get(prior.builder)?.abort()
+}
+
+// Streamed straight into the import: ddev would first copy the whole dump next to the project.
+function dumpStreams(file: string, onPercent: (percent: number) => void): [Readable, ...Transform[]] | null {
+  const name = file.toLowerCase()
+  const gzipped = name.endsWith('.gz') && !name.endsWith('.tar.gz')
+  if (!gzipped && !name.endsWith('.sql') && !name.endsWith('.mysql')) return null
+  const total = statSync(file).size
+  let read = 0
+  const counter = new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      read += chunk.length
+      onPercent(Math.floor(read / total * 100))
+      done(null, chunk)
+    },
+  })
+  return [createReadStream(file), counter, ...(gzipped ? [createGunzip()] : [])]
+}
+
+async function importPercent(builder: string): Promise<number | null> {
+  const { stdout } = await execa('docker', ['exec', `ddev-${builder}-db`, 'sh', '-c', IMPORT_POSITION], { reject: false })
+  const [read, total] = String(stdout ?? '').trim().split(' ').map(Number)
+  return read! >= 0 && total! > 0 ? Math.min(100, Math.floor(read! / total! * 100)) : null
 }
 
 async function buildDbBase(projectId: number, builder: string): Promise<void> {
+  const cancel = new AbortController()
+  cancels.set(builder, cancel)
   const dir = join(dataDir(), 'db-bases', builder)
-  const ddev = (args: string[]) => execa('ddev', args, { cwd: dir, env: DDEV_ENV })
+  const ddev = (args: string[]) => execa('ddev', args, { cwd: dir, env: DDEV_ENV, cancelSignal: cancel.signal })
+  let importingSince: string | undefined
+  let percent: number | undefined
+  const report = (step: 'importing' | 'finishing', next = percent) => {
+    if (step === 'importing' && importingSince && next === percent) return
+    percent = next
+    importingSince ??= new Date().toISOString()
+    advanceProjectDbBase(projectId, builder, { state: 'building', builder, step, importingSince, percent })
+  }
   let result: DbBase
   try {
     const project = getProject(projectId)
     const dump = project?.dbDumpPath && join(projectDumpDir(projectId), basename(project.dbDumpPath))
     const database = project && await projectDatabase(project)
     if (!dump || !database) throw new Error('The project has no dump or no database type to build a base from')
+    if (!existsSync(dump)) throw new Error('The dump file is gone from the server. Upload it again.')
     // Settings like lower_case_table_names are fixed into the data files, so the base must be built under the repo's own.
     const repoConfig = database.startsWith('postgres:') ? {} : await gitProvider(project).readDir(project, '.ddev/mysql', project.defaultBranch)
     await writeBuilderConfig(dir, builder, database, repoConfig)
     await ddev(['start', '-y'])
-    await ddev(['import-db', `--file=${dump}`])
+    report('importing')
+    const source = dumpStreams(dump, read => report('importing', read))
+    if (source) {
+      const importing = ddev(['import-db'])
+      // A dump that breaks off mid-stream ends the import cleanly, so both sides have to be asked.
+      const [fed, imported] = await Promise.allSettled([pipeline([...source, importing.stdin!]), importing])
+      if (imported.status === 'rejected') throw imported.reason
+      if (fed.status === 'rejected') throw fed.reason
+    }
+    else {
+      let polling = true
+      const poll = setInterval(() => void importPercent(builder).then((read) => {
+        if (polling && read != null) report('importing', read)
+      }, () => {}), PROGRESS_POLL_MS)
+      try {
+        await ddev(['import-db', `--file=${dump}`])
+      }
+      finally {
+        polling = false
+        clearInterval(poll)
+      }
+    }
+    report('finishing')
     // ddev stop gives the db 10s, too short to flush a large buffer pool: every clone would then start in crash recovery.
     await execa('docker', ['stop', '--time', '3600', `ddev-${builder}-db`])
     await ddev(['stop', '--unlist', builder])
     result = { state: 'ready', volume: dbVolume(builder, database), database, builtAt: new Date().toISOString() }
   }
   catch (e) {
-    await ddev(['delete', '--omit-snapshot', '-y', builder]).catch(() => {})
+    await execa('ddev', ['delete', '--omit-snapshot', '-y', builder], { cwd: dir, env: DDEV_ENV }).catch(() => {})
     result = { state: 'failed', error: failureLine(e) }
   }
   finally {
     rmSync(dir, { recursive: true, force: true })
     await removeVolumes([`ddev-${builder}-snapshots`])
     running.delete(builder)
+    cancels.delete(builder)
   }
-  if (!finishProjectDbBase(projectId, builder, result) && result.state === 'ready') await removeVolumes([result.volume])
+  if (!advanceProjectDbBase(projectId, builder, result) && result.state === 'ready') await removeVolumes([result.volume])
 }
 
 async function writeBuilderConfig(dir: string, builder: string, database: string, repoConfig: Record<string, string>): Promise<void> {
@@ -233,6 +303,6 @@ export async function failInterruptedDbBases(): Promise<void> {
     if (running.has(builder)) continue
     await execa('ddev', ['delete', '--omit-snapshot', '-y', builder], { env: DDEV_ENV }).catch(() => {})
     rmSync(join(dataDir(), 'db-bases', builder), { recursive: true, force: true })
-    finishProjectDbBase(id, builder, { state: 'failed', error: 'Interrupted by a restart of Knecht' })
+    advanceProjectDbBase(id, builder, { state: 'failed', error: 'Interrupted by a restart of Knecht' })
   }
 }
