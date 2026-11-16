@@ -184,8 +184,7 @@ const menuItems = computed(() => {
         >
           <UButton
             color="error"
-            variant="outline"
-            icon="i-lucide-circle-stop"
+            icon="i-lucide-square"
             aria-label="Cancel run"
             size="sm"
             :loading="cancelling"
