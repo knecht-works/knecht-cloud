@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { Writable } from 'node:stream'
+import { gzipSync } from 'node:zlib'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeProject } from '../helpers/db'
 
@@ -7,19 +9,34 @@ const commands: string[] = []
 const failing = new Set<string>()
 const missingVolumes = new Set<string>()
 const builderMysqlDir: Record<string, string>[] = []
+let importGate: Promise<void> | null = null
+let importPosition = ''
+const imported: string[] = []
+async function run(file: string, args: string[], options?: { cwd?: string, cancelSignal?: AbortSignal }) {
+  const line = [file, ...args].join(' ')
+  commands.push(line)
+  if (args[0] === 'exec') return { stdout: importPosition }
+  if (args[0] === 'import-db' && importGate) {
+    await Promise.race([importGate, new Promise((_, reject) => options?.cancelSignal?.addEventListener('abort', () => reject(new Error('cancelled'))))])
+  }
+  if (line === 'ddev start -y' && options?.cwd) {
+    const dir = join(options.cwd, '.ddev', 'mysql')
+    builderMysqlDir.push(Object.fromEntries(readdirSync(dir).map(name => [name, readFileSync(join(dir, name), 'utf8')])))
+  }
+  if (failing.has(line) || (args[0] === 'volume' && args[1] === 'inspect' && missingVolumes.has(args[2]!))) {
+    throw Object.assign(new Error(`${line} failed`), { stderr: 'boom: the import broke' })
+  }
+  return { stdout: '' }
+}
 vi.mock('execa', () => ({
-  execa: async (file: string, args: string[], options?: { cwd?: string }) => {
-    const line = [file, ...args].join(' ')
-    commands.push(line)
-    if (line === 'ddev start -y' && options?.cwd) {
-      const dir = join(options.cwd, '.ddev', 'mysql')
-      builderMysqlDir.push(Object.fromEntries(readdirSync(dir).map(name => [name, readFileSync(join(dir, name), 'utf8')])))
-    }
-    if (failing.has(line) || (args[0] === 'volume' && args[1] === 'inspect' && missingVolumes.has(args[2]!))) {
-      throw Object.assign(new Error(`${line} failed`), { stderr: 'boom: the import broke' })
-    }
-    return { stdout: '' }
-  },
+  execa: (file: string, args: string[], options?: { cwd?: string, cancelSignal?: AbortSignal }) => Object.assign(run(file, args, options), {
+    stdin: new Writable({
+      write(chunk: Buffer, _encoding, done) {
+        imported.push(chunk.toString())
+        done()
+      },
+    }),
+  }),
 }))
 const readDir = vi.fn(async (_repo: unknown, _dir: string, _ref?: string): Promise<Record<string, string>> => ({}))
 vi.mock('../../server/git', () => ({
@@ -32,7 +49,7 @@ vi.mock('../../server/daemon/sandbox', () => ({
   ddevWebImage: async () => 'ddev/ddev-webserver:test',
 }))
 
-const { archiveDbVolume, cloneDbBase, readyDbBase, restoreDbVolume, startDbBaseBuild, waitForDbBaseBuild } = await import('../../server/daemon/db-base')
+const { archiveDbVolume, cloneDbBase, dropDbBase, readyDbBase, restoreDbVolume, startDbBaseBuild, waitForDbBaseBuild } = await import('../../server/daemon/db-base')
 const { getProject, setProjectDbBase } = await import('../../server/stores/projects')
 const { projectDumpDir } = await import('../../server/utils/storage')
 
@@ -43,9 +60,9 @@ function checkout(config: string): string {
   return dir
 }
 
-function projectWithDump() {
-  const project = makeProject({ dbDumpPath: '/elsewhere/db.sql.gz', ddevEnv: { webserver: null, phpVersion: null, dbType: null, dbVersion: null, nodeVersion: null, packageManager: null } })
-  writeFileSync(join(projectDumpDir(project.id), 'db.sql.gz'), '')
+function projectWithDump(name = 'db.sql.gz', content: string | Buffer = gzipSync('CREATE TABLE t;')) {
+  const project = makeProject({ dbDumpPath: `/elsewhere/${name}`, ddevEnv: { webserver: null, phpVersion: null, dbType: null, dbVersion: null, nodeVersion: null, packageManager: null } })
+  writeFileSync(join(projectDumpDir(project.id), name), content)
   return project
 }
 
@@ -58,6 +75,9 @@ beforeEach(() => {
   commands.length = 0
   failing.clear()
   missingVolumes.clear()
+  importGate = null
+  importPosition = ''
+  imported.length = 0
 })
 
 describe('readyDbBase', () => {
@@ -116,14 +136,15 @@ describe('database volume archive', () => {
 })
 
 describe('startDbBaseBuild', () => {
-  it('imports the dump once, shuts the db down cleanly and keeps its volume as the base', async () => {
+  it('streams the unpacked dump into one import, shuts the db down cleanly and keeps its volume as the base', async () => {
     const project = projectWithDump()
     const builder = (startDbBaseBuild(project.id)!.dbBase as { builder: string }).builder
     expect(await settled(project.id)).toMatchObject({ state: 'ready', volume: `${builder}-mariadb`, database: 'mariadb:11.8' })
+    expect(imported.join('')).toBe('CREATE TABLE t;')
     const ddev = commands.filter(c => c.startsWith('ddev ') || c.startsWith('docker stop'))
     expect(ddev).toEqual([
       'ddev start -y',
-      `ddev import-db --file=${join(projectDumpDir(project.id), 'db.sql.gz')}`,
+      'ddev import-db',
       `docker stop --time 3600 ddev-${builder}-db`,
       `ddev stop --unlist ${builder}`,
     ])
@@ -142,10 +163,16 @@ describe('startDbBaseBuild', () => {
 
   it('records why a build failed and removes what it started', async () => {
     const project = projectWithDump()
-    failing.add(`ddev import-db --file=${join(projectDumpDir(project.id), 'db.sql.gz')}`)
+    failing.add('ddev import-db')
     const builder = (startDbBaseBuild(project.id)!.dbBase as { builder: string }).builder
     expect(await settled(project.id)).toEqual({ state: 'failed', error: 'boom: the import broke' })
     expect(commands).toContain(`ddev delete --omit-snapshot -y ${builder}`)
+  })
+
+  it('says so when the dump file is gone', async () => {
+    const project = makeProject({ dbDumpPath: '/elsewhere/gone.sql', ddevEnv: { webserver: null, phpVersion: null, dbType: null, dbVersion: null, nodeVersion: null, packageManager: null } })
+    startDbBaseBuild(project.id)
+    expect(await settled(project.id)).toEqual({ state: 'failed', error: 'The dump file is gone from the server. Upload it again.' })
   })
 
   it('discards a build that a removed dump made obsolete', async () => {
@@ -153,6 +180,54 @@ describe('startDbBaseBuild', () => {
     const builder = (startDbBaseBuild(project.id)!.dbBase as { builder: string }).builder
     setProjectDbBase(project.id, null)
     await vi.waitFor(() => expect(commands).toContain(`docker volume rm -f ${builder}-mariadb`))
+    expect(getProject(project.id)!.dbBase).toBeNull()
+  })
+})
+
+describe('a running build', () => {
+  it('reports how much of a streamed dump the import has read', async () => {
+    const project = projectWithDump('db.sql', 'CREATE TABLE t;')
+    let open = () => {}
+    importGate = new Promise<void>(resolve => (open = resolve))
+    startDbBaseBuild(project.id)
+    expect(getProject(project.id)!.dbBase).toMatchObject({ state: 'building', step: 'starting' })
+    await vi.waitFor(() => expect(getProject(project.id)!.dbBase).toMatchObject({ step: 'importing', percent: 100, importingSince: expect.any(String) }))
+    open()
+    expect(await settled(project.id)).toMatchObject({ state: 'ready' })
+  })
+
+  it('fails when the dump breaks off mid-stream', async () => {
+    const project = projectWithDump('db.sql.gz', gzipSync('CREATE TABLE t;').subarray(0, 12))
+    startDbBaseBuild(project.id)
+    expect(await settled(project.id)).toMatchObject({ state: 'failed', error: 'unexpected end of file' })
+  })
+
+  it('leaves formats it cannot stream to ddev and reads the progress from its import', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    try {
+      const project = projectWithDump('db.sql.zip', '')
+      let open = () => {}
+      importGate = new Promise<void>(resolve => (open = resolve))
+      startDbBaseBuild(project.id)
+      await vi.waitFor(() => expect(commands).toContain(`ddev import-db --file=${join(projectDumpDir(project.id), 'db.sql.zip')}`))
+      importPosition = '250 1000'
+      await vi.advanceTimersByTimeAsync(3000)
+      await vi.waitFor(() => expect(getProject(project.id)!.dbBase).toMatchObject({ step: 'importing', percent: 25 }))
+      open()
+      expect(await settled(project.id)).toMatchObject({ state: 'ready' })
+    }
+    finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('is stopped and removed when its dump is removed', async () => {
+    const project = projectWithDump()
+    importGate = new Promise<void>(() => {})
+    const builder = (startDbBaseBuild(project.id)!.dbBase as { builder: string }).builder
+    await vi.waitFor(() => expect(getProject(project.id)!.dbBase).toMatchObject({ step: 'importing' }))
+    dropDbBase(project.id)
+    await vi.waitFor(() => expect(commands).toContain(`ddev delete --omit-snapshot -y ${builder}`))
     expect(getProject(project.id)!.dbBase).toBeNull()
   })
 })

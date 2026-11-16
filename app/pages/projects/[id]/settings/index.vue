@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { DDEV_DATABASE_GROUPS, DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type DdevDatabase, type PackageManagerName, formatDatabase, formatPackageManager, projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
+import { formatBytes } from '#shared/utils/bytes'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 
 const toastError = useToastError()
@@ -124,7 +125,54 @@ async function setUrlMode(mode: 'env' | 'rewrite') {
   }
 }
 
-const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, settingsPath, uploaded: dumpUploaded, remove: removeDump } = useProjectDump(project)
+const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, settingsPath, uploaded: dumpUploaded, remove: removeDump, rebuildBase, cancelBase } = useProjectDump(project)
+const startingBase = ref(false)
+async function startBase() {
+  startingBase.value = true
+  await rebuildBase()
+  startingBase.value = false
+}
+const now = useNow()
+const { find: findUpload } = useUploads()
+const dumpUpload = computed(() => findUpload(dumpUploadKey.value))
+// The bar replaces the upload buttons, so nothing else takes the new project from the finished upload.
+watch(() => dumpUpload.value?.promise, (promise) => {
+  promise?.then(dumpUploaded, () => {})
+})
+function cancelDump() {
+  if (dumpUpload.value) dumpUpload.value.cancel()
+  else void cancelBase()
+}
+const dumpProgress = computed(() => {
+  const upload = dumpUpload.value
+  if (upload) {
+    const percent = upload.total ? Math.floor(upload.loaded / upload.total * 100) : 0
+    return { step: '1/3', label: 'Uploading the dump', percent, detail: `${percent}% of ${formatBytes(upload.total)} sent to the server` }
+  }
+  const base = project.value?.dbBase
+  if (base?.state !== 'building') return null
+  if (base.step === 'starting') {
+    return { step: '2/3', label: 'Importing into the database', percent: 0, detail: 'Starting a fresh database for the import' }
+  }
+  if (base.step === 'finishing') {
+    return { step: '3/3', label: 'Saving the database', percent: 100, detail: 'Writing everything to disk so every new environment starts from a clean copy' }
+  }
+  if (base.percent == null) {
+    return { step: '2/3', label: 'Importing into the database', percent: 0, detail: 'Unpacking the dump before the import can start' }
+  }
+  return { step: '2/3', label: 'Importing into the database', percent: base.percent, detail: `${base.percent}% of the dump imported${importTimeLeft(base.percent, base.importingSince)}` }
+})
+const dumpState = computed(() => {
+  const base = project.value?.dbBase
+  if (!base) return { text: 'Not imported yet', action: 'Import' }
+  if (base.state === 'failed') return { text: `Import failed: ${base.error}`, failed: true, action: 'Retry' }
+  return null
+})
+function importTimeLeft(percent: number, since: string | undefined): string {
+  if (!since || percent < 1) return ''
+  const left = (now.value - new Date(since).getTime()) * (100 - percent) / percent / 60_000
+  return left < 1 ? ' · under a minute left' : ` · about ${Math.round(left)} min left`
+}
 const confirmRemoveDump = ref(false)
 const removingDump = ref(false)
 async function confirmDumpRemoval() {
@@ -418,40 +466,94 @@ watch(bootCommands, () => {
       >
         <div class="flex flex-col items-start">
           <div
-            v-if="dumpName"
-            class="flex w-full items-center gap-2"
+            v-if="dumpProgress || dumpName"
+            class="w-full"
           >
-            <UIcon
-              name="i-lucide-database"
-              class="size-4 flex-none text-dimmed"
-            />
-            <span class="k-mono flex-1 truncate text-2xs text-muted">{{ dumpName }}</span>
-            <KUploadButton
-              :upload-key="dumpUploadKey"
-              :url="dumpUploadUrl"
-              :to="settingsPath"
-              accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
-              tooltip="Replace dump"
-              aria-label="Replace dump"
-              icon="i-lucide-refresh-cw"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              @uploaded="dumpUploaded"
-            />
-            <UTooltip text="Remove dump">
-              <UButton
+            <div
+              v-if="dumpProgress"
+              class="flex h-6 items-center gap-2"
+            >
+              <span class="text-sm font-medium text-default">{{ dumpProgress.step }}</span>
+              <span class="flex-1 text-sm font-medium text-default">{{ dumpProgress.label }}</span>
+              <UTooltip :text="dumpUpload ? 'Cancel upload' : 'Cancel import'">
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-x"
+                  :aria-label="dumpUpload ? 'Cancel upload' : 'Cancel import'"
+                  @click="cancelDump"
+                />
+              </UTooltip>
+            </div>
+            <div
+              v-else
+              class="flex h-6 items-center gap-2"
+            >
+              <UIcon
+                name="i-lucide-database"
+                class="size-4 flex-none text-dimmed"
+              />
+              <span class="k-mono flex-1 truncate text-2xs text-muted">{{ dumpName }}</span>
+              <span
+                v-if="project?.dbDumpSize"
+                class="k-mono flex-none text-2xs text-dimmed"
+              >{{ formatBytes(project.dbDumpSize) }}</span>
+              <KUploadButton
+                :upload-key="dumpUploadKey"
+                :url="dumpUploadUrl"
+                :to="settingsPath"
+                accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
+                tooltip="Replace dump"
+                aria-label="Replace dump"
+                icon="i-lucide-refresh-cw"
                 size="xs"
                 color="neutral"
                 variant="ghost"
-                icon="i-lucide-trash-2"
-                aria-label="Remove dump"
-                @click="confirmRemoveDump = true"
               />
-            </UTooltip>
+              <UTooltip text="Remove dump">
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-trash-2"
+                  aria-label="Remove dump"
+                  @click="confirmRemoveDump = true"
+                />
+              </UTooltip>
+            </div>
+            <template v-if="dumpProgress">
+              <UProgress
+                :model-value="dumpProgress.percent || null"
+                size="xs"
+                class="mt-2"
+              />
+              <p class="mt-2 min-h-8 text-xs leading-4 text-dimmed">
+                {{ dumpProgress.detail }}
+              </p>
+            </template>
+            <div
+              v-else-if="dumpState"
+              class="mt-1 flex h-6 items-center gap-2"
+            >
+              <span
+                class="flex-1 truncate text-xs"
+                :class="dumpState.failed ? '' : 'text-dimmed'"
+                :style="dumpState.failed ? { color: 'var(--status-error)' } : undefined"
+                :title="dumpState.text"
+              >{{ dumpState.text }}</span>
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="outline"
+                :label="dumpState.action"
+                :loading="startingBase"
+                @click="startBase"
+              />
+            </div>
           </div>
           <KUploadButton
-            v-if="!dumpName"
+            v-else
             :upload-key="dumpUploadKey"
             :url="dumpUploadUrl"
             :to="settingsPath"
@@ -460,7 +562,6 @@ watch(bootCommands, () => {
             variant="outline"
             color="neutral"
             size="sm"
-            @uploaded="dumpUploaded"
           />
         </div>
       </KPanel>

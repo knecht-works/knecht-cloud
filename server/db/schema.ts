@@ -18,7 +18,7 @@ export interface DdevEnv {
 }
 
 export type DbBase
-  = | { state: 'building', builder: string }
+  = | { state: 'building', builder: string, step?: 'starting' | 'importing' | 'finishing', importingSince?: string, percent?: number }
     | { state: 'ready', volume: string, database: string, builtAt: string }
     | { state: 'failed', error: string }
 
