@@ -254,7 +254,7 @@ watch(bootCommands, () => {
         </template>
 
         <div>
-          <p class="mb-2.5 text-xs leading-relaxed text-dimmed">
+          <p class="mb-2.5 text-xs leading-relaxed text-muted">
             One <code class="k-code">KEY=value</code> per line, like a .env file. Values can use
             <code class="k-code">$KNECHT_PREVIEW_URL</code> and <code class="k-code">$KNECHT_DEV_SERVER_URL</code>
             to follow the run's URLs.
@@ -319,7 +319,7 @@ watch(bootCommands, () => {
           />
         </template>
         <div>
-          <p class="mb-2.5 text-xs leading-relaxed text-dimmed">
+          <p class="mb-2.5 text-xs leading-relaxed text-muted">
             What has to run after <code class="k-code">ddev start</code> and the
             database import before the site works. One command per line, run
             once per session, before any workflow-specific boot commands.
@@ -346,7 +346,7 @@ watch(bootCommands, () => {
           />
         </template>
         <div>
-          <p class="mb-2.5 text-xs leading-relaxed text-dimmed">
+          <p class="mb-2.5 text-xs leading-relaxed text-muted">
             The command that starts your dev server, for example
             <code class="k-code">npm run dev</code> for Vite hot reloading, and
             the port it listens on. Without a ddev config in the repo this is
@@ -385,7 +385,7 @@ watch(bootCommands, () => {
         </template>
         <p
           v-if="!project.ddevEnv"
-          class="k-mono text-2xs text-dimmed"
+          class="k-mono text-2xs text-muted"
         >
           Resolving environment…
         </p>
@@ -402,7 +402,7 @@ watch(bootCommands, () => {
               :key="row.label"
               class="flex items-center justify-between gap-3"
             >
-              <span class="text-xs text-dimmed">{{ row.label }}</span>
+              <span class="text-xs text-muted">{{ row.label }}</span>
               <span class="text-xs text-toned">{{ row.value }}</span>
             </div>
           </div>
@@ -529,7 +529,7 @@ watch(bootCommands, () => {
                 size="xs"
                 class="mt-2"
               />
-              <p class="mt-2 min-h-8 text-xs leading-4 text-dimmed">
+              <p class="mt-2 min-h-8 text-xs leading-4 text-muted">
                 {{ dumpProgress.detail }}
               </p>
             </template>
@@ -539,7 +539,7 @@ watch(bootCommands, () => {
             >
               <span
                 class="flex-1 truncate text-xs"
-                :class="dumpState.failed ? '' : 'text-dimmed'"
+                :class="dumpState.failed ? '' : 'text-muted'"
                 :style="dumpState.failed ? { color: 'var(--status-error)' } : undefined"
                 :title="dumpState.text"
               >{{ dumpState.text }}</span>
@@ -572,7 +572,7 @@ watch(bootCommands, () => {
         icon="i-lucide-folder-sync"
       >
         <div class="flex flex-col">
-          <p class="text-xs leading-relaxed text-dimmed">
+          <p class="text-xs leading-relaxed text-muted">
             Folders that keep their files across all runs and previews, like a CMS uploads folder that is not in git.
           </p>
           <div
