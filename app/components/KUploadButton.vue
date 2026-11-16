@@ -13,6 +13,7 @@ const props = defineProps<{
   size?: ButtonProps['size']
   color?: ButtonProps['color']
   variant?: ButtonProps['variant']
+  quiet?: boolean
 }>()
 const emit = defineEmits<{ uploaded: [result: unknown] }>()
 defineOptions({ inheritAttrs: false })
@@ -29,7 +30,7 @@ watch(() => upload.value?.promise, (promise) => {
 function pick() {
   const file = input.value?.files?.[0]
   if (input.value) input.value.value = ''
-  if (file) start({ key: props.uploadKey, url: props.url(file), file, to: props.to })
+  if (file) start({ key: props.uploadKey, url: props.url(file), file, to: props.to, quiet: props.quiet })
 }
 </script>
 

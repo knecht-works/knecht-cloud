@@ -140,7 +140,7 @@ async function create() {
     })
     emit('created')
     if (dumpFile.value && resolvedEnv.value.hasDb.value) {
-      startUpload({ key: uploadKey.value, url: uploadUrl(dumpFile.value), file: dumpFile.value, to: settingsPath.value })
+      startUpload({ key: uploadKey.value, url: uploadUrl(dumpFile.value), file: dumpFile.value, to: settingsPath.value, quiet: true })
     }
     step.value = 'done'
   }

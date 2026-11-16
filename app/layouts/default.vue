@@ -6,6 +6,8 @@ const { data: members } = useMembers()
 const isOwner = computed(() => !!members.value.find(m => m.id === user.value?.id)?.isOwner)
 const route = useRoute()
 
+useDbImportToasts()
+
 const collapsed = useCookie<boolean>('knecht-sidebar-collapsed', { default: () => false })
 
 const NAV = [
