@@ -76,7 +76,7 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
         />
       </template>
       <div>
-        <p class="mb-2.5 text-xs leading-relaxed text-dimmed">
+        <p class="mb-2.5 text-xs leading-relaxed text-muted">
           Rules the agent follows in this project only, on top of the
           instance-wide instructions from Settings → Agent.
         </p>
@@ -113,7 +113,7 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
       </div>
       <p
         v-if="mentionPreview && !hasBootCommands"
-        class="mt-2.5 text-xs leading-relaxed text-dimmed"
+        class="mt-2.5 text-xs leading-relaxed text-muted"
       >
         Needs boot commands. Until then, mentions work on the code only.
         <NuxtLink
