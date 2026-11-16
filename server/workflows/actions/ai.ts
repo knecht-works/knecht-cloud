@@ -56,7 +56,11 @@ export const aiAction = defineAction({
   },
 })
 
-function startAgent(rt: ActionRuntime, env: Record<string, string>, sessionId: string | null, sink: TranscriptSink, model?: string): Promise<AgentSession> {
+// With a cold cache opencode only knows the models bundled into its binary, so a newer model is "not found" and the turn runs on its default.
+const WARM_MODEL_CACHE = 'test -s "$HOME/.cache/opencode/models.json" || opencode models --refresh >/dev/null 2>&1 || true'
+
+async function startAgent(rt: ActionRuntime, env: Record<string, string>, sessionId: string | null, sink: TranscriptSink, model?: string): Promise<AgentSession> {
+  await rt.sandbox.exec(['sh', '-c', WARM_MODEL_CACHE])
   return openAgent({
     process: rt.sandbox.spawn(['opencode', 'acp'], { env }),
     cwd: rt.sandbox.projectDir,
