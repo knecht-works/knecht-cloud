@@ -12,6 +12,7 @@ export interface UploadRequest {
   url: string
   file: File
   to?: string
+  quiet?: boolean
 }
 
 // Module scope so an upload outlives the component that started it.
@@ -37,7 +38,7 @@ export function useUploads() {
   const toast = useToast()
 
   function start(request: UploadRequest, from = 0): void {
-    const { key, url, file, to } = request
+    const { key, url, file, to, quiet } = request
     if (uploads.has(key)) return
     let xhr: XMLHttpRequest | undefined
     let cancelled = false
@@ -104,7 +105,7 @@ export function useUploads() {
     uploads.set(key, upload)
 
     const id = `upload:${key}`
-    toast.add({
+    if (!quiet) toast.add({
       id,
       title: () => h('span', [
         `Uploading ${file.name}`,

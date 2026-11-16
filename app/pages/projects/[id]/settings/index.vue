@@ -504,6 +504,7 @@ watch(bootCommands, () => {
                 :url="dumpUploadUrl"
                 :to="settingsPath"
                 accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
+                quiet
                 tooltip="Replace dump"
                 aria-label="Replace dump"
                 icon="i-lucide-refresh-cw"
@@ -558,6 +559,7 @@ watch(bootCommands, () => {
             :url="dumpUploadUrl"
             :to="settingsPath"
             accept=".sql,.gz,.sql.gz,.zip,.bz2,.xz,.tar,.mysql"
+            quiet
             label="Upload dump"
             variant="outline"
             color="neutral"
