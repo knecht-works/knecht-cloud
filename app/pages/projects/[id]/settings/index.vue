@@ -125,42 +125,16 @@ async function setUrlMode(mode: 'env' | 'rewrite') {
   }
 }
 
-const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, settingsPath, uploaded: dumpUploaded, remove: removeDump, rebuildBase, cancelBase } = useProjectDump(project)
+const { dumpName, uploadKey: dumpUploadKey, uploadUrl: dumpUploadUrl, settingsPath, upload: dumpUpload, progress: dumpProgress, uploaded: dumpUploaded, remove: removeDump, rebuildBase, cancel: cancelDump } = useProjectDump(project)
 const startingBase = ref(false)
 async function startBase() {
   startingBase.value = true
   await rebuildBase()
   startingBase.value = false
 }
-const now = useNow()
-const { find: findUpload } = useUploads()
-const dumpUpload = computed(() => findUpload(dumpUploadKey.value))
 // The bar replaces the upload buttons, so nothing else takes the new project from the finished upload.
 watch(() => dumpUpload.value?.promise, (promise) => {
   promise?.then(dumpUploaded, () => {})
-})
-function cancelDump() {
-  if (dumpUpload.value) dumpUpload.value.cancel()
-  else void cancelBase()
-}
-const dumpProgress = computed(() => {
-  const upload = dumpUpload.value
-  if (upload) {
-    const percent = upload.total ? Math.floor(upload.loaded / upload.total * 100) : 0
-    return { step: '1/3', label: 'Uploading the dump', percent, detail: `${percent}% of ${formatBytes(upload.total)} sent to the server` }
-  }
-  const base = project.value?.dbBase
-  if (base?.state !== 'building') return null
-  if (base.step === 'starting') {
-    return { step: '2/3', label: 'Importing into the database', percent: 0, detail: 'Starting a fresh database for the import' }
-  }
-  if (base.step === 'finishing') {
-    return { step: '3/3', label: 'Saving the database', percent: 100, detail: 'Writing everything to disk so every new environment starts from a clean copy' }
-  }
-  if (base.percent == null) {
-    return { step: '2/3', label: 'Importing into the database', percent: 0, detail: 'Unpacking the dump before the import can start' }
-  }
-  return { step: '2/3', label: 'Importing into the database', percent: base.percent, detail: `${base.percent}% of the dump imported${importTimeLeft(base.percent, base.importingSince)}` }
 })
 const dumpState = computed(() => {
   const base = project.value?.dbBase
@@ -168,11 +142,6 @@ const dumpState = computed(() => {
   if (base.state === 'failed') return { text: `Import failed: ${base.error}`, failed: true, action: 'Retry' }
   return null
 })
-function importTimeLeft(percent: number, since: string | undefined): string {
-  if (!since || percent < 1) return ''
-  const left = (now.value - new Date(since).getTime()) * (100 - percent) / percent / 60_000
-  return left < 1 ? ' · under a minute left' : ` · about ${Math.round(left)} min left`
-}
 const confirmRemoveDump = ref(false)
 const removingDump = ref(false)
 async function confirmDumpRemoval() {
@@ -469,23 +438,12 @@ watch(bootCommands, () => {
             v-if="dumpProgress || dumpName"
             class="w-full"
           >
-            <div
+            <KDumpProgress
               v-if="dumpProgress"
-              class="flex h-6 items-center gap-2"
-            >
-              <span class="text-sm font-medium text-default">{{ dumpProgress.step }}</span>
-              <span class="flex-1 text-sm font-medium text-default">{{ dumpProgress.label }}</span>
-              <UTooltip :text="dumpUpload ? 'Cancel upload' : 'Cancel import'">
-                <UButton
-                  size="xs"
-                  color="neutral"
-                  variant="ghost"
-                  icon="i-lucide-x"
-                  :aria-label="dumpUpload ? 'Cancel upload' : 'Cancel import'"
-                  @click="cancelDump"
-                />
-              </UTooltip>
-            </div>
+              :progress="dumpProgress"
+              :uploading="!!dumpUpload"
+              @cancel="cancelDump"
+            />
             <div
               v-else
               class="flex h-6 items-center gap-2"
@@ -523,18 +481,8 @@ watch(bootCommands, () => {
                 />
               </UTooltip>
             </div>
-            <template v-if="dumpProgress">
-              <UProgress
-                :model-value="dumpProgress.percent || null"
-                size="xs"
-                class="mt-2"
-              />
-              <p class="mt-2 min-h-8 text-xs leading-4 text-muted">
-                {{ dumpProgress.detail }}
-              </p>
-            </template>
             <div
-              v-else-if="dumpState"
+              v-if="!dumpProgress && dumpState"
               class="mt-1 flex h-6 items-center gap-2"
             >
               <span
