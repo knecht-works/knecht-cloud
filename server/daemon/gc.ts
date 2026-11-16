@@ -5,7 +5,7 @@ import { listProjects } from '../stores/projects'
 import type { DbBase } from '../db/schema'
 import { GC_AUTO_CATEGORIES, type GcCategory } from '../../shared/utils/gc'
 import { dataDir, projectsDir } from '../utils/storage'
-import { ddevWebImage, removeEnvStack } from './sandbox'
+import { DDEV_ENV, ddevWebImage, removeEnvStack } from './sandbox'
 import { DB_BASE_PREFIX, dbBaseBuilding } from './db-base'
 import { envTransition } from './envs'
 import { removeWorkspace, WORKSPACE_LABEL, workspaceContainerName } from './workspace'
@@ -48,7 +48,7 @@ export async function collectGarbage(categories: readonly GcCategory[] = GC_AUTO
   if (categories.includes('projects')) {
     result.dumpDirs = reapOrphanDumpDirs(liveProjects)
     result.dumpFiles = reapStaleDumpFiles(projects)
-    result.dbBases = await reapOrphanDbBases(projects)
+    result.dbBases = [...await reapStaleBuilders(), ...await reapOrphanDbBases(projects)]
     result.sharedDirs = reapOrphanSharedDirs(liveProjects)
     result.memoryDirs = reapOrphanMemoryDirs(liveProjects)
   }
@@ -153,6 +153,38 @@ function removeMatching(dir: string, pattern: RegExp, isOrphan: (id: number) => 
     if (!id || !isOrphan(id)) continue
     rmSync(join(dir, name), { recursive: true, force: true })
     removed.push(name)
+  }
+  return removed
+}
+
+export function staleBuilders(containers: string[], building: (name: string) => boolean): string[] {
+  const builders = containers.flatMap((name) => {
+    const builder = new RegExp(`^ddev-(${DB_BASE_PREFIX}.+)-(web|db)$`).exec(name)?.[1]
+    return builder ? [builder] : []
+  })
+  return [...new Set(builders)].filter(builder => !building(builder))
+}
+
+// The cleanup after an interrupted build runs once and may fail; this catches what it left.
+async function reapStaleBuilders(): Promise<string[]> {
+  let containers: string[]
+  try {
+    const { stdout } = await execa('docker', ['ps', '-a', '--format', '{{.Names}}', '--filter', `name=ddev-${DB_BASE_PREFIX}`])
+    containers = stdout.split('\n').map(c => c.trim()).filter(Boolean)
+  }
+  catch {
+    return []
+  }
+  const removed: string[] = []
+  for (const builder of staleBuilders(containers, dbBaseBuilding)) {
+    try {
+      await execa('ddev', ['delete', '--omit-snapshot', '-y', builder], { env: DDEV_ENV })
+      rmSync(join(dataDir(), 'db-bases', builder), { recursive: true, force: true })
+      removed.push(builder)
+    }
+    catch {
+      // Retried on the next run.
+    }
   }
   return removed
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-const { staleImages } = await import('../../server/daemon/gc')
+const { staleBuilders, staleImages } = await import('../../server/daemon/gc')
 
 const keep = { ddevTag: 'v1.25.5', sessions: new Set([216]), building: (tag: string) => tag.includes('knecht-base-31-live') }
 
@@ -43,5 +43,16 @@ describe('staleImages', () => {
   it('leaves foreign and unversioned images alone, and every version when the current one is unknown', () => {
     expect(staleImages(['mariadb:10.6', 'ddev/ddev-utilities:latest', 'knecht-sandbox:latest'], keep)).toEqual([])
     expect(staleImages(['ddev/ddev-webserver:v1.25.2'], { ...keep, ddevTag: null })).toEqual([])
+  })
+})
+
+describe('staleBuilders', () => {
+  it('names each builder left behind once and keeps the running one', () => {
+    expect(staleBuilders([
+      'ddev-knecht-base-3-old-web',
+      'ddev-knecht-base-3-old-db',
+      'ddev-knecht-base-32-live-db',
+      'ddev-knecht-run-216-web',
+    ], name => name === 'knecht-base-32-live')).toEqual(['knecht-base-3-old'])
   })
 })
