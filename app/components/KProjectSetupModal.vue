@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { liveTopics } from '#shared/utils/live-topics'
 import { runWorkspacePath } from '#shared/utils/routes'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 import { DDEV_DATABASE_GROUPS, formatDatabase, projectDetectedEnv, resolveEnv, type DdevDatabase, type DetectedEnv } from '#shared/utils/env-spec'
@@ -12,6 +13,7 @@ interface ProjectRow {
   id: number
   fullName: string
   dbDumpPath: string | null
+  dbBase: { state: 'building' | 'ready' | 'failed', step?: 'starting' | 'importing' | 'finishing', percent?: number, importingSince?: string } | null
 }
 
 const STEPS = [
@@ -108,9 +110,22 @@ watch(step, () => {
 const canOpenStep = (i: number) => !project.value && i !== stepIndex.value && i <= reachedIndex.value
 const stepComplete = (i: number) => step.value === 'done' || (i !== stepIndex.value && i < reachedIndex.value)
 
-const { uploadKey, uploadUrl, settingsPath } = useProjectDump(project)
-const { find: findUpload, start: startUpload } = useUploads()
-const dumpUploading = computed(() => !!project.value && !!findUpload(uploadKey.value))
+const { uploadKey, uploadUrl, settingsPath, upload: dumpUpload, progress: dumpProgress, uploaded: dumpUploaded } = useProjectDump(project)
+const { start: startUpload } = useUploads()
+// The finished upload carries the started import, so the progress goes on without a gap.
+watch(() => dumpUpload.value?.promise, (promise) => {
+  promise?.then(dumpUploaded, () => {})
+})
+onLiveTopics(() => project.value ? [liveTopics.project(project.value.id)] : [], async () => {
+  if (project.value) project.value = await $fetch<ProjectRow>(`/api/projects/${project.value.id}`)
+})
+const doneText = computed(() => {
+  if (dumpProgress.value) return null
+  if (project.value?.dbBase?.state === 'failed') return 'The database import failed. Open the project settings to see why and retry it.'
+  return hasBootWorkflow.value
+    ? 'Start a live preview now, or open the project to look around first.'
+    : 'Open the project to start your first run.'
+})
 
 const creating = ref(false)
 const createError = ref<string | null>(null)
@@ -449,14 +464,19 @@ watch(open, (isOpen) => {
             <p class="text-base font-medium text-highlighted">
               {{ project?.fullName.split('/').pop() }} is ready
             </p>
-            <p class="mx-auto mt-1 max-w-80 text-xs text-dimmed">
-              {{ dumpUploading
-                ? 'The database dump is still uploading. Boot the project once it is done.'
-                : hasBootWorkflow
-                  ? 'Boot it to import the database, build, and open a live preview, or open the project to review the setup first.'
-                  : 'Open the project to review the setup and start your first run.' }}
+            <p
+              v-if="doneText"
+              class="mx-auto mt-1 max-w-80 text-xs text-muted"
+            >
+              {{ doneText }}
             </p>
           </div>
+          <KDumpProgress
+            v-if="dumpProgress"
+            class="max-w-64"
+            :progress="dumpProgress"
+            compact
+          />
           <div class="mt-1 flex w-full justify-center gap-2">
             <UButton
               size="lg"
@@ -471,7 +491,7 @@ watch(open, (isOpen) => {
               color="primary"
               label="Boot & preview"
               :loading="booting"
-              :disabled="dumpUploading"
+              :disabled="!!dumpProgress"
               @click="bootAndPreview"
             />
           </div>
