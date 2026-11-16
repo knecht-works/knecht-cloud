@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import AdmZip from 'adm-zip'
@@ -9,7 +8,7 @@ import { sessionContainer } from '../../../daemon/session-sandbox'
 import { workspaceRunning } from '../../../daemon/workspace'
 import { requireProject } from '../../../stores/projects'
 import { listSessionsInEnvState } from '../../../stores/sessions'
-import { dataDir, normalizeSharedFolder, projectSharedDir } from '../../../utils/storage'
+import { dataDir, normalizeSharedFolder, projectSharedDir, sanitizeFilename } from '../../../utils/storage'
 import { receiveUpload } from '../../../utils/upload'
 
 export default defineEventHandler(async (event) => {
@@ -25,8 +24,8 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Folder is not configured as shared' })
   }
 
-  const zipPath = join(dataDir(), 'uploads', `${randomUUID()}.zip`)
-  await receiveUpload(event, zipPath)
+  const zipPath = join(dataDir(), 'uploads', `${id}-${sanitizeFilename(target)}.zip`)
+  if (!await receiveUpload(event, zipPath)) return null
   let entries
   try {
     entries = new AdmZip(zipPath).getEntries().filter(e => !e.isDirectory)

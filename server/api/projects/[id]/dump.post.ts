@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const filePath = join(projectDumpDir(id), sanitizeFilename(name))
-  await receiveUpload(event, filePath)
+  if (!await receiveUpload(event, filePath)) return null
 
   setProjectDump(id, filePath)
   return startDbBaseBuild(id)
