@@ -5,6 +5,7 @@ import { pipeline } from 'node:stream/promises'
 import { createGunzip } from 'node:zlib'
 import { execa } from 'execa'
 import { stringify } from 'yaml'
+import { openPromise as openZip, type Entry, type ZipFile } from 'yauzl'
 import type { DbBase, Project } from '../db/schema'
 import { projectDetectedEnv, resolveEnv } from '../../shared/utils/env-spec'
 import { gitProvider } from '../git'
@@ -16,10 +17,13 @@ import { DDEV_ENV, ddevDefaultDatabase, ddevWebImage } from './sandbox'
 
 export const DB_BASE_PREFIX = 'knecht-base-'
 
+const BUILD_DB_MEM_LIMIT = '3g'
+
 // Only the build runs like this: a crash mid-import just fails the build.
 // `loose-` keeps a server that lacks an option from refusing to start. Loads after
 // the repo's own files: none of these change the data files a session reads.
 const IMPORT_TUNING = `[mysqld]
+loose-innodb-buffer-pool-size = 1G
 loose-innodb-log-file-size = 1G
 loose-innodb-flush-log-at-trx-commit = 0
 loose-innodb-doublewrite = OFF
@@ -170,20 +174,64 @@ function retire(prior: DbBase | null | undefined): void {
 }
 
 // Streamed straight into the import: ddev would first copy the whole dump next to the project.
-function dumpStreams(file: string, onPercent: (percent: number) => void): [Readable, ...Transform[]] | null {
+// Dumps made with --no-autocommit (Craft's backups) load each table in one transaction, and InnoDB holds a
+// FULLTEXT table's pending inserts in memory until the commit: gigabytes for a large searchindex.
+// The builder already skips the per-commit flush that option saves, so committing per statement costs nothing.
+const AUTOCOMMIT_OFF = ['\nSET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=0;', '\nset autocommit=0;'].map(s => Buffer.from(s))
+
+function autocommitOn(): Transform {
+  const keep = Math.max(...AUTOCOMMIT_OFF.map(p => p.length)) - 1
+  let carry = Buffer.alloc(0)
+  return new Transform({
+    transform(chunk: Buffer, _encoding, done) {
+      const buf = Buffer.concat([carry, chunk])
+      for (const p of AUTOCOMMIT_OFF) {
+        for (let i = buf.indexOf(p); i !== -1; i = buf.indexOf(p, i + p.length)) buf[i + p.length - 2] = 0x31
+      }
+      carry = buf.subarray(Math.max(0, buf.length - keep))
+      done(null, buf.subarray(0, buf.length - carry.length))
+    },
+    flush(done) {
+      done(null, carry)
+    },
+  })
+}
+
+async function dumpStreams(file: string, onPercent: (percent: number) => void): Promise<[Readable, ...Transform[]] | null> {
   const name = file.toLowerCase()
+  if (name.endsWith('.zip')) {
+    const zip = await openZip(file, { lazyEntries: true })
+    const entry = await sqlEntry(zip)
+    const stream = await zip.openReadStreamPromise(entry)
+    zip.close()
+    return [stream, progress(entry.uncompressedSize, onPercent), autocommitOn()]
+  }
   const gzipped = name.endsWith('.gz') && !name.endsWith('.tar.gz')
   if (!gzipped && !name.endsWith('.sql') && !name.endsWith('.mysql')) return null
-  const total = statSync(file).size
+  return [createReadStream(file), progress(statSync(file).size, onPercent), ...(gzipped ? [createGunzip()] : []), autocommitOn()]
+}
+
+function progress(total: number, onPercent: (percent: number) => void): Transform {
   let read = 0
-  const counter = new Transform({
+  return new Transform({
     transform(chunk: Buffer, _encoding, done) {
       read += chunk.length
       onPercent(Math.floor(read / total * 100))
       done(null, chunk)
     },
   })
-  return [createReadStream(file), counter, ...(gzipped ? [createGunzip()] : [])]
+}
+
+function sqlEntry(zip: ZipFile): Promise<Entry> {
+  return new Promise((resolve, reject) => {
+    zip.on('entry', (entry: Entry) => {
+      if (/\.sql$/i.test(entry.fileName) && !entry.fileName.startsWith('__MACOSX/')) resolve(entry)
+      else zip.readEntry()
+    })
+    zip.on('end', () => reject(new Error('The zip file holds no .sql dump.')))
+    zip.on('error', reject)
+    zip.readEntry()
+  })
 }
 
 async function importPercent(builder: string): Promise<number | null> {
@@ -217,7 +265,7 @@ async function buildDbBase(projectId: number, builder: string): Promise<void> {
     await writeBuilderConfig(dir, builder, database, repoConfig)
     await ddev(['start', '-y'])
     report('importing')
-    const source = dumpStreams(dump, read => report('importing', read))
+    const source = await dumpStreams(dump, read => report('importing', read))
     if (source) {
       const importing = ddev(['import-db'])
       // A dump that breaks off mid-stream ends the import cleanly, so both sides have to be asked.
@@ -272,6 +320,9 @@ async function writeBuilderConfig(dir: string, builder: string, database: string
     host_webserver_port: String(webserverPort),
     host_https_port: String(httpsPort),
     host_mailpit_port: String(mailpitPort),
+  }))
+  writeFileSync(join(dir, '.ddev', 'docker-compose.knecht-build.yaml'), stringify({
+    services: { db: { mem_limit: BUILD_DB_MEM_LIMIT } },
   }))
   if (type !== 'postgres') {
     mkdirSync(join(dir, '.ddev', 'mysql'))
