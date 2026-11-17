@@ -483,13 +483,12 @@ watch(bootCommands, () => {
             </div>
             <div
               v-if="!dumpProgress && dumpState"
-              class="mt-1 flex h-6 items-center gap-2"
+              class="mt-1 flex min-h-6 items-start gap-2"
             >
               <span
-                class="flex-1 truncate text-xs"
+                class="min-w-0 flex-1 self-center wrap-break-word text-xs"
                 :class="dumpState.failed ? '' : 'text-muted'"
                 :style="dumpState.failed ? { color: 'var(--status-error)' } : undefined"
-                :title="dumpState.text"
               >{{ dumpState.text }}</span>
               <UButton
                 size="xs"

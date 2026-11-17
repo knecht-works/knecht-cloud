@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { execa, type Options } from 'execa'
 import { toSandboxProcess, type SandboxProcess } from './sandbox-process'
 import { BRIDGE_HOST, writeBridgeCredentialHelper } from '../utils/agent-bridge'
+import { ddevErrorLine } from '../utils/ddev-error'
 import { dataDir, sessionSandboxName, sessionCheckoutDir } from '../utils/storage'
 
 export const WEB_PROJECT_DIR = '/var/www/html'
@@ -133,7 +134,7 @@ export async function startEnvStack(sessionId: number, log: (text: string) => vo
   child.stdout?.on('data', (d: Buffer) => log(d.toString()))
   child.stderr?.on('data', (d: Buffer) => log(d.toString()))
   const { exitCode, stderr } = await child
-  if (exitCode !== 0) throw new Error(`ddev start exited with code ${exitCode}: ${String(stderr).trim().split('\n').at(-1)}`)
+  if (exitCode !== 0) throw new Error(`ddev start exited with code ${exitCode}: ${ddevErrorLine(String(stderr))}`)
   await wireNetworks(sessionId)
 }
 

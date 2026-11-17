@@ -9,6 +9,7 @@ import type { DbBase, Project } from '../db/schema'
 import { projectDetectedEnv, resolveEnv } from '../../shared/utils/env-spec'
 import { gitProvider } from '../git'
 import { advanceProjectDbBase, getProject, listBuildingDbBases, setProjectDbBase } from '../stores/projects'
+import { ddevErrorLine } from '../utils/ddev-error'
 import { dataDir, projectDumpDir, sessionSandboxName } from '../utils/storage'
 import { freeHostPorts, readDdevConfig } from './ddev'
 import { DDEV_ENV, ddevDefaultDatabase, ddevWebImage } from './sandbox'
@@ -289,7 +290,7 @@ async function writeBuilderConfig(dir: string, builder: string, database: string
 
 function failureLine(e: unknown): string {
   const err = e as { stderr?: unknown, message?: string }
-  const stderr = typeof err.stderr === 'string' ? err.stderr.trim().split('\n').at(-1) : ''
+  const stderr = typeof err.stderr === 'string' ? ddevErrorLine(err.stderr) : ''
   return stderr || err.message || String(e)
 }
 
