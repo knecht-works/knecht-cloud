@@ -21,7 +21,7 @@ const BUILD_DB_MEM_LIMIT = '3g'
 // `loose-` keeps a server that lacks an option from refusing to start. Loads after
 // the repo's own files: none of these change the data files a session reads.
 const IMPORT_TUNING = `[mysqld]
-loose-innodb-buffer-pool-size = 2G
+loose-innodb-buffer-pool-size = 1G
 loose-innodb-log-file-size = 1G
 loose-innodb-flush-log-at-trx-commit = 0
 loose-innodb-doublewrite = OFF
