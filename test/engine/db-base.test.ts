@@ -24,7 +24,7 @@ async function run(file: string, args: string[], options?: { cwd?: string, cance
     builderMysqlDir.push(Object.fromEntries(readdirSync(dir).map(name => [name, readFileSync(join(dir, name), 'utf8')])))
   }
   if (failing.has(line) || (args[0] === 'volume' && args[1] === 'inspect' && missingVolumes.has(args[2]!))) {
-    throw Object.assign(new Error(`${line} failed`), { stderr: 'boom: the import broke' })
+    throw Object.assign(new Error(`${line} failed`), { stderr: 'Error: boom: the import broke\nUsage:\n  ddev import-db [project] [flags]\n\nGlobal Flags:\n      --skip-hooks    If true, any hook normally run by the command will be skipped.' })
   }
   return { stdout: '' }
 }
