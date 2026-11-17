@@ -16,13 +16,10 @@ import { DDEV_ENV, ddevDefaultDatabase, ddevWebImage } from './sandbox'
 
 export const DB_BASE_PREFIX = 'knecht-base-'
 
-const BUILD_DB_MEM_LIMIT = '3g'
-
 // Only the build runs like this: a crash mid-import just fails the build.
 // `loose-` keeps a server that lacks an option from refusing to start. Loads after
 // the repo's own files: none of these change the data files a session reads.
 const IMPORT_TUNING = `[mysqld]
-loose-innodb-buffer-pool-size = 1G
 loose-innodb-log-file-size = 1G
 loose-innodb-flush-log-at-trx-commit = 0
 loose-innodb-doublewrite = OFF
@@ -275,9 +272,6 @@ async function writeBuilderConfig(dir: string, builder: string, database: string
     host_webserver_port: String(webserverPort),
     host_https_port: String(httpsPort),
     host_mailpit_port: String(mailpitPort),
-  }))
-  writeFileSync(join(dir, '.ddev', 'docker-compose.knecht-build.yaml'), stringify({
-    services: { db: { mem_limit: BUILD_DB_MEM_LIMIT } },
   }))
   if (type !== 'postgres') {
     mkdirSync(join(dir, '.ddev', 'mysql'))
