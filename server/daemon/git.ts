@@ -27,9 +27,18 @@ export async function prepareSessionCheckout(
       onLog(`Reusing checkout at ${dir}\n`)
     }
     else {
-      onLog(`Cloning ${project.fullName} (${branch})…\n`)
-      const auth = authHeader(credentials)
-      await git(['-c', `${auth.key}=${auth.value}`, 'clone', '--depth', '1', '--branch', branch, credentials.cloneUrl, dir])
+      const header = authHeader(credentials)
+      const auth = `${header.key}=${header.value}`
+      // Session branches stay local until a PR pushes them.
+      const onOrigin = branch === project.defaultBranch || await remoteHasBranch(auth, credentials.cloneUrl, branch)
+      if (onOrigin) {
+        onLog(`Cloning ${project.fullName} (${branch})…\n`)
+      }
+      else {
+        onLog(`${branch} is not on origin, starting it fresh from ${project.defaultBranch}\n`)
+      }
+      await git(['-c', auth, 'clone', '--depth', '1', '--branch', onOrigin ? branch : project.defaultBranch, credentials.cloneUrl, dir])
+      if (!onOrigin) await git(['-C', dir, 'checkout', '-q', '-b', branch])
     }
 
     shieldGeneratedFiles(dir, project.sharedFolders)
@@ -133,6 +142,11 @@ function shieldGeneratedFiles(dir: string, sharedFolders: string[]): void {
   catch {
     // Best-effort.
   }
+}
+
+async function remoteHasBranch(auth: string, cloneUrl: string, branch: string): Promise<boolean> {
+  const { stdout } = await git(['-c', auth, 'ls-remote', '--heads', cloneUrl, `refs/heads/${branch}`])
+  return stdout.trim() !== ''
 }
 
 function git(args: string[]) {
