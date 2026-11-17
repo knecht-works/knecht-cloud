@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
 import { gzipSync } from 'node:zlib'
+import AdmZip from 'adm-zip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { makeProject } from '../helpers/db'
 
@@ -196,6 +197,40 @@ describe('a running build', () => {
     expect(await settled(project.id)).toMatchObject({ state: 'ready' })
   })
 
+  it('imports a dump made with --no-autocommit one statement per transaction, leaving the data alone', async () => {
+    const off = '\nSET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=0;\n'
+    // Straddles the 64 KiB read chunk boundary, so the stream must match across chunks.
+    const padding = 'x'.repeat(65536 - 20)
+    const dump = `-- dump\n${padding}${off}INSERT INTO t VALUES ('SET @@AUTOCOMMIT=0;');\nCOMMIT;\nset autocommit=0;\nINSERT INTO u VALUES (1);\ncommit;\n`
+    imported.length = 0
+    const project = projectWithDump('db.sql', dump)
+    startDbBaseBuild(project.id)
+    expect(await settled(project.id)).toMatchObject({ state: 'ready' })
+    expect(imported.join('')).toBe(dump
+      .replace(off, '\nSET @OLD_AUTOCOMMIT=@@AUTOCOMMIT, @@AUTOCOMMIT=1;\n')
+      .replace('\nset autocommit=0;', '\nset autocommit=1;'))
+  })
+
+  it('streams the dump out of a zip file', async () => {
+    const zip = new AdmZip()
+    zip.addFile('__MACOSX/._db.sql', Buffer.from('mac metadata'))
+    zip.addFile('db.sql', Buffer.from('CREATE TABLE t;\nset autocommit=0;\n'))
+    imported.length = 0
+    const project = projectWithDump('db.sql.zip', zip.toBuffer())
+    startDbBaseBuild(project.id)
+    expect(await settled(project.id)).toMatchObject({ state: 'ready' })
+    expect(imported.join('')).toBe('CREATE TABLE t;\nset autocommit=1;\n')
+    expect(commands).toContain('ddev import-db')
+  })
+
+  it('fails when a zip file holds no .sql dump', async () => {
+    const zip = new AdmZip()
+    zip.addFile('notes.txt', Buffer.from('nothing'))
+    const project = projectWithDump('db.zip', zip.toBuffer())
+    startDbBaseBuild(project.id)
+    expect(await settled(project.id)).toEqual({ state: 'failed', error: 'The zip file holds no .sql dump.' })
+  })
+
   it('fails when the dump breaks off mid-stream', async () => {
     const project = projectWithDump('db.sql.gz', gzipSync('CREATE TABLE t;').subarray(0, 12))
     startDbBaseBuild(project.id)
@@ -205,11 +240,11 @@ describe('a running build', () => {
   it('leaves formats it cannot stream to ddev and reads the progress from its import', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     try {
-      const project = projectWithDump('db.sql.zip', '')
+      const project = projectWithDump('db.sql.bz2', '')
       let open = () => {}
       importGate = new Promise<void>(resolve => (open = resolve))
       startDbBaseBuild(project.id)
-      await vi.waitFor(() => expect(commands).toContain(`ddev import-db --file=${join(projectDumpDir(project.id), 'db.sql.zip')}`))
+      await vi.waitFor(() => expect(commands).toContain(`ddev import-db --file=${join(projectDumpDir(project.id), 'db.sql.bz2')}`))
       importPosition = '250 1000'
       await vi.advanceTimersByTimeAsync(3000)
       await vi.waitFor(() => expect(getProject(project.id)!.dbBase).toMatchObject({ step: 'importing', percent: 25 }))
