@@ -62,7 +62,7 @@ vi.mock('../../server/utils/github-app', () => ({
 
 const { db, schema } = await import('../../server/db')
 const { archiveEnv, bootEnv, rehydrateEnv, reviveEnv, stopEnv } = await import('../../server/daemon/envs')
-const { sessionCheckoutDir } = await import('../../server/utils/storage')
+const { sessionArchiveDir, sessionCheckoutDir } = await import('../../server/utils/storage')
 const { ddevStartAction } = await import('../../server/workflows/actions/ddev-start')
 
 function freshSession(project: Project) {
@@ -270,6 +270,16 @@ describe('archive and restore', () => {
     await archiveEnv(session.id)
     await rehydrateEnv(session.id)
     expect(readFileSync(join(dir, 'vendor', 'lib.php'), 'utf8')).toBe('lib\n')
+  })
+
+  it('keeps the checkout and the session stopped when the snapshot fails', async () => {
+    const { session, dir } = stoppedCheckout('')
+    mkdirSync(join(sessionArchiveDir(session.id), '..'), { recursive: true })
+    writeFileSync(sessionArchiveDir(session.id), 'not a directory')
+    await expect(archiveEnv(session.id)).rejects.toThrow()
+    expect(getSessionRow(session.id).envState).toBe('stopped')
+    expect(readFileSync(join(dir, 'tracked.txt'), 'utf8')).toBe('v1\n')
+    rmSync(sessionArchiveDir(session.id))
   })
 
   it('starts fresh and says so when the archive is gone and the branch never reached origin', async () => {
