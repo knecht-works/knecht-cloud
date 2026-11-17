@@ -78,13 +78,13 @@ export async function startFollowup(followupId: number): Promise<void> {
 }
 
 async function execFollowup(followup: Followup, session: Session, run: Run, project: Project, controller: AbortController): Promise<string> {
-  await reviveEnv(session.id)
-
   // A follow-up has no log segment: everything it produces is a transcript item.
   const sink = transcriptSink(session.id, followup.id)
   const log = (text: string) => {
     if (text.trim()) sink.item(notice(text.trim()))
   }
+  // Only the restore notices: a reboot's ddev output would flood the transcript.
+  await reviveEnv(session.id, session.envState === 'archived' ? log : undefined)
 
   const rt: ActionRuntime = {
     runId: run.id,

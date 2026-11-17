@@ -169,11 +169,11 @@ function pinDevServerPort(sessionId: number, port: number | null): void {
   updateSession(sessionId, { previewPort: port })
 }
 
-export async function rehydrateEnv(sessionId: number): Promise<void> {
-  await inTransition(sessionId, 'restoring', () => restoreFromArchive(sessionId))
+export async function rehydrateEnv(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
+  await inTransition(sessionId, 'restoring', () => restoreFromArchive(sessionId, log))
 }
 
-async function restoreFromArchive(sessionId: number): Promise<void> {
+async function restoreFromArchive(sessionId: number, log: (text: string) => void): Promise<void> {
   const session = getSessionRow(sessionId)
   const project = session && getProject(session.projectId)
   if (!session || !project) throw new Error('Session or project not found')
@@ -189,8 +189,9 @@ async function restoreFromArchive(sessionId: number): Promise<void> {
     // Keep the prior fallback clone.
   }
   else {
+    log(`The archived state of this session is gone, so its uncommitted and unpushed work could not be restored\n`)
     const credentials = await gitProvider(project).credentials(project)
-    await prepareSessionCheckout(project, sessionId, credentials, () => {}, session.branch ?? project.defaultBranch)
+    await prepareSessionCheckout(project, sessionId, credentials, log, session.branch ?? project.defaultBranch)
   }
 
   // Only when the checkout has none yet: a retry must keep the live state.
@@ -220,7 +221,7 @@ export async function reviveEnv(sessionId: number, log?: (text: string) => void)
   if (!session || session.envState === 'down') throw new Error('The session has no checkout')
   const running = transitions.get(sessionId)
   if (running) throw new Error(`The environment is ${running}`)
-  if (session.envState === 'archived') return rehydrateEnv(sessionId)
+  if (session.envState === 'archived') return rehydrateEnv(sessionId, log)
   if (previewLost(sessionId)) return rebootLostPreview(sessionId, log)
   if (session.envState === 'stopped') return rebootEnv(sessionId)
   await startSandbox(sessionId, session.tier, false, log)
