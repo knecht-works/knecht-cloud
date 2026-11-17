@@ -330,8 +330,8 @@ export async function archiveStaleEnvs(): Promise<void> {
     try {
       await archiveEnv(id)
     }
-    catch {
-      // Retried on the next tick.
+    catch (err) {
+      console.error(`[envs] archiving session ${id} failed, it stays stopped:`, err)
     }
   }
 }
@@ -361,20 +361,15 @@ async function snapshotCheckout(sessionId: number): Promise<void> {
   const dir = sessionCheckoutDir(sessionId)
   if (!existsSync(join(dir, '.git'))) return
   const archiveDir = sessionArchiveDir(sessionId)
-  try {
-    mkdirSync(archiveDir, { recursive: true })
-    // .knecht is separate so a retried restore keeps the live agent state.
-    const excludes = ['.knecht', ...ignoredReinstallableDirs(dir)].map(name => `--exclude=./${name}`)
-    // Renamed into place: a half-written archive must not look restorable.
-    const partial = join(archiveDir, 'checkout.tar.gz.partial')
-    await execa('tar', ['-czf', partial, ...excludes, '-C', dir, '.'])
-    renameSync(partial, join(archiveDir, 'checkout.tar.gz'))
-    if (existsSync(join(dir, '.knecht'))) {
-      await execa('tar', ['-czf', join(archiveDir, 'knecht-state.tar.gz'), '-C', dir, '.knecht'])
-    }
-  }
-  catch {
-    // Restore falls back to the branch tip.
+  mkdirSync(archiveDir, { recursive: true })
+  // .knecht is separate so a retried restore keeps the live agent state.
+  const excludes = ['.knecht', ...ignoredReinstallableDirs(dir)].map(name => `--exclude=./${name}`)
+  // Renamed into place: a half-written archive must not look restorable.
+  const partial = join(archiveDir, 'checkout.tar.gz.partial')
+  await execa('tar', ['-czf', partial, ...excludes, '-C', dir, '.'])
+  renameSync(partial, join(archiveDir, 'checkout.tar.gz'))
+  if (existsSync(join(dir, '.knecht'))) {
+    await execa('tar', ['-czf', join(archiveDir, 'knecht-state.tar.gz'), '-C', dir, '.knecht'])
   }
 }
 
