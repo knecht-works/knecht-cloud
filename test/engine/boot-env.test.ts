@@ -35,6 +35,12 @@ vi.mock('../../server/daemon/sandbox', () => ({
 vi.mock('../../server/daemon/workspace', () => ({
   ensureWorkspaceUp: async () => { calls.push('workspace up') },
   removeWorkspace: async () => { calls.push('workspace removed') },
+  // Runs on the host against the checkout the container would mount.
+  runOnCheckout: async (sessionId: number, command: string[], input?: string) => {
+    calls.push(`checkout ${sessionId}: ${command.join(' ')}`)
+    const { sessionCheckoutDir } = await import('../../server/utils/storage')
+    execFileSync(command[0]!, command.slice(1), { cwd: sessionCheckoutDir(sessionId), input })
+  },
 }))
 vi.mock('../../server/daemon/db-base', () => ({
   archiveDbVolume: async () => { calls.push('archive db volume') },
@@ -270,6 +276,30 @@ describe('archive and restore', () => {
     await archiveEnv(session.id)
     await rehydrateEnv(session.id)
     expect(readFileSync(join(dir, 'vendor', 'lib.php'), 'utf8')).toBe('lib\n')
+  })
+
+  it('restores an archive in the earlier .git-plus-patch format inside the workspace', async () => {
+    const { session, dir } = stoppedCheckout('')
+    const head = git(dir, 'rev-parse', 'HEAD')
+    writeFileSync(join(dir, 'tracked.txt'), 'v2 uncommitted\n')
+    writeFileSync(join(dir, 'untracked.txt'), 'new\n')
+    git(dir, 'add', '-A')
+    const archiveDir = sessionArchiveDir(session.id)
+    mkdirSync(archiveDir, { recursive: true })
+    execFileSync('tar', ['-czf', join(archiveDir, 'git.tar.gz'), '-C', dir, '.git'])
+    writeFileSync(join(archiveDir, 'checkout.patch'), execFileSync('git', ['-C', dir, 'diff', '--cached', '--binary'], { encoding: 'utf8' }))
+    rmSync(dir, { recursive: true })
+    db.update(schema.sessions).set({ envState: 'archived' }).where(eq(schema.sessions.id, session.id)).run()
+
+    await rehydrateEnv(session.id)
+    // A retry must not apply the patch twice.
+    db.update(schema.sessions).set({ envState: 'archived' }).where(eq(schema.sessions.id, session.id)).run()
+    await rehydrateEnv(session.id)
+    expect(git(dir, 'rev-parse', 'HEAD')).toBe(head)
+    expect(readFileSync(join(dir, 'tracked.txt'), 'utf8')).toBe('v2 uncommitted\n')
+    expect(readFileSync(join(dir, 'untracked.txt'), 'utf8')).toBe('new\n')
+    expect(calls).toContain(`checkout ${session.id}: git reset --hard`)
+    expect(getSessionRow(session.id).envState).toBe('up')
   })
 
   it('keeps the checkout and the session stopped when the snapshot fails', async () => {

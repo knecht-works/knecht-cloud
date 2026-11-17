@@ -83,6 +83,21 @@ async function startWorkspace(sessionId: number): Promise<void> {
   await writeBridgeCredentialHelper(dir, sessionId).catch(() => {})
 }
 
+// A one-off, offline container on the workspace image with only the checkout mounted.
+export async function runOnCheckout(sessionId: number, command: string[], input?: string): Promise<void> {
+  const [entrypoint, ...args] = command
+  await execa('docker', [
+    'run', '--rm', ...(input === undefined ? [] : ['-i']),
+    '--network', 'none',
+    '--user', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
+    '--workdir', WEB_PROJECT_DIR,
+    '-v', `${sessionCheckoutDir(sessionId)}:${WEB_PROJECT_DIR}`,
+    '--entrypoint', entrypoint!,
+    await workspaceImage(),
+    ...args,
+  ], { input })
+}
+
 async function createNetwork(sessionId: number, name: string): Promise<void> {
   const { exitCode, stderr } = await execa('docker', ['network', 'create', '--label', `${WORKSPACE_LABEL}=${sessionId}`, name], { reject: false })
   if (exitCode !== 0 && !stderr.includes('already exists')) throw new Error(`docker network create ${name} failed: ${stderr.trim()}`)

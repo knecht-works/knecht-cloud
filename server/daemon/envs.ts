@@ -10,7 +10,7 @@ import { configureSessionEnv } from './ddev'
 import { archiveDbVolume, archivedDbVolume, cloneDbBase, readyDbBase, restoreDbVolume, type ReadyDbBase } from './db-base'
 import { restartDevServer, waitForDevServer } from './dev-server'
 import { prepareSessionCheckout } from './git'
-import { ensureWorkspaceUp, removeWorkspace } from './workspace'
+import { ensureWorkspaceUp, removeWorkspace, runOnCheckout } from './workspace'
 import { envStackRunning, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from './sandbox'
 import { warmPreviewCertificates } from '../utils/preview-certs'
 import { getProject } from '../stores/projects'
@@ -180,10 +180,14 @@ async function restoreFromArchive(sessionId: number, log: (text: string) => void
 
   const dir = sessionCheckoutDir(sessionId)
   const checkoutArchive = join(sessionArchiveDir(sessionId), 'checkout.tar.gz')
+  const legacyGitArchive = join(sessionArchiveDir(sessionId), 'git.tar.gz')
   if (existsSync(checkoutArchive)) {
     // Unpack on every attempt: a crash in between must not look like a finished restore.
     mkdirSync(dir, { recursive: true })
     await execa('tar', ['-xzf', checkoutArchive, '-C', dir])
+  }
+  else if (existsSync(legacyGitArchive)) {
+    await restoreLegacyCheckout(sessionId, dir, legacyGitArchive)
   }
   else if (existsSync(join(dir, '.git'))) {
     // Keep the prior fallback clone.
@@ -214,6 +218,21 @@ async function restoreFromArchive(sessionId: number, log: (text: string) => void
   }
   moveEnv(sessionId, 'archived', 'up')
   if (session.tier === 'code' && bootStep) promoteToPreview(sessionId)
+}
+
+// Archives written before checkout.tar.gz: the .git plus the staged diff. The .git came from
+// the sandbox, so git runs in a container, never on the host. Not the workspace: it needs
+// the env config that only the restored tree can produce.
+async function restoreLegacyCheckout(sessionId: number, dir: string, gitArchive: string): Promise<void> {
+  mkdirSync(dir, { recursive: true })
+  await execa('tar', ['-xzf', gitArchive, '-C', dir])
+  // Reset and clean first, so a retry applies the patch onto the same tree.
+  await runOnCheckout(sessionId, ['git', 'reset', '--hard'])
+  await runOnCheckout(sessionId, ['git', 'clean', '-fdq'])
+  const patch = join(sessionArchiveDir(sessionId), 'checkout.patch')
+  if (existsSync(patch)) {
+    await runOnCheckout(sessionId, ['git', 'apply'], readFileSync(patch, 'utf8'))
+  }
 }
 
 export async function reviveEnv(sessionId: number, log?: (text: string) => void): Promise<void> {
