@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import type { ActionRuntime } from '../../server/workflows/actions'
 import type { Project } from '../../server/db/schema'
 import { getSessionRow, makeProject, makeRun, makeSession } from '../helpers/db'
+import { remoteWithMain } from '../helpers/git-remote'
 
 const calls: string[] = []
 const failing = new Set<string>()
@@ -48,6 +49,15 @@ vi.mock('../../server/daemon/dev-server', () => ({
     await exec(['supervisorctl', 'restart', 'webextradaemons:*'])
   },
   waitForDevServer: (sessionId: number, port: number) => waitForDevServer(sessionId, port),
+}))
+
+const origin = vi.hoisted(() => ({ url: '' }))
+vi.mock('../../server/git', async () => {
+  const { credentialsFor } = await import('../helpers/git-remote')
+  return { gitProvider: () => ({ credentials: async () => credentialsFor(origin.url) }) }
+})
+vi.mock('../../server/utils/github-app', () => ({
+  getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
 
 const { db, schema } = await import('../../server/db')
@@ -260,6 +270,17 @@ describe('archive and restore', () => {
     await archiveEnv(session.id)
     await rehydrateEnv(session.id)
     expect(readFileSync(join(dir, 'vendor', 'lib.php'), 'utf8')).toBe('lib\n')
+  })
+
+  it('starts fresh and says so when the archive is gone and the branch never reached origin', async () => {
+    origin.url = remoteWithMain()
+    const session = makeSession(makeProject(), { envState: 'archived', branch: 'never-pushed' })
+    const log: string[] = []
+    await rehydrateEnv(session.id, text => log.push(text))
+    const dir = sessionCheckoutDir(session.id)
+    expect(git(dir, 'rev-parse', '--abbrev-ref', 'HEAD')).toBe('never-pushed')
+    expect(log.join('')).toContain('archived state of this session is gone')
+    expect(getSessionRow(session.id).envState).toBe('up')
   })
 })
 
