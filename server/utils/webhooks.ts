@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { createError, getHeader, readRawBody, type H3Event } from 'h3'
 import type { Integration } from '../integrations'
 import { integrationRole, isTrackerId } from '../../shared/utils/integrations'
@@ -9,6 +10,7 @@ import { fireTrigger } from './triggers'
 import { listActiveTriggers } from '../stores/triggers'
 import { findObjectSession, getSessionRow } from '../stores/sessions'
 import { ticketChanged } from './object-freshness'
+import { dataDir } from './storage'
 
 // No session gate: the integration authenticates the delivery with its signature over the raw body.
 export async function handleWebhook(integration: Integration, event: H3Event) {
@@ -28,7 +30,7 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid signature' })
   }
 
-  if (process.env.KNECHT_DUMP_WEBHOOKS) dumpDelivery(integration.id, raw, header)
+  if (process.env.KNECHT_DUMP_WEBHOOKS === '1') dumpDelivery(integration.id, raw, header)
 
   const delivery = await integration.webhook.parse(raw, header)
   if (!delivery) {
@@ -83,7 +85,7 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
 
 // Dev aid: raw body plus the headers `parse` reads, so a dump can be replayed as a test fixture.
 function dumpDelivery(source: string, raw: string, header: (name: string) => string | undefined) {
-  const dir = '.data/webhooks'
+  const dir = join(dataDir(), 'webhooks')
   mkdirSync(dir, { recursive: true })
   const event = header('x-github-event') || header('x-plane-event') || 'event'
   const headers = Object.fromEntries(['x-github-event', 'x-plane-event'].map(h => [h, header(h)]).filter(([, v]) => v))
