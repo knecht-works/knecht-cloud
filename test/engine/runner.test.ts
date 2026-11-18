@@ -4,7 +4,7 @@ import type { Step } from '../../shared/utils/workflow'
 import { checkoutDirOf } from '../helpers/local-sandbox'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
-import { attachTestObject, getRun, getSessionRow, getSteps, makeProject, makeRun, requeue } from '../helpers/db'
+import { attachTestObject, getRun, getSessionRow, getSteps, makeProject, makeRun, makeSession, requeue } from '../helpers/db'
 
 vi.mock('../../server/daemon/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../server/daemon/git')>()
@@ -388,5 +388,18 @@ describe('runner', () => {
     const { execa } = await import('execa')
     const { stdout } = await execa('git', ['-C', checkoutDirOf(run.sessionId), 'log', '-1', '--format=%s %an'])
     expect(stdout).toBe(`Test change (run ${run.id}) Knecht Test`)
+  })
+
+  it('keeps the work branch of the session instead of branching off it', async () => {
+    const project = makeProject()
+    const session = makeSession(project, { branch: 'feature/checkout' })
+    const queued = makeRun(project, [{ type: 'create-branch', id: 'branch', name: 'knecht/review-{{ run.id }}' }], { sessionId: session.id })
+    await startRun(queued.id, project)
+    const run = getRun(queued.id)
+    const steps = getSteps(queued.id)
+    expect(run.status).toBe('success')
+    expect(run.branch).toBe('feature/checkout')
+    expect(steps[0]!.outputs).toMatchObject({ name: 'feature/checkout' })
+    expect(getSessionRow(session.id).branch).toBe('feature/checkout')
   })
 })
