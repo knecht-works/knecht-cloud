@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { db, schema } from '../db'
 import type { SessionObjectRow } from '../db/schema'
 import type { SessionObject } from '../utils/sessions'
@@ -25,6 +25,11 @@ export function getObjectRow(id: number): SessionObjectRow | undefined {
 
 export function listSessionObjectRows(sessionId: number): SessionObjectRow[] {
   return db.select().from(o).where(eq(o.sessionId, sessionId)).orderBy(...primaryOrder).all()
+}
+
+export function listObjectRowsOfSessions(sessionIds: number[]): SessionObjectRow[] {
+  if (!sessionIds.length) return []
+  return db.select().from(o).where(inArray(o.sessionId, sessionIds)).orderBy(...primaryOrder).all()
 }
 
 // Correlated subquery for joins: the session's primary object id.
