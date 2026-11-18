@@ -330,6 +330,16 @@ describe('agent bridge on a Jira ticket', () => {
     })
   })
 
+  it('refuses to comment while a follow-up from the dashboard is running', async () => {
+    const { run, sessionId } = ticketSession()
+    db.insert(schema.followups).values({ sessionId, runId: run.id, prompt: 'what does this do?', origin: 'dashboard', status: 'running' }).run()
+    const before = jiraApi.comments.length
+    const res = await call(sessionId, { op: 'comment', body: 'It does X.' })
+    expect(res.status).toBe(400)
+    expect(res.text).toContain('dashboard')
+    expect(jiraApi.comments.length).toBe(before)
+  })
+
   it('applies only labels that exist in Jira', async () => {
     const { sessionId } = ticketSession()
     const invented = await call(sessionId, { op: 'label', add: ['anything'] })

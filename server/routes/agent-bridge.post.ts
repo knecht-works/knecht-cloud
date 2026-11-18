@@ -117,7 +117,11 @@ export default defineEventHandler(async (event) => {
       case 'comment': {
         const { integration, object, label } = requireObject(session)
         requireRepliesEnabled(sessionId)
-        const target = getRunningFollowup(sessionId)?.replyTo ?? addressee(getRunningSessionRun(sessionId)?.actor)
+        const followup = getRunningFollowup(sessionId)
+        if (followup?.origin === 'dashboard') {
+          throw new BridgeError(`this follow-up was asked in the Knecht dashboard, not on ${label}: answer in your final message instead`)
+        }
+        const target = followup?.replyTo ?? addressee(getRunningSessionRun(sessionId)?.actor)
         // Still addressed to whoever asked, only no longer under their comment.
         const replyTo = body.newThread && target ? { ...target, thread: null } : target
         const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId), replyTo))
