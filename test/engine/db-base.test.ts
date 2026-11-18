@@ -237,6 +237,13 @@ describe('a running build', () => {
     expect(await settled(project.id)).toMatchObject({ state: 'failed', error: 'unexpected end of file' })
   })
 
+  it('blames a damaged dump rather than the import it cut short', async () => {
+    const project = projectWithDump('db.sql.gz', gzipSync('CREATE TABLE t;').subarray(0, 12))
+    failing.add('ddev import-db')
+    startDbBaseBuild(project.id)
+    expect(await settled(project.id)).toMatchObject({ state: 'failed', error: 'unexpected end of file' })
+  })
+
   it('leaves formats it cannot stream to ddev and reads the progress from its import', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
     try {

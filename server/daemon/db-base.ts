@@ -268,10 +268,11 @@ async function buildDbBase(projectId: number, builder: string): Promise<void> {
     const source = await dumpStreams(dump, read => report('importing', read))
     if (source) {
       const importing = ddev(['import-db'])
-      // A dump that breaks off mid-stream ends the import cleanly, so both sides have to be asked.
+      // A dump that breaks off mid-stream may still import cleanly, or fail on the cut statement: its own error is the real one.
+      // EPIPE only means the import quit first.
       const [fed, imported] = await Promise.allSettled([pipeline([...source, importing.stdin!]), importing])
+      if (fed.status === 'rejected' && (fed.reason as NodeJS.ErrnoException).code !== 'EPIPE') throw fed.reason
       if (imported.status === 'rejected') throw imported.reason
-      if (fed.status === 'rejected') throw fed.reason
     }
     else {
       let polling = true
