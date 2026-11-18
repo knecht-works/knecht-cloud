@@ -19,10 +19,16 @@ const { items: branchItems } = useBranchPicker(
   () => props.project.defaultBranch,
 )
 
-const { starting, start } = useStartRun(props.project.id, runId => emit('runStarted', runId))
+const withPreview = ref(true)
+
+const { starting, start, startSession } = useStartRun(props.project.id, runId => emit('runStarted', runId))
 function startWorkflow(workflowId: number) {
   startOpen.value = false
   return start(workflowId, selectedBranch.value)
+}
+function startPlainSession() {
+  startOpen.value = false
+  return startSession(selectedBranch.value, withPreview.value)
 }
 
 const route = useRoute()
@@ -38,13 +44,13 @@ const onSettings = computed(() => route.path.startsWith(`/projects/${props.proje
         :content="{ side: 'bottom', align: 'end' }"
       >
         <UTooltip
-          text="Run a workflow on this project"
+          text="Open a session on this project, with or without a workflow"
           :disabled="startOpen"
         >
           <UButton
             size="lg"
             color="primary"
-            label="Start workflow"
+            label="Start session"
             :loading="starting"
           />
         </UTooltip>
@@ -60,7 +66,33 @@ const onSettings = computed(() => route.path.startsWith(`/projects/${props.proje
               />
             </UFormField>
 
-            <UFormField label="Workflow">
+            <div class="flex flex-col gap-3 rounded-lg border border-default p-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-sm text-highlighted">
+                    Boot a preview
+                  </div>
+                  <p class="mt-0.5 text-xs leading-relaxed text-muted">
+                    Database, dev server and boot commands. Off: code only, faster.
+                  </p>
+                </div>
+                <USwitch
+                  v-model="withPreview"
+                  aria-label="Boot a preview"
+                  class="mt-0.5"
+                />
+              </div>
+              <UButton
+                color="primary"
+                variant="soft"
+                block
+                :label="withPreview ? 'Start with preview' : 'Start with code only'"
+                :disabled="starting"
+                @click="startPlainSession"
+              />
+            </div>
+
+            <UFormField label="Or run a workflow">
               <div
                 v-if="startableWorkflows.length"
                 class="flex flex-col gap-0.5"

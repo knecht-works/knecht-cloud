@@ -2,22 +2,33 @@ export function useStartRun(projectId: number, onStarted: (runId: number) => voi
   const toastError = useToastError()
   const starting = ref(false)
 
-  async function start(workflowId: number, branch: string) {
+  async function launch(request: () => Promise<{ id: number }>, failure: string) {
     starting.value = true
     try {
-      const created = await $fetch('/api/runs', {
-        method: 'POST',
-        body: { projectId, workflowId, branch },
-      })
+      const created = await request()
       await onStarted(created.id)
     }
     catch (e) {
-      toastError('Failed to start run', e)
+      toastError(failure, e)
     }
     finally {
       starting.value = false
     }
   }
 
-  return { starting, start }
+  function start(workflowId: number, branch: string) {
+    return launch(() => $fetch('/api/runs', {
+      method: 'POST',
+      body: { projectId, workflowId, branch },
+    }), 'Failed to start run')
+  }
+
+  function startSession(branch: string, preview: boolean) {
+    return launch(() => $fetch(`/api/projects/${projectId}/sessions`, {
+      method: 'POST',
+      body: { branch, preview },
+    }), 'Failed to start session')
+  }
+
+  return { starting, start, startSession }
 }
