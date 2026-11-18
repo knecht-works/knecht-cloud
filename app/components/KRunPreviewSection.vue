@@ -57,6 +57,19 @@ async function runAgain() {
     toastError('Failed to start run', e)
   }
 }
+
+const startingPreview = ref(false)
+async function startPreview() {
+  startingPreview.value = true
+  try {
+    const created = await $fetch(`/api/sessions/${props.sessionId}/preview`, { method: 'POST' })
+    emit('started', created.id)
+  }
+  catch (e) {
+    startingPreview.value = false
+    toastError('Failed to start the preview', e)
+  }
+}
 </script>
 
 <template>
@@ -76,6 +89,22 @@ async function runAgain() {
       :restarting="restarting"
       @revive="reboot"
       @run-again="runAgain"
+    />
+  </KPreviewBrowser>
+  <KPreviewBrowser
+    v-else-if="!hasEnv && !isLive"
+    :session-id="sessionId"
+  >
+    <p class="max-w-100 text-2sm text-muted">
+      This session has code only. Start a preview to boot the project with its
+      database and boot commands.
+    </p>
+    <UButton
+      size="lg"
+      color="primary"
+      label="Start preview"
+      :loading="startingPreview"
+      @click="startPreview"
     />
   </KPreviewBrowser>
 </template>
