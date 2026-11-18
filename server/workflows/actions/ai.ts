@@ -12,6 +12,9 @@ import { readSandboxAsset } from '../../utils/sandbox-assets'
 import { defineAction, ActionError } from './types'
 import type { ActionRuntime } from './types'
 import { getSessionRow, updateSession } from '../../stores/sessions'
+import { getRun } from '../../stores/runs'
+import { getWorkflowRow } from '../../stores/workflows'
+import type { WorkflowRow } from '../../db/schema'
 import { getIntegration } from '../../integrations'
 import { freshTicketSince, ticketFetched } from '../../utils/object-freshness'
 import { snapshotDir, writeObjectSnapshot } from '../../utils/object-snapshot'
@@ -36,25 +39,49 @@ export const aiAction = defineAction({
     await rt.sandbox.ensureUp()
     await writeAgentConfig(rt, step.system ?? '', bareModel)
 
-    const handover = getSessionRow(rt.sessionId)?.agentHandover
-    const prompt = `${handover ? handoverPreamble(handover) : ''}${await refreshTicket(rt)}${step.prompt}`
-    const agent = await startSessionAgent(rt, env, logSink(rt.log), model)
+    const workflow = freshContextWorkflow(rt.runId)
+    const session = getSessionRow(rt.sessionId)
+    const handover = workflow ? null : session?.agentHandover
+    const notes = workflow ? null : session?.agentNotes
+    const prompt = `${handover ? handoverPreamble(handover) : ''}${notes ? notesPreamble(notes) : ''}${await refreshTicket(rt)}${step.prompt}`
+    const agent = workflow
+      ? await startAgent(rt, env, null, logSink(rt.log), model)
+      : await startSessionAgent(rt, env, logSink(rt.log), model)
     try {
-      if (!step.output) {
-        const { text } = await agent.prompt(prompt)
-        if (!text) throw new Error('the agent produced no output')
-        const json = tryParseJson(stripFences(text))
-        return json === undefined ? { text } : { text, json }
-      }
-      return await runWithOutput(rt, agent, prompt, step.output)
+      const result = step.output ? await runWithOutput(rt, agent, prompt, step.output) : await promptText(agent, prompt)
+      if (workflow) addAgentNote(rt.sessionId, `The workflow "${workflow.name}" (run #${rt.runId}) worked in this session in a conversation of its own. Its final message:\n\n${result.text}`)
+      return result
     }
     finally {
       if (handover) updateSession(rt.sessionId, { agentHandover: null })
+      if (notes) updateSession(rt.sessionId, { agentNotes: null })
       await agent.close()
       await persistAgentMemory(rt.project.id, rt.sandbox, rt.log)
     }
   },
 })
+
+async function promptText(agent: AgentSession, prompt: string): Promise<{ text: string, json?: unknown }> {
+  const { text } = await agent.prompt(prompt)
+  if (!text) throw new Error('the agent produced no output')
+  const json = tryParseJson(stripFences(text))
+  return json === undefined ? { text } : { text, json }
+}
+
+function freshContextWorkflow(runId: number): WorkflowRow | undefined {
+  const workflowId = getRun(runId)?.workflowId
+  const workflow = workflowId ? getWorkflowRow(workflowId) : undefined
+  return workflow?.freshContext ? workflow : undefined
+}
+
+function addAgentNote(sessionId: number, note: string): void {
+  const current = getSessionRow(sessionId)?.agentNotes
+  updateSession(sessionId, { agentNotes: current ? `${current}\n\n---\n\n${note}` : note })
+}
+
+export function notesPreamble(notes: string): string {
+  return `Since your last turn, other work happened in this session:\n\n${notes}\n\n---\n\n`
+}
 
 // With a cold cache opencode only knows the models bundled into its binary, so a newer model is "not found" and the turn runs on its default.
 const WARM_MODEL_CACHE = 'test -s "$HOME/.cache/opencode/models.json" || opencode models --refresh >/dev/null 2>&1 || true'

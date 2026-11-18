@@ -116,7 +116,9 @@ export function listSessionRunSummaries(sessionId: number) {
     prUrl: schema.runs.prUrl,
     createdAt: schema.runs.createdAt,
     finishedAt: schema.runs.finishedAt,
+    freshContext: sql<boolean>`coalesce(${schema.workflows.freshContext}, 0)`.mapWith(Boolean),
   }).from(schema.runs)
+    .leftJoin(schema.workflows, eq(schema.workflows.id, schema.runs.workflowId))
     .where(eq(schema.runs.sessionId, sessionId))
     .orderBy(asc(schema.runs.id))
     .all()

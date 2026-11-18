@@ -498,6 +498,13 @@
       "when": 1795028681329,
       "tag": "0070_session-objects",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "6",
+      "when": 1795029324674,
+      "tag": "0071_fresh-context",
+      "breakpoints": true
     }
   ]
 }

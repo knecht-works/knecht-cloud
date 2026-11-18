@@ -140,6 +140,8 @@ export const sessions = sqliteTable('sessions', {
   agentSessionId: text('agent_session_id'),
   // Written by /compact, read once by the next turn as the fresh session's opening context.
   agentHandover: text('agent_handover'),
+  // What fresh-context runs found, handed to the main conversation on its next turn.
+  agentNotes: text('agent_notes'),
 
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
@@ -356,6 +358,8 @@ export const workflows = sqliteTable('workflows', {
   publishedAt: integer('published_at', { mode: 'timestamp' }),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   repliesEnabled: integer('replies_enabled', { mode: 'boolean' }).notNull().default(true),
+  // Its ai steps start a throwaway conversation instead of continuing the session's.
+  freshContext: integer('fresh_context', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()
     .default(sql`(unixepoch())`),
