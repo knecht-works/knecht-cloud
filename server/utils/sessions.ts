@@ -3,7 +3,7 @@ import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import { getIntegration } from '../integrations'
 import { sessionPreviewUrl } from './preview-target'
 import { getSessionRow, findBranchSession, createSession, requireSession, sessionChanged, updateSession } from '../stores/sessions'
-import { findObjectRow, insertObjectRow, listSessionObjectRows, updateObjectRow } from '../stores/session-objects'
+import { findObjectRow, getObjectRow, insertObjectRow, listSessionObjectRows, updateObjectRow } from '../stores/session-objects'
 import { latestSessionPrUrl, sessionHasActiveRun } from '../stores/runs'
 import { sessionHasActiveFollowup } from '../stores/followups'
 
@@ -33,6 +33,12 @@ export function sessionObjects(sessionId: number): SessionObject[] {
 export function primaryObject(sessionId: number): SessionObject | null {
   const [row] = listSessionObjectRows(sessionId)
   return row ? toSessionObject(row) : null
+}
+
+// Work answers where it came from: the object that caused it, else the session's primary object.
+export function workObject(sessionId: number, objectId: number | null | undefined): SessionObject | null {
+  const row = objectId ? getObjectRow(objectId) : undefined
+  return row ? toSessionObject(row) : primaryObject(sessionId)
 }
 
 export function describeObject(object: SessionObject): string {
