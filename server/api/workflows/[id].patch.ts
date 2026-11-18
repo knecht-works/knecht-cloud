@@ -32,6 +32,7 @@ export default defineEventHandler(async (event) => {
     }
   }
   if (data.repliesEnabled !== undefined) patch.repliesEnabled = data.repliesEnabled
+  if (data.freshContext !== undefined) patch.freshContext = data.freshContext
   if (data.enabled !== undefined) {
     // The list page relies on this message; the editor gates it client-side.
     if (data.enabled && !(patch.publishedAt ?? row.publishedAt)) {

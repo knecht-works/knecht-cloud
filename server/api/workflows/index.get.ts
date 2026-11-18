@@ -13,6 +13,7 @@ export default defineEventHandler(() => {
       draftSteps: row.draftSteps,
       enabled: row.enabled,
       repliesEnabled: row.repliesEnabled,
+      freshContext: row.freshContext,
       publishedAt: row.publishedAt,
       createdAt: row.createdAt,
     }))
