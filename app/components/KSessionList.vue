@@ -31,11 +31,11 @@ const now = useNow()
   <div
     v-for="(g, gi) in groups"
     :key="g.sessionId"
-    :class="[gi ? 'border-t border-muted' : '', g.object ? 'pb-1.5' : '']"
+    :class="[gi ? 'border-t border-muted' : '', g.objects.length ? 'pb-1.5' : '']"
   >
     <KSessionGroupHeader
-      v-if="g.object"
-      :object="g.object"
+      v-if="g.objects.length"
+      :objects="g.objects"
       :project="showProject ? { id: g.runs[0]!.projectId, name: g.runs[0]!.project } : undefined"
     />
     <NuxtLink
@@ -45,7 +45,7 @@ const now = useNow()
       :replace="replace"
       class="relative flex items-center gap-3 pr-4.5 transition-colors hover:bg-(--surface-glass)"
       :class="[
-        g.object ? 'py-1.5 pl-10.5' : 'py-3 pl-4.5',
+        g.objects.length ? 'py-1.5 pl-10.5' : 'py-3 pl-4.5',
         r.id === selectedRunId ? 'bg-(--surface-glass)' : '',
       ]"
       :aria-current="r.id === selectedRunId ? 'true' : undefined"
@@ -62,11 +62,11 @@ const now = useNow()
       />
       <span
         class="k-mono min-w-0 truncate"
-        :class="g.object ? 'text-2xs text-muted' : 'text-xs text-default'"
+        :class="g.objects.length ? 'text-2xs text-muted' : 'text-xs text-default'"
       >{{ r.workflow }}</span>
       <span class="k-mono shrink-0 text-2xs text-dimmed">#{{ r.id }}</span>
       <span
-        v-if="showProject && !g.object"
+        v-if="showProject && !g.objects.length"
         class="k-mono hidden min-w-0 truncate text-2xs text-muted md:block"
       >{{ r.project }}</span>
       <span class="k-mono ml-auto w-14 flex-none text-right text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt, now) }}</span>

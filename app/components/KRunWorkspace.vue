@@ -29,15 +29,13 @@ const timeline = computed(() => runLogTimeline(stepRows.value ?? [], run.value?.
 const meta = computed(() => {
   const r = run.value
   if (!r) return []
-  const object = r.objectIntegration && r.objectKind ? sessionObjectMeta(r.objectIntegration, r.objectKind) : null
   // A branch is set locally by create-branch and pushed only by create-pr.
-  const branchPushed = !!r.prUrl || r.objectKind === 'pull_request'
+  const branchPushed = !!r.prUrl || r.objects.some(o => o.kind === 'pull_request')
   return [
-    object && {
-      icon: object.icon,
-      text: `${object.prefix}${r.objectKey}`,
-      href: r.objectUrl ?? undefined,
-    },
+    ...r.objects.map((o) => {
+      const object = sessionObjectMeta(o.integration, o.kind)
+      return { icon: object.icon, text: `${object.prefix}${o.key}`, href: o.url ?? undefined }
+    }),
     { icon: 'i-lucide-workflow', text: r.workflow, href: r.workflowId ? `/workflows/${r.workflowId}` : undefined },
     r.branch && {
       icon: 'i-lucide-git-branch',

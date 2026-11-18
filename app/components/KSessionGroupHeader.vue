@@ -1,50 +1,47 @@
 <script setup lang="ts">
-import type { IntegrationId, ObjectKind } from '#shared/utils/integrations'
-
 const props = defineProps<{
-  object: {
-    integration: IntegrationId
-    kind: ObjectKind
-    key: string | null
-    title: string | null
-    url: string | null
-    closed: boolean
-  }
+  objects: SessionObject[]
   project?: { id: number, name: string }
 }>()
 
-const meta = computed(() => sessionObjectMeta(props.object.integration, props.object.kind))
+const primary = computed(() => props.objects[0]!)
+const badges = computed(() => props.objects.map(o => ({ ...o, meta: sessionObjectMeta(o.integration, o.kind) })))
 </script>
 
 <template>
   <div class="flex items-center gap-2.5 px-4.5 pb-1 pt-3">
     <UIcon
-      :name="meta.icon"
+      :name="badges[0]!.meta.icon"
       class="size-3.5 flex-none"
-      :style="{ color: object.closed ? 'var(--text-dimmed)' : meta.color }"
+      :style="{ color: primary.closed ? 'var(--text-dimmed)' : badges[0]!.meta.color }"
     />
-    <UTooltip :text="object.title ?? ''">
-      <span class="k-mono min-w-0 truncate text-xs text-default">{{ object.title }}</span>
+    <UTooltip :text="primary.title ?? ''">
+      <span class="k-mono min-w-0 truncate text-xs text-default">{{ primary.title }}</span>
     </UTooltip>
-    <span class="k-mono flex-none text-2xs text-dimmed">{{ meta.prefix }}{{ object.key }}</span>
-    <span class="ml-auto flex flex-none items-center gap-2">
-      <NuxtLink
-        v-if="project"
-        :to="`/projects/${project.id}`"
-        class="k-mono hidden text-2xs text-dimmed transition-colors hover:text-muted md:block"
-      >{{ project.name }}</NuxtLink>
-      <a
-        v-if="object.url"
-        :href="object.url"
-        target="_blank"
-        class="flex text-dimmed transition-colors hover:text-muted"
-        :aria-label="`Open ${meta.label.toLowerCase()} ${meta.prefix}${object.key} in ${triggerSourceMeta(object.integration).label}`"
+    <span class="flex flex-none items-center gap-1.5">
+      <component
+        :is="o.url ? 'a' : 'span'"
+        v-for="o in badges"
+        :key="`${o.integration}:${o.kind}:${o.key}`"
+        :href="o.url ?? undefined"
+        :target="o.url ? '_blank' : undefined"
+        class="k-mono flex items-center gap-1 rounded-full border border-muted px-1.5 text-2xs text-dimmed transition-colors"
+        :class="o.url ? 'hover:text-muted' : ''"
+        :aria-label="o.url ? `Open ${o.meta.label.toLowerCase()} ${o.meta.prefix}${o.key} in ${triggerSourceMeta(o.integration).label}` : undefined"
       >
         <UIcon
-          name="i-lucide-arrow-up-right"
-          class="size-3.5"
+          v-if="o !== badges[0]"
+          :name="o.meta.icon"
+          class="size-3"
+          :style="{ color: o.closed ? 'var(--text-dimmed)' : o.meta.color }"
         />
-      </a>
+        {{ o.meta.prefix }}{{ o.key }}
+      </component>
     </span>
+    <NuxtLink
+      v-if="project"
+      :to="`/projects/${project.id}`"
+      class="k-mono ml-auto hidden flex-none text-2xs text-dimmed transition-colors hover:text-muted md:block"
+    >{{ project.name }}</NuxtLink>
   </div>
 </template>

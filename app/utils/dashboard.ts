@@ -154,29 +154,23 @@ export function sessionObjectMeta(integration: IntegrationId, kind: SessionObjec
   return INTEGRATION_UI[integration]?.objects[kind] ?? UNKNOWN_OBJECT
 }
 
-interface SessionRunRow {
-  sessionId: number
-  objectIntegration: IntegrationId | null
-  objectKind: SessionObjectKind | null
-  objectKey: string | null
-  objectTitle: string | null
-  objectUrl: string | null
-  sessionStatus: 'open' | 'closed'
-  envState: 'down' | 'up' | 'stopped' | 'archived'
-}
-
 export interface SessionObject {
   integration: IntegrationId
   kind: SessionObjectKind
-  key: string | null
+  key: string
   title: string | null
   url: string | null
   closed: boolean
 }
 
+interface SessionRunRow {
+  sessionId: number
+  objects: SessionObject[]
+}
+
 export interface SessionGroup<T> {
   sessionId: number
-  object: SessionObject | null
+  objects: SessionObject[]
   runs: T[]
 }
 
@@ -192,16 +186,7 @@ export function groupRunsBySession<T extends SessionRunRow>(runs: T[]): SessionG
     groupRuns.reverse()
     return {
       sessionId: head.sessionId,
-      object: head.objectIntegration && head.objectKind
-        ? {
-            integration: head.objectIntegration,
-            kind: head.objectKind,
-            key: head.objectKey,
-            title: head.objectTitle,
-            url: head.objectUrl,
-            closed: head.sessionStatus === 'closed',
-          }
-        : null,
+      objects: head.objects,
       runs: groupRuns,
     }
   })

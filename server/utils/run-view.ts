@@ -1,9 +1,10 @@
-import type { DdevEnv, Run, Session } from '../db/schema'
+import type { DdevEnv, Run, Session, SessionObjectRow } from '../db/schema'
 import type { Step } from '../../shared/utils/workflow'
 import { runHasEnv } from '../../shared/utils/run'
 import { hasPreviewTarget } from './preview-target'
 import { getProject } from '../stores/projects'
 import { getSessionRow } from '../stores/sessions'
+import { listObjectRowsOfSessions } from '../stores/session-objects'
 
 interface SessionEnvRow {
   envState: Session['envState']
@@ -39,4 +40,23 @@ export function withRunSessionEnv<R extends Run>(run: R, session?: Session) {
     projectDevServer: project?.devServer ?? null,
     projectPreviewPort: project?.previewPort ?? null,
   })
+}
+
+export interface SessionObjectView {
+  integration: SessionObjectRow['integration']
+  kind: SessionObjectRow['kind']
+  key: string
+  title: string | null
+  url: string | null
+  closed: boolean
+}
+
+// Every object of each run's session, primary first: a session is one piece of work, shown with all it touches.
+export function withSessionObjects<R extends { sessionId: number }>(rows: R[]): (R & { objects: SessionObjectView[] })[] {
+  const bySession = new Map<number, SessionObjectView[]>()
+  for (const o of listObjectRowsOfSessions([...new Set(rows.map(r => r.sessionId))])) {
+    const view = { integration: o.integration, kind: o.kind, key: o.key, title: o.title, url: o.url, closed: o.status === 'closed' }
+    bySession.set(o.sessionId, [...bySession.get(o.sessionId) ?? [], view])
+  }
+  return rows.map(r => ({ ...r, objects: bySession.get(r.sessionId) ?? [] }))
 }
