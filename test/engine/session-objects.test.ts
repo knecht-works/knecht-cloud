@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest'
+import { db, schema } from '../../server/db'
+import { fireTrigger } from '../../server/utils/triggers'
 import { updateSession } from '../../server/stores/sessions'
-import { attachObject, attachPullRequest, primaryObject, resolveObjectSession, resolveSession, sessionObjects } from '../../server/utils/sessions'
-import { makeProject } from '../helpers/db'
+import { attachObject, attachPullRequest, primaryObject, resolveObjectSession, resolveSession, sessionObjects, workObject } from '../../server/utils/sessions'
+import { getRun, makeProject } from '../helpers/db'
 
 const ticket = { integration: 'jira' as const, kind: 'issue' as const, key: 'KN-1', title: 'Login fails' }
 const pr = (key: string) => ({ integration: 'github' as const, kind: 'pull_request' as const, key, title: 'Fix login' })
+
+let n = 0
+function makeTrigger(projectId: number) {
+  const wf = db.insert(schema.workflows).values({
+    name: `objects-test-${++n}`,
+    steps: [{ type: 'bash', command: 'true', id: 'run' }],
+    publishedAt: new Date(),
+  }).returning().get()
+  return db.insert(schema.triggers).values({ source: 'github', workflowId: wf.id, projectIds: [projectId] }).returning().get()
+}
 
 describe('a session holds the objects of one piece of work', () => {
   it('finds the session again through a PR it opened', () => {
@@ -50,5 +62,31 @@ describe('a session holds the objects of one piece of work', () => {
     attachObject(session, ticket)
 
     expect(primaryObject(session.id)?.key).toBe('KN-1')
+  })
+})
+
+describe('work answers where it came from', () => {
+  it('runs on the PR carry the PR, so the review replies there', () => {
+    const project = makeProject()
+    const session = resolveSession(project, ticket, null)
+    attachPullRequest(session, project, { number: 42, url: 'https://x/pull/42' }, 'Fix login')
+
+    const [runId] = fireTrigger(makeTrigger(project.id), { object: pr('42'), branch: 'knecht/kn-1' })
+    const run = getRun(runId!)
+    expect(run.sessionId).toBe(session.id)
+    expect(workObject(session.id, run.objectId)?.key).toBe('42')
+    expect(workObject(session.id, null)?.key).toBe('KN-1')
+  })
+
+  it('runs a workflow once per object version, per object', () => {
+    const project = makeProject()
+    const session = resolveSession(project, ticket, null)
+    attachPullRequest(session, project, { number: 42, url: 'https://x/pull/42' }, 'Fix login')
+    const trigger = makeTrigger(project.id)
+    const version = '2026-11-18T14:03:12Z'
+
+    expect(fireTrigger(trigger, { object: ticket, version })).toHaveLength(1)
+    expect(fireTrigger(trigger, { object: pr('42'), version })).toHaveLength(1)
+    expect(fireTrigger(trigger, { object: pr('42'), version })).toHaveLength(0)
   })
 })

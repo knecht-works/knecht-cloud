@@ -207,6 +207,19 @@ describe('agent bridge', () => {
     expect(res.text).toContain('does not belong to a ticket, issue or pull request')
   })
 
+  it('comments where the running work came from, not on the ticket', async () => {
+    const project = makeProject()
+    const session = makeRun(project, [], { status: 'success' }).sessionId
+    mkdirSync(join(sessionCheckoutDir(session), '.git'), { recursive: true })
+    attachTestObject(session, { integration: 'github', kind: 'issue', key: '5' })
+    const pr = attachTestObject(session, { integration: 'github', kind: 'pull_request', key: '42' })
+    makeRun(project, [], { sessionId: session, status: 'running', objectId: pr.id })
+
+    const res = await call(session, { op: 'comment', body: 'Review done.' })
+    expect(res.text).toContain('on pull request #42')
+    expect(comments.at(-1)).toEqual({ issue: 42, body: 'Review done.' })
+  })
+
   it('posts a comment on the object and records the reply', async () => {
     const { sessionId, run } = objectSession()
     const res = await call(sessionId, { op: 'comment', body: 'All done.' })
