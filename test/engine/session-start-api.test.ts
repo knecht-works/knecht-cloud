@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { callRoute } from '../helpers/routes'
-import { makeProject, makeSession } from '../helpers/db'
+import { makeProject, makeSession, sessionObjectOf } from '../helpers/db'
 
 const dispatched: number[] = []
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => dispatched.push(1) }))
@@ -33,7 +33,8 @@ describe('POST /api/projects/:id/sessions', () => {
     expect(run).toMatchObject({ workflow: 'Boot preview', workflowId: null, trigger: 'manual', status: 'queued', branch: 'main' })
     expect(run.steps).toEqual([{ type: 'ddev-start', id: 'boot-preview' }])
     const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
-    expect(session).toMatchObject({ projectId: project.id, objectKind: null, branch: 'main' })
+    expect(session).toMatchObject({ projectId: project.id, branch: 'main' })
+    expect(sessionObjectOf(session.id).objectKind).toBeNull()
     expect(dispatched.length).toBe(before + 1)
   })
 

@@ -5,15 +5,15 @@ import { db, schema } from '../../server/db'
 import type { Project } from '../../server/db/schema'
 import type { Integration } from '../../server/integrations/types'
 import { gitTriggerForm } from '../../server/integrations/git-trigger-form'
-import { resolveSession, sessionObject, type SessionObject } from '../../server/utils/sessions'
+import { primaryObject, resolveSession, type SessionObject } from '../../server/utils/sessions'
 import { integrationRole, isTrackerId, type IntegrationId } from '../../shared/utils/integrations'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
-import { getSessionRow } from './db'
+import { getSessionRow, sessionObjectOf } from './db'
 import { callRoute } from './routes'
 
 export async function replyToLastMention(integration: Integration, project: Project, text: string): Promise<void> {
   const followup = db.select().from(schema.followups).orderBy(desc(schema.followups.id)).get()!
-  await integration.capabilities.comment(project, sessionObject(getSessionRow(followup.sessionId))!, text, followup.replyTo!)
+  await integration.capabilities.comment(project, primaryObject(followup.sessionId)!, text, followup.replyTo!)
 }
 
 export interface WebhookRequest {
@@ -136,7 +136,7 @@ export function describeIntegrationWebhook<P extends Project, D>(fx: WebhookFixt
       expect(res.json).toEqual({ ok: true, runIds: [expect.any(Number)] })
       const [run] = runsOf(trigger.id)
       expect(run).toMatchObject(fx.created.run(project))
-      expect(getSessionRow(run!.sessionId)).toMatchObject(fx.created.session(project))
+      expect(sessionObjectOf(run!.sessionId)).toMatchObject(fx.created.session(project))
     })
 
     it('leaves inactive triggers and triggers of other projects alone', async () => {
@@ -197,7 +197,7 @@ export function describeIntegrationWebhook<P extends Project, D>(fx: WebhookFixt
       const project = fx.makeProject()
       const res = await deliver(fx.comment.mention(project))
       expect(res.json).toMatchObject({ ok: true, outcome: expect.stringContaining('queued setup run') })
-      expect(getSessionRow(resolveSession(project, fx.object(project), null).id).objectIntegration).toBe(id)
+      expect(sessionObjectOf(resolveSession(project, fx.object(project), null).id).objectIntegration).toBe(id)
     })
 
     it('ignores its own comments and comments without a mention', async () => {

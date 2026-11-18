@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import type { Project } from '../../server/db/schema'
-import { getSessionRow, makeMember, makeProject, makeRun } from '../helpers/db'
+import { attachTestObject, getSessionRow, makeMember, makeProject, makeRun, sessionObjectOf } from '../helpers/db'
 
 const reactions: number[] = []
 const comments: { issue: number, body: string }[] = []
@@ -99,7 +99,7 @@ describe('handleMention', () => {
     expect(mentionRun.kind).toBe('mention')
     expect(mentionRun.trigger).toBe('mention')
     const session = getSessionRow(setupRun.sessionId)
-    expect(session).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5' })
+    expect(sessionObjectOf(session.id)).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5' })
 
     const followup = db.select().from(schema.followups).where(eq(schema.followups.sessionId, session.id)).get()!
     expect(followup.runId).toBe(mentionRun.id)
@@ -151,10 +151,8 @@ describe('handleMention', () => {
   it('a mention on an object with a live session gets its own run', async () => {
     const project = makeProject()
     const run = makeRun(project, [], { status: 'success' })
-    db.update(schema.sessions)
-      .set({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5', envState: 'stopped' })
-      .where(eq(schema.sessions.id, run.sessionId))
-      .run()
+    db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    attachTestObject(run.sessionId, { integration: 'github', kind: 'issue', key: '5' })
 
     const outcome = await handleMention(project, payload('@knecht-test and now fix it'))
     expect(outcome).toContain(`on session ${run.sessionId}`)
@@ -173,7 +171,7 @@ describe('handleMention', () => {
     }))
     expect(outcome).toContain('queued setup run')
     const run = db.select().from(schema.runs).where(eq(schema.runs.projectId, project.id)).get()!
-    expect(getSessionRow(run.sessionId)).toMatchObject({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '7' })
+    expect(sessionObjectOf(run.sessionId)).toMatchObject({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '7' })
   })
 
   it('respects the project toggle', async () => {

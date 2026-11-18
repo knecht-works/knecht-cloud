@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import type { Project } from '../../server/db/schema'
 import type { TriggerConfig } from '../../shared/utils/trigger-form'
-import { getSessionRow, makeMember, makeProject } from '../helpers/db'
+import { makeMember, makeProject, sessionObjectOf } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import { allOf } from '../helpers/trigger-conditions'
 
@@ -141,7 +141,6 @@ describe('github webhook route, vendor specifics', () => {
       branch: 'feat',
       inputs: { event: 'pull_request', identifier: '42', title: 'Add feature', body: 'Because', url: 'https://x/pull/42' },
     })
-    const session = getSessionRow(run!.sessionId)
-    expect(session).toMatchObject({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '42', objectTitle: 'Add feature', objectUrl: 'https://x/pull/42' })
+    expect(sessionObjectOf(run!.sessionId)).toMatchObject({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '42', objectTitle: 'Add feature', objectUrl: 'https://x/pull/42' })
   })
 })

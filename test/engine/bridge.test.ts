@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { callRoute } from '../helpers/routes'
-import { makeProject, makeRun } from '../helpers/db'
+import { attachTestObject, makeProject, makeRun } from '../helpers/db'
 
 const comments: { issue: number, body: string }[] = []
 const labels: { added: string[], removed: string[] } = { added: [], removed: [] }
@@ -152,7 +152,7 @@ function call(sessionId: number, body: object, token = bridgeToken(sessionId)) {
 }
 
 function bindObject(sessionId: number, kind: 'issue' | 'pull_request' = 'issue', number = 5) {
-  db.update(schema.sessions).set({ objectIntegration: 'github', objectKind: kind, objectKey: String(number) }).where(eq(schema.sessions.id, sessionId)).run()
+  attachTestObject(sessionId, { integration: 'github', kind: kind, key: String(number) })
 }
 
 function objectSession(overrides: Parameters<typeof makeRun>[2] = {}) {
@@ -167,7 +167,7 @@ function ticketSession(integration: 'jira' | 'linear' | 'plane' = 'jira', key = 
   const project = makeProject()
   const run = makeRun(project, [], { status: 'success' })
   mkdirSync(join(sessionCheckoutDir(run.sessionId), '.git'), { recursive: true })
-  db.update(schema.sessions).set({ objectIntegration: integration, objectKind: 'issue', objectKey: key }).where(eq(schema.sessions.id, run.sessionId)).run()
+  attachTestObject(run.sessionId, { integration: integration, kind: 'issue', key: key })
   return { project, run, sessionId: run.sessionId }
 }
 

@@ -2,8 +2,7 @@ import { bridgeBaseUrl, bridgeToken } from './agent-bridge'
 import { devServerOrigin } from './dev-origin'
 import { previewOrigin } from './origin'
 import { previewLabel } from '../../shared/utils/preview-host'
-import { describeObject, sessionObject } from './sessions'
-import { getSessionRow } from '../stores/sessions'
+import { describeObject, sessionObjects } from './sessions'
 
 // bridgeEnv goes to the agent process per exec, never into the container env:
 // the token authorizes pushes and PRs on the session's repo.
@@ -28,8 +27,7 @@ export async function bridgeEnv(sessionId: number): Promise<Record<string, strin
     KNECHT_BRIDGE_TOKEN: bridgeToken(sessionId),
     KNECHT_RUN_ID: String(sessionId),
   }
-  const session = getSessionRow(sessionId)
-  const object = session && sessionObject(session)
-  if (object) env.KNECHT_OBJECT = describeObject(object)
+  const objects = sessionObjects(sessionId)
+  if (objects.length) env.KNECHT_OBJECT = objects.map(describeObject).join(' and ')
   return env
 }

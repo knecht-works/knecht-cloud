@@ -4,7 +4,7 @@ import type { Step } from '../../shared/utils/workflow'
 import { checkoutDirOf } from '../helpers/local-sandbox'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
-import { getRun, getSteps, makeProject, makeRun, requeue } from '../helpers/db'
+import { attachTestObject, getRun, getSessionRow, getSteps, makeProject, makeRun, requeue } from '../helpers/db'
 
 vi.mock('../../server/daemon/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../server/daemon/git')>()
@@ -53,7 +53,7 @@ describe('runner', () => {
     let n = 0
     const ticket = (overrides: Parameters<typeof makeRun>[2]) => {
       const run = makeRun(project, [{ type: 'bash', id: 'work', command: overrides.status === 'failed' ? 'exit 1' : 'true' }], { ...overrides, status: 'queued' })
-      db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: `PROJ-${++n}` }).where(eq(schema.sessions.id, run.sessionId)).run()
+      attachTestObject(run.sessionId, { integration: 'jira', kind: 'issue', key: `PROJ-${++n}` })
       return run
     }
 
@@ -91,7 +91,7 @@ describe('runner', () => {
     let n = 0
     const ticket = (overrides: Parameters<typeof makeRun>[2]) => {
       const run = makeRun(project, [{ type: 'bash', id: 'work', command: 'true' }], overrides)
-      db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: `PROJ-${++n}` }).where(eq(schema.sessions.id, run.sessionId)).run()
+      attachTestObject(run.sessionId, { integration: 'jira', kind: 'issue', key: `PROJ-${++n}` })
       return run
     }
 
@@ -144,7 +144,7 @@ describe('runner', () => {
     const sam = { type: 'mention', attrs: { id: 'user-3', text: '@Sam' } }
     const ticket = (key: string, command: string, prUrl?: string) => {
       const run = makeRun(project, [{ type: 'bash', id: 'work', command }], { actor: { id: 'user-3', name: 'Sam' }, prUrl })
-      db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: key }).where(eq(schema.sessions.id, run.sessionId)).run()
+      attachTestObject(run.sessionId, { integration: 'jira', kind: 'issue', key: key })
       return run
     }
 
@@ -179,7 +179,6 @@ describe('runner', () => {
       { type: 'bash', id: 'use', command: 'echo got: {{ steps.greet.stdout }}' },
     ])
     expect(run.status).toBe('success')
-    const { getSessionRow } = await import('../helpers/db')
     expect(getSessionRow(run.sessionId).status).toBe('closed')
     expect(steps).toHaveLength(2)
     expect(steps.every(s => s.status === 'success')).toBe(true)

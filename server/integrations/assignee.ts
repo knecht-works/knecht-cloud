@@ -1,5 +1,5 @@
 import type { Project, Session } from '../db/schema'
-import { describeObject, sessionHasActiveWork, sessionObject, type SessionObject } from '../utils/sessions'
+import { describeObject, primaryObject, sessionHasActiveWork, type SessionObject } from '../utils/sessions'
 import { getIntegration } from '.'
 import type { CommentAuthor, Integration } from './types'
 import { getRun, latestSessionActor, updateRun } from '../stores/runs'
@@ -8,7 +8,7 @@ type Log = (text: string) => void
 type Assignee = NonNullable<Integration['capabilities']['assignee']>
 
 function held(session: Session): { assignee: Assignee, object: SessionObject } | null {
-  const object = sessionObject(session)
+  const object = primaryObject(session.id)
   const assignee = object && getIntegration(object.integration).capabilities.assignee
   return assignee ? { assignee, object } : null
 }

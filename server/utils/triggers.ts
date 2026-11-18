@@ -2,7 +2,7 @@ import type { Trigger } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
 import { isGithubAppConfigured } from './github-credentials'
 import { emptyInputs, type TriggerInputs } from './inputs'
-import { resolveSession, type SessionObject } from './sessions'
+import { resolveObjectSession, type SessionObject } from './sessions'
 import type { IntegrationId, TrackerId, TriggerSource } from '../../shared/utils/integrations'
 import type { TriggerSegment } from '../../shared/utils/trigger-form'
 import { getTriggerSource } from './trigger-sources'
@@ -79,10 +79,10 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
 
   const runIds: number[] = []
   for (const project of projects) {
-    const session = resolveSession(project, opts.object ?? null, opts.branch ?? null)
+    const { session, objectId } = resolveObjectSession(project, opts.object ?? null, opts.branch ?? null)
     // One action reaches us as several deliveries of the same object version (see `objectVersion`),
     // and several triggers of one workflow can match the same version.
-    if (opts.version && workflowRanOnVersion(workflow.id, session.id, opts.version)) continue
+    if (opts.version && workflowRanOnVersion(workflow.id, session.id, objectId, opts.version)) continue
     const run = createRun({
       projectId: project.id,
       sessionId: session.id,
@@ -90,6 +90,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
       workflowId: workflow.id,
       trigger: opts.integration ?? t.source,
       triggerId: t.id,
+      objectId,
       branch: session.branch ?? opts.branch ?? project.defaultBranch,
       objectVersion: opts.version ?? null,
       actor: opts.actor ?? null,
