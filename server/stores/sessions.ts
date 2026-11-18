@@ -1,7 +1,7 @@
 import { and, desc, eq, lt, notExists, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
-import type { NewSession, Run, Session } from '../db/schema'
+import type { NewSession, Project, Run, Session } from '../db/schema'
 import type { SessionObject } from '../utils/sessions'
 import { liveTopics } from '../../shared/utils/live-topics'
 import { emitTopics } from '../utils/live'
@@ -25,6 +25,15 @@ export function requireRunSession(run: Run): Session {
 export function findObjectSession(projectId: number, object: SessionObject): Session | undefined {
   const row = findObjectRow(projectId, object)
   return row && getSessionRow(row.sessionId)
+}
+
+// The newest session working on `branch`; the default branch is nobody's work branch.
+export function findBranchSession(project: Pick<Project, 'id' | 'defaultBranch'>, branch: string): Session | undefined {
+  if (branch === project.defaultBranch) return undefined
+  return db.select().from(schema.sessions)
+    .where(and(eq(schema.sessions.projectId, project.id), eq(schema.sessions.branch, branch)))
+    .orderBy(desc(schema.sessions.id))
+    .get()
 }
 
 export function listSessionIds(projectId?: number): number[] {

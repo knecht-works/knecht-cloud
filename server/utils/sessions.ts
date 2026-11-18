@@ -2,7 +2,7 @@ import type { Project, Session, SessionObjectRow } from '../db/schema'
 import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
 import { getIntegration } from '../integrations'
 import { sessionPreviewUrl } from './preview-target'
-import { getSessionRow, createSession, requireSession, sessionChanged, updateSession } from '../stores/sessions'
+import { getSessionRow, findBranchSession, createSession, requireSession, sessionChanged, updateSession } from '../stores/sessions'
 import { findObjectRow, insertObjectRow, listSessionObjectRows, updateObjectRow } from '../stores/session-objects'
 import { latestSessionPrUrl, sessionHasActiveRun } from '../stores/runs'
 import { sessionHasActiveFollowup } from '../stores/followups'
@@ -44,7 +44,8 @@ export interface ResolvedSession {
   objectId: number | null
 }
 
-// `branch` seeds the checkout on creation only: later events never re-point a checkout.
+// An event finds its session through anything attached to it: the object itself, or for a pull
+// request the session working on its head branch. `branch` seeds the checkout on creation only.
 export function resolveObjectSession(project: Project, object: SessionObject | null, branch: string | null): ResolvedSession {
   if (object) {
     const row = findObjectRow(project.id, object)
@@ -55,6 +56,8 @@ export function resolveObjectSession(project: Project, object: SessionObject | n
       }
       return { session: requireSession(row.sessionId), objectId: row.id }
     }
+    const working = object.kind === 'pull_request' && branch ? findBranchSession(project, branch) : undefined
+    if (working) return { session: working, objectId: attachObject(working, object).id }
   }
   const session = createSession({ projectId: project.id, branch: branch ?? project.defaultBranch })
   return { session, objectId: object ? attachObject(session, object).id : null }
@@ -71,6 +74,11 @@ export function attachObject(session: Session, object: SessionObject): SessionOb
   const row = insertObjectRow(session.id, session.projectId, object)
   sessionChanged(session.id)
   return row
+}
+
+// A PR opened from a session belongs to its work; the webhook of the PR then finds this session.
+export function attachPullRequest(session: Session, project: Project, pr: { number: number, url: string }, title: string): void {
+  attachObject(session, { integration: project.repoProvider, kind: 'pull_request', key: String(pr.number), url: pr.url, title })
 }
 
 export function syncObjectStatus(projectId: number, object: SessionObject, status: 'open' | 'closed'): void {
