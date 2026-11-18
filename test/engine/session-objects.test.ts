@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { db, schema } from '../../server/db'
 import { fireTrigger } from '../../server/utils/triggers'
 import { updateSession } from '../../server/stores/sessions'
-import { attachObject, attachPullRequest, primaryObject, resolveObjectSession, resolveSession, sessionObjects, workObject } from '../../server/utils/sessions'
-import { getRun, makeProject } from '../helpers/db'
+import { attachObject, attachPullRequest, primaryObject, resolveObjectSession, resolveSession, sessionObjects, syncObjectStatus, workObject } from '../../server/utils/sessions'
+import { getRun, getSessionRow, makeProject } from '../helpers/db'
 
 const ticket = { integration: 'jira' as const, kind: 'issue' as const, key: 'KN-1', title: 'Login fails' }
 const pr = (key: string) => ({ integration: 'github' as const, kind: 'pull_request' as const, key, title: 'Fix login' })
@@ -88,5 +88,28 @@ describe('work answers where it came from', () => {
     expect(fireTrigger(trigger, { object: ticket, version })).toHaveLength(1)
     expect(fireTrigger(trigger, { object: pr('42'), version })).toHaveLength(1)
     expect(fireTrigger(trigger, { object: pr('42'), version })).toHaveLength(0)
+  })
+})
+
+describe('session lifecycle', () => {
+  it('closes only once all of its objects are closed', () => {
+    const project = makeProject()
+    const session = resolveSession(project, ticket, null)
+    attachPullRequest(session, project, { number: 42, url: 'https://x/pull/42' }, 'Fix login')
+
+    syncObjectStatus(project.id, ticket, 'closed')
+    expect(getSessionRow(session.id).status).toBe('open')
+
+    expect(syncObjectStatus(project.id, pr('42'), 'closed')?.status).toBe('closed')
+    expect(getSessionRow(session.id).closedAt).not.toBeNull()
+  })
+
+  it('reopens when a new open object attaches', () => {
+    const project = makeProject()
+    const session = resolveSession(project, ticket, null)
+    syncObjectStatus(project.id, ticket, 'closed')
+
+    attachPullRequest(getSessionRow(session.id), project, { number: 43, url: 'https://x/pull/43' }, 'Follow-up fix')
+    expect(getSessionRow(session.id)).toMatchObject({ status: 'open', closedAt: null })
   })
 })

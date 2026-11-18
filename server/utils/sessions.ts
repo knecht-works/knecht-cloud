@@ -78,7 +78,8 @@ export function attachObject(session: Session, object: SessionObject): SessionOb
   const existing = findObjectRow(session.projectId, object)
   if (existing) return existing
   const row = insertObjectRow(session.id, session.projectId, object)
-  sessionChanged(session.id)
+  if (session.status === 'closed') updateSession(session.id, { status: 'open', closedAt: null })
+  else sessionChanged(session.id)
   return row
 }
 
@@ -87,13 +88,16 @@ export function attachPullRequest(session: Session, project: Project, pr: { numb
   attachObject(session, { integration: project.repoProvider, kind: 'pull_request', key: String(pr.number), url: pr.url, title })
 }
 
-export function syncObjectStatus(projectId: number, object: SessionObject, status: 'open' | 'closed'): void {
+// A session is closed once all of its objects are.
+export function syncObjectStatus(projectId: number, object: SessionObject, status: 'open' | 'closed'): Session | undefined {
   const row = findObjectRow(projectId, object)
-  if (!row) return
+  if (!row) return undefined
   if (row.status !== status) updateObjectRow(row.id, { status })
   const session = requireSession(row.sessionId)
-  if (session.status === status) return
-  updateSession(session.id, { status, closedAt: status === 'closed' ? new Date() : null })
+  const next = listSessionObjectRows(session.id).some(r => r.status === 'open') ? 'open' : 'closed'
+  if (session.status === next) return session
+  updateSession(session.id, { status: next, closedAt: next === 'closed' ? new Date() : null })
+  return requireSession(session.id)
 }
 
 export function sessionHasActiveWork(sessionId: number): boolean {
