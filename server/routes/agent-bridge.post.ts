@@ -10,7 +10,7 @@ import { addressee, applyLabels, moveToStatus } from '../integrations/capabiliti
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { gitProvider } from '../git'
 import { withPreviewFooter } from '../utils/origin'
-import { describeObject, recordAgentReply, sessionObject, withSessionLinks, type SessionObject } from '../utils/sessions'
+import { describeObject, primaryObject, recordAgentReply, withSessionLinks, type SessionObject } from '../utils/sessions'
 import { ticketFetched } from '../utils/object-freshness'
 import { writeObjectSnapshot } from '../utils/object-snapshot'
 import { sessionCheckoutDir } from '../utils/storage'
@@ -124,7 +124,7 @@ export default defineEventHandler(async (event) => {
         const target = followup?.replyTo ?? addressee(getRunningSessionRun(sessionId)?.actor)
         // Still addressed to whoever asked, only no longer under their comment.
         const replyTo = body.newThread && target ? { ...target, thread: null } : target
-        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId), replyTo))
+        const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId, object), replyTo))
         recordAgentReply(sessionId)
         log(`\nagent-reply: commented on ${label}\n`)
         return reply(event, 200, `posted the reply on ${label}${comment.url ? `: ${comment.url}` : ''}`)
@@ -182,7 +182,7 @@ class BridgeError extends Error {}
 // The session's object, or a clear refusal: the reply ops only exist on
 // sessions that belong to a ticket, issue or PR.
 function requireObject(session: Session): { integration: Integration, object: SessionObject, label: string } {
-  const object = sessionObject(session)
+  const object = primaryObject(session.id)
   if (!object) {
     throw new BridgeError('this session does not belong to a ticket, issue or pull request, so there is no thread to post on')
   }

@@ -15,7 +15,7 @@ import { getSessionRow, updateSession } from '../../stores/sessions'
 import { getIntegration } from '../../integrations'
 import { freshTicketSince, ticketFetched } from '../../utils/object-freshness'
 import { snapshotDir, writeObjectSnapshot } from '../../utils/object-snapshot'
-import { describeObject, sessionObject } from '../../utils/sessions'
+import { describeObject, primaryObject } from '../../utils/sessions'
 
 const MAX_OUTPUT_ATTEMPTS = 3
 
@@ -148,8 +148,7 @@ export function handoverPreamble(summary: string): string {
 
 // Refreshed before a turn when the ticket changed: in the session's one conversation the agent would otherwise trust an older read.
 async function refreshTicket(rt: ActionRuntime): Promise<string> {
-  const session = getSessionRow(rt.sessionId)
-  const object = session && sessionObject(session)
+  const object = primaryObject(rt.sessionId)
   if (!object) return ''
   const integration = getIntegration(object.integration)
   const dir = snapshotDir(object.key)

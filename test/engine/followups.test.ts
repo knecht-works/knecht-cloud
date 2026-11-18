@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { makeProject, makeRun } from '../helpers/db'
+import { attachTestObject, makeProject, makeRun } from '../helpers/db'
 
 const comments: { issue: number, body: string }[] = []
 vi.mock('../../server/utils/github-app', () => ({
@@ -36,7 +36,7 @@ const { startFollowup } = await import('../../server/daemon/followups')
 function objectFollowup(origin: 'mention' | 'dashboard') {
   const project = makeProject()
   const run = makeRun(project, [], { status: 'success' })
-  db.update(schema.sessions).set({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5' }).where(eq(schema.sessions.id, run.sessionId)).run()
+  attachTestObject(run.sessionId, { integration: 'github', kind: 'issue', key: '5' })
   const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'more', origin }).returning().get()
   return { run, followup }
 }

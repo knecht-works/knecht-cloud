@@ -4,7 +4,7 @@ import { db, schema } from '../../server/db'
 import { fireTrigger } from '../../server/utils/triggers'
 import { findObjectSession } from '../../server/stores/sessions'
 import { resolveSession, sessionHasActiveWork, syncObjectStatus, withSessionLinks } from '../../server/utils/sessions'
-import { getSessionRow, makeProject, makeRun } from '../helpers/db'
+import { attachTestObject, getSessionRow, makeProject, makeRun, sessionObjectOf } from '../helpers/db'
 
 let n = 0
 function makePublishedWorkflow() {
@@ -25,7 +25,7 @@ describe('resolveSession', () => {
     const object = { integration: 'github' as const, kind: 'issue' as const, key: '17', url: 'https://x/17', title: 'Bug' }
 
     const first = resolveSession(project, object, null)
-    expect(first).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '17' })
+    expect(sessionObjectOf(first.id)).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '17' })
     expect(first.branch).toBe('main')
 
     const again = resolveSession(project, object, 'feature-x')
@@ -38,7 +38,7 @@ describe('resolveSession', () => {
     const object = { integration: 'github' as const, kind: 'issue' as const, key: '3', title: 'Old title' }
     const first = resolveSession(project, object, null)
     resolveSession(project, { ...object, title: 'New title' }, null)
-    expect(getSessionRow(first.id).objectTitle).toBe('New title')
+    expect(sessionObjectOf(first.id).objectTitle).toBe('New title')
   })
 
   it('creates a fresh one-shot session for every objectless event', () => {
@@ -46,7 +46,7 @@ describe('resolveSession', () => {
     const a = resolveSession(project, null, null)
     const b = resolveSession(project, null, null)
     expect(a.id).not.toBe(b.id)
-    expect(a.objectKind).toBeNull()
+    expect(sessionObjectOf(a.id).objectKind).toBeNull()
   })
 
   it('keeps the same object separate across projects', () => {
@@ -70,8 +70,7 @@ describe('fireTrigger with objects', () => {
     const runB = db.select().from(schema.runs).where(eq(schema.runs.id, second!)).get()!
     expect(runA.sessionId).toBe(runB.sessionId)
 
-    const session = getSessionRow(runA.sessionId)
-    expect(session).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '9' })
+    expect(sessionObjectOf(runA.sessionId)).toMatchObject({ objectIntegration: 'github', objectKind: 'issue', objectKey: '9' })
   })
 
   it('gives objectless firings their own one-shot sessions', () => {
@@ -139,36 +138,35 @@ describe('withSessionLinks', () => {
     delete process.env.KNECHT_BASE_URL
   })
 
+  const issue = { integration: 'github' as const, kind: 'issue' as const, key: '5' }
+
   it('leaves the text alone when there is nothing to link', () => {
     const project = makeProject()
     const run = makeRun(project, [])
-    expect(withSessionLinks('just triage', run.sessionId)).toBe('just triage')
+    expect(withSessionLinks('just triage', run.sessionId, issue)).toBe('just triage')
   })
 
   it('appends the preview once booted and the PR once opened', () => {
     const project = makeProject()
     const run = makeRun(project, [])
-    db.update(schema.sessions)
-      .set({ objectIntegration: 'github', objectKind: 'issue', objectKey: '5', tier: 'preview' })
-      .where(eq(schema.sessions.id, run.sessionId))
-      .run()
+    db.update(schema.sessions).set({ tier: 'preview' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    attachTestObject(run.sessionId, issue)
 
-    expect(withSessionLinks('done', run.sessionId))
+    expect(withSessionLinks('done', run.sessionId, issue))
       .toBe(`done\n\n---\n**Preview:** http://${run.sessionId}.preview.lvh.me:3333`)
 
     db.update(schema.runs).set({ prUrl: 'https://x/pull/9' }).where(eq(schema.runs.id, run.id)).run()
-    expect(withSessionLinks('done', run.sessionId)).toContain('**PR:** https://x/pull/9')
+    expect(withSessionLinks('done', run.sessionId, issue)).toContain('**PR:** https://x/pull/9')
   })
 
   it('never links a PR thread to itself', () => {
     const project = makeProject()
     const run = makeRun(project, [], { prUrl: 'https://x/pull/9' })
-    db.update(schema.sessions)
-      .set({ objectIntegration: 'github', objectKind: 'pull_request', objectKey: '9', tier: 'preview' })
-      .where(eq(schema.sessions.id, run.sessionId))
-      .run()
+    db.update(schema.sessions).set({ tier: 'preview' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    const pr = { integration: 'github' as const, kind: 'pull_request' as const, key: '9' }
+    attachTestObject(run.sessionId, pr)
 
-    const text = withSessionLinks('done', run.sessionId)
+    const text = withSessionLinks('done', run.sessionId, pr)
     expect(text).toContain('**Preview:**')
     expect(text).not.toContain('**PR:**')
   })

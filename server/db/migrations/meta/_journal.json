@@ -491,6 +491,13 @@
       "when": 1794573489982,
       "tag": "0069_project-db-base",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "6",
+      "when": 1795028681329,
+      "tag": "0070_session-objects",
+      "breakpoints": true
     }
   ]
 }

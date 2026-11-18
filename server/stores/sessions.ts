@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, lt, notExists, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewSession, Run, Session } from '../db/schema'
@@ -6,6 +6,7 @@ import type { SessionObject } from '../utils/sessions'
 import { liveTopics } from '../../shared/utils/live-topics'
 import { emitTopics } from '../utils/live'
 import { listSessionRunIds } from './runs'
+import { findObjectRow } from './session-objects'
 
 export function getSessionRow(id: number): Session | undefined {
   return db.select().from(schema.sessions).where(eq(schema.sessions.id, id)).get()
@@ -22,16 +23,8 @@ export function requireRunSession(run: Run): Session {
 }
 
 export function findObjectSession(projectId: number, object: SessionObject): Session | undefined {
-  return db
-    .select()
-    .from(schema.sessions)
-    .where(and(
-      eq(schema.sessions.projectId, projectId),
-      eq(schema.sessions.objectIntegration, object.integration),
-      eq(schema.sessions.objectKind, object.kind),
-      eq(schema.sessions.objectKey, object.key),
-    ))
-    .get()
+  const row = findObjectRow(projectId, object)
+  return row && getSessionRow(row.sessionId)
 }
 
 export function listSessionIds(projectId?: number): number[] {
@@ -101,7 +94,10 @@ export function touchSessionPreview(id: number): void {
 export function closeObjectlessSession(id: number): void {
   db.update(schema.sessions)
     .set({ status: 'closed', closedAt: new Date() })
-    .where(and(eq(schema.sessions.id, id), isNull(schema.sessions.objectKind)))
+    .where(and(
+      eq(schema.sessions.id, id),
+      notExists(db.select({ id: schema.sessionObjects.id }).from(schema.sessionObjects).where(eq(schema.sessionObjects.sessionId, id))),
+    ))
     .run()
   sessionChanged(id)
 }

@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewRun, Project, Run } from '../db/schema'
 import type { RunDiagnosis } from '../../shared/utils/run'
 import { liveTopics } from '../../shared/utils/live-topics'
 import { emitRunLog, emitTopics, type RunLogChunk } from '../utils/live'
+import { primaryObjectId } from './session-objects'
 
 type RunStatus = Run['status']
 type FinalStatus = 'success' | 'failed' | 'cancelled'
@@ -19,13 +20,16 @@ const runSessionColumns = {
   projectEnv: schema.projects.ddevEnv,
   projectDevServer: schema.projects.devServer,
   projectPreviewPort: schema.projects.previewPort,
-  objectIntegration: schema.sessions.objectIntegration,
-  objectKind: schema.sessions.objectKind,
-  objectKey: schema.sessions.objectKey,
-  objectTitle: schema.sessions.objectTitle,
-  objectUrl: schema.sessions.objectUrl,
+  objectIntegration: schema.sessionObjects.integration,
+  objectKind: schema.sessionObjects.kind,
+  objectKey: schema.sessionObjects.key,
+  objectTitle: schema.sessionObjects.title,
+  objectUrl: schema.sessionObjects.url,
   sessionStatus: schema.sessions.status,
 }
+
+// The run's own object, else its session's primary one.
+const runObjectJoin = eq(schema.sessionObjects.id, sql`coalesce(${schema.runs.objectId}, ${primaryObjectId(schema.runs.sessionId)})`)
 
 const runListColumns = {
   id: schema.runs.id,
@@ -66,6 +70,7 @@ export function getRunView(id: number) {
     .from(schema.runs)
     .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))
     .innerJoin(schema.sessions, eq(schema.runs.sessionId, schema.sessions.id))
+    .leftJoin(schema.sessionObjects, runObjectJoin)
     .where(eq(schema.runs.id, id))
     .get()
 }
@@ -76,6 +81,7 @@ export function listRunViews(projectId: number | undefined, limit: number, statu
     .from(schema.runs)
     .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))
     .innerJoin(schema.sessions, eq(schema.runs.sessionId, schema.sessions.id))
+    .leftJoin(schema.sessionObjects, runObjectJoin)
     .where(and(
       projectId === undefined ? undefined : eq(schema.runs.projectId, projectId),
       status === undefined ? undefined : eq(schema.runs.status, status),
@@ -156,10 +162,15 @@ export function sessionHasActiveRun(sessionId: number): boolean {
     .get()
 }
 
-export function workflowRanOnVersion(workflowId: number, sessionId: number, version: string): boolean {
+export function workflowRanOnVersion(workflowId: number, sessionId: number, objectId: number | null, version: string): boolean {
   return !!db.select({ id: schema.runs.id })
     .from(schema.runs)
-    .where(and(eq(schema.runs.workflowId, workflowId), eq(schema.runs.sessionId, sessionId), eq(schema.runs.objectVersion, version)))
+    .where(and(
+      eq(schema.runs.workflowId, workflowId),
+      eq(schema.runs.sessionId, sessionId),
+      objectId === null ? isNull(schema.runs.objectId) : eq(schema.runs.objectId, objectId),
+      eq(schema.runs.objectVersion, version),
+    ))
     .get()
 }
 

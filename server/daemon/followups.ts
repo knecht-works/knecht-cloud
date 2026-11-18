@@ -6,7 +6,7 @@ import { createContext } from '../workflows/context'
 import { getIntegration } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { sessionCheckoutDir } from '../utils/storage'
-import { agentRepliedSince, describeObject, sessionObject, withSessionLinks } from '../utils/sessions'
+import { agentRepliedSince, describeObject, primaryObject, withSessionLinks } from '../utils/sessions'
 import { transcriptSink } from '../utils/agent-items'
 import { emitFollowup } from '../utils/transcript'
 import { notice } from './agent'
@@ -108,11 +108,11 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
 }
 
 async function postMentionReply(followup: Followup, session: Session, project: Project, text: string): Promise<void> {
-  const object = sessionObject(session)
-  if (followup.origin !== 'mention' || !object) return
+  const object = followup.origin === 'mention' ? primaryObject(session.id) : null
+  if (!object) return
   if (agentRepliedSince(session.id, followup.startedAt ?? followup.createdAt)) return
   try {
-    await getIntegration(object.integration).capabilities.comment(project, object, withSessionLinks(text, session.id), followup.replyTo)
+    await getIntegration(object.integration).capabilities.comment(project, object, withSessionLinks(text, session.id, object), followup.replyTo)
   }
   catch (e) {
     transcriptSink(session.id, followup.id).item(notice(`Could not post the reply on the thread: ${(e as Error).message}`))
@@ -131,10 +131,10 @@ async function stageAttachments(rt: ActionRuntime, followup: Followup): Promise<
 // Without the header the agent reads a follow-up as an output-contract correction and does nothing.
 function followupMessage(followup: Followup, session: Session): string {
   const publish = 'Publishing: if this session already has an open pull request, commit your changes (in logical chunks with proper messages) and push when you are done; never open a second PR. Otherwise leave your changes in the working tree for review in the preview, unless the request above asks you to commit, push or open a PR.'
-  const object = followup.origin === 'mention' ? sessionObject(session) : null
+  const object = followup.origin === 'mention' ? primaryObject(session.id) : null
   const thread = object
     ? `This session belongs to ${describeObject(object)}.\n\n`
-    : sessionObject(session) ? 'This request comes from the Knecht dashboard: answer in your final message, do not use knecht-reply.\n\n' : ''
+    : primaryObject(session.id) ? 'This request comes from the Knecht dashboard: answer in your final message, do not use knecht-reply.\n\n' : ''
   const attached = followup.attachments.length
     ? `\n\nThe user attached these files; they are in the sandbox, read them as needed:\n${followup.attachments.map(a => `- ${sandboxAttachmentPath(followup.id, a.name)} (${a.type || 'unknown type'}, ${Math.max(1, Math.round(a.size / 1024))} KB)`).join('\n')}`
     : ''
