@@ -7,7 +7,7 @@ import { handleMention } from './mentions'
 import { sessionHasActiveWork, syncObjectStatus } from './sessions'
 import { fireTrigger } from './triggers'
 import { listActiveTriggers } from '../stores/triggers'
-import { findObjectSession } from '../stores/sessions'
+import { findObjectSession, getSessionRow } from '../stores/sessions'
 import { ticketChanged } from './object-freshness'
 
 // No session gate: the integration authenticates the delivery with its signature over the raw body.
@@ -47,9 +47,7 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
     console.log(`${integration.id} webhook: ${delivery.summary} from ${project.fullName} → ${outcome}`)
   }
 
-  if (delivery.statusChange) {
-    syncObjectStatus(project.id, delivery.statusChange.object, delivery.statusChange.status)
-  }
+  const synced = delivery.statusChange && syncObjectStatus(project.id, delivery.statusChange.object, delivery.statusChange.status)
 
   const runIds: number[] = []
   if (delivery.event) {
@@ -72,8 +70,9 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
   }
 
   // After the triggers: a run the closing itself started keeps the environment.
-  if (delivery.statusChange?.status === 'closed') {
-    const session = findObjectSession(project.id, delivery.statusChange.object)
+  // Only when the whole session closed: an open PR of the same work still needs its preview.
+  if (synced && synced.status === 'closed') {
+    const session = getSessionRow(synced.id)
     if (session?.envState === 'up' && !sessionHasActiveWork(session.id)) {
       void stopEnv(session.id).catch(e => console.error(`[envs] stopping the env of closed session ${session.id} failed:`, e))
     }
