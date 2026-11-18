@@ -122,9 +122,7 @@ onLiveTopics(() => project.value ? [liveTopics.project(project.value.id)] : [], 
 const doneText = computed(() => {
   if (dumpProgress.value) return null
   if (project.value?.dbBase?.state === 'failed') return 'The database import failed. Open the project settings to see why and retry it.'
-  return hasBootWorkflow.value
-    ? 'Start a live preview now, or open the project to look around first.'
-    : 'Open the project to start your first run.'
+  return 'Test the boot now to see the live preview, or open the project to look around first.'
 })
 
 const creating = ref(false)
@@ -167,10 +165,6 @@ async function create() {
   }
 }
 
-const { data: workflowRows } = useWorkflows()
-const bootWorkflow = computed(() => workflowRows.value.find(w => w.name === 'boot-and-preview' && workflowRunnable(w)))
-const hasBootWorkflow = computed(() => !!bootWorkflow.value)
-
 const booting = ref(false)
 
 async function openProject() {
@@ -181,19 +175,19 @@ async function openProject() {
 }
 
 async function bootAndPreview() {
-  if (!project.value || !bootWorkflow.value) return
+  if (!project.value) return
   booting.value = true
   try {
-    const run = await $fetch('/api/runs', {
+    const run = await $fetch(`/api/projects/${project.value.id}/sessions`, {
       method: 'POST',
-      body: { projectId: project.value.id, workflowId: bootWorkflow.value.id },
+      body: { preview: true },
     })
     open.value = false
     await navigateTo(runWorkspacePath(run.projectId, run.id))
   }
   catch (e) {
     booting.value = false
-    toastError('Failed to start run', e)
+    toastError('Failed to test the boot', e)
   }
 }
 
@@ -486,10 +480,9 @@ watch(open, (isOpen) => {
               @click="openProject"
             />
             <UButton
-              v-if="hasBootWorkflow"
               size="lg"
               color="primary"
-              label="Boot & preview"
+              label="Test boot"
               :loading="booting"
               :disabled="!!dumpProgress"
               @click="bootAndPreview"
