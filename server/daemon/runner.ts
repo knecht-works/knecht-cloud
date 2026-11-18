@@ -9,7 +9,7 @@ import { runWorkspacePath } from '../../shared/utils/routes'
 import { sessionSandboxName } from '../utils/storage'
 import { gitProvider } from '../git'
 import { dashboardOrigin } from '../utils/origin'
-import { agentRepliedSince, describeObject, sessionObject } from '../utils/sessions'
+import { agentRepliedSince, describeObject, primaryObject } from '../utils/sessions'
 import { getIntegration, type CommentAuthor } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { addressee } from '../integrations/capabilities'
@@ -333,7 +333,7 @@ function capOutputs(outputs: Record<string, unknown> | undefined): Record<string
 // The integration's own write-back on the object (a ticket gets the PR link as a comment);
 // the workflow's replies toggle covers it like every other reply.
 async function notifyRunFinished(runId: number, project: Project, session: Session, status: 'success' | 'failed', log: (text: string) => void, holder: CommentAuthor | null): Promise<void> {
-  const object = sessionObject(session)
+  const object = primaryObject(session.id)
   const run = getRun(runId)
   if (!object || !run) return
   const integration = getIntegration(object.integration)

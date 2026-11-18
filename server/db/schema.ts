@@ -112,12 +112,6 @@ export const sessions = sqliteTable('sessions', {
     .notNull()
     .references(() => projects.id, { onDelete: 'cascade' }),
 
-  objectIntegration: text('object_integration', { enum: INTEGRATION_IDS }),
-  objectKind: text('object_kind', { enum: OBJECT_KINDS }),
-  objectKey: text('object_key'),
-  objectUrl: text('object_url'),
-  objectTitle: text('object_title'),
-
   status: text('status', { enum: ['open', 'closed'] })
     .notNull()
     .default('open'),
@@ -152,13 +146,39 @@ export const sessions = sqliteTable('sessions', {
     .default(sql`(unixepoch())`),
   closedAt: integer('closed_at', { mode: 'timestamp' }),
 }, table => [
-  uniqueIndex('sessions_object_idx').on(table.projectId, table.objectIntegration, table.objectKind, table.objectKey),
   index('sessions_project_id_idx').on(table.projectId),
   index('sessions_env_state_idx').on(table.envState),
 ])
 
 export type Session = typeof sessions.$inferSelect
 export type NewSession = typeof sessions.$inferInsert
+
+// An object belongs to at most one session per project; a session can hold several (a ticket and its PR).
+export const sessionObjects = sqliteTable('session_objects', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  sessionId: integer('session_id')
+    .notNull()
+    .references(() => sessions.id, { onDelete: 'cascade' }),
+  projectId: integer('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  integration: text('integration', { enum: INTEGRATION_IDS }).notNull(),
+  kind: text('kind', { enum: OBJECT_KINDS }).notNull(),
+  key: text('key').notNull(),
+  url: text('url'),
+  title: text('title'),
+  status: text('status', { enum: ['open', 'closed'] })
+    .notNull()
+    .default('open'),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, table => [
+  uniqueIndex('session_objects_object_idx').on(table.projectId, table.integration, table.kind, table.key),
+  index('session_objects_session_id_idx').on(table.sessionId),
+])
+
+export type SessionObjectRow = typeof sessionObjects.$inferSelect
 
 export const runs = sqliteTable('runs', {
   id: integer('id').primaryKey({ autoIncrement: true }),
@@ -181,6 +201,9 @@ export const runs = sqliteTable('runs', {
     .notNull()
     .default('workflow'),
   trigger: text('trigger'),
+  // The object whose event caused the run; null for work started without one.
+  objectId: integer('object_id')
+    .references(() => sessionObjects.id, { onDelete: 'set null' }),
   triggerId: integer('trigger_id')
     .references(() => triggers.id, { onDelete: 'set null' }),
   branch: text('branch'),
@@ -203,7 +226,7 @@ export const runs = sqliteTable('runs', {
   index('runs_status_idx').on(table.status),
   index('runs_workflow_id_idx').on(table.workflowId),
   index('runs_session_id_idx').on(table.sessionId),
-  index('runs_workflow_version_idx').on(table.workflowId, table.sessionId, table.objectVersion),
+  index('runs_workflow_version_idx').on(table.workflowId, table.sessionId, table.objectId, table.objectVersion),
 ])
 
 export type Run = typeof runs.$inferSelect
@@ -262,6 +285,8 @@ export const followups = sqliteTable('followups', {
     .default(sql`'[]'`),
   requestedBy: text('requested_by'),
   // The comment a mention follow-up answers.
+  objectId: integer('object_id')
+    .references(() => sessionObjects.id, { onDelete: 'set null' }),
   replyTo: text('reply_to', { mode: 'json' }).$type<{ thread: string | null, person: { id: string, name: string } }>(),
   origin: text('origin', { enum: ['dashboard', 'mention'] })
     .notNull()

@@ -53,3 +53,18 @@ export function getSteps(runId: number) {
 export function requeue(runId: number): void {
   db.update(schema.runs).set({ status: 'queued' }).where(eq(schema.runs.id, runId)).run()
 }
+
+type TestObject = Pick<typeof schema.sessionObjects.$inferInsert, 'integration' | 'kind' | 'key' | 'url' | 'title' | 'status'>
+
+export function attachTestObject(sessionId: number, object: TestObject) {
+  const session = getSessionRow(sessionId)
+  return db.insert(schema.sessionObjects).values({ sessionId, projectId: session.projectId, ...object }).returning().get()
+}
+
+// The session's first object in the shape the session row used to carry.
+export function sessionObjectOf(sessionId: number) {
+  const row = db.select().from(schema.sessionObjects).where(eq(schema.sessionObjects.sessionId, sessionId)).orderBy(asc(schema.sessionObjects.id)).get()
+  return row
+    ? { objectIntegration: row.integration, objectKind: row.kind, objectKey: row.key, objectTitle: row.title, objectUrl: row.url }
+    : { objectIntegration: null, objectKind: null, objectKey: null, objectTitle: null, objectUrl: null }
+}

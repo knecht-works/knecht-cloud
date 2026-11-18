@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '../../server/db'
 import type { Step } from '../../shared/utils/workflow'
 import { checkoutDirOf } from '../helpers/local-sandbox'
-import { getRun, getSessionRow, getSteps, makeProject, makeRun } from '../helpers/db'
+import { attachTestObject, getRun, getSessionRow, getSteps, makeProject, makeRun } from '../helpers/db'
 
 vi.mock('../../server/daemon/git', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../server/daemon/git')>()
@@ -102,7 +102,7 @@ describe('ai step over ACP', () => {
   it('refreshes the session\'s ticket into the checkout before the step', async () => {
     const project = makeProject()
     const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'do the thing' }])
-    db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: 'PROJ-1' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    attachTestObject(run.sessionId, { integration: 'jira', kind: 'issue', key: 'PROJ-1' })
     await startRun(run.id, project)
     const dir = join(checkoutDirOf(run.sessionId), '.knecht', 'objects', 'PROJ-1')
     expect(readFileSync(join(dir, 'ticket.md'), 'utf8')).toContain('# PROJ-1: Login broken')
@@ -115,7 +115,7 @@ describe('ai step over ACP', () => {
     const project = makeProject()
     const steps = (prefix: string) => [{ type: 'ai' as const, id: `${prefix}1`, prompt: 'one' }, { type: 'ai' as const, id: `${prefix}2`, prompt: 'two' }]
     const run = makeRun(project, steps('a'))
-    db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: 'PROJ-2' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    attachTestObject(run.sessionId, { integration: 'jira', kind: 'issue', key: 'PROJ-2' })
 
     jiraFetches.count = 0
     await startRun(run.id, project)
@@ -139,7 +139,7 @@ describe('ai step over ACP', () => {
   it('still runs the step when the ticket cannot be refreshed', async () => {
     const project = makeProject()
     const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'do the thing' }])
-    db.update(schema.sessions).set({ objectIntegration: 'jira', objectKind: 'issue', objectKey: 'DOWN-1' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    attachTestObject(run.sessionId, { integration: 'jira', kind: 'issue', key: 'DOWN-1' })
     await startRun(run.id, project)
     expect(getRun(run.id)).toMatchObject({ status: 'success' })
     expect(getRun(run.id).log).toContain('Could not refresh ticket DOWN-1: Jira is unreachable')
