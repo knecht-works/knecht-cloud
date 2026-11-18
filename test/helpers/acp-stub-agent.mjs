@@ -62,6 +62,10 @@ agent({ name: 'stub' })
       await update({ sessionUpdate: 'agent_message_chunk', messageId: 'm0', content: { type: 'text', text: `model: ${currentModel}` } })
       return { stopReason: 'end_turn' }
     }
+    if (text.includes('SAW_NOTES')) {
+      await update({ sessionUpdate: 'agent_message_chunk', messageId: 'm0', content: { type: 'text', text: `notes: ${text.includes('Since your last turn') ? 'yes' : 'no'}` } })
+      return { stopReason: 'end_turn' }
+    }
     if (text.includes('BIG_OUTPUT')) {
       await update({ sessionUpdate: 'tool_call', toolCallId: 't9', title: 'cat big.log', kind: 'execute', status: 'completed', rawOutput: 'x'.repeat(10_000) })
     }

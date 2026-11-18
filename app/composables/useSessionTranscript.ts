@@ -53,6 +53,7 @@ export interface ChatRun {
   prUrl: string | null
   createdAt: string
   finishedAt: string | null
+  freshContext: boolean
 }
 
 interface TranscriptResponse {

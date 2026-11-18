@@ -163,6 +163,49 @@ describe('ai step over ACP', () => {
   })
 })
 
+describe('a workflow with its own conversation', () => {
+  function freshRun(project = makeProject(), sessionId?: number) {
+    const wf = db.insert(schema.workflows).values({ name: `fresh-${Math.random()}`, steps: [], freshContext: true }).returning().get()
+    return makeRun(project, [{ type: 'ai', id: 'review', prompt: 'review it' }], { workflowId: wf.id, ...(sessionId ? { sessionId } : {}) })
+  }
+
+  it('leaves the session\'s conversation and hand-over alone', async () => {
+    const project = makeProject()
+    const run = freshRun(project)
+    db.update(schema.sessions).set({ agentSessionId: 'ses_stub_known', agentHandover: 'summary' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    await startRun(run.id, project)
+    expect(getRun(run.id).status).toBe('success')
+    expect(getSessionRow(run.sessionId)).toMatchObject({ agentSessionId: 'ses_stub_known', agentHandover: 'summary' })
+  })
+
+  it('hands what it found to the session\'s next turn, once', async () => {
+    const project = makeProject()
+    const run = freshRun(project)
+    await startRun(run.id, project)
+    expect(getSessionRow(run.sessionId).agentNotes).toContain('Hello from stub (fresh)')
+
+    const followup = (prompt: string) => db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt }).returning().get()
+    const first = followup('SAW_NOTES')
+    await startFollowup(first.id)
+    expect(itemsOf(first.id).find(i => i.type === 'message')!.text).toBe('notes: yes')
+    expect(getSessionRow(run.sessionId).agentNotes).toBeNull()
+
+    const second = followup('SAW_NOTES')
+    await startFollowup(second.id)
+    expect(itemsOf(second.id).find(i => i.type === 'message')!.text).toBe('notes: no')
+  })
+
+  it('hands it to the next workflow in the session\'s conversation too', async () => {
+    const project = makeProject()
+    const fresh = freshRun(project)
+    await startRun(fresh.id, project)
+    const next = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'SAW_NOTES' }], { sessionId: fresh.sessionId })
+    await startRun(next.id, project)
+    expect(getSteps(next.id)[0]!.outputs).toEqual({ text: 'notes: yes' })
+    expect(getSessionRow(fresh.sessionId).agentNotes).toBeNull()
+  })
+})
+
 describe('follow-ups over ACP', () => {
   it('resumes the workflow\'s agent session in the chat', async () => {
     const { run } = await runAi({})

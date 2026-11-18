@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import type { Followup, Project, Run, Session } from '../db/schema'
-import { compactAgentSession, handoverPreamble, runFollowupPrompt } from '../workflows/actions/ai'
+import { compactAgentSession, handoverPreamble, notesPreamble, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
 import { createContext } from '../workflows/context'
 import { getIntegration } from '../integrations'
@@ -100,8 +100,8 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
   if (followup.prompt === COMPACT_COMMAND) return compactAgentSession(rt, sink, followup.model)
   if (followup.attachments.length) await stageAttachments(rt, followup)
   const reply = await runFollowupPrompt(rt, followupMessage(followup, session), sink, followup.model)
-  if (session.agentHandover) {
-    updateSession(session.id, { agentHandover: null })
+  if (session.agentHandover || session.agentNotes) {
+    updateSession(session.id, { agentHandover: null, agentNotes: null })
   }
   await syncSessionBranch(session.id, run.id, rt)
   return reply
@@ -139,7 +139,8 @@ function followupMessage(followup: Followup, session: Session): string {
     ? `\n\nThe user attached these files; they are in the sandbox, read them as needed:\n${followup.attachments.map(a => `- ${sandboxAttachmentPath(followup.id, a.name)} (${a.type || 'unknown type'}, ${Math.max(1, Math.round(a.size / 1024))} KB)`).join('\n')}`
     : ''
   const handover = session.agentHandover ? handoverPreamble(session.agentHandover) : ''
-  return `${handover}${thread}A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}${attached}\n\n${publish}`
+  const notes = session.agentNotes ? notesPreamble(session.agentNotes) : ''
+  return `${handover}${notes}${thread}A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}${attached}\n\n${publish}`
 }
 
 async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRuntime): Promise<void> {
