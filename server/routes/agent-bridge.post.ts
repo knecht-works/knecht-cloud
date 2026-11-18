@@ -10,7 +10,7 @@ import { addressee, applyLabels, moveToStatus } from '../integrations/capabiliti
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { gitProvider } from '../git'
 import { withPreviewFooter } from '../utils/origin'
-import { attachPullRequest, describeObject, primaryObject, recordAgentReply, withSessionLinks, type SessionObject } from '../utils/sessions'
+import { attachPullRequest, describeObject, primaryObject, recordAgentReply, withSessionLinks, workObject, type SessionObject } from '../utils/sessions'
 import { ticketFetched } from '../utils/object-freshness'
 import { writeObjectSnapshot } from '../utils/object-snapshot'
 import { sessionCheckoutDir } from '../utils/storage'
@@ -99,7 +99,7 @@ export default defineEventHandler(async (event) => {
         return reply(event, 200, token)
       }
       case 'context': {
-        const { integration, object } = requireObject(session)
+        const { integration, object } = requireObject(session, 'primary')
         const target = body.key ? integration.objects.find?.(project, body.key) : object
         if (!target) {
           throw new BridgeError(integration.objects.find
@@ -115,7 +115,7 @@ export default defineEventHandler(async (event) => {
         }))
       }
       case 'comment': {
-        const { integration, object, label } = requireObject(session)
+        const { integration, object, label } = requireObject(session, 'work')
         requireRepliesEnabled(sessionId)
         const followup = getRunningFollowup(sessionId)
         if (followup?.origin === 'dashboard') {
@@ -130,14 +130,14 @@ export default defineEventHandler(async (event) => {
         return reply(event, 200, `posted the reply on ${label}${comment.url ? `: ${comment.url}` : ''}`)
       }
       case 'label': {
-        const { integration, object, label } = requireObject(session)
+        const { integration, object, label } = requireObject(session, 'work')
         requireRepliesEnabled(sessionId)
         const did = await viaIntegration(() => applyLabels(integration, project, object, body.add ?? [], body.remove ?? []))
         log(`\nagent-label: ${did} on ${label}\n`)
         return reply(event, 200, `${did} on ${label}`)
       }
       case 'status': {
-        const { integration, object, label } = requireObject(session)
+        const { integration, object, label } = requireObject(session, 'primary')
         requireRepliesEnabled(sessionId)
         const did = await viaIntegration(() => moveToStatus(integration, project, object, body.status))
         log(`\nagent-status: ${did} on ${label}\n`)
@@ -180,10 +180,17 @@ export default defineEventHandler(async (event) => {
 
 class BridgeError extends Error {}
 
-// The session's object, or a clear refusal: the reply ops only exist on
+// Replies go where the running work came from; the ticket (status, context) is the primary object.
+function currentObject(sessionId: number, of: 'work' | 'primary'): SessionObject | null {
+  if (of === 'primary') return primaryObject(sessionId)
+  const work = getRunningFollowup(sessionId) ?? getRunningSessionRun(sessionId)
+  return workObject(sessionId, work?.objectId)
+}
+
+// The object, or a clear refusal: the reply ops only exist on
 // sessions that belong to a ticket, issue or PR.
-function requireObject(session: Session): { integration: Integration, object: SessionObject, label: string } {
-  const object = primaryObject(session.id)
+function requireObject(session: Session, of: 'work' | 'primary'): { integration: Integration, object: SessionObject, label: string } {
+  const object = currentObject(session.id, of)
   if (!object) {
     throw new BridgeError('this session does not belong to a ticket, issue or pull request, so there is no thread to post on')
   }
