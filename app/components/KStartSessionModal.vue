@@ -57,7 +57,7 @@ watch(open, (isOpen) => {
           />
         </UFormField>
 
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-4 sm:grid-cols-2">
           <div class="flex flex-col gap-4 rounded-lg border border-default p-4">
             <div>
               <div class="text-sm font-medium text-highlighted">
@@ -92,7 +92,7 @@ watch(open, (isOpen) => {
             />
           </div>
 
-          <div class="flex flex-col gap-3 rounded-lg border border-default p-4">
+          <div class="flex flex-col gap-4 overflow-hidden rounded-lg border border-default p-4">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <div class="text-sm font-medium text-highlighted">
@@ -111,7 +111,7 @@ watch(open, (isOpen) => {
               aria-label="Search workflows"
               class="w-full"
             />
-            <div class="-mx-2 flex h-56 flex-col gap-0.5 overflow-y-auto">
+            <div class="-mx-4 -mt-2 -mb-4 flex h-44 flex-col gap-0.5 overflow-y-auto pb-2 pl-2 [scrollbar-gutter:stable]">
               <button
                 v-for="w in filteredWorkflows"
                 :key="w.id"
