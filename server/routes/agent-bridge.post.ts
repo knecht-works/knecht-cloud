@@ -10,7 +10,7 @@ import { addressee, applyLabels, moveToStatus } from '../integrations/capabiliti
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { gitProvider } from '../git'
 import { withPreviewFooter } from '../utils/origin'
-import { describeObject, primaryObject, recordAgentReply, withSessionLinks, type SessionObject } from '../utils/sessions'
+import { attachPullRequest, describeObject, primaryObject, recordAgentReply, withSessionLinks, type SessionObject } from '../utils/sessions'
 import { ticketFetched } from '../utils/object-freshness'
 import { writeObjectSnapshot } from '../utils/object-snapshot'
 import { sessionCheckoutDir } from '../utils/storage'
@@ -162,6 +162,7 @@ export default defineEventHandler(async (event) => {
         })
         if (!pr) return reply(event, 200, 'no commits on the branch, nothing to open a PR for')
         updateSession(sessionId, { branch })
+        attachPullRequest(session, project, pr, body.title)
         if (run) {
           updateRun(run.id, { branch, prUrl: pr.url })
         }

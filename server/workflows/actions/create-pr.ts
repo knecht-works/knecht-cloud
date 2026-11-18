@@ -6,6 +6,8 @@ import type { PullRequest } from '../../git/types'
 import { withPreviewFooter } from '../../utils/origin'
 import { defineAction } from './types'
 import { updateRun } from '../../stores/runs'
+import { requireSession } from '../../stores/sessions'
+import { attachPullRequest } from '../../utils/sessions'
 
 export const createPrAction = defineAction({
   type: 'create-pr',
@@ -42,6 +44,7 @@ export const createPrAction = defineAction({
       return
     }
     updateRun(rt.runId, { prUrl: pr.url })
+    attachPullRequest(requireSession(rt.sessionId), rt.project, pr, step.title)
     rt.log(`${pr.existing ? 'Pushed to existing' : 'Opened'} PR #${pr.number}: ${pr.url}\n`)
     return { url: pr.url, number: pr.number }
   },
