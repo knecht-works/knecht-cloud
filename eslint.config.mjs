@@ -30,7 +30,7 @@ export default withNuxt(
   {
     files: ['app/**/*.vue'],
     plugins: { 'knecht-forms': { rules: { 'button-classes': buttonClasses, 'control-row-size': controlRowSize, 'default-control-size': defaultControlSize, 'icon-or-label': iconOrLabel, 'labeled-control': labeledControl, 'themed-only': themedOnly } } },
-    rules: { 'knecht-forms/button-classes': 'error', 'knecht-forms/control-row-size': 'error', 'knecht-forms/default-control-size': 'error', 'knecht-forms/icon-or-label': 'error', 'knecht-forms/labeled-control': 'error', 'knecht-forms/themed-only': 'error' },
+    rules: { 'vue/no-undef-components': 'error', 'knecht-forms/button-classes': 'error', 'knecht-forms/control-row-size': 'error', 'knecht-forms/default-control-size': 'error', 'knecht-forms/icon-or-label': 'error', 'knecht-forms/labeled-control': 'error', 'knecht-forms/themed-only': 'error' },
   },
   {
     // The compact editors: trigger conditions, the workflow editor and the chat model picker.
