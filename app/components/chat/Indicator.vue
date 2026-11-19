@@ -1,4 +1,6 @@
 <script setup lang="ts">
+const props = defineProps<{ text: string }>()
+
 const SIZE = 4
 const DOT = 2
 const GAP = 2
@@ -15,13 +17,6 @@ const PATTERNS = [
   [[0], [1, 4], [2, 5, 8], [3, 6, 9, 12], [7, 10, 13], [11, 14], [15]],
 ]
 
-const STATUS = [
-  'Working on it',
-  'Reading the project',
-  'Thinking it through',
-  'Running tools',
-  'Checking the result',
-]
 const CHARS = 'abcdefghijklmnopqrstuvwxyz'
 
 const activeDots = ref<Set<number>>(new Set())
@@ -38,14 +33,16 @@ function nextStep() {
   }
 }
 
-const statusIndex = ref(0)
-const text = ref(STATUS[0]!)
+const text = ref(props.text)
 
+let scrambling = 0
 function scramble(from: string, to: string) {
   const length = Math.max(from.length, to.length)
   const frames = 15
   let frame = 0
+  const id = ++scrambling
   const step = () => {
+    if (id !== scrambling) return
     frame++
     const progress = (frame / frames) * length
     let out = ''
@@ -60,21 +57,14 @@ function scramble(from: string, to: string) {
   requestAnimationFrame(step)
 }
 
+watch(() => props.text, (to, from) => scramble(from, to))
+
 let dotsTimer: ReturnType<typeof setInterval> | undefined
-let textTimer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
   nextStep()
   dotsTimer = setInterval(nextStep, 120)
-  textTimer = setInterval(() => {
-    const previous = text.value
-    statusIndex.value = (statusIndex.value + 1) % STATUS.length
-    scramble(previous, STATUS[statusIndex.value]!)
-  }, 3500)
 })
-onUnmounted(() => {
-  clearInterval(dotsTimer)
-  clearInterval(textTimer)
-})
+onUnmounted(() => clearInterval(dotsTimer))
 </script>
 
 <template>
