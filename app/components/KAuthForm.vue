@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { LAST_LOGIN_COOKIE, passwordProblem, usernameProblem, type LoginMethod } from '#shared/utils/account'
+import { useCookie, navigateTo } from '#app'
+import { useUserSession } from '#imports'
+import { ref, watch } from 'vue'
+import { $fetch } from '#build/fetch.mjs'
+import { errMsg } from '~/utils/dashboard'
 
 const props = defineProps<{
   endpoint: string

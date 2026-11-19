@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { useRoute } from '#app'
+import { useProject } from '~/composables/useProjects'
+import { useIntegrations } from '~/composables/useIntegrations'
+import { computed } from 'vue'
+
 const id = Number(useRoute().params.id)
 
 const { data: project } = await useProject(id)

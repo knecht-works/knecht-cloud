@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { defaultStepTimeout, deriveStepId, isComposite, isDerivedStepId, renameStepReferences, STEP_ID_RE, stepIds } from '#shared/utils/workflow'
+import type { WorkflowStep } from '~/utils/dashboard'
+import type { VarGroup, StepField } from '~/utils/workflow-steps'
+import { computed, inject, ref, watch } from 'vue'
+import { stepDef, workflowStepMeta, FORCE_STEP_ISSUES, stepPristine, varPathParts } from '~/utils/workflow-steps'
 
 const props = defineProps<{
   step: WorkflowStep

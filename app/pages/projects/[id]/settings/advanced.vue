@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { useToast } from '#imports'
+import { useToastError } from '~/composables/useToastError'
+import { useRoute, navigateTo } from '#app'
+import { useProject } from '~/composables/useProjects'
+import { useRuns } from '~/composables/useRuns'
+import { computed, ref } from 'vue'
+import { $fetch } from '#build/fetch.mjs'
+
 const toast = useToast()
 const toastError = useToastError()
 const id = Number(useRoute().params.id)

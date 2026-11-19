@@ -1,5 +1,15 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
+import { useRoute, navigateTo } from '#app'
+import { useProject } from '~/composables/useProjects'
+import { useRuns } from '~/composables/useRuns'
+import { computed, ref, onMounted, watch } from 'vue'
+import { groupRunsBySession, runStatusMeta, DOT_COLOR_VAR, triggerMeta } from '~/utils/dashboard'
+import { $fetch } from '#build/fetch.mjs'
+import { useWorkflows, useTriggers } from '~/composables/useWorkflows'
+import { workflowRunnable } from '~/utils/workflow-steps'
+import { useStartRun } from '~/composables/useStartRun'
+import { invalidate } from '~/composables/useLiveTopics'
 
 const route = useRoute()
 const id = Number(route.params.id)

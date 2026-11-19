@@ -1,3 +1,6 @@
+import { defineNuxtRouteMiddleware, navigateTo } from '#app'
+import { useUserSession } from '#imports'
+
 // Every route requires a session except these; mirror of server/middleware/auth.ts.
 const PUBLIC_ROUTES = ['/login', '/setup']
 

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { PrismEditor } from 'prism-code-editor'
 import { insertText } from 'prism-code-editor/utils'
+import type { StepField, VarGroup } from '~/utils/workflow-steps'
+import { computed, ref, watch, onUnmounted, nextTick } from 'vue'
+import { varPathParts } from '~/utils/workflow-steps'
 
 const props = defineProps<{
   field: StepField

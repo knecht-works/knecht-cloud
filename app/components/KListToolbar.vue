@@ -1,5 +1,6 @@
 <script setup lang="ts" generic="S extends string">
 import type { FilterCondition, FilterFields } from '#shared/utils/filter'
+import { computed } from 'vue'
 
 const props = defineProps<{
   sortOptions: { value: S, label: string }[]

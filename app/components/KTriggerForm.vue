@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { defaultTriggerConfig, triggerConfigIssues, type TriggerCondition, type TriggerConfig, type TriggerFormDef, type TriggerValueInput } from '#shared/utils/trigger-form'
+import { ref, computed, watch } from 'vue'
+import { $fetch } from '#build/fetch.mjs'
 
 const props = withDefaults(defineProps<{ form: TriggerFormDef, optionTargets?: { key: string, name: string }[], showIssues?: boolean }>(), { optionTargets: () => [] })
 const config = defineModel<Record<string, unknown>>('config', { required: true })

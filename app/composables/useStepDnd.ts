@@ -1,6 +1,8 @@
 import type { InjectionKey, Ref } from 'vue'
 import type { WorkflowStep } from '~/utils/dashboard'
 import { isCompositeType, MAX_STEP_DEPTH, stepChildren, stepTreeDepth } from '#shared/utils/workflow'
+import { ref, provide } from 'vue'
+import { makeStep } from '~/utils/workflow-steps'
 
 // Drop targets are (list, index) pairs identified by ARRAY REFERENCE: branch
 // arrays are stable draft objects, only ever spliced in place.

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import type { RunStatus, RunStatusMeta } from '~/utils/dashboard'
 import { stripAnsi } from '#shared/utils/ansi'
+import { computed, ref, watch, nextTick } from 'vue'
+import { RUN_STATUS_META, runDuration, timeAgo } from '~/utils/dashboard'
+import { useNow } from '~/composables/useNow'
+import { useResizableHeight } from '~/composables/useResizableHeight'
+import { useStickToBottom } from '~/composables/useStickToBottom'
 
 export interface RunLogRow {
   id: number

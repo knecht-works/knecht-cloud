@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { DOT_COLOR_VAR } from '~/utils/dashboard'
+import { computed } from 'vue'
+
 const props = withDefaults(defineProps<{
   color?: keyof typeof DOT_COLOR_VAR
   pulse?: boolean

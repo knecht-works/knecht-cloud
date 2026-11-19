@@ -1,6 +1,12 @@
 import type { ConnectionStatus } from '#shared/utils/connection-form'
 import type { IntegrationId } from '#shared/utils/integrations'
 import { liveTopics } from '#shared/utils/live-topics'
+import { useToast } from '#imports'
+import { $fetch } from '#build/fetch.mjs'
+import { useFetch } from '#app'
+import { onLiveTopics } from '~/composables/useLiveTopics'
+import { ref } from 'vue'
+import { errMsg } from '~/utils/dashboard'
 
 export async function useIntegrationConnection(id: IntegrationId, name: string) {
   const toast = useToast()

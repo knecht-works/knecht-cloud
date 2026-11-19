@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import type { ConnectionStatus, WebhookRejectReason } from '#shared/utils/connection-form'
 import { keyPreview } from '#shared/utils/key-preview'
+import { useToast } from '#imports'
+import { computed, ref } from 'vue'
+import { timeAgo, errMsg } from '~/utils/dashboard'
+import { copyText } from '~/utils/clipboard'
 
 const props = defineProps<{
   name: string

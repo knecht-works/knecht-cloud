@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { sessionWorkspacePath } from '#shared/utils/routes'
 import { computeRunStats } from '#shared/utils/run-stats'
+import { useRuns, useRunStats } from '~/composables/useRuns'
+import { computed } from 'vue'
+import { formatDuration, groupRunsBySession } from '~/utils/dashboard'
 
 const { data: runs } = await useRuns()
 

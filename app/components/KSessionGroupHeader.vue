@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import type { RouteLocationRaw } from 'vue-router'
+import type { SessionObject } from '~/utils/dashboard'
+import { computed } from 'vue'
+import { sessionObjectMeta, triggerSourceMeta } from '~/utils/dashboard'
 
 const props = defineProps<{
   objects: SessionObject[]

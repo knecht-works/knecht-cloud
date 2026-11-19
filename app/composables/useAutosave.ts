@@ -1,3 +1,6 @@
+import { ref, onScopeDispose } from 'vue'
+import { errMsg } from '~/utils/dashboard'
+
 export function useAutosave(save: () => Promise<void>, delayMs = 800) {
   const state = ref<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const error = ref('')

@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { SETTINGS_LIMITS } from '#shared/utils/settings-limits'
 import type { DashboardSettings } from '~/composables/useSettings'
+import { useSettings, patchSettings, isPreset } from '~/composables/useSettings'
+import { reactive, ref, watch } from 'vue'
+import { useAutosave } from '~/composables/useAutosave'
 
 defineProps<{ editable: boolean }>()
 
