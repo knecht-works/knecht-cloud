@@ -1,11 +1,13 @@
-// Nitro provides these at runtime; the tests stub the ones a module needs as globals.
-const stub = (name: string) => (...args: unknown[]) => (globalThis as unknown as Record<string, (...a: unknown[]) => unknown>)[name]!(...args)
+// Nitro provides these at runtime; a test that reaches one mocks #imports.
+const unmocked = (name: string) => () => {
+  throw new Error(`${name} comes from Nitro: vi.mock('#imports') in this test`)
+}
 
-export const getUserSession = stub('getUserSession')
-export const requireUserSession = stub('requireUserSession')
-export const replaceUserSession = stub('replaceUserSession')
-export const clearUserSession = stub('clearUserSession')
-export const hashPassword = stub('hashPassword')
-export const verifyPassword = stub('verifyPassword')
-export const useStorage = stub('useStorage')
+export const getUserSession = unmocked('getUserSession')
+export const requireUserSession = unmocked('requireUserSession')
+export const replaceUserSession = unmocked('replaceUserSession')
+export const clearUserSession = unmocked('clearUserSession')
+export const hashPassword = unmocked('hashPassword')
+export const verifyPassword = unmocked('verifyPassword')
+export const useStorage = unmocked('useStorage')
 export const defineNitroPlugin = <T>(plugin: T) => plugin
