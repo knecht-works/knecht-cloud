@@ -18,7 +18,7 @@ vi.mock('../../server/daemon/run-title', () => ({
     titled.push({ runId, prompt })
   },
 }))
-Object.assign(globalThis, { requireUserSession: async () => ({ user: { login: 'samuelreichor' } }) })
+vi.mock('#imports', () => ({ requireUserSession: async () => ({ user: { login: 'samuelreichor' } }) }))
 
 const { db, schema } = await import('../../server/db')
 const { onLive } = await import('../../server/utils/live')

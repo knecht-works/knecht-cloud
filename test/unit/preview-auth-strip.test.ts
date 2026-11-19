@@ -27,7 +27,7 @@ vi.mock('#server/utils/preview-proxy', async importOriginal => ({
   proxyRunPreview: recorder('preview'),
 }))
 
-Object.assign(globalThis, { getUserSession: async () => ({}) })
+vi.mock('#imports', () => ({ getUserSession: async () => ({}) }))
 const middleware = (await import('../../server/middleware/preview')).default
 
 async function liveToken(sessionId = 5): Promise<string> {

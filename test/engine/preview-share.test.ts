@@ -5,7 +5,6 @@ import { createApp, toNodeListener } from 'h3'
 import { callRoute } from '../helpers/routes'
 import { getSessionRow, makeProject, makeSession } from '../helpers/db'
 import type { Project } from '../../server/db/schema'
-import { previewHostname, previewLabel, stripPreviewPrefix } from '../../shared/utils/preview-host'
 
 const reviveEnv = vi.fn(async (_sessionId: number) => {})
 vi.mock('../../server/daemon/envs', () => ({
@@ -17,13 +16,7 @@ vi.mock('../../server/daemon/sandbox', () => ({
   forgetPreview: () => {},
 }))
 
-Object.assign(globalThis, {
-  stripPreviewPrefix,
-  previewHostname,
-  previewLabel,
-  getUserSession: async () => ({}),
-  clearUserSession: async () => {},
-})
+vi.mock('#imports', () => ({ getUserSession: async () => ({}), clearUserSession: async () => {} }))
 
 const { proxyRunPreview } = await import('../../server/utils/preview-proxy')
 const { cookieValue, shareSession, shareToken } = await import('../../server/utils/preview-share')
