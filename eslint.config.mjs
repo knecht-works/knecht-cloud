@@ -22,6 +22,26 @@ export default withNuxt(
     ignores: ['knecht-dashboard/**'],
   },
   {
+    files: ['app/**/*.{ts,vue}', 'server/**/*.ts'],
+    // drizzle-kit loads the schema without aliases; CONTEXT.md sits outside every alias.
+    ignores: ['**/*.d.ts', 'server/db/schema.ts', 'server/tools/knowledge.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [
+        { regex: '^\\.\\.?/', message: 'Import project code through ~, #server or #shared.' },
+        { regex: '^(#app|#build)(/|$)', message: 'Import what Nuxt provides from #imports.' },
+        { regex: '^~~/', message: 'Import shared code through #shared.' },
+      ] }],
+    },
+  },
+  {
+    files: ['test/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [
+        { regex: '^(\\.\\./)+(app|server|shared)/', message: 'Import project code through ~, #server or #shared.' },
+      ] }],
+    },
+  },
+  {
     files: ['server/**/*.ts'],
     ignores: ['server/stores/**', 'server/db/**'],
     plugins: { knecht: { rules: { 'store-queries': storeQueries } } },
