@@ -2,9 +2,7 @@ import { createServer, request, type IncomingHttpHeaders } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
 import * as h3 from 'h3'
-import { isPreviewHost } from '../../shared/utils/preview-host'
 
-Object.assign(globalThis, h3, { isPreviewHost })
 const frameOptions = (await import('../../server/middleware/frame-options')).default
 
 // node:http, not fetch: fetch drops a custom Host header.
