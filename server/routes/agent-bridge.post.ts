@@ -191,12 +191,22 @@ function currentObject(sessionId: number, of: 'work' | 'primary'): SessionObject
 // sessions that belong to a ticket, issue or PR.
 function requireObject(session: Session, of: 'work' | 'primary', key?: string): { integration: Integration, object: SessionObject, label: string, isWork: boolean } {
   const work = currentObject(session.id, of)
+  if (!key && of === 'work') requireTargetFromDashboard(session.id)
   const object = key ? objectByKey(session.id, key) : work
   if (!object) {
     throw new BridgeError('this session does not belong to a ticket, issue or pull request, so there is no thread to post on')
   }
   const isWork = work?.integration === object.integration && work.key === object.key
   return { integration: getIntegration(object.integration), object, label: describeObject(object), isWork }
+}
+
+// A dashboard message is about the whole session, so no object is the obvious place to post.
+function requireTargetFromDashboard(sessionId: number): void {
+  if (getRunningFollowup(sessionId)?.origin !== 'dashboard') return
+  const objects = sessionObjects(sessionId)
+  if (objects.length > 1) {
+    throw new BridgeError(`this task came from the dashboard and the session holds several objects: pass --on <KEY> with one of: ${objects.map(o => o.key).join(', ')}`)
+  }
 }
 
 function objectByKey(sessionId: number, key: string): SessionObject {

@@ -54,9 +54,11 @@ export function taskBriefing(sessionId: number, objectId: number | null | undefi
   const objects = sessionObjects(sessionId)
   const origin = workObject(sessionId, objectId)
   if (!origin) return ''
-  const source = fromDashboard
-    ? `${askedBy ?? 'A user'} asked this in the Knecht dashboard, about ${describeObject(origin)}: answer in your final message, and post on an object only when the task asks you to.`
-    : `This task comes from ${describeObject(origin)}${askedBy ? `, asked by ${askedBy}` : ''}.`
+  if (fromDashboard) {
+    const target = objects.length > 1 ? ' knecht-reply and knecht-label then need --on <KEY> for the object the task means.' : ''
+    return `This session holds ${objects.map(describeObject).join(', ')}. ${askedBy ?? 'A user'} asked this in the Knecht dashboard: answer in your final message, and post on an object only when the task asks you to.${target}\n\n`
+  }
+  const source = `This task comes from ${describeObject(origin)}${askedBy ? `, asked by ${askedBy}` : ''}.`
   const others = objects.length > 1 ? ' To act on another of them, pass --on <KEY> to knecht-reply, knecht-label or knecht-status.' : ''
   return `This session holds ${objects.map(describeObject).join(', ')}. ${source}${others}\n\n`
 }
