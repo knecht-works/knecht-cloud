@@ -45,26 +45,17 @@ describe('installAgentFiles', () => {
   it('writes the config and copies the host store into the checkout', async () => {
     store({ 'MEMORY.md': '- styles: see styles.md\n', 'styles.md': 'Tailwind via vite\n' })
     const dir = checkout()
-    await seed(dir, { 'opencode.json': '{}', 'workflow.md': 'do it\n' })
+    await seed(dir, { 'opencode.json': '{}' })
     const memory = join(dir, MEMORY_SUBDIR)
     expect(readFileSync(join(dir, AGENT_CONFIG_SUBDIR, 'opencode.json'), 'utf8')).toBe('{}')
-    expect(readFileSync(join(dir, AGENT_CONFIG_SUBDIR, 'workflow.md'), 'utf8')).toBe('do it\n')
     expect(readFileSync(join(memory, 'MEMORY.md'), 'utf8')).toBe('- styles: see styles.md\n')
     expect(readFileSync(join(memory, 'styles.md'), 'utf8')).toBe('Tailwind via vite\n')
   })
 
-  it('bootstraps an empty index and workflow when none exist', async () => {
+  it('bootstraps an empty index when none exists', async () => {
     const dir = checkout()
     await seed(dir)
     expect(readFileSync(join(dir, MEMORY_SUBDIR, 'MEMORY.md'), 'utf8')).toBe('')
-    expect(readFileSync(join(dir, AGENT_CONFIG_SUBDIR, 'workflow.md'), 'utf8')).toBe('')
-  })
-
-  it('keeps the workflow of an earlier step when none is given', async () => {
-    const dir = checkout()
-    await seed(dir, { 'workflow.md': 'step prompt\n' })
-    await seed(dir)
-    expect(readFileSync(join(dir, AGENT_CONFIG_SUBDIR, 'workflow.md'), 'utf8')).toBe('step prompt\n')
   })
 
   it('replaces leftovers from an earlier step in the checkout', async () => {

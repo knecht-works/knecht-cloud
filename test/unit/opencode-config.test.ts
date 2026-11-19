@@ -5,7 +5,6 @@ import {
   buildOpencodeConfig,
   MEMORY_INDEX_PATH,
   RULES_PATH,
-  WORKFLOW_SYSTEM_PATH,
 } from '../../server/utils/opencode-config'
 
 describe('buildOpencodeConfig', () => {
@@ -13,9 +12,9 @@ describe('buildOpencodeConfig', () => {
     const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })
     expect(config).toEqual({
       $schema: 'https://opencode.ai/config.json',
-      // Exactly three entries: opencode adds a prompt-cache breakpoint per
+      // Few entries: opencode adds a prompt-cache breakpoint per
       // file and Anthropic caps cache_control blocks at 4 per request.
-      instructions: [RULES_PATH, WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
+      instructions: [RULES_PATH, MEMORY_INDEX_PATH],
       model: 'anthropic/claude-sonnet-4-5',
       permission: 'allow',
       provider: { anthropic: { options: { apiKey: '{env:KNECHT_AI_KEY}' } } },

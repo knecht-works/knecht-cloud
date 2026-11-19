@@ -32,14 +32,13 @@ export async function agentMemoryFiles(projectId: number): Promise<Record<string
 }
 
 // The memory dir is replaced, never merged: notes from an earlier step must not linger.
-// workflow.md and MEMORY.md always exist so the static paths in the generated config resolve.
+// MEMORY.md always exists so the static path in the generated config resolves.
 const INSTALL_SCRIPT = `set -e
 d=${AGENT_CONFIG_SUBDIR}
 mkdir -p "$d"
 rm -rf "$d/memory"
 mkdir -p "$d/memory"
 tar -xf - -C "$d"
-[ -e "$d/workflow.md" ] || : > "$d/workflow.md"
 [ -e "$d/memory/MEMORY.md" ] || : > "$d/memory/MEMORY.md"`
 
 export async function installAgentFiles(sandbox: Sandbox, files: Record<string, string | Uint8Array>): Promise<void> {
