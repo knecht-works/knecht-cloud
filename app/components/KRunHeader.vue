@@ -2,13 +2,13 @@
 import type { EnvState, EnvTransition } from '#shared/utils/run'
 import type { RunStatus, RunStatusMeta } from '~/utils/dashboard'
 import { useToastError } from '~/composables/useToastError'
-import { resolveComponent, computed, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRunServices } from '~/composables/useRuns'
 import { useRunRetry } from '~/composables/useRunRetry'
 import { $fetch } from '#build/fetch.mjs'
 import KStatusDot from '~/components/KStatusDot.vue'
 import KConfirmModal from '~/components/KConfirmModal.vue'
-import { UTooltip, UIcon, UButton, UDropdownMenu } from '#components'
+import { NuxtLink, UTooltip, UIcon, UButton, UDropdownMenu } from '#components'
 
 interface MetaChip { icon: string, text: string, href?: string }
 
@@ -35,7 +35,6 @@ const emit = defineEmits<{
 }>()
 
 const toastError = useToastError()
-const NuxtLink = resolveComponent('NuxtLink')
 
 const canTerminal = computed(() => props.envState === 'up' && !props.busy)
 
