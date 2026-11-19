@@ -31,7 +31,7 @@ const meta = computed(() => {
   const r = run.value
   if (!r) return []
   // A branch is set locally by create-branch and pushed only by create-pr.
-  const branchPushed = !!r.prUrl || r.objects.some(o => o.kind === 'pull_request')
+  const branchPushed = !!r.prUrl || !!r.sessionPrUrl || r.objects.some(o => o.kind === 'pull_request')
   return [
     ...r.objects.map((o) => {
       const object = sessionObjectMeta(o.integration, o.kind)
@@ -44,6 +44,17 @@ const meta = computed(() => {
       href: branchPushed ? r.branchUrl ?? undefined : undefined,
     },
   ].filter(Boolean) as { icon: string, text: string, href?: string }[]
+})
+
+// Pull requests opened in an earlier run of the session belong to it as much as the latest run's.
+const prs = computed(() => {
+  const r = run.value
+  if (!r) return []
+  const objects = r.objects
+    .filter(o => o.kind === 'pull_request' && o.url)
+    .map(o => ({ url: o.url!, label: `Pull Request ${sessionObjectMeta(o.integration, o.kind).prefix}${o.key}` }))
+  const fallback = r.prUrl ?? r.sessionPrUrl
+  return objects.length || !fallback ? objects : [{ url: fallback, label: 'Pull Request' }]
 })
 
 const followupActive = ref(false)
@@ -70,7 +81,7 @@ function refreshWorkspace() {
       :kind="run.kind"
       :env-state="run.envState"
       :busy="busy"
-      :pr-url="run.prUrl"
+      :prs="prs"
       :is-live="isLive"
       :status-meta="statusMeta"
       :meta="meta"
