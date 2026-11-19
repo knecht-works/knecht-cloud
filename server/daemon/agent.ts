@@ -236,7 +236,7 @@ function killAfterCancel(signal: AbortSignal, proc: SandboxProcess): Promise<nev
 function toolLabel(tool: ToolCallUpdate): string {
   const title = tool.title?.trim() || tool.name || 'tool'
   const path = tool.kind === 'execute' ? undefined : tool.locations?.[0]?.path
-  return path && !title.includes(path) ? `${title} ${path}` : title
+  return path && !title.includes(path) && !path.endsWith(`/${title}`) ? `${title} ${path}` : title
 }
 
 // opencode reports a shell call's stdout as rawOutput.output, wrapped in metadata nobody wants to read.
