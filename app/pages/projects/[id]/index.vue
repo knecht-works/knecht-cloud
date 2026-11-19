@@ -87,7 +87,7 @@ const mascotLine = computed(() => {
     if (r.failureDiagnosis?.state === 'pending') return 'Knecht is looking into why the last run failed.'
     return r.failureDiagnosis?.summary ?? 'The last run failed. Open it to see why.'
   }
-  if (!r.hasEnv) return 'This workflow works without a preview environment.'
+  if (!r.hasEnv) return 'This session has code only. Start a preview from the run menu to boot it.'
   if (r.envTransition === 'stopping') return 'The environment is shutting down.'
   if (r.envTransition === 'rebooting') return 'The environment is booting again. The preview is back in a moment.'
   if (r.envTransition === 'restoring') return 'The environment is being restored from its archive. This takes a few minutes.'
