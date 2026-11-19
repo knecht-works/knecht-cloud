@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import type { ChatItem, ChatTurn } from '~/composables/useSessionTranscript'
+import { replyActivity, replyItems } from '~/utils/chat-activity'
 
-const props = defineProps<{ turn: ChatTurn }>()
+const props = defineProps<{ turns: ChatTurn[] }>()
 
 type Block = { kind: 'item', item: ChatItem } | { kind: 'tools', items: ChatItem[] }
 
 // Consecutive tool calls fold into one line; a message or divider between them starts a new group.
 const blocks = computed<Block[]>(() => {
   const out: Block[] = []
-  for (const item of props.turn.items) {
+  for (const item of replyItems(props.turns)) {
     if (item.type === 'usage') continue
     const last = out.at(-1)
     const groups = item.type === 'tool' && item.kind !== 'preview'
@@ -43,17 +44,18 @@ function groupCurrent(items: ChatItem[]): string | null {
 }
 
 const failure = computed(() => {
-  if (props.turn.status !== 'failed') return null
-  if (props.turn.error === 'Cancelled') return { text: 'Cancelled', color: 'var(--text-dimmed)' }
-  const text = props.turn.error?.trim() || 'Follow-up failed'
+  const turn = props.turns.at(-1)
+  if (turn?.status !== 'failed') return null
+  if (turn.error === 'Cancelled') return { text: 'Cancelled', color: 'var(--text-dimmed)' }
+  const text = turn.error?.trim() || 'Follow-up failed'
   return { text: text.charAt(0).toUpperCase() + text.slice(1), color: 'var(--status-error)' }
 })
-const working = computed(() => (props.turn.status === 'running' || props.turn.status === 'queued') && !props.turn.items.length)
+const activity = computed(() => replyActivity(props.turns))
 </script>
 
 <template>
   <!-- pt-1: the 24px rows then centre on the 32px avatar next to them. -->
-  <div class="flex flex-col gap-1 pt-1">
+  <div class="flex flex-col gap-2 pt-1">
     <template
       v-for="block in blocks"
       :key="block.kind === 'item' ? block.item.id : block.items[0]!.id"
@@ -62,7 +64,6 @@ const working = computed(() => (props.turn.status === 'running' || props.turn.st
         <ChatComark
           v-if="block.item.type === 'message'"
           :markdown="block.item.text"
-          class="mb-1"
         />
         <ChatDivider v-else-if="block.item.type === 'divider'">
           <UIcon
@@ -134,6 +135,9 @@ const working = computed(() => (props.turn.status === 'running' || props.turn.st
     >
       <span :style="{ color: failure.color }">{{ failure.text }}</span>
     </div>
-    <ChatIndicator v-else-if="working" />
+    <ChatIndicator
+      v-else-if="activity"
+      :text="activity"
+    />
   </div>
 </template>
