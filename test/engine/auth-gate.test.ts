@@ -13,7 +13,7 @@ vi.mock('#imports', async () => {
   }
 })
 
-const authMiddleware = (await import('../../server/middleware/auth')).default
+const authMiddleware = (await import('#server/middleware/auth')).default
 
 let server: Server
 let port: number

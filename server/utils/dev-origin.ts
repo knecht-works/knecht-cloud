@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { deriveKey } from './crypto'
-import { previewOrigin } from './origin'
+import { deriveKey } from '#server/utils/crypto'
+import { previewOrigin } from '#server/utils/origin'
 import { parsePreviewHost, previewHostname, stripPreviewPrefix } from '#shared/utils/preview-host'
 
 // The label is public (on-demand certificates land in CT logs), so it only

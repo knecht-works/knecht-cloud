@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { useSystemInfo } from '~/composables/useSystemInfo'
-import { useFetch } from '#app'
+import { useFetch, $fetch, setInterval } from '#imports'
 import { computed, ref } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
-import { setInterval } from '#app/compat/interval'
 import { timeAgo } from '~/utils/dashboard'
 import KStatusDot from '~/components/KStatusDot.vue'
 import KPanel from '~/components/KPanel.vue'

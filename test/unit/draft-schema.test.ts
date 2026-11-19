@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { draftStepsSchema, publishStepsSchema, workflowPatchSchema } from '../../server/workflows/schema'
+import { draftStepsSchema, publishStepsSchema, workflowPatchSchema } from '#server/workflows/schema'
 
 describe('draftStepsSchema (loose editor drafts)', () => {
   it('accepts half-filled steps and returns them untouched', () => {

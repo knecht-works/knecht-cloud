@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyInputs, INPUT_KEYS } from '../../server/utils/inputs'
+import { emptyInputs, INPUT_KEYS } from '#server/utils/inputs'
 
 describe('emptyInputs', () => {
   it('has every key, empty except the event', () => {

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { previewLabel } from '../../shared/utils/preview-host'
-import type { DdevDatabase } from '../../shared/utils/env-spec'
-import type { UrlMode } from '../../server/daemon/ddev'
+import { previewLabel } from '#shared/utils/preview-host'
+import type { DdevDatabase } from '#shared/utils/env-spec'
+import type { UrlMode } from '#server/daemon/ddev'
 import type { E2eClient, PreviewResponse } from './client'
 import { BASE_URL, expectJson, login, previewFetch } from './client'
 

@@ -4,7 +4,7 @@ import { useToastError } from '~/composables/useToastError'
 import { ref, watch, reactive } from 'vue'
 import { useRunLog } from '~/composables/useRunLog'
 import { useBranchPicker } from '~/composables/useBranchPicker'
-import { $fetch } from '#build/fetch.mjs'
+import { $fetch } from '#imports'
 import { onLiveTopics } from '~/composables/useLiveTopics'
 import { isLiveStatus } from '~/utils/dashboard'
 

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { parseWorkflow } from '../../server/workflows/schema'
+import { parseWorkflow } from '#server/workflows/schema'
 
 describe('examples/', () => {
   const dir = join(import.meta.dirname, '../../examples')

@@ -1,5 +1,5 @@
 import type { AgentItem, Followup } from '#server/db/schema'
-import { emitLive } from './live'
+import { emitLive } from '#server/utils/live'
 import { listSessionRunSummaries } from '#server/stores/runs'
 import type { followupColumns } from '#server/stores/followups'
 import { getFollowupView, listSessionFollowupViews } from '#server/stores/followups'

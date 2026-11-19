@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LanguageModel } from 'ai'
 
-vi.mock('../../server/utils/settings', () => ({ getSettings: () => ({}) }))
+vi.mock('#server/utils/settings', () => ({ getSettings: () => ({}) }))
 
-const { createLanguageModel } = await import('../../server/utils/llm')
+const { createLanguageModel } = await import('#server/utils/llm')
 
 function sdk(model: LanguageModel): string {
   return (model as { provider: string }).provider

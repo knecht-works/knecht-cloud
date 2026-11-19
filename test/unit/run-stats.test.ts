@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeRunStats, type StatsRun } from '../../shared/utils/run-stats'
+import { computeRunStats, type StatsRun } from '#shared/utils/run-stats'
 
 const now = new Date(2026, 9, 14, 15, 0)
 

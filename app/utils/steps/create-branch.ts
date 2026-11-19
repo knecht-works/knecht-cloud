@@ -1,4 +1,4 @@
-import { defineStep } from './define'
+import { defineStep } from '~/utils/steps/define'
 
 export const createBranchStep = defineStep({
   type: 'create-branch',

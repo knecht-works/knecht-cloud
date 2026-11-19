@@ -1,6 +1,6 @@
 import { projectDetectedEnv } from '#shared/utils/env-spec'
 import type { Project, Session } from '#server/db/schema'
-import { previewOrigin } from './origin'
+import { previewOrigin } from '#server/utils/origin'
 import { getProject } from '#server/stores/projects'
 
 // A repo with its own ddev config serves its site even with an empty pinned host

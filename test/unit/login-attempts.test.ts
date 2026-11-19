@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clearLoginFailures, isLoginBlocked, recordLoginFailure } from '../../server/utils/login-attempts'
+import { clearLoginFailures, isLoginBlocked, recordLoginFailure } from '#server/utils/login-attempts'
 
 describe('login attempts', () => {
   it('blocks after ten failures within 15 minutes, and forgets them afterwards', () => {

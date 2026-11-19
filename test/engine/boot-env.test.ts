@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
-import type { ActionRuntime } from '../../server/workflows/actions'
-import type { Project } from '../../server/db/schema'
+import type { ActionRuntime } from '#server/workflows/actions'
+import type { Project } from '#server/db/schema'
 import { getSessionRow, makeProject, makeRun, makeSession } from '../helpers/db'
 import { remoteWithMain } from '../helpers/git-remote'
 
@@ -16,7 +16,7 @@ const startEnvStack = vi.fn(async (_sessionId: number, _log?: (text: string) => 
 const stopEnvStack = vi.fn(async (_sessionId: number) => {
   calls.push('ddev stop')
 })
-vi.mock('../../server/daemon/sandbox', () => ({
+vi.mock('#server/daemon/sandbox', () => ({
   envStackRunning: async () => true,
   execInSandbox: async (_sessionId: number, command: string[]) => {
     calls.push(command.join(' '))
@@ -32,17 +32,17 @@ vi.mock('../../server/daemon/sandbox', () => ({
     return { code: failing.has(line) ? 1 : 0, tail: '' }
   },
 }))
-vi.mock('../../server/daemon/workspace', () => ({
+vi.mock('#server/daemon/workspace', () => ({
   ensureWorkspaceUp: async () => { calls.push('workspace up') },
   removeWorkspace: async () => { calls.push('workspace removed') },
   // Runs on the host against the checkout the container would mount.
   runOnCheckout: async (sessionId: number, command: string[], input?: string) => {
     calls.push(`checkout ${sessionId}: ${command.join(' ')}`)
-    const { sessionCheckoutDir } = await import('../../server/utils/storage')
+    const { sessionCheckoutDir } = await import('#server/utils/storage')
     execFileSync(command[0]!, command.slice(1), { cwd: sessionCheckoutDir(sessionId), input })
   },
 }))
-vi.mock('../../server/daemon/db-base', () => ({
+vi.mock('#server/daemon/db-base', () => ({
   archiveDbVolume: async () => { calls.push('archive db volume') },
   archivedDbVolume: () => null,
   cloneDbBase: async (_sessionId: number, base: { volume: string }) => { calls.push(`clone ${base.volume}`) },
@@ -50,7 +50,7 @@ vi.mock('../../server/daemon/db-base', () => ({
   restoreDbVolume: async (_sessionId: number, archive: string) => { calls.push(`restore ${archive}`) },
 }))
 const waitForDevServer = vi.fn(async (_sessionId: number, _port: number) => {})
-vi.mock('../../server/daemon/dev-server', () => ({
+vi.mock('#server/daemon/dev-server', () => ({
   restartDevServer: async (exec: (command: string[]) => Promise<number>) => {
     await exec(['supervisorctl', 'restart', 'webextradaemons:*'])
   },
@@ -58,18 +58,18 @@ vi.mock('../../server/daemon/dev-server', () => ({
 }))
 
 const origin = vi.hoisted(() => ({ url: '' }))
-vi.mock('../../server/git', async () => {
+vi.mock('#server/git', async () => {
   const { credentialsFor } = await import('../helpers/git-remote')
   return { gitProvider: () => ({ credentials: async () => credentialsFor(origin.url) }) }
 })
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/utils/github-app', () => ({
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
 
-const { db, schema } = await import('../../server/db')
-const { archiveEnv, bootEnv, rehydrateEnv, reviveEnv, stopEnv } = await import('../../server/daemon/envs')
-const { sessionArchiveDir, sessionCheckoutDir } = await import('../../server/utils/storage')
-const { ddevStartAction } = await import('../../server/workflows/actions/ddev-start')
+const { db, schema } = await import('#server/db')
+const { archiveEnv, bootEnv, rehydrateEnv, reviveEnv, stopEnv } = await import('#server/daemon/envs')
+const { sessionArchiveDir, sessionCheckoutDir } = await import('#server/utils/storage')
+const { ddevStartAction } = await import('#server/workflows/actions/ddev-start')
 
 function freshSession(project: Project) {
   return makeSession(project, { previewPort: 3000 })

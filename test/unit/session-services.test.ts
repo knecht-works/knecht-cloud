@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { parseExposeEnv } from '../../server/daemon/sandbox'
-import { nameServices } from '../../server/utils/session-services'
+import { parseExposeEnv } from '#server/daemon/sandbox'
+import { nameServices } from '#server/utils/session-services'
 
 const web = (port: number) => ({ service: 'web', container: 'ddev-knecht-run-7-web', port })
 const none = { hosts: [], previewPort: null, extraPorts: [] }

@@ -2,10 +2,10 @@ import { mkdirSync, mkdtempSync, renameSync, symlinkSync, writeFileSync } from '
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { KNECHT_CONFIG_FILE, writeDdevConfig } from '../../server/daemon/ddev'
-import { readWebEnvironment } from '../../server/daemon/workspace'
-import { resolveEnv } from '../../shared/utils/env-spec'
-import type { EnvVar } from '../../shared/utils/env'
+import { KNECHT_CONFIG_FILE, writeDdevConfig } from '#server/daemon/ddev'
+import { readWebEnvironment } from '#server/daemon/workspace'
+import { resolveEnv } from '#shared/utils/env-spec'
+import type { EnvVar } from '#shared/utils/env'
 
 async function configured(envVars: EnvVar[]): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'knecht-workspace-'))

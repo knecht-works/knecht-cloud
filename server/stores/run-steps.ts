@@ -2,7 +2,7 @@ import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm'
 import { db, schema, type Executor } from '#server/db'
 import { liveTopics } from '#shared/utils/live-topics'
 import { emitTopics } from '#server/utils/live'
-import { readRunLog } from './runs'
+import { readRunLog } from '#server/stores/runs'
 
 export type NewRunStep = typeof schema.runSteps.$inferInsert
 

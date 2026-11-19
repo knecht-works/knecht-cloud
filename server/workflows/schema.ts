@@ -9,7 +9,7 @@ import {
   WORKFLOW_NAME_RE,
   type Step,
 } from '#shared/utils/workflow'
-import { ACTIONS } from './actions'
+import { ACTIONS } from '#server/workflows/actions'
 
 export type { Step } from '#shared/utils/workflow'
 

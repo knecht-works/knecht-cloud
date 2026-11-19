@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { applyLabels, moveToStatus } from '../../server/integrations/capabilities'
-import type { Project } from '../../server/db/schema'
-import type { Integration } from '../../server/integrations/types'
-import type { SessionObject } from '../../server/utils/sessions'
+import { applyLabels, moveToStatus } from '#server/integrations/capabilities'
+import type { Project } from '#server/db/schema'
+import type { Integration } from '#server/integrations/types'
+import type { SessionObject } from '#server/utils/sessions'
 
 const project = {} as Project
 const object: SessionObject = { integration: 'jira', kind: 'issue', key: 'P-1' }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ideConnectionToken, withIdeTokenCookie } from '../../server/daemon/ide'
+import { ideConnectionToken, withIdeTokenCookie } from '#server/daemon/ide'
 
 describe('IDE connection token', () => {
   it('is stable per session and differs between sessions', () => {

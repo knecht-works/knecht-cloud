@@ -1,6 +1,6 @@
 import { type AiModel, type AiProviderId, aiProviderSpec, langdockAnthropicBaseUrl, langdockBaseUrl } from '#shared/utils/ai'
 import type { Settings } from '#server/db/schema'
-import { decrypt } from './crypto'
+import { decrypt } from '#server/utils/crypto'
 
 const LIVE_TTL_MS = 30 * 1000
 const REGISTRY_TTL_MS = 60 * 60 * 1000

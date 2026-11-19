@@ -2,8 +2,8 @@ import { z } from 'zod'
 import { listWorkflowRows, requireWorkflowRow } from '#server/stores/workflows'
 import { serializeWorkflow } from '#server/workflows/schema'
 import { ensureStepIds } from '#shared/utils/workflow'
-import { maskStepSecrets } from './redact'
-import { defineTool } from './registry'
+import { maskStepSecrets } from '#server/tools/redact'
+import { defineTool } from '#server/tools/registry'
 
 export const listWorkflowsTool = defineTool({
   name: 'list_workflows',

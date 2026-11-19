@@ -1,11 +1,10 @@
 import type { Ref } from 'vue'
 import { formatBytes } from '#shared/utils/bytes'
-import { useToast } from '#imports'
+import { useToast, $fetch } from '#imports'
 import { useToastError } from '~/composables/useToastError'
 import { computed } from 'vue'
 import { useNow } from '~/composables/useNow'
 import { useUploads } from '~/composables/useUploads'
-import { $fetch } from '#build/fetch.mjs'
 
 interface DbBaseState {
   state: 'building' | 'ready' | 'failed'

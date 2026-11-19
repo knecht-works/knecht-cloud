@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parse } from 'yaml'
 import { describe, expect, it, vi } from 'vitest'
-import { devServerIsPreview, freeHostPorts, previewTargetPort, readDdevHosts, reservedHostPortsIn, writeDdevConfig } from '../../server/daemon/ddev'
-import { normalizeSharedFolder } from '../../server/utils/storage'
-import { resolveEnv, type ResolvedEnv } from '../../shared/utils/env-spec'
+import { devServerIsPreview, freeHostPorts, previewTargetPort, readDdevHosts, reservedHostPortsIn, writeDdevConfig } from '#server/daemon/ddev'
+import { normalizeSharedFolder } from '#server/utils/storage'
+import { resolveEnv, type ResolvedEnv } from '#shared/utils/env-spec'
 
 function tracked(hosts: string[] = []): ResolvedEnv {
   return resolveEnv({

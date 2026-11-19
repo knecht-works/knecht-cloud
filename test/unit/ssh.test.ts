@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sshTerminalCommand } from '../../server/utils/ssh'
+import { sshTerminalCommand } from '#server/utils/ssh'
 
 describe('ssh command builder', () => {
   it('builds the web-container command with identity and workdir', () => {

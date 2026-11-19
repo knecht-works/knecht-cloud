@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { checkoutReader, detectEnv, normalizeNodeConstraint, normalizeNodeVersion, normalizePhpConstraint, parseDdevConfig, repoShipsDdevConfig } from '../../server/utils/env-detect'
+import { checkoutReader, detectEnv, normalizeNodeConstraint, normalizeNodeVersion, normalizePhpConstraint, parseDdevConfig, repoShipsDdevConfig } from '#server/utils/env-detect'
 
 const fixture = (name: string) => checkoutReader(join(__dirname, '..', 'fixtures', 'env-detect', name))
 

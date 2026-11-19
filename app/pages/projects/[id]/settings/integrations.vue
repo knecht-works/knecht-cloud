@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useRoute } from '#app'
+import { useRoute } from '#imports'
 import { useProject } from '~/composables/useProjects'
 import { useIntegrations } from '~/composables/useIntegrations'
 import { computed } from 'vue'

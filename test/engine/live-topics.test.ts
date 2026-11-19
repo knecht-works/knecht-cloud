@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { onTopics } from '../../server/utils/live'
-import { appendRunLog, updateRun } from '../../server/stores/runs'
-import { touchSessionPreview, updateSession } from '../../server/stores/sessions'
+import { onTopics } from '#server/utils/live'
+import { appendRunLog, updateRun } from '#server/stores/runs'
+import { touchSessionPreview, updateSession } from '#server/stores/sessions'
 import { makeProject, makeRun } from '../helpers/db'
-import { consumeInvite, createInvite, revokeInvite } from '../../server/stores/invites'
+import { consumeInvite, createInvite, revokeInvite } from '#server/stores/invites'
 
 function nextBatch(): Promise<string[]> {
   return new Promise((resolve) => {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { tryParseJson } from '#server/utils/json'
 import { previewAwareFetch } from '#server/utils/preview-fetch'
-import { defineAction, ActionError } from './types'
+import { defineAction, ActionError } from '#server/workflows/actions/types'
 
 const FETCH_TIMEOUT_MS = 15_000
 const CONCURRENCY = 5

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type DetectedEnv, type EnvOverrides, formatEnvSummary, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '../../shared/utils/env-spec'
+import { type DetectedEnv, type EnvOverrides, formatEnvSummary, formatPackageManager, projectDetectedEnv, resolveEnv, sourceLabel } from '#shared/utils/env-spec'
 
 const none: EnvOverrides = { phpVersion: null, nodeVersion: null, packageManager: null, database: null, devServer: null, previewPort: null }
 

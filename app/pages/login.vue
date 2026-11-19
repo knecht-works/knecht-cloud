@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { safeRedirectPath } from '#shared/utils/account'
-import { definePageMeta } from '#app/composables/pages'
-import { useRoute, useFetch, navigateTo } from '#app'
+import { definePageMeta, useRoute, useFetch, navigateTo } from '#imports'
 import { watch, computed } from 'vue'
 import KAuthForm from '~/components/KAuthForm.vue'
 import { UAlert } from '#components'

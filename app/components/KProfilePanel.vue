@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { useUserSession, useToast } from '#imports'
+import { useUserSession, useToast, navigateTo, $fetch } from '#imports'
 import { useToastError } from '~/composables/useToastError'
 import { useSignInMethods } from '~/composables/useSignInMethods'
-import { navigateTo } from '#app'
 import { ref, computed } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
 import { squareImageDataUrl } from '~/utils/image'
 import KSignInMethods from '~/components/KSignInMethods.vue'
 import KConfirmModal from '~/components/KConfirmModal.vue'

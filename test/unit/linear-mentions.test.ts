@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addressedTo, bodyDataMentionIds } from '../../server/integrations/linear/mentions'
+import { addressedTo, bodyDataMentionIds } from '#server/integrations/linear/mentions'
 
 describe('bodyDataMentionIds', () => {
   it('collects the user ids of mentions at any depth', () => {

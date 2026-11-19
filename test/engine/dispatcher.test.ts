@@ -5,7 +5,7 @@ interface Deferred { resolve: () => void }
 const started: number[] = []
 const running = new Map<number, Deferred>()
 
-vi.mock('../../server/daemon/runner', () => ({
+vi.mock('#server/daemon/runner', () => ({
   startRun: (runId: number) => {
     started.push(runId)
     return new Promise<void>((resolve) => {
@@ -14,21 +14,21 @@ vi.mock('../../server/daemon/runner', () => ({
   },
 }))
 const startedFollowups: number[] = []
-vi.mock('../../server/daemon/followups', () => ({
+vi.mock('#server/daemon/followups', () => ({
   // Flip the row like the real executor's claim does: the .finally()
   // re-dispatch must not find it 'queued' again (endless loop otherwise).
   startFollowup: async (id: number) => {
     startedFollowups.push(id)
-    const { db, schema } = await import('../../server/db')
+    const { db, schema } = await import('#server/db')
     const { eq } = await import('drizzle-orm')
     db.update(schema.followups).set({ status: 'success' }).where(eq(schema.followups.id, id)).run()
   },
 }))
 
-const { dispatchRuns } = await import('../../server/daemon/dispatcher')
+const { dispatchRuns } = await import('#server/daemon/dispatcher')
 
 async function finish(runId: number) {
-  const { db, schema } = await import('../../server/db')
+  const { db, schema } = await import('#server/db')
   const { eq } = await import('drizzle-orm')
   db.update(schema.runs).set({ status: 'success' }).where(eq(schema.runs.id, runId)).run()
   running.get(runId)!.resolve()
@@ -53,7 +53,7 @@ describe('dispatchRuns per-session serialization', () => {
   })
 
   it('a mention run goes to its follow-up, never the runner, and never blocks it', async () => {
-    const { db, schema } = await import('../../server/db')
+    const { db, schema } = await import('#server/db')
     const project = makeProject()
     const run = makeRun(project, [], { kind: 'mention', workflow: 'Mention', trigger: 'mention' })
     const followup = db.insert(schema.followups).values({

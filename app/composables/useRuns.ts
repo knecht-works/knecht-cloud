@@ -1,7 +1,7 @@
 import { liveTopics } from '#shared/utils/live-topics'
 import { computeRunStats, type RunStats } from '#shared/utils/run-stats'
 import { useLiveTopics } from '~/composables/useLiveTopics'
-import { useFetch } from '#app'
+import { useFetch } from '#imports'
 import { ref, onMounted, computed } from 'vue'
 
 export function useRuns(projectId?: number) {

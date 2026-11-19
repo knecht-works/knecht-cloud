@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { defaultTriggerConfig, triggerConfigIssues, type TriggerCondition, type TriggerConfig, type TriggerFormDef, type TriggerValueInput } from '#shared/utils/trigger-form'
 import { ref, computed, watch } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
+import { $fetch } from '#imports'
 import { UIcon, UTooltip, URadioGroup, USelectMenu, UFormField, UButton, UDropdownMenu } from '#components'
 
 const props = withDefaults(defineProps<{ form: TriggerFormDef, optionTargets?: { key: string, name: string }[], showIssues?: boolean }>(), { optionTargets: () => [] })

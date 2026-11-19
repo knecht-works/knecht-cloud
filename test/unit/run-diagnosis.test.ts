@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildDiagnosisPrompt, type DiagnosisStep } from '../../server/utils/run-diagnosis'
+import { buildDiagnosisPrompt, type DiagnosisStep } from '#server/utils/run-diagnosis'
 
 function step(over: Partial<DiagnosisStep>): DiagnosisStep {
   return { id: 1, stepId: 's', type: 'bash', status: 'success', error: null, params: null, iteration: null, attempt: 1, ...over }

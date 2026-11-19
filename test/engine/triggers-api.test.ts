@@ -3,14 +3,14 @@ import { eq } from 'drizzle-orm'
 import { callRoute } from '../helpers/routes'
 import { makeProject } from '../helpers/db'
 import { allOf } from '../helpers/trigger-conditions'
-import { segmentsText, type TriggerSegment } from '../../shared/utils/trigger-form'
+import { segmentsText, type TriggerSegment } from '#shared/utils/trigger-form'
 
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { db, schema } = await import('../../server/db')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const create = (await import('../../server/api/triggers/index.post')).default
-const patch = (await import('../../server/api/triggers/[id].patch')).default
+const { db, schema } = await import('#server/db')
+const { setProjectLink } = await import('#server/stores/project-links')
+const create = (await import('#server/api/triggers/index.post')).default
+const patch = (await import('#server/api/triggers/[id].patch')).default
 
 let n = 0
 function makeWorkflow() {

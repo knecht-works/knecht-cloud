@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import type { ActionRuntime } from '#server/workflows/actions/types'
-import { dataDir } from './storage'
+import { dataDir } from '#server/utils/storage'
 
 // The checkout is sandbox-writable, so Knecht only touches these paths through the
 // sandbox: on the host, a planted symlink would redirect writes and reads to Knecht's own files.

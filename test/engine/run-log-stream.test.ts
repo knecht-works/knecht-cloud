@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { onRunLog, type RunLogChunk } from '../../server/utils/live'
-import { appendRunLog, readRunLog } from '../../server/stores/runs'
+import { onRunLog, type RunLogChunk } from '#server/utils/live'
+import { appendRunLog, readRunLog } from '#server/stores/runs'
 import { makeProject, makeRun } from '../helpers/db'
 
 describe('run log stream', () => {

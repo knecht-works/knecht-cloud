@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { getSessionRow, makeProject } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, replyToLastMention, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
-import type { TriggerConfig } from '../../shared/utils/trigger-form'
+import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { allOf } from '../helpers/trigger-conditions'
 
 const KNECHT_ACCOUNT = 'knecht-account-id'
@@ -26,8 +26,8 @@ const api = vi.hoisted(() => ({
   comments: [] as { id: string, user: { id: string, name: string, displayName: string } }[],
   assigned: [] as (string | null)[],
 }))
-vi.mock('../../server/integrations/linear/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
+vi.mock('#server/integrations/linear/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/linear/api')>(),
   getLinearIssue: async (id: string) => {
     const issue = api.issues.get(id)
     if (!issue) throw new Error('not found')
@@ -47,13 +47,13 @@ vi.mock('../../server/integrations/linear/api', async importOriginal => ({
     api.issues.get(id)!.assignee = input.assigneeId ? { id: input.assigneeId, name: USERS[input.assigneeId] ?? input.assigneeId } : null
   },
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { linear } = await import('../../server/integrations/linear')
-const { linearConnection } = await import('../../server/integrations/linear/credentials')
-const { resolveSession } = await import('../../server/utils/sessions')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const handler = (await import('../../server/api/linear/webhook.post')).default
+const { linear } = await import('#server/integrations/linear')
+const { linearConnection } = await import('#server/integrations/linear/credentials')
+const { resolveSession } = await import('#server/utils/sessions')
+const { setProjectLink } = await import('#server/stores/project-links')
+const handler = (await import('#server/api/linear/webhook.post')).default
 
 const SECRET = 'lin_wh_secret'
 

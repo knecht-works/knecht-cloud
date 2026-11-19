@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { buildSettingsPreset, presetEnvName } from '../../server/utils/settings-preset'
-import { decrypt } from '../../server/utils/crypto'
+import { buildSettingsPreset, presetEnvName } from '#server/utils/settings-preset'
+import { decrypt } from '#server/utils/crypto'
 
 beforeAll(() => {
   process.env.NUXT_SESSION_PASSWORD = 'test-password-that-is-long-enough-0123'

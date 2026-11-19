@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { appendRunLog } from '../../server/stores/runs'
-import { createRunStep, readStepLog } from '../../server/stores/run-steps'
-import { createWorkflow } from '../../server/stores/workflows'
-import { callTool, type ToolContext } from '../../server/tools/registry'
-import { getRunLogTool, getRunTool, getStepLogTool, listRunsTool } from '../../server/tools/runs'
-import { getWorkflowTool } from '../../server/tools/workflows'
+import { appendRunLog } from '#server/stores/runs'
+import { createRunStep, readStepLog } from '#server/stores/run-steps'
+import { createWorkflow } from '#server/stores/workflows'
+import { callTool, type ToolContext } from '#server/tools/registry'
+import { getRunLogTool, getRunTool, getStepLogTool, listRunsTool } from '#server/tools/runs'
+import { getWorkflowTool } from '#server/tools/workflows'
 import { makeProject, makeRun } from '../helpers/db'
 
 const system: ToolContext = { actor: { kind: 'system' }, channel: 'daemon' }

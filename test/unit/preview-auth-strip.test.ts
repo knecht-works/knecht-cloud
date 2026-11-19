@@ -2,7 +2,7 @@ import { createServer, request, type IncomingHttpHeaders } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, toNodeListener, type H3Event } from 'h3'
-import { PREVIEW_AUTH_HEADER, previewAwareFetch } from '../../server/utils/preview-fetch'
+import { PREVIEW_AUTH_HEADER, previewAwareFetch } from '#server/utils/preview-fetch'
 
 const { seen, recorder } = vi.hoisted(() => {
   const seen: { proxy: string, headers: IncomingHttpHeaders, internal?: boolean }[] = []
@@ -28,7 +28,7 @@ vi.mock('#server/utils/preview-proxy', async importOriginal => ({
 }))
 
 vi.mock('#imports', () => ({ getUserSession: async () => ({}) }))
-const middleware = (await import('../../server/middleware/preview')).default
+const middleware = (await import('#server/middleware/preview')).default
 
 async function liveToken(sessionId = 5): Promise<string> {
   let token = ''

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { withoutKnechtCookies } from '../../server/utils/preview-proxy'
-import { isForeignOrigin } from '../../server/utils/origin'
+import { withoutKnechtCookies } from '#server/utils/preview-proxy'
+import { isForeignOrigin } from '#server/utils/origin'
 
 describe('isForeignOrigin', () => {
   it('accepts the dashboard itself and requests without an Origin', () => {

@@ -1,6 +1,5 @@
 import type { Ref } from 'vue'
-import { useState, onNuxtReady } from '#app'
-import { setInterval } from '#app/compat/interval'
+import { useState, onNuxtReady, setInterval } from '#imports'
 
 let ticking = false
 

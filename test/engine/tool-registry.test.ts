@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { desc } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import { deleteToolCallsBefore } from '../../server/stores/tool-calls'
-import { callTool, defineTool, ToolDeniedError, type ToolContext } from '../../server/tools/registry'
+import { db, schema } from '#server/db'
+import { deleteToolCallsBefore } from '#server/stores/tool-calls'
+import { callTool, defineTool, ToolDeniedError, type ToolContext } from '#server/tools/registry'
 
 const member: ToolContext = { actor: { kind: 'member', login: 'octo' }, channel: 'dashboard' }
 const system: ToolContext = { actor: { kind: 'system' }, channel: 'daemon' }

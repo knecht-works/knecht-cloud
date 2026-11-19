@@ -4,7 +4,7 @@ import { shareLinkMaxMinutes, type PreviewAccess } from '#shared/utils/preview-a
 import { useSettings, isPreset, patchSettings } from '~/composables/useSettings'
 import { computed, reactive, ref, watch } from 'vue'
 import { useAutosave } from '~/composables/useAutosave'
-import { $fetch } from '#build/fetch.mjs'
+import { $fetch } from '#imports'
 import KSaveStatus from '~/components/KSaveStatus.vue'
 import KSettingRow from '~/components/KSettingRow.vue'
 import KUnitInput from '~/components/KUnitInput.vue'

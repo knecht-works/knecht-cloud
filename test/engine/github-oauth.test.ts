@@ -2,13 +2,13 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 import { createApp, toWebHandler } from 'h3'
 import '../helpers/routes'
 
-vi.mock('../../server/utils/github-credentials', () => ({
+vi.mock('#server/utils/github-credentials', () => ({
   githubAppCredentials: () => ({ clientId: 'client', clientSecret: 'secret' }),
 }))
 vi.stubEnv('NODE_ENV', 'production')
 const exchangeCode = vi.fn(async () => ({}))
 Object.assign(globalThis, { $fetch: exchangeCode })
-const handler = (await import('../../server/routes/auth/github.get')).default
+const handler = (await import('#server/routes/auth/github.get')).default
 const send = toWebHandler(createApp().use('/auth/github', handler))
 const get = (path: string, cookie?: string) => send(new Request(`https://knecht.example${path}`, { headers: cookie ? { cookie } : {} }))
 

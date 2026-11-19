@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { passwordProblem } from '#shared/utils/account'
 import { ref, watch } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
+import { $fetch } from '#imports'
 import { errMsg } from '~/utils/dashboard'
 import KPasswordInput from '~/components/KPasswordInput.vue'
 import { UFormField, UButton, UModal } from '#components'

@@ -1,6 +1,6 @@
 import type { Octokit } from 'octokit'
-import { ENV_DETECT_FILES, type ReadFile } from './env-detect'
-import { FAVICON_MAX_BYTES, FAVICON_MIME_BY_EXT } from './favicon'
+import { ENV_DETECT_FILES, type ReadFile } from '#server/utils/env-detect'
+import { FAVICON_MAX_BYTES, FAVICON_MIME_BY_EXT } from '#server/utils/favicon'
 
 // A file over 1 MB comes back without inline content and reads as '': it
 // exists, which is all a lockfile has to say.

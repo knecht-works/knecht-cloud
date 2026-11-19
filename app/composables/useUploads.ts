@@ -1,7 +1,6 @@
 import { UProgress } from '#components'
 import { shallowReactive, reactive, h } from 'vue'
-import { useToast } from '#imports'
-import { navigateTo } from '#app'
+import { useToast, navigateTo } from '#imports'
 import { errMsg } from '~/utils/dashboard'
 
 export interface Upload {

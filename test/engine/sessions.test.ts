@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import { fireTrigger } from '../../server/utils/triggers'
-import { findObjectSession } from '../../server/stores/sessions'
-import { resolveSession, sessionHasActiveWork, syncObjectStatus, withSessionLinks } from '../../server/utils/sessions'
+import { db, schema } from '#server/db'
+import { fireTrigger } from '#server/utils/triggers'
+import { findObjectSession } from '#server/stores/sessions'
+import { resolveSession, sessionHasActiveWork, syncObjectStatus, withSessionLinks } from '#server/utils/sessions'
 import { attachTestObject, getSessionRow, makeProject, makeRun, sessionObjectOf } from '../helpers/db'
 
 let n = 0

@@ -10,12 +10,12 @@ vi.mock('node:fs/promises', async (original) => {
   const fs = await original<typeof import('node:fs/promises')>()
   return { ...fs, statfs: async (path: string) => ({ ...await fs.statfs(path), bavail: Math.floor(freeBytes / 4096), bsize: 4096 }) }
 })
-vi.mock('../../server/daemon/envs', () => ({ rebootEnv: async () => {} }))
+vi.mock('#server/daemon/envs', () => ({ rebootEnv: async () => {} }))
 
-const { requireProject, updateProjectConfig } = await import('../../server/stores/projects')
-const { projectSharedDir } = await import('../../server/utils/storage')
-const dumpHandler = (await import('../../server/api/projects/[id]/dump.post')).default
-const sharedHandler = (await import('../../server/api/projects/[id]/shared.post')).default
+const { requireProject, updateProjectConfig } = await import('#server/stores/projects')
+const { projectSharedDir } = await import('#server/utils/storage')
+const dumpHandler = (await import('#server/api/projects/[id]/dump.post')).default
+const sharedHandler = (await import('#server/api/projects/[id]/shared.post')).default
 
 function upload(handler: typeof dumpHandler, path: string, body: string | Uint8Array | ReadableStream, headers: Record<string, string> = {}) {
   return callRoute(handler, { route: '/projects/:id/x', path, body, headers: { 'content-type': 'application/octet-stream', ...headers } })

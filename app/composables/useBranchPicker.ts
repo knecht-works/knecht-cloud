@@ -1,5 +1,5 @@
 import { ref, watch, computed } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
+import { $fetch } from '#imports'
 
 export function useBranchPicker(
   url: () => string | null,

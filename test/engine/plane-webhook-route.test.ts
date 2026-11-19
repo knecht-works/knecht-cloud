@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, replyToLastMention, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
-import type { TriggerConfig } from '../../shared/utils/trigger-form'
+import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { allOf } from '../helpers/trigger-conditions'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
+import { db, schema } from '#server/db'
 
 const KNECHT_ACCOUNT = 'knecht-account-id'
 
@@ -33,8 +33,8 @@ const workItem = vi.hoisted(() => (id: string) => ({
   assignees: api.assignees.get(id) ?? [],
   created_by: 'user-1',
 }))
-vi.mock('../../server/integrations/plane/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
+vi.mock('#server/integrations/plane/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/plane/api')>(),
   listPlaneProjects: async () => api.projects,
   planeProjectById: async (id: string) => api.projects.find(p => p.id === id),
   planeProjectByIdentifier: async (identifier: string) => {
@@ -67,13 +67,13 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
     api.assignees.set(workItemId, patch.assignees)
   },
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { plane } = await import('../../server/integrations/plane')
-const { planeConnection } = await import('../../server/integrations/plane/credentials')
-const { resolveSession } = await import('../../server/utils/sessions')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const handler = (await import('../../server/api/plane/webhook.post')).default
+const { plane } = await import('#server/integrations/plane')
+const { planeConnection } = await import('#server/integrations/plane/credentials')
+const { resolveSession } = await import('#server/utils/sessions')
+const { setProjectLink } = await import('#server/stores/project-links')
+const handler = (await import('#server/api/plane/webhook.post')).default
 
 const SECRET = 'plane_wh_secret'
 

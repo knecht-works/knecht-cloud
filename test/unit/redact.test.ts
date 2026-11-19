@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { maskSecrets, maskStepSecrets } from '../../server/tools/redact'
+import { maskSecrets, maskStepSecrets } from '#server/tools/redact'
 
 describe('maskSecrets', () => {
   it('masks literal header and query values but keeps templated ones', () => {

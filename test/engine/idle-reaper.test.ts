@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
 const stopEnvStack = vi.fn(async () => {})
-vi.mock('../../server/daemon/sandbox', () => ({
+vi.mock('#server/daemon/sandbox', () => ({
   envStackRunning: async () => true,
   execInSandbox: async () => ({ stdout: '' }),
   removeEnvStack: async () => {},
@@ -12,13 +12,13 @@ vi.mock('../../server/daemon/sandbox', () => ({
 }))
 
 const removeWorkspace = vi.fn(async (_sessionId: number) => {})
-vi.mock('../../server/daemon/workspace', () => ({
+vi.mock('#server/daemon/workspace', () => ({
   ensureWorkspaceUp: async () => {},
   removeWorkspace: (sessionId: number) => removeWorkspace(sessionId),
 }))
 
-const { db, schema } = await import('../../server/db')
-const { reapIdleEnvs } = await import('../../server/daemon/envs')
+const { db, schema } = await import('#server/db')
+const { reapIdleEnvs } = await import('#server/daemon/envs')
 
 function makeUpRun(previewLastSeen: Date, tier: 'code' | 'preview' = 'preview') {
   const project = makeProject()

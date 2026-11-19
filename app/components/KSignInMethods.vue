@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
-import { useRoute, useRouter, navigateTo } from '#app'
-import { useToast } from '#imports'
+import { useRoute, useRouter, navigateTo, useToast, $fetch } from '#imports'
 import { useToastError } from '~/composables/useToastError'
 import { onMounted, ref } from 'vue'
 import { invalidate } from '~/composables/useLiveTopics'
-import { $fetch } from '#build/fetch.mjs'
 import KPasswordModal from '~/components/KPasswordModal.vue'
 import { UIcon, UButton, UTooltip } from '#components'
 

@@ -1,8 +1,8 @@
 import { getSettingsRow, updateSettingsRow } from '#server/stores/settings'
 import { keyPreview } from '#shared/utils/key-preview'
-import { decrypt } from './crypto'
-import { defaultSshTarget } from './ssh'
-import { settingsPreset } from './settings-preset'
+import { decrypt } from '#server/utils/crypto'
+import { defaultSshTarget } from '#server/utils/ssh'
+import { settingsPreset } from '#server/utils/settings-preset'
 import type { Settings } from '#server/db/schema'
 
 export function getSettings(): Settings {

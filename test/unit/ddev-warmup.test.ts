@@ -15,7 +15,7 @@ vi.mock('execa', () => ({
   }),
 }))
 
-const { warmUpDdev } = await import('../../server/daemon/sandbox')
+const { warmUpDdev } = await import('#server/daemon/sandbox')
 
 describe('warmUpDdev', () => {
   let dataDir: string

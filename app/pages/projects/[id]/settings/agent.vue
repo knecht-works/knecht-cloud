@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import type { IntegrationId } from '#shared/utils/integrations'
 import { useToastError } from '~/composables/useToastError'
-import { useRoute } from '#app'
+import { useRoute, $fetch } from '#imports'
 import { useProject } from '~/composables/useProjects'
 import { ref, watch, computed } from 'vue'
 import { useAutosave } from '~/composables/useAutosave'
-import { $fetch } from '#build/fetch.mjs'
 import { useWorkflows } from '~/composables/useWorkflows'
 import { useIntegrations } from '~/composables/useIntegrations'
 import { integrationUi } from '~/utils/integrations'

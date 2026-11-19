@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import type { DropdownMenuItem } from '@nuxt/ui'
-import { useUserSession } from '#imports'
+import { useUserSession, useRoute, useCookie, navigateTo } from '#imports'
 import { useMembers } from '~/composables/useMembers'
 import { computed } from 'vue'
-import { useRoute, useCookie, navigateTo } from '#app'
 import { useDbImportToasts } from '~/composables/useDbImportToasts'
 import { useSystemInfo } from '~/composables/useSystemInfo'
 import KBgField from '~/components/KBgField.vue'

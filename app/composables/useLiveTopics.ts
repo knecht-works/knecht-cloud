@@ -1,5 +1,5 @@
 import { onScopeDispose } from 'vue'
-import { refreshNuxtData } from '#app'
+import { refreshNuxtData } from '#imports'
 
 const keys = new Map<string, { topics: string[], count: number }>()
 const listeners = new Set<{ topics: () => string[], refresh: () => unknown }>()

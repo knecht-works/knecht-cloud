@@ -1,7 +1,7 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
-import type { TriggerEventConfig } from '../../shared/utils/trigger-form'
+import type { TriggerEventConfig } from '#shared/utils/trigger-form'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, replyToLastMention, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import { allOf } from '../helpers/trigger-conditions'
@@ -16,8 +16,8 @@ const api = vi.hoisted(() => ({
     parentId: null as string | null,
   },
 }))
-vi.mock('../../server/integrations/jira/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+vi.mock('#server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/jira/api')>(),
   getJiraComment: async () => api.fetched,
   getJiraIssueFields: async () => ({ reporter: { accountId: 'user-1', displayName: 'Ann Example' } }),
   getJiraStatusCategory: async (id: string) => api.statusCategories[id] ?? null,
@@ -26,17 +26,17 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
     return { url: `https://acme.atlassian.net/browse/${key}` }
   },
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 const stopped = vi.hoisted(() => [] as number[])
-vi.mock('../../server/daemon/envs', () => ({ stopEnv: async (id: number) => void stopped.push(id) }))
+vi.mock('#server/daemon/envs', () => ({ stopEnv: async (id: number) => void stopped.push(id) }))
 
-const { jira } = await import('../../server/integrations/jira')
-const { jiraConnection, jiraCredentials } = await import('../../server/integrations/jira/credentials')
-const { resolveSession } = await import('../../server/utils/sessions')
-const { db, schema } = await import('../../server/db')
+const { jira } = await import('#server/integrations/jira')
+const { jiraConnection, jiraCredentials } = await import('#server/integrations/jira/credentials')
+const { resolveSession } = await import('#server/utils/sessions')
+const { db, schema } = await import('#server/db')
 const { eq } = await import('drizzle-orm')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const handler = (await import('../../server/api/jira/webhook.post')).default
+const { setProjectLink } = await import('#server/stores/project-links')
+const handler = (await import('#server/api/jira/webhook.post')).default
 
 const KNECHT_ACCOUNT = 'knecht-account-id'
 

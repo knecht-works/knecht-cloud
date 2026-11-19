@@ -5,7 +5,7 @@ import {
   buildOpencodeConfig,
   MEMORY_INDEX_PATH,
   RULES_PATH,
-} from '../../server/utils/opencode-config'
+} from '#server/utils/opencode-config'
 
 describe('buildOpencodeConfig', () => {
   it('emits the static instructions array and points the registry provider at the shared key env', () => {

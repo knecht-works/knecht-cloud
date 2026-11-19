@@ -1,6 +1,6 @@
 import { Readable, Writable } from 'node:stream'
 import { client, methods, ndJsonStream, PROTOCOL_VERSION, type ClientConnection, type PermissionOption, type SessionConfigOption, type SessionUpdate, type StopReason, type ToolCallStatus, type ToolCallUpdate, type ToolKind } from '@agentclientprotocol/sdk'
-import type { SandboxProcess } from './sandbox-process'
+import type { SandboxProcess } from '#server/daemon/sandbox-process'
 
 export interface AgentTurn {
   text: string

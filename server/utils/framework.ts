@@ -3,8 +3,8 @@ import semver from 'semver'
 import { FRAMEWORKS } from '#shared/utils/frameworks'
 import type { DdevEnv, Project } from '#server/db/schema'
 import { setProjectMeta } from '#server/stores/projects'
-import { detectEnv, parseDdevConfig, repoShipsDdevConfig, type ReadFile } from './env-detect'
-import { fetchFavicon, fetchFrameworkVersion, fetchPackageManager, repoReader } from './github'
+import { detectEnv, parseDdevConfig, repoShipsDdevConfig, type ReadFile } from '#server/utils/env-detect'
+import { fetchFavicon, fetchFrameworkVersion, fetchPackageManager, repoReader } from '#server/utils/github'
 import { gitProvider } from '#server/git'
 
 export interface ProjectMeta {

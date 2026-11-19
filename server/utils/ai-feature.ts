@@ -1,7 +1,7 @@
 import { generateText, Output, stepCountIs, tool } from 'ai'
 import type { z } from 'zod'
 import { callTool, isWriteTool, type Tool, type ToolContext } from '#server/tools/registry'
-import { languageModel, type ModelRole } from './llm'
+import { languageModel, type ModelRole } from '#server/utils/llm'
 
 export interface AiFeature<O extends z.ZodType> {
   id: string
