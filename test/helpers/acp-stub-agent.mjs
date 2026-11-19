@@ -70,6 +70,9 @@ agent({ name: 'stub' })
       await update({ sessionUpdate: 'agent_message_chunk', messageId: 'm0', content: { type: 'text', text: `notes: ${text.includes('Since your last turn') ? 'yes' : 'no'}` } })
       return { stopReason: 'end_turn' }
     }
+    if (text.includes('PREVIEW_REQUEST')) {
+      await update({ sessionUpdate: 'tool_call', toolCallId: 't7', title: 'knecht-preview "check the footer"', kind: 'execute', status: 'completed', rawInput: { command: 'knecht-preview "check the footer"' } })
+    }
     if (text.includes('READ_PATH')) {
       await update({ sessionUpdate: 'tool_call', toolCallId: 't8', title: 'README.md', kind: 'read', status: 'completed', locations: [{ path: '/var/www/html/README.md' }] })
     }
