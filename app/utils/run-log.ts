@@ -30,12 +30,13 @@ export function runLogTimeline<S extends TimelineSource>(rows: S[], runStatus: R
     }
     // The cancel route flips the run first; the step row follows once the action notices the abort.
     const status = s.status === 'running' && runStatus === 'cancelled' ? 'cancelled' : s.status
+    const followupTurn = s.origin === 'followup' && s.type === 'ai'
     return {
       ...s,
       status,
       depth: depthOf(s),
-      icon: s.origin === 'followup' ? 'i-lucide-message-circle-reply' : (meta?.icon ?? def?.icon ?? 'i-lucide-square'),
-      label: s.origin === 'followup' ? 'Follow-up' : (meta?.label ?? def?.label ?? s.type),
+      icon: followupTurn ? 'i-lucide-message-circle-reply' : (meta?.icon ?? def?.icon ?? 'i-lucide-square'),
+      label: followupTurn ? 'Follow-up' : (meta?.label ?? def?.label ?? s.type),
       color: STEP_KIND_COLOR[meta?.kind ?? def?.kind ?? 'det'],
       statusMeta: RUN_STATUS_META[status],
     }

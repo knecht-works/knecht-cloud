@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { callRoute } from '../helpers/routes'
-import { makeProject, makeSession, sessionObjectOf } from '../helpers/db'
+import { makeProject, makeRun, makeSession, sessionObjectOf } from '../helpers/db'
 
 const dispatched: number[] = []
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => dispatched.push(1) }))
@@ -30,7 +30,7 @@ describe('POST /api/projects/:id/sessions', () => {
     const res = await start(project.id, { preview: true })
     expect(res.status).toBe(200)
     const run = runOf(res)
-    expect(run).toMatchObject({ workflow: 'Boot preview', workflowId: null, trigger: 'manual', status: 'queued', branch: 'main' })
+    expect(run).toMatchObject({ workflow: 'New Preview Session', workflowId: null, trigger: 'manual', status: 'queued', branch: 'main' })
     expect(run.steps).toEqual([{ type: 'ddev-start', id: 'boot-preview' }])
     const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
     expect(session).toMatchObject({ projectId: project.id, branch: 'main' })
@@ -41,7 +41,7 @@ describe('POST /api/projects/:id/sessions', () => {
   it('starts a code-only session on the requested branch', async () => {
     const project = makeProject()
     const run = runOf(await start(project.id, { branch: 'feature/x' }))
-    expect(run).toMatchObject({ workflow: 'Checkout', branch: 'feature/x' })
+    expect(run).toMatchObject({ workflow: 'New Code Session', branch: 'feature/x' })
     expect(run.steps).toEqual([])
   })
 
@@ -61,6 +61,7 @@ describe('POST /api/sessions/:id/preview', () => {
   it('queues a boot run in an existing code session', async () => {
     const project = makeProject()
     const session = makeSession(project, { envState: 'up', tier: 'code', branch: 'fix/y' })
+    makeRun(project, [], { sessionId: session.id, status: 'success' })
     const res = await addPreview(session.id)
     expect(res.status).toBe(200)
     const run = runOf(res)

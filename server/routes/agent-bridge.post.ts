@@ -8,6 +8,7 @@ import { sessionSandbox } from '../daemon/session-sandbox'
 import { getIntegration, type Integration } from '../integrations'
 import { addressee, applyLabels, moveToStatus } from '../integrations/capabilities'
 import { verifyBridgeToken } from '../utils/agent-bridge'
+import { emitFollowup } from '../utils/transcript'
 import { gitProvider } from '../git'
 import { withPreviewFooter } from '../utils/origin'
 import { attachPullRequest, describeObject, primaryObject, recordAgentReply, sessionObjects, withSessionLinks, workObject, type SessionObject } from '../utils/sessions'
@@ -17,7 +18,7 @@ import { sessionCheckoutDir } from '../utils/storage'
 import { getProject } from '../stores/projects'
 import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession } from '../stores/sessions'
-import { getRunningFollowup } from '../stores/followups'
+import { createFollowup, getRunningFollowup, queuedAgentFollowup } from '../stores/followups'
 import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from '../stores/runs'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
@@ -39,6 +40,9 @@ import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from 
 //     its runs out (workflows.repliesEnabled). The bridge is where the
 //     boundary is enforced: a raw provider token could not be narrowed to
 //     "comment, label, transition, nothing else".
+//   - `preview` (knecht-preview): queues an agent follow-up that boots the
+//     session's preview and then continues the agent's work. The boot
+//     replaces the workspace the agent runs in, so it cannot happen mid-turn.
 // Outside /api on purpose: the session gate (server/middleware/auth.ts) skips
 // non-API paths, and this route authenticates with its own per-session token
 // (server/utils/agent-bridge.ts) instead. The x-knecht-run-id header carries
@@ -54,6 +58,7 @@ const bodySchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('label'), add: z.array(z.string().min(1)).optional(), remove: z.array(z.string().min(1)).optional(), on: z.string().min(1).optional() }),
   z.object({ op: z.literal('status'), status: z.string().min(1), on: z.string().min(1).optional() }),
   z.object({ op: z.literal('context'), key: z.string().min(1).optional() }),
+  z.object({ op: z.literal('preview'), task: z.string().optional() }),
 ])
 
 // Replies are plain text: the CLI prints the body verbatim to the agent, and
@@ -143,6 +148,28 @@ export default defineEventHandler(async (event) => {
         log(`\nagent-status: ${did} on ${label}\n`)
         return reply(event, 200, `${did} on ${label}`)
       }
+      case 'preview': {
+        if (session.tier === 'preview') return reply(event, 200, 'this session already has a preview: `ddev describe` shows it')
+        const followup = getRunningFollowup(sessionId)
+        if (!followup) throw new BridgeError('knecht-preview works in follow-ups and mentions; a workflow boots its preview with a boot step')
+        // The turn after a boot that failed must not ask again, or it would loop.
+        if (followup.origin === 'agent') throw new BridgeError('the preview boot did not succeed: continue without a preview and say so')
+        if (!queuedAgentFollowup(sessionId)) {
+          const next = createFollowup({
+            sessionId,
+            runId: followup.runId,
+            prompt: body.task?.trim() ?? '',
+            model: followup.model,
+            requestedBy: followup.requestedBy,
+            objectId: followup.objectId,
+            origin: 'agent',
+            replyTo: followup.replyTo,
+          })
+          emitFollowup(next.id)
+        }
+        log(`\nagent-preview: queued a preview boot\n`)
+        return reply(event, 200, 'queued a preview boot. Booting replaces this sandbox, so do not reply on the thread yet: finish your turn now with a short note on what you will check. Knecht boots the preview and then continues this session in a new turn')
+      }
       case 'open-pr': {
         const sandbox = sessionSandbox(sessionId, log)
         const branch = await currentBranch(sandbox)
@@ -202,7 +229,9 @@ function requireObject(session: Session, of: 'work' | 'primary', key?: string): 
 
 // A dashboard message is about the whole session, so no object is the obvious place to post.
 function requireTargetFromDashboard(sessionId: number): void {
-  if (getRunningFollowup(sessionId)?.origin !== 'dashboard') return
+  const followup = getRunningFollowup(sessionId)
+  const fromDashboard = followup?.origin === 'dashboard' || (followup?.origin === 'agent' && !followup.replyTo)
+  if (!fromDashboard) return
   const objects = sessionObjects(sessionId)
   if (objects.length > 1) {
     throw new BridgeError(`this task came from the dashboard and the session holds several objects: pass --on <KEY> with one of: ${objects.map(o => o.key).join(', ')}`)
