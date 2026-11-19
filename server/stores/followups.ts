@@ -76,6 +76,12 @@ export function listQueuedFollowups(): Pick<Followup, 'id' | 'sessionId'>[] {
     .all()
 }
 
+export function queuedAgentFollowup(sessionId: number): Followup | undefined {
+  return db.select().from(schema.followups)
+    .where(and(eq(schema.followups.sessionId, sessionId), eq(schema.followups.origin, 'agent'), eq(schema.followups.status, 'queued')))
+    .get()
+}
+
 export function createFollowup(values: NewFollowup): Followup {
   return db.insert(schema.followups).values(values).returning().get()
 }

@@ -57,13 +57,19 @@ function authorAvatar(turn: ChatTurn) {
   return { src: member?.avatarUrl ?? undefined, alt: member?.name || login || 'You' }
 }
 
-type Entry = { key: string, at: number, order: number } & ({ kind: 'run', run: ChatRun } | { kind: 'turn', turn: ChatTurn })
+type Entry = { key: string, at: number, order: number } & ({ kind: 'run', run: ChatRun } | { kind: 'turn', turn: ChatTurn, continued: ChatTurn[] })
+// The turn after a knecht-preview boot reads as the rest of the reply that asked for it.
+function continuationsOf(turn: ChatTurn): ChatTurn[] {
+  const next = turns.value.find(t => t.id > turn.id && t.origin !== 'agent')
+  return turns.value.filter(t => t.origin === 'agent' && t.id > turn.id && (!next || t.id < next.id))
+}
+
 // /clear and /compact empty the window: only what came after the last one is shown, the rows stay in the DB.
 const entries = computed<Entry[]>(() => {
   const at = (v: string) => new Date(v).getTime()
   const list: Entry[] = [
     ...runs.value.filter(r => r.kind === 'workflow').map(r => ({ key: `run-${r.id}`, kind: 'run' as const, run: r, at: at(r.createdAt), order: 0 })),
-    ...turns.value.map(t => ({ key: t.key ?? `turn-${t.id}`, kind: 'turn' as const, turn: t, at: at(t.createdAt), order: 1 })),
+    ...turns.value.filter(t => t.origin !== 'agent').map(t => ({ key: t.key ?? `turn-${t.id}`, kind: 'turn' as const, turn: t, continued: continuationsOf(t), at: at(t.createdAt), order: 1 })),
   ].sort((a, b) => a.at - b.at || a.order - b.order)
   const cleared = list.findLastIndex(e => e.kind === 'turn' && e.turn.prompt === CLEAR_COMMAND)
   const compacted = list.findLastIndex(e => e.kind === 'turn' && e.turn.prompt === COMPACT_COMMAND)
@@ -462,10 +468,15 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
                   variant="naked"
                   :avatar="{ src: '/mascot/knecht-avatar.svg', alt: 'Knecht' }"
                   :parts="[{ type: 'text', text: '' }]"
-                  :actions="assistantActions(entry.turn)"
+                  :actions="assistantActions(entry.continued.at(-1) ?? entry.turn)"
                 >
                   <template #content>
                     <KChatTranscript :turn="entry.turn" />
+                    <KChatTranscript
+                      v-for="turn in entry.continued"
+                      :key="turn.id"
+                      :turn="turn"
+                    />
                   </template>
                 </UChatMessage>
               </template>

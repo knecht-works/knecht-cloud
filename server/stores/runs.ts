@@ -132,6 +132,13 @@ export function latestSessionRun(sessionId: number): Run | undefined {
     .get()
 }
 
+export function latestWorkflowRun(sessionId: number): Run | undefined {
+  return db.select().from(schema.runs)
+    .where(and(eq(schema.runs.sessionId, sessionId), eq(schema.runs.kind, 'workflow')))
+    .orderBy(desc(schema.runs.id))
+    .get()
+}
+
 export function latestSessionActor(sessionId: number): Run['actor'] {
   return db.select({ actor: schema.runs.actor })
     .from(schema.runs)

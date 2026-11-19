@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import type { Followup, Project, Run, Session } from '../db/schema'
 import { compactAgentSession, handoverPreamble, notesPreamble, runFollowupPrompt } from '../workflows/actions/ai'
 import type { ActionRuntime } from '../workflows/actions'
+import { ddevStartAction } from '../workflows/actions/ddev-start'
 import { createContext } from '../workflows/context'
 import { getIntegration } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
@@ -17,8 +18,9 @@ import { COMPACT_COMMAND } from '../../shared/utils/followup'
 import { followupAttachmentsDir, SANDBOX_ATTACHMENTS_DIR, sandboxAttachmentPath } from '../utils/attachments'
 import { getProject } from '../stores/projects'
 import { getSessionRow, updateSession } from '../stores/sessions'
-import { getRun, updateRun, startQueuedRun, finishActiveRun, cancelActiveMentionRuns } from '../stores/runs'
-import { getFollowup, updateFollowup, claimQueuedFollowup, cancelActiveFollowups } from '../stores/followups'
+import { appendRunLog, getRun, latestWorkflowRun, runLogBytes, updateRun, startQueuedRun, finishActiveRun, cancelActiveMentionRuns } from '../stores/runs'
+import { createRunStep, updateRunStep } from '../stores/run-steps'
+import { getFollowup, updateFollowup, claimQueuedFollowup, cancelActiveFollowups, queuedAgentFollowup } from '../stores/followups'
 
 const controllers = new Map<number, AbortController>()
 
@@ -44,7 +46,7 @@ export async function startFollowup(followupId: number): Promise<void> {
     }
 
     // The runner never touches a mention's run row, so its lifecycle is mirrored here.
-    const mirrorsRun = followup.origin === 'mention' && run.kind === 'mention'
+    const mirrorsRun = followup.origin !== 'dashboard' && run.kind === 'mention'
     if (mirrorsRun) {
       startQueuedRun(run.id)
     }
@@ -56,13 +58,13 @@ export async function startFollowup(followupId: number): Promise<void> {
     try {
       const reply = await execFollowup(followup, session, run, project, controller)
       finishFollowup(followupId, 'success')
-      if (mirrorsRun) finishActiveRun(run.id, 'success')
+      if (mirrorsRun && !queuedAgentFollowup(session.id)) finishActiveRun(run.id, 'success')
       await postMentionReply(followup, session, project, reply)
     }
     catch (e) {
       const cancelled = controller.signal.aborted
       finishFollowup(followupId, 'failed', cancelled ? 'Cancelled' : (e as Error).message)
-      if (mirrorsRun) finishActiveRun(run.id, cancelled ? 'cancelled' : 'failed')
+      if (mirrorsRun && !queuedAgentFollowup(session.id)) finishActiveRun(run.id, cancelled ? 'cancelled' : 'failed')
       if (!cancelled) {
         await postMentionReply(followup, session, project, `I could not finish this: ${(e as Error).message}`)
       }
@@ -99,7 +101,8 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
 
   if (followup.prompt === COMPACT_COMMAND) return compactAgentSession(rt, sink, followup.model)
   if (followup.attachments.length) await stageAttachments(rt, followup)
-  const reply = await runFollowupPrompt(rt, followupMessage(followup, session), sink, followup.model)
+  const boot = followup.origin === 'agent' ? await bootPreview(rt, sink, followup) : null
+  const reply = await runFollowupPrompt(rt, boot === null ? followupMessage(followup, session) : continueMessage(followup, session, boot), sink, followup.model)
   if (session.agentHandover || session.agentNotes) {
     updateSession(session.id, { agentHandover: null, agentNotes: null })
   }
@@ -107,16 +110,59 @@ async function execFollowup(followup: Followup, session: Session, run: Run, proj
   return reply
 }
 
+// An agent follow-up has a thread to answer only when it continues a mention.
 async function postMentionReply(followup: Followup, session: Session, project: Project, text: string): Promise<void> {
-  const object = followup.origin === 'mention' ? workObject(session.id, followup.objectId) : null
+  const object = followup.origin === 'mention' || (followup.origin === 'agent' && followup.replyTo) ? workObject(session.id, followup.objectId) : null
   if (!object) return
   if (agentRepliedSince(session.id, followup.startedAt ?? followup.createdAt)) return
+  // The agent asked for a preview: the turn after the boot answers the thread.
+  if (queuedAgentFollowup(session.id)) return
   try {
     await getIntegration(object.integration).capabilities.comment(project, object, withSessionLinks(text, session.id, object), followup.replyTo)
   }
   catch (e) {
     transcriptSink(session.id, followup.id).item(notice(`Could not post the reply on the thread: ${(e as Error).message}`))
   }
+}
+
+// The session log shows the boot like any other: as a step of the run the log streams.
+async function bootPreview(rt: ActionRuntime, sink: ReturnType<typeof transcriptSink>, followup: Followup): Promise<string | undefined> {
+  const logRun = latestWorkflowRun(followup.sessionId) ?? getRun(followup.runId)!
+  const rowId = createRunStep({
+    runId: logRun.id,
+    stepIndex: logRun.steps?.length ?? 0,
+    stepId: `agent-preview-${followup.id}`,
+    type: 'ddev-start',
+    origin: 'followup',
+    params: {},
+    logStart: runLogBytes(logRun.id),
+    startedAt: new Date(),
+  })
+  const status = (text: string, state: 'in_progress' | 'completed' | 'failed', output: string | null = null) =>
+    sink.item({ key: 'boot-preview', type: 'tool', kind: 'preview', text, status: state, output })
+  status('Booting the preview', 'in_progress')
+  try {
+    await ddevStartAction.run({ type: 'ddev-start' }, { ...rt, log: text => appendRunLog(logRun.id, text) })
+    updateRunStep(rowId, { status: 'success', finishedAt: new Date() })
+    status('Booted the preview', 'completed')
+    return undefined
+  }
+  catch (e) {
+    const message = (e as Error).message
+    updateRunStep(rowId, { status: rt.signal.aborted ? 'cancelled' : 'failed', error: message, finishedAt: new Date() })
+    status('The preview did not boot', 'failed', message)
+    if (rt.signal.aborted) throw e
+    return message
+  }
+}
+
+function continueMessage(followup: Followup, session: Session, bootError: string | undefined): string {
+  const thread = taskBriefing(session.id, followup.objectId, followup.requestedBy, !followup.replyTo)
+  const booted = bootError === undefined
+    ? 'Knecht booted the preview you asked for with knecht-preview. Continue the task you were working on.'
+    : `The preview you asked for with knecht-preview did not boot: ${bootError}\nContinue the task without it and say that the preview is missing.`
+  const next = followup.prompt ? `\n\nWhat you wanted to do with it: ${followup.prompt}` : ''
+  return `${thread}${booted}${next}`
 }
 
 // docker cp needs the target directory; ensureUp ran already, so the container is there.
@@ -137,7 +183,8 @@ function followupMessage(followup: Followup, session: Session): string {
     : ''
   const handover = session.agentHandover ? handoverPreamble(session.agentHandover) : ''
   const notes = session.agentNotes ? notesPreamble(session.agentNotes) : ''
-  return `${handover}${notes}${thread}A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}${attached}\n\n${publish}`
+  const codeOnly = session.tier === 'code' ? 'This is a code session (no database, no running site).\n\n' : ''
+  return `${handover}${notes}${thread}${codeOnly}A user sent this follow-up request. It is a new instruction, not a schema correction: act on it now. Any earlier output contract does not apply to this message.\n\n${followup.prompt}${attached}\n\n${publish}`
 }
 
 async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRuntime): Promise<void> {

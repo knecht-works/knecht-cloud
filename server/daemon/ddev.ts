@@ -353,6 +353,7 @@ export function webVolumes(shared?: SharedFolderConfig): string[] {
     { host: join(tools, 'knecht-label'), dest: '/usr/local/bin/knecht-label' },
     { host: join(tools, 'knecht-status'), dest: '/usr/local/bin/knecht-status' },
     { host: join(tools, 'knecht-object'), dest: '/usr/local/bin/knecht-object' },
+    { host: join(tools, 'knecht-preview'), dest: '/usr/local/bin/knecht-preview' },
     { host: join(tools, 'knecht-forward'), dest: '/usr/local/bin/knecht-forward' },
     { host: join(tools, 'knecht-bridge-lib'), dest: '/usr/local/lib/knecht-bridge-lib' },
     // Shadows the stock in-container ddev shim, which silently no-ops.

@@ -14,6 +14,7 @@ const TOOL_ICON: Record<string, string> = {
   think: 'i-lucide-brain',
   fetch: 'i-lucide-globe',
   switch_mode: 'i-lucide-toggle-left',
+  preview: 'i-lucide-monitor-play',
 }
 
 const open = ref(false)

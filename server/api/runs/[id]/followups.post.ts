@@ -85,7 +85,7 @@ export default defineEventHandler(async (event) => {
     ? updateFollowup(inserted.id, { attachments })!
     : inserted
   emitFollowup(followup.id)
-  // A session started without a workflow only says "Boot preview" or "Checkout" until its first prompt names it.
+  // A session started without a workflow only says "New Code Session" or "New Preview Session" until its first prompt names it.
   if (run.workflowId === null && run.kind === 'workflow' && result.data.prompt !== PR_COMMAND && !sessionHasRunTitle(session.id))
     void titleRun(run.id, result.data.prompt)
 

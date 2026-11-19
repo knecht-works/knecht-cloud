@@ -291,7 +291,7 @@ export const followups = sqliteTable('followups', {
   objectId: integer('object_id')
     .references(() => sessionObjects.id, { onDelete: 'set null' }),
   replyTo: text('reply_to', { mode: 'json' }).$type<{ thread: string | null, person: { id: string, name: string } }>(),
-  origin: text('origin', { enum: ['dashboard', 'mention'] })
+  origin: text('origin', { enum: ['dashboard', 'mention', 'agent'] })
     .notNull()
     .default('dashboard'),
   status: text('status', { enum: ['queued', 'running', 'success', 'failed'] })

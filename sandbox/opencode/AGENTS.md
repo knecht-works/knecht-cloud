@@ -17,10 +17,16 @@ post, so those carry everything they need and nothing else.
 - Run project tooling through ddev like a developer would: `ddev composer`,
   `ddev npm`, `ddev craft`, `ddev artisan`, `ddev drush` and the commands in
   `.ddev/commands/web`. Knecht starts, stops and imports databases, never you.
-- `ddev describe` shows the preview and the database. If it shows neither,
-  this session has none: do not try to start a server or a database.
 - To look at the running site yourself, request `$KNECHT_INTERNAL_URL`.
   `KNECHT_PREVIEW_URL` is for people and is not reachable from here.
+
+## Preview
+
+A code session has no database or running site. When a task needs one, or
+the user asks to boot the environment in any wording, run `knecht-preview
+"<next step>"` and end your turn with one sentence, without `knecht-reply`:
+Knecht boots it and continues in a new turn. Never start a server or a
+database yourself.
 
 ## Project memory
 

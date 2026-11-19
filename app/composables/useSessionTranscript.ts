@@ -32,7 +32,7 @@ export interface ChatTurn {
   model: string | null
   attachments: ChatAttachment[]
   requestedBy: string | null
-  origin: 'dashboard' | 'mention'
+  origin: 'dashboard' | 'mention' | 'agent'
   status: FollowupStatus
   error: string | null
   createdAt: string
