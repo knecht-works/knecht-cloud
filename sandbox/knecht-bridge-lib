@@ -24,6 +24,12 @@ json_escape() {
   node -e 'console.log(JSON.stringify(process.argv[1] ?? ""))' -- "$1"
 }
 
+# on_field <key>: the `on` member of a payload (with its leading comma), empty
+# without a key, so the bridge falls back to the object the work came from.
+on_field() {
+  if [ -n "$1" ]; then printf ',"on":%s' "$(json_escape "$1")"; fi
+}
+
 # bridge_post <json>: POST the payload to the bridge, print the response, exit
 # 0 on 2xx and 1 otherwise.
 bridge_post() {

@@ -41,8 +41,12 @@ when the step or a follow-up asks you to publish; `knecht-git open-pr -t
 
 ## The ticket, issue or pull request
 
-When `KNECHT_OBJECT` is set, the session belongs to one and these tools talk
-to it:
+When `KNECHT_OBJECT` is set, the session belongs to one or more of them, such
+as a ticket and the pull request opened for it. Each task names the one it
+comes from. `knecht-reply` and `knecht-label` act on that one,
+`knecht-status` on the ticket; `--on <KEY>` (e.g. `--on PROJ-12`, `--on 57`)
+acts on another object of the session, when the task asks you to update it
+too. These tools talk to them:
 
 - `.knecht/objects/<KEY>/` holds the ticket, issue or pull request,
   current at the start of every turn: `ticket.md` (overview, description,
@@ -66,7 +70,7 @@ to it:
 - `knecht-label add|remove <name> ...` uses existing labels only; if none
   fits, say so in your reply.
 - `knecht-status "<status>"` moves the ticket; a refusal lists the reachable
-  statuses. GitHub issues have none.
+  statuses. GitHub issues and pull requests have none.
 
 ## Output contracts
 

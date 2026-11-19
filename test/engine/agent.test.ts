@@ -109,6 +109,16 @@ describe('ai step over ACP', () => {
     expect(readFileSync(join(dir, 'attachments', 'shot.png'), 'utf8')).toBe('png')
   })
 
+  it('tells the agent every object of the session and the one the run came from', async () => {
+    const project = makeProject()
+    const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'ECHO_PROMPT' }])
+    attachTestObject(run.sessionId, { integration: 'jira', kind: 'issue', key: 'PROJ-3' })
+    const pr = attachTestObject(run.sessionId, { integration: 'github', kind: 'pull_request', key: '57' })
+    db.update(schema.runs).set({ objectId: pr.id, actor: { id: 'u1', name: 'octo' } }).where(eq(schema.runs.id, run.id)).run()
+    await startRun(run.id, project)
+    expect(getSteps(run.id)[0]!.outputs!.text).toContain('This session holds ticket PROJ-3, pull request #57. This task comes from pull request #57, asked by octo. To act on another of them, pass --on <KEY>')
+  })
+
   it('fetches the ticket again only after a webhook reported a change while webhooks arrive', async () => {
     const { jiraConnection } = await import('../../server/integrations/jira/credentials')
     const { ticketChanged } = await import('../../server/utils/object-freshness')

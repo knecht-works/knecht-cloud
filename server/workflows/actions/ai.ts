@@ -18,7 +18,7 @@ import type { WorkflowRow } from '../../db/schema'
 import { getIntegration } from '../../integrations'
 import { freshTicketSince, ticketFetched } from '../../utils/object-freshness'
 import { snapshotDir, writeObjectSnapshot } from '../../utils/object-snapshot'
-import { describeObject, primaryObject } from '../../utils/sessions'
+import { describeObject, primaryObject, taskBriefing } from '../../utils/sessions'
 
 const MAX_OUTPUT_ATTEMPTS = 3
 
@@ -43,7 +43,9 @@ export const aiAction = defineAction({
     const session = getSessionRow(rt.sessionId)
     const handover = workflow ? null : session?.agentHandover
     const notes = workflow ? null : session?.agentNotes
-    const prompt = `${handover ? handoverPreamble(handover) : ''}${notes ? notesPreamble(notes) : ''}${await refreshTicket(rt)}${step.prompt}`
+    const run = getRun(rt.runId)
+    const briefing = taskBriefing(rt.sessionId, run?.objectId, run?.actor?.name)
+    const prompt = `${handover ? handoverPreamble(handover) : ''}${notes ? notesPreamble(notes) : ''}${briefing}${await refreshTicket(rt)}${step.prompt}`
     const agent = workflow
       ? await startAgent(rt, env, null, logSink(rt.log), model)
       : await startSessionAgent(rt, env, logSink(rt.log), model)
