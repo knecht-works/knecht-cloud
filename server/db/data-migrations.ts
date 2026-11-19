@@ -17,6 +17,7 @@ const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0008_redetect_frameworks', run: redetectFrameworks },
   { name: '0009_trigger_roles', run: triggerRoles },
   { name: '0010_single_event_triggers', run: singleEventTriggers },
+  { name: '0011_fold_step_prompts', run: foldStepPrompts },
 ]
 
 export function runDataMigrations(): void {
@@ -27,6 +28,23 @@ export function runDataMigrations(): void {
     if (applied.has(migration.name)) continue
     migration.run()
     db.insert(schema.dataMigrations).values({ name: migration.name }).run()
+  }
+}
+
+// The ai step's separate "Step prompt" is gone; its text joins the prompt so nothing a workflow relied on is lost.
+function foldStepPrompts(): void {
+  for (const row of db.select().from(schema.workflows).all()) {
+    let changed = false
+    for (const step of flattenSteps(row.steps)) {
+      if (step.type !== 'ai' || !('system' in step)) continue
+      const { system } = step as { system?: string }
+      if (system?.trim()) step.prompt = `${system.trim()}\n\n${step.prompt}`
+      delete (step as { system?: string }).system
+      changed = true
+    }
+    if (changed) {
+      db.update(schema.workflows).set({ steps: row.steps }).where(eq(schema.workflows.name, row.name)).run()
+    }
   }
 }
 

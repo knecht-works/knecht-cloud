@@ -3,7 +3,6 @@ import { type AiProviderId, type LangdockRegion, langdockAnthropicBaseUrl, langd
 // Instance and project rules share ONE file: opencode adds a prompt-cache breakpoint
 // per instructions entry and Anthropic caps cache_control blocks at 4 per request.
 export const RULES_PATH = '/var/www/html/.knecht/opencode/rules.md'
-export const WORKFLOW_SYSTEM_PATH = '/var/www/html/.knecht/opencode/workflow.md'
 export const MEMORY_INDEX_PATH = '/var/www/html/.knecht/opencode/memory/MEMORY.md'
 export const AGENT_KEY_ENV = 'KNECHT_AI_KEY'
 const AGENT_KEY_REF = `{env:${AGENT_KEY_ENV}}`
@@ -53,7 +52,7 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
   // The sandbox is the permission boundary; without this every tool call would stall on approval.
   const config: OpencodeConfig = {
     $schema: 'https://opencode.ai/config.json',
-    instructions: [RULES_PATH, WORKFLOW_SYSTEM_PATH, MEMORY_INDEX_PATH],
+    instructions: [RULES_PATH, MEMORY_INDEX_PATH],
     model: agentModelRef(input.provider, models[0]!),
     permission: 'allow',
   }
