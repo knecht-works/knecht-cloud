@@ -127,7 +127,7 @@ describe('github webhook route, vendor specifics', () => {
   it('fires a pull_request trigger on the base filter and checks out the head', async () => {
     const project = makeProject()
     const trigger = makeGithubTrigger([project.id], { ...PR_PUSHED, conditions: allOf({ base: ['main'] }) })
-    const pr = { number: 42, title: 'Add feature', body: 'Because', html_url: 'https://x/pull/42', head: { ref: 'feat' }, base: { ref: 'main' } }
+    const pr = { number: 42, title: 'Add feature', body: 'Because', html_url: 'https://x/pull/42', head: { ref: 'feat', repo: repo(project) }, base: { ref: 'main' } }
 
     await deliver('pull_request', { action: 'labeled', pull_request: pr, repository: repo(project) })
     expect(runsOf(trigger.id)).toHaveLength(0)
