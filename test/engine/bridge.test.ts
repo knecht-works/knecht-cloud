@@ -242,6 +242,22 @@ describe('agent bridge', () => {
     expect(foreign.text).toContain('OTHER-9 is not part of this session. Its objects: PROJ-1, 42')
   })
 
+  it('makes a dashboard follow-up name the object it posts on once the session holds several', async () => {
+    const project = makeProject()
+    const run = makeRun(project, [], { status: 'success' })
+    mkdirSync(join(sessionCheckoutDir(run.sessionId), '.git'), { recursive: true })
+    attachTestObject(run.sessionId, { integration: 'github', kind: 'issue', key: '5' })
+    const pr = attachTestObject(run.sessionId, { integration: 'github', kind: 'pull_request', key: '42' })
+    db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'say it is ready', origin: 'dashboard', status: 'running', objectId: pr.id }).run()
+
+    for (const op of [{ op: 'comment', body: 'Ready for review.' }, { op: 'label', add: ['bug'] }]) {
+      const res = await call(run.sessionId, op)
+      expect(res.status).toBe(400)
+      expect(res.text).toContain('pass --on <KEY> with one of: 5, 42')
+    }
+    expect((await call(run.sessionId, { op: 'comment', body: 'Ready for review.', on: '5' })).text).toContain('on issue #5')
+  })
+
   it('logs into the running run, not a newer one queued in the session', async () => {
     const { project, run, sessionId } = objectSession({ status: 'running' })
     const queued = makeRun(project, [], { sessionId, status: 'queued' })

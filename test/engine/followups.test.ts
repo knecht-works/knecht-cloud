@@ -96,7 +96,7 @@ describe('follow-up replies on the thread', () => {
     expect(agent.messages.at(-1)).toContain('more')
   })
 
-  it('tells the agent a dashboard follow-up is about the selected run\'s object and lists the others', async () => {
+  it('tells the agent a dashboard follow-up is about the whole session and posting needs --on', async () => {
     agent.reply = async () => 'ok'
     const project = makeProject()
     const run = makeRun(project, [], { status: 'success' })
@@ -105,8 +105,8 @@ describe('follow-up replies on the thread', () => {
     const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'more', origin: 'dashboard', objectId: pr.id, requestedBy: 'sam' }).returning().get()
     await startFollowup(followup.id)
     const message = agent.messages.at(-1)
-    expect(message).toContain('This session holds issue #5, pull request #42. sam asked this in the Knecht dashboard, about pull request #42')
-    expect(message).toContain('pass --on <KEY>')
+    expect(message).toContain('This session holds issue #5, pull request #42. sam asked this in the Knecht dashboard: answer in your final message')
+    expect(message).toContain('knecht-reply and knecht-label then need --on <KEY>')
   })
 
   it('does not double-post when the agent already replied through the bridge', async () => {

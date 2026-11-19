@@ -46,7 +46,9 @@ as a ticket and the pull request opened for it. Each task names the one it
 comes from. `knecht-reply` and `knecht-label` act on that one,
 `knecht-status` on the ticket; `--on <KEY>` (e.g. `--on PROJ-12`, `--on 57`)
 acts on another object of the session, when the task asks you to update it
-too. These tools talk to them:
+too. A task from the dashboard is about the whole session: with several
+objects, `knecht-reply` and `knecht-label` need `--on`. These tools talk to
+them:
 
 - `.knecht/objects/<KEY>/` holds the ticket, issue or pull request,
   current at the start of every turn: `ticket.md` (overview, description,
