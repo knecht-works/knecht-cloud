@@ -311,6 +311,14 @@ describe('follow-ups over ACP', () => {
     expect(itemsOf(followup.id).at(-1)).toMatchObject({ type: 'notice', text: 'posted late', seq: 5 })
   })
 
+  it('shows a knecht-preview call as a preview request, not as a shell command', async () => {
+    const { run } = await runAi({})
+    const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'PREVIEW_REQUEST' }).returning().get()
+    await startFollowup(followup.id)
+    expect(itemsOf(followup.id).find(i => i.kind === 'preview')).toMatchObject({ type: 'tool', text: 'Asked for the preview', status: 'completed' })
+    expect(itemsOf(followup.id).some(i => i.text.includes('knecht-preview'))).toBe(false)
+  })
+
   it('names a file once when the title already is its path', async () => {
     const { run } = await runAi({})
     const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'READ_PATH' }).returning().get()

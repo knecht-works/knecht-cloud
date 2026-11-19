@@ -239,6 +239,12 @@ function toolLabel(tool: ToolCallUpdate): string {
   return path && !title.includes(path) && !path.endsWith(`/${title}`) ? `${title} ${path}` : title
 }
 
+// The boot itself runs as its own item in the next turn; this call only queues it.
+function isPreviewRequest(tool: ToolCallUpdate): boolean {
+  const command = (tool.rawInput as { command?: unknown } | undefined)?.command
+  return tool.kind === 'execute' && [command, tool.title].some(c => typeof c === 'string' && /^\s*knecht-preview\b/.test(c))
+}
+
 // opencode reports a shell call's stdout as rawOutput.output, wrapped in metadata nobody wants to read.
 function toolOutput(tool: ToolCallUpdate): string | null {
   const raw = tool.rawOutput as { output?: unknown } | string | null | undefined
@@ -293,11 +299,12 @@ class Turn {
         const known = this.tools.get(update.toolCallId) ?? { toolCallId: update.toolCallId }
         const merged: ToolCallUpdate = { ...known, ...withoutNulls(update), toolCallId: update.toolCallId }
         this.tools.set(update.toolCallId, merged)
+        const preview = isPreviewRequest(merged)
         this.sink.item({
           key: `tool:${update.toolCallId}`,
           type: 'tool',
-          text: toolLabel(merged),
-          kind: merged.kind ?? 'other',
+          text: preview ? 'Asked for the preview' : toolLabel(merged),
+          kind: preview ? 'preview' : merged.kind ?? 'other',
           status: merged.status ?? 'pending',
           input: merged.rawInput,
           output: toolOutput(merged),
