@@ -1,6 +1,6 @@
-import type { Project, Run, Session } from '../db/schema'
-import { dispatchRuns } from '../daemon/dispatcher'
-import { createRun, sessionHasRuns } from '../stores/runs'
+import type { Project, Run, Session } from '#server/db/schema'
+import { dispatchRuns } from '#server/daemon/dispatcher'
+import { createRun, sessionHasRuns } from '#server/stores/runs'
 import { emptyInputs } from './inputs'
 
 export function queueSessionRun(project: Project, session: Session, preview: boolean): Run {

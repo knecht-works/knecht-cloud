@@ -1,15 +1,15 @@
-import type { Trigger } from '../db/schema'
-import { dispatchRuns } from '../daemon/dispatcher'
+import type { Trigger } from '#server/db/schema'
+import { dispatchRuns } from '#server/daemon/dispatcher'
 import { isGithubAppConfigured } from './github-credentials'
 import { emptyInputs, type TriggerInputs } from './inputs'
 import { resolveObjectSession, type SessionObject } from './sessions'
 import type { IntegrationId, TrackerId, TriggerSource } from '#shared/utils/integrations'
 import type { TriggerSegment } from '#shared/utils/trigger-form'
 import { getTriggerSource } from './trigger-sources'
-import { getWorkflowRow, getWorkflowRows } from '../stores/workflows'
-import { getProjects } from '../stores/projects'
-import { recordTriggerFired } from '../stores/triggers'
-import { appendRunLog, createRun, finishRun, workflowRanOnVersion } from '../stores/runs'
+import { getWorkflowRow, getWorkflowRows } from '#server/stores/workflows'
+import { getProjects } from '#server/stores/projects'
+import { recordTriggerFired } from '#server/stores/triggers'
+import { appendRunLog, createRun, finishRun, workflowRanOnVersion } from '#server/stores/runs'
 
 export interface TriggerSummary {
   id: number

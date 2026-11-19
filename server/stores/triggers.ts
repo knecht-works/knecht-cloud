@@ -1,9 +1,9 @@
 import { and, desc, eq, isNotNull, lte } from 'drizzle-orm'
 import { createError } from 'h3'
-import { db, schema, type Executor } from '../db'
-import type { NewTrigger, Trigger } from '../db/schema'
+import { db, schema, type Executor } from '#server/db'
+import type { NewTrigger, Trigger } from '#server/db/schema'
 import { liveTopics } from '#shared/utils/live-topics'
-import { emitTopics } from '../utils/live'
+import { emitTopics } from '#server/utils/live'
 
 export function requireTrigger(id: number): Trigger {
   const trigger = db.select().from(schema.triggers).where(eq(schema.triggers.id, id)).get()

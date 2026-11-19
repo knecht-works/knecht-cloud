@@ -1,5 +1,5 @@
-import { findOpenPasswordReset } from '../../../stores/password-resets'
-import { getMemberById } from '../../../stores/members'
+import { findOpenPasswordReset } from '#server/stores/password-resets'
+import { getMemberById } from '#server/stores/members'
 import { defineEventHandler, getRouterParam, createError } from 'h3'
 
 export default defineEventHandler((event) => {

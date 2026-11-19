@@ -1,4 +1,4 @@
-import { currentVersion, isNewerVersion, listReleases } from '../../utils/version'
+import { currentVersion, isNewerVersion, listReleases } from '#server/utils/version'
 import { defineEventHandler } from 'h3'
 
 export default defineEventHandler(async () => {

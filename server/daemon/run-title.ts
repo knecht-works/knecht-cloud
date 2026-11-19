@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { defineAiFeature, runAiFeature } from '../utils/ai-feature'
-import { updateRun } from '../stores/runs'
-import { getSettings } from '../utils/settings'
-import type { ToolContext } from '../tools/registry'
+import { defineAiFeature, runAiFeature } from '#server/utils/ai-feature'
+import { updateRun } from '#server/stores/runs'
+import { getSettings } from '#server/utils/settings'
+import type { ToolContext } from '#server/tools/registry'
 
 const SYSTEM: ToolContext = { actor: { kind: 'system' }, channel: 'daemon' }
 const MAX_TITLE_CHARS = 80

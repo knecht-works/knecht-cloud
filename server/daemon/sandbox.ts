@@ -4,9 +4,9 @@ import { hostname } from 'node:os'
 import { join } from 'node:path'
 import { execa, type Options } from 'execa'
 import { toSandboxProcess, type SandboxProcess } from './sandbox-process'
-import { BRIDGE_HOST, writeBridgeCredentialHelper } from '../utils/agent-bridge'
-import { ddevErrorLine } from '../utils/ddev-error'
-import { dataDir, sessionSandboxName, sessionCheckoutDir } from '../utils/storage'
+import { BRIDGE_HOST, writeBridgeCredentialHelper } from '#server/utils/agent-bridge'
+import { ddevErrorLine } from '#server/utils/ddev-error'
+import { dataDir, sessionSandboxName, sessionCheckoutDir } from '#server/utils/storage'
 
 export const WEB_PROJECT_DIR = '/var/www/html'
 

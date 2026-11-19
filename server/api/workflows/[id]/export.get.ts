@@ -1,5 +1,5 @@
-import { publishStepsSchema, serializeWorkflow } from '../../../workflows/schema'
-import { requireWorkflowRow } from '../../../stores/workflows'
+import { publishStepsSchema, serializeWorkflow } from '#server/workflows/schema'
+import { requireWorkflowRow } from '#server/stores/workflows'
 import { defineEventHandler, getQuery, setHeader } from 'h3'
 import { requireIntParam, zodBadRequest } from '#server/utils/http'
 

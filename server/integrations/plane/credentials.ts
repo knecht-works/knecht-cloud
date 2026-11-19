@@ -1,5 +1,5 @@
 import type { ConnectionFormDef } from '#shared/utils/connection-form'
-import { createConnectionStore } from '../connections'
+import { createConnectionStore } from '#server/integrations/connections'
 
 export const PLANE_CONNECTION_FORM: ConnectionFormDef = {
   intro: 'Work items start workflows and get Knecht\'s replies. Connect with a personal access token (Profile settings → Personal access tokens), ideally of a dedicated "Knecht" account, then link each project to its Plane project in the project settings.',

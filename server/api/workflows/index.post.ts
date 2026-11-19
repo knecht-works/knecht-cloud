@@ -1,5 +1,5 @@
-import { createWorkflow, uniqueWorkflowName } from '../../stores/workflows'
-import { workflowCreateSchema } from '../../workflows/schema'
+import { createWorkflow, uniqueWorkflowName } from '#server/stores/workflows'
+import { workflowCreateSchema } from '#server/workflows/schema'
 import { defineEventHandler, readBody } from 'h3'
 import { zodBadRequest } from '#server/utils/http'
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { tryParseJson } from '../../utils/json'
-import { previewAwareFetch } from '../../utils/preview-fetch'
+import { tryParseJson } from '#server/utils/json'
+import { previewAwareFetch } from '#server/utils/preview-fetch'
 import { defineAction, ActionError } from './types'
 
 const FETCH_TIMEOUT_MS = 15_000

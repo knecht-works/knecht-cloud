@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { gitProvider } from '../../../git'
-import { getProject } from '../../../stores/projects'
+import { gitProvider } from '#server/git'
+import { getProject } from '#server/stores/projects'
 import { defineEventHandler, getRouterParam, createError, getQuery } from 'h3'
 
 const LISTS = {

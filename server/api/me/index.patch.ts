@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { setName } from '../../stores/members'
-import { updateMemberSession } from '../../utils/member-session'
+import { setName } from '#server/stores/members'
+import { updateMemberSession } from '#server/utils/member-session'
 import { defineEventHandler, readBody, createError } from 'h3'
 import { requireUserSession } from '#imports'
 

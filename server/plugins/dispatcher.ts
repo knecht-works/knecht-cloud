@@ -1,4 +1,4 @@
-import { dispatchRuns } from '../daemon/dispatcher'
+import { dispatchRuns } from '#server/daemon/dispatcher'
 import { defineNitroPlugin } from 'nitropack/runtime'
 
 export default defineNitroPlugin(() => {

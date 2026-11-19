@@ -1,7 +1,7 @@
-import type { WorkflowRow } from '../db/schema'
+import type { WorkflowRow } from '#server/db/schema'
 import { ensureStepIds } from '#shared/utils/workflow'
-import { getSettings, updateSettings } from '../utils/settings'
-import { createWorkflow, getWorkflowRow, listWorkflowRows } from '../stores/workflows'
+import { getSettings, updateSettings } from '#server/utils/settings'
+import { createWorkflow, getWorkflowRow, listWorkflowRows } from '#server/stores/workflows'
 import { parseWorkflow, type Workflow } from './schema'
 
 // Embedded, not read from disk: the bundled Nitro output has no source files.

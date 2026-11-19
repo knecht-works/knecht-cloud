@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { Marked } from 'marked'
 import TurndownService from 'turndown'
-import { splitMentions } from '../tracker'
+import { splitMentions } from '#server/integrations/tracker'
 import type { PlaneMember } from './api'
 
 const turndown = new TurndownService({

@@ -1,4 +1,4 @@
-import { GIT_PROVIDERS } from '../../../../../git'
+import { GIT_PROVIDERS } from '#server/git'
 import { defineEventHandler, getRouterParam, getQuery, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {

@@ -1,7 +1,7 @@
-import { listProjects } from '../../stores/projects'
-import { backfillFrameworks } from '../../utils/framework'
-import { withLinks } from '../../stores/project-links'
-import { gitProvider } from '../../git'
+import { listProjects } from '#server/stores/projects'
+import { backfillFrameworks } from '#server/utils/framework'
+import { withLinks } from '#server/stores/project-links'
+import { gitProvider } from '#server/git'
 import { defineEventHandler } from 'h3'
 
 export default defineEventHandler(async () => {

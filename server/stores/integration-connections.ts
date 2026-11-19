@@ -1,9 +1,9 @@
 import { eq } from 'drizzle-orm'
-import { db } from '../db'
-import { integrationConnections } from '../db/schema'
+import { db } from '#server/db'
+import { integrationConnections } from '#server/db/schema'
 import type { IntegrationId } from '#shared/utils/integrations'
 import { liveTopics } from '#shared/utils/live-topics'
-import { emitTopics } from '../utils/live'
+import { emitTopics } from '#server/utils/live'
 
 type ConnectionRow = typeof integrationConnections.$inferSelect
 type ConnectionFields = Omit<typeof integrationConnections.$inferInsert, 'integration'>

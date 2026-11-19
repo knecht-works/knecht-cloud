@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import type { Project } from '../../db/schema'
+import type { Project } from '#server/db/schema'
 import type { Step } from '#shared/utils/workflow'
-import type { RunContext } from '../context'
-import type { SandboxProcess } from '../../daemon/sandbox-process'
+import type { RunContext } from '#server/workflows/context'
+import type { SandboxProcess } from '#server/daemon/sandbox-process'
 
 export interface ActionRuntime {
   runId: number

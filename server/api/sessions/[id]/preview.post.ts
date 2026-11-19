@@ -1,6 +1,6 @@
-import { requireProject } from '../../../stores/projects'
-import { requireSession } from '../../../stores/sessions'
-import { queueSessionRun } from '../../../utils/session-runs'
+import { requireProject } from '#server/stores/projects'
+import { requireSession } from '#server/stores/sessions'
+import { queueSessionRun } from '#server/utils/session-runs'
 import { defineEventHandler, createError } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

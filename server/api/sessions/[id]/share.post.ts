@@ -1,7 +1,7 @@
-import { requireSession } from '../../../stores/sessions'
-import { requireProject } from '../../../stores/projects'
-import { hasPreviewTarget } from '../../../utils/preview-target'
-import { shareSession } from '../../../utils/preview-share'
+import { requireSession } from '#server/stores/sessions'
+import { requireProject } from '#server/stores/projects'
+import { hasPreviewTarget } from '#server/utils/preview-target'
+import { shareSession } from '#server/utils/preview-share'
 import { defineEventHandler, createError } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

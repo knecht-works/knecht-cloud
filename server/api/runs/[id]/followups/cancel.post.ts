@@ -1,5 +1,5 @@
-import { cancelFollowupWork } from '../../../../daemon/followups'
-import { requireRun } from '../../../../stores/runs'
+import { cancelFollowupWork } from '#server/daemon/followups'
+import { requireRun } from '#server/stores/runs'
 import { defineEventHandler, createError } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

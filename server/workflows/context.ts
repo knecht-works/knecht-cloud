@@ -1,8 +1,8 @@
-import type { Project } from '../db/schema'
+import type { Project } from '#server/db/schema'
 import { runWorkspacePath } from '#shared/utils/routes'
 import { STEP_META_KEYS, type Condition, type Step } from '#shared/utils/workflow'
-import { tryParseJson } from '../utils/json'
-import { dashboardOrigin } from '../utils/origin'
+import { tryParseJson } from '#server/utils/json'
+import { dashboardOrigin } from '#server/utils/origin'
 
 export interface RunContext {
   run: { id: number, url: string }

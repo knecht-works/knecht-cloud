@@ -1,7 +1,7 @@
-import type { Project } from '../../db/schema'
-import { downloadGithubUpload as download, getIssueSnapshot } from '../../utils/github-app'
-import type { ObjectSnapshot, SnapshotComment, SnapshotFile } from '../../utils/object-snapshot'
-import type { SessionObject } from '../../utils/sessions'
+import type { Project } from '#server/db/schema'
+import { downloadGithubUpload as download, getIssueSnapshot } from '#server/utils/github-app'
+import type { ObjectSnapshot, SnapshotComment, SnapshotFile } from '#server/utils/object-snapshot'
+import type { SessionObject } from '#server/utils/sessions'
 
 // body_html carries these signed for a private repository; the plain user-attachments link needs a browser login.
 const IMAGE_SRC_RE = /<img\b[^>]*\ssrc="(https:\/\/(?:private-user-images\.githubusercontent\.com|user-images\.githubusercontent\.com|github\.com\/user-attachments\/assets)\/[^"]+)"/g

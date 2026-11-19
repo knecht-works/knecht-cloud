@@ -1,5 +1,5 @@
 import { ofetch } from 'ofetch'
-import { createVendorCache, createVendorFetch } from '../vendor-fetch'
+import { createVendorCache, createVendorFetch } from '#server/integrations/vendor-fetch'
 import { planeCredentials } from './credentials'
 
 interface PlaneAuth {

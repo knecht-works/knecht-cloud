@@ -1,8 +1,8 @@
 import { z } from 'zod'
 import { INTEGRATION_IDS } from '#shared/utils/integrations'
-import { getIntegration } from '../../../integrations'
-import { linkedProject, projectLinks, setProjectLink } from '../../../stores/project-links'
-import { requireProject } from '../../../stores/projects'
+import { getIntegration } from '#server/integrations'
+import { linkedProject, projectLinks, setProjectLink } from '#server/stores/project-links'
+import { requireProject } from '#server/stores/projects'
 import { defineEventHandler, readBody, createError } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

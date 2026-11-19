@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
-import type { ActionRuntime } from '../workflows/actions/types'
+import type { ActionRuntime } from '#server/workflows/actions/types'
 import { dataDir } from './storage'
 
 // The checkout is sandbox-writable, so Knecht only touches these paths through the

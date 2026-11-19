@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { INTEGRATIONS } from '../../../../integrations'
+import { INTEGRATIONS } from '#server/integrations'
 import { defineEventHandler, getRouterParam, createError, getQuery } from 'h3'
 
 export default defineEventHandler(async (event) => {

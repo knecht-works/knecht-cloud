@@ -1,4 +1,4 @@
-import { deleteTrigger, requireTrigger } from '../../stores/triggers'
+import { deleteTrigger, requireTrigger } from '#server/stores/triggers'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

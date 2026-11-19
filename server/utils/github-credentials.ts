@@ -1,4 +1,4 @@
-import { getGithubAppRow, saveGithubAppRow } from '../stores/github-app'
+import { getGithubAppRow, saveGithubAppRow } from '#server/stores/github-app'
 import { decrypt, encrypt } from './crypto'
 
 export interface GithubAppCredentials {

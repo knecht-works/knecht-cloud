@@ -1,8 +1,8 @@
 // The secret is the primary gate: the app runs in Docker, so a loopback check
 // can't tell host-local from LAN. import.meta.dev drops the body from prod builds.
 import { timingSafeEqual } from 'node:crypto'
-import { loginWithIdentity } from '../../stores/members'
-import { startMemberSession } from '../../utils/member-session'
+import { loginWithIdentity } from '#server/stores/members'
+import { startMemberSession } from '#server/utils/member-session'
 import { defineEventHandler, createError, getQuery } from 'h3'
 
 export default defineEventHandler(async (event) => {

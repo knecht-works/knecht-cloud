@@ -1,5 +1,5 @@
-import { emptyInputs, type TriggerInputs } from '../utils/inputs'
-import type { SessionObject } from '../utils/sessions'
+import { emptyInputs, type TriggerInputs } from '#server/utils/inputs'
+import type { SessionObject } from '#server/utils/sessions'
 import type { IntegrationId } from '#shared/utils/integrations'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '#shared/utils/trigger-form'
 import { conditionsPass, integrationLabelsUrl, labeledEvent, listedOnlyKeys, triggerEvent } from './trigger-config'

@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../db'
-import type { Settings } from '../db/schema'
+import { db, schema } from '#server/db'
+import type { Settings } from '#server/db/schema'
 
 export function getSettingsRow(): Settings {
   const existing = db.select().from(schema.settings).where(eq(schema.settings.id, 1)).get()

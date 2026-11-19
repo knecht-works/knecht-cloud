@@ -1,4 +1,4 @@
-import { getSessionRow } from '../stores/sessions'
+import { getSessionRow } from '#server/stores/sessions'
 import { defineEventHandler, getQuery, createError } from 'h3'
 import { parsePreviewHost, previewHostname } from '#shared/utils/preview-host'
 import { isPreviewLabel } from '#server/utils/session-services'

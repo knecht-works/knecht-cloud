@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { connectionOf } from '../../../utils/integration-routes'
-import { requireOwner } from '../../../utils/owner'
+import { connectionOf } from '#server/utils/integration-routes'
+import { requireOwner } from '#server/utils/owner'
 import { defineEventHandler, createError, readBody } from 'h3'
 
 const bodySchema = z.object({ webhookSecret: z.string().trim().min(1, 'Paste the secret key of the webhook') })

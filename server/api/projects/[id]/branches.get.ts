@@ -1,5 +1,5 @@
-import { gitProvider } from '../../../git'
-import { requireProject } from '../../../stores/projects'
+import { gitProvider } from '#server/git'
+import { requireProject } from '#server/stores/projects'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

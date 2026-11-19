@@ -1,6 +1,6 @@
 import { keyPreview } from '#shared/utils/key-preview'
-import { connectionOf } from '../../../utils/integration-routes'
-import { isOwner } from '../../../utils/owner'
+import { connectionOf } from '#server/utils/integration-routes'
+import { isOwner } from '#server/utils/owner'
 import { defineEventHandler } from 'h3'
 
 export default defineEventHandler(async (event) => {
