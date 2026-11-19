@@ -192,6 +192,7 @@ export const runs = sqliteTable('runs', {
     .notNull()
     .references(() => sessions.id, { onDelete: 'cascade' }),
   workflow: text('workflow').notNull(),
+  title: text('title'),
   // FK actions are declarative only; the delete route nulls this explicitly.
   workflowId: integer('workflow_id')
     .references(() => workflows.id, { onDelete: 'set null' }),
