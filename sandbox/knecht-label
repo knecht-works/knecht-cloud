@@ -14,11 +14,19 @@ usage() {
 usage:
   knecht-label add <name> [<name> ...]      add labels to this session's ticket/issue/PR
   knecht-label remove <name> [<name> ...]   remove labels from it
+  knecht-label --on <KEY> add|remove ...    on another object of this session
 EOF
   exit 2
 }
 
 require_bridge knecht-label
+
+on=""
+if [ "${1:-}" = "--on" ]; then
+  [ "$#" -ge 2 ] || usage
+  on="$2"
+  shift 2
+fi
 
 action="${1:-}"
 shift || true
@@ -32,4 +40,4 @@ esac
 # JSON array of the label names (node is in the image for the js step).
 labels="$(node -e 'console.log(JSON.stringify(process.argv.slice(1)))' "$@")"
 
-bridge_post "{\"op\":\"label\",\"$key\":$labels}"
+bridge_post "{\"op\":\"label\",\"$key\":$labels$(on_field "$on")}"

@@ -45,6 +45,18 @@ export function describeObject(object: SessionObject): string {
   return getIntegration(object.integration).objects.describe(object)
 }
 
+// One conversation spans work from every object of the session, so each turn says which one this task comes from.
+export function taskBriefing(sessionId: number, objectId: number | null | undefined, askedBy: string | null | undefined, fromDashboard = false): string {
+  const objects = sessionObjects(sessionId)
+  const origin = workObject(sessionId, objectId)
+  if (!origin) return ''
+  const source = fromDashboard
+    ? `${askedBy ?? 'A user'} asked this in the Knecht dashboard, about ${describeObject(origin)}: answer in your final message, and post on an object only when the task asks you to.`
+    : `This task comes from ${describeObject(origin)}${askedBy ? `, asked by ${askedBy}` : ''}.`
+  const others = objects.length > 1 ? ' To act on another of them, pass --on <KEY> to knecht-reply, knecht-label or knecht-status.' : ''
+  return `This session holds ${objects.map(describeObject).join(', ')}. ${source}${others}\n\n`
+}
+
 export interface ResolvedSession {
   session: Session
   objectId: number | null

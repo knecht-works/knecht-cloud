@@ -12,14 +12,22 @@ usage() {
   cat <<'EOF2'
 usage:
   knecht-status <status name>     move this session's ticket to that status, e.g. knecht-status "In Review"
+  knecht-status --on <KEY> <status name>    move another object of this session
 EOF2
   exit 2
 }
 
 require_bridge knecht-status
 
+on=""
+if [ "${1:-}" = "--on" ]; then
+  [ "$#" -ge 2 ] || usage
+  on="$2"
+  shift 2
+fi
+
 [ "$#" -gt 0 ] || usage
 status="$*"
 [ -n "$status" ] || usage
 
-bridge_post "{\"op\":\"status\",\"status\":$(json_escape "$status")}"
+bridge_post "{\"op\":\"status\",\"status\":$(json_escape "$status")$(on_field "$on")}"

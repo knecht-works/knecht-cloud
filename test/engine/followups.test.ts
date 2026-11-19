@@ -86,16 +86,27 @@ describe('follow-up replies on the thread', () => {
     expect(comments).toHaveLength(0)
   })
 
-  it('names the session\'s object for a mention, not for a dashboard follow-up', async () => {
+  it('tells the agent where a mention came from and who asked', async () => {
     agent.reply = async () => 'ok'
     const mention = objectFollowup('mention')
+    db.update(schema.followups).set({ requestedBy: 'ann' }).where(eq(schema.followups.id, mention.followup.id)).run()
     await startFollowup(mention.followup.id)
-    expect(agent.messages.at(-1)).toContain('This session belongs to issue #5.')
+    expect(agent.messages.at(-1)).toContain('This session holds issue #5. This task comes from issue #5, asked by ann.')
+    expect(agent.messages.at(-1)).not.toContain('--on')
     expect(agent.messages.at(-1)).toContain('more')
+  })
 
-    const dashboard = objectFollowup('dashboard')
-    await startFollowup(dashboard.followup.id)
-    expect(agent.messages.at(-1)).not.toContain('This session belongs to')
+  it('tells the agent a dashboard follow-up is about the selected run\'s object and lists the others', async () => {
+    agent.reply = async () => 'ok'
+    const project = makeProject()
+    const run = makeRun(project, [], { status: 'success' })
+    attachTestObject(run.sessionId, { integration: 'github', kind: 'issue', key: '5' })
+    const pr = attachTestObject(run.sessionId, { integration: 'github', kind: 'pull_request', key: '42' })
+    const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'more', origin: 'dashboard', objectId: pr.id, requestedBy: 'sam' }).returning().get()
+    await startFollowup(followup.id)
+    const message = agent.messages.at(-1)
+    expect(message).toContain('This session holds issue #5, pull request #42. sam asked this in the Knecht dashboard, about pull request #42')
+    expect(message).toContain('pass --on <KEY>')
   })
 
   it('does not double-post when the agent already replied through the bridge', async () => {
