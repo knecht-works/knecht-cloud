@@ -1,10 +1,10 @@
 import { z } from 'zod'
-import { createProject, getProjectByRepo } from '../../stores/projects'
+import { createProject, getProjectByRepo } from '#server/stores/projects'
 import { REPO_PROVIDERS } from '#shared/utils/integrations'
 import { frameworkUrlMode } from '#shared/utils/frameworks'
-import type { ProjectMeta } from '../../utils/framework'
-import { gitProvider } from '../../git'
-import { assertDevServerConfig, projectConfigSchema } from '../../utils/project-config'
+import type { ProjectMeta } from '#server/utils/framework'
+import { gitProvider } from '#server/git'
+import { assertDevServerConfig, projectConfigSchema } from '#server/utils/project-config'
 import { defineEventHandler, readBody, createError } from 'h3'
 
 const bodySchema = z.object({

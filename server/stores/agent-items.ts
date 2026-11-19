@@ -1,6 +1,6 @@
 import { asc, eq, inArray, max } from 'drizzle-orm'
-import { db, schema, type Executor } from '../db'
-import type { AgentItem } from '../db/schema'
+import { db, schema, type Executor } from '#server/db'
+import type { AgentItem } from '#server/db/schema'
 
 type NewAgentItem = typeof schema.agentItems.$inferInsert
 type Scope = { followupIds: number[] } | { sessionIds: number[] }

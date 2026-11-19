@@ -1,5 +1,5 @@
 import { execa } from 'execa'
-import { RELEASE_TAG_RE } from '../utils/version'
+import { RELEASE_TAG_RE } from '#server/utils/version'
 
 const IMAGE = 'ghcr.io/knecht-works/knecht-cloud'
 

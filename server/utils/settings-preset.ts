@@ -1,7 +1,7 @@
 import { getTableColumns } from 'drizzle-orm'
-import { settings } from '../db/schema'
+import { settings } from '#server/db/schema'
 import { encrypt } from './crypto'
-import type { Settings } from '../db/schema'
+import type { Settings } from '#server/db/schema'
 
 // The AI key is encrypted once and memoized: encrypt() uses a fresh nonce per
 // call and the model-catalog cache keys on the ciphertext.

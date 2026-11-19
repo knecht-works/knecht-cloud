@@ -1,5 +1,5 @@
 import type { ConnectionFormDef } from '#shared/utils/connection-form'
-import { createConnectionStore } from '../connections'
+import { createConnectionStore } from '#server/integrations/connections'
 
 export const JIRA_CONNECTION_FORM: ConnectionFormDef = {
   intro: 'Tickets start workflows and get Knecht\'s replies. Connect with an API token, ideally of a dedicated "Knecht" account, then link each project to its Jira project in the project settings.',

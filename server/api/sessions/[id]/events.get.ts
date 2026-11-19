@@ -1,6 +1,6 @@
-import { onLive } from '../../../utils/live'
-import { sendEventStream } from '../../../utils/sse'
-import { requireSession } from '../../../stores/sessions'
+import { onLive } from '#server/utils/live'
+import { sendEventStream } from '#server/utils/sse'
+import { requireSession } from '#server/stores/sessions'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

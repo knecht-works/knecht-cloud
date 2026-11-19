@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
-import { dashboardOrigin } from '../../utils/origin'
-import { isGithubAppConfigured } from '../../utils/github-credentials'
+import { dashboardOrigin } from '#server/utils/origin'
+import { isGithubAppConfigured } from '#server/utils/github-credentials'
 import { defineEventHandler, createError, setCookie } from 'h3'
 
 export default defineEventHandler((event) => {

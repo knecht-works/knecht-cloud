@@ -1,6 +1,6 @@
 import type { AiModel } from '#shared/utils/ai'
-import { loadModelCatalog } from '../utils/ai-catalog'
-import { getSettings } from '../utils/settings'
+import { loadModelCatalog } from '#server/utils/ai-catalog'
+import { getSettings } from '#server/utils/settings'
 import { defineEventHandler, createError } from 'h3'
 
 // GET /api/ai-models → the model catalog for the `ai` step's pickers. All the

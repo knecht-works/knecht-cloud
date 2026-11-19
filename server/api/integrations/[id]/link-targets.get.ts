@@ -1,6 +1,6 @@
-import { INTEGRATIONS } from '../../../integrations'
-import type { LinkTarget } from '../../../integrations/types'
-import { refreshLinkNames } from '../../../stores/project-links'
+import { INTEGRATIONS } from '#server/integrations'
+import type { LinkTarget } from '#server/integrations/types'
+import { refreshLinkNames } from '#server/stores/project-links'
 import { defineEventHandler, getRouterParam, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {

@@ -1,4 +1,4 @@
-import { getProject } from '../../stores/projects'
+import { getProject } from '#server/stores/projects'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 import { deleteProject } from '#server/utils/projects'

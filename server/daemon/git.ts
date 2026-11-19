@@ -1,14 +1,14 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { execa } from 'execa'
-import type { Project } from '../db/schema'
-import type { GitCredentials } from '../git/types'
-import type { ActionRuntime } from '../workflows/actions/types'
+import type { Project } from '#server/db/schema'
+import type { GitCredentials } from '#server/git/types'
+import type { ActionRuntime } from '#server/workflows/actions/types'
 import { KNECHT_COMPOSE_FILE, KNECHT_CONFIG_FILE } from './ddev'
-import { writeBridgeCredentialHelper } from '../utils/agent-bridge'
-import { checkoutReader, repoShipsDdevConfig } from '../utils/env-detect'
-import { getBotIdentity } from '../utils/github-app'
-import { normalizeSharedFolder, sessionCheckoutDir } from '../utils/storage'
+import { writeBridgeCredentialHelper } from '#server/utils/agent-bridge'
+import { checkoutReader, repoShipsDdevConfig } from '#server/utils/env-detect'
+import { getBotIdentity } from '#server/utils/github-app'
+import { normalizeSharedFolder, sessionCheckoutDir } from '#server/utils/storage'
 
 // A clone, not a worktree: a worktree's .git pointer would dangle inside the
 // bind-mounted web container. The token travels as a per-operation header,

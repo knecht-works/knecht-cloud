@@ -1,5 +1,5 @@
-import { requireProject } from '../../../stores/projects'
-import { startDbBaseBuild } from '../../../daemon/db-base'
+import { requireProject } from '#server/stores/projects'
+import { startDbBaseBuild } from '#server/daemon/db-base'
 import { defineEventHandler, createError } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

@@ -1,9 +1,9 @@
-import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
-import type { SessionObject } from '../../utils/sessions'
+import { emptyInputs, type TriggerInputs } from '#server/utils/inputs'
+import type { SessionObject } from '#server/utils/sessions'
 import type { TriggerConfig } from '#shared/utils/trigger-form'
-import { conditionsPass, objectVersion, triggerEvent } from '../trigger-config'
-import { GIT_EXACT_FILTERS as EXACT } from '../git-trigger-form'
-import type { TriggerMatch } from '../types'
+import { conditionsPass, objectVersion, triggerEvent } from '#server/integrations/trigger-config'
+import { GIT_EXACT_FILTERS as EXACT } from '#server/integrations/git-trigger-form'
+import type { TriggerMatch } from '#server/integrations/types'
 
 export interface GithubPayload {
   action?: string

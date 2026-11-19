@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
-import { db, schema } from '../db'
-import type { SessionObjectRow } from '../db/schema'
-import type { SessionObject } from '../utils/sessions'
+import { db, schema } from '#server/db'
+import type { SessionObjectRow } from '#server/db/schema'
+import type { SessionObject } from '#server/utils/sessions'
 
 type ObjectRef = Pick<SessionObject, 'integration' | 'kind' | 'key'>
 

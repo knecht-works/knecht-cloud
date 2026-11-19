@@ -1,9 +1,9 @@
 import { and, asc, eq, gt } from 'drizzle-orm'
-import { db } from '../db'
-import { invites, type Invite } from '../db/schema'
-import { hashLinkToken as hash, newLinkToken } from '../utils/link-token'
+import { db } from '#server/db'
+import { invites, type Invite } from '#server/db/schema'
+import { hashLinkToken as hash, newLinkToken } from '#server/utils/link-token'
 import { liveTopics } from '#shared/utils/live-topics'
-import { emitTopics } from '../utils/live'
+import { emitTopics } from '#server/utils/live'
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 

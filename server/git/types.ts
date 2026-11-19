@@ -1,5 +1,5 @@
-import type { Project } from '../db/schema'
-import type { ProjectMeta } from '../utils/framework'
+import type { Project } from '#server/db/schema'
+import type { ProjectMeta } from '#server/utils/framework'
 import type { RepoProvider } from '#shared/utils/integrations'
 
 export type GitRepo = Pick<Project, 'repoProvider' | 'owner' | 'name' | 'fullName'>

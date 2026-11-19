@@ -1,9 +1,9 @@
-import { getSettingsRow, updateSettingsRow } from '../stores/settings'
+import { getSettingsRow, updateSettingsRow } from '#server/stores/settings'
 import { keyPreview } from '#shared/utils/key-preview'
 import { decrypt } from './crypto'
 import { defaultSshTarget } from './ssh'
 import { settingsPreset } from './settings-preset'
-import type { Settings } from '../db/schema'
+import type { Settings } from '#server/db/schema'
 
 export function getSettings(): Settings {
   return { ...getSettingsRow(), ...settingsPreset().overrides }

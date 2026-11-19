@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { requireProject } from '../../../stores/projects'
-import { resolveSession } from '../../../utils/sessions'
-import { queueSessionRun } from '../../../utils/session-runs'
+import { requireProject } from '#server/stores/projects'
+import { resolveSession } from '#server/utils/sessions'
+import { queueSessionRun } from '#server/utils/session-runs'
 import { defineEventHandler, readBody } from 'h3'
 import { requireIntParam, zodBadRequest } from '#server/utils/http'
 

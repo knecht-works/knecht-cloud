@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Attachment } from '../db/schema'
+import type { Attachment } from '#server/db/schema'
 import { dataDir, sanitizeFilename } from './storage'
 
 export const MAX_ATTACHMENTS = 5

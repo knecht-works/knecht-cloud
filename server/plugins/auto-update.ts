@@ -1,8 +1,8 @@
-import { hasRunningWork } from '../daemon/dispatcher'
-import { startUpdate } from '../daemon/update'
-import { getSettings } from '../utils/settings'
-import { isValidCron, nextRun } from '../utils/cron'
-import { currentVersion, isNewerVersion, latestVersion } from '../utils/version'
+import { hasRunningWork } from '#server/daemon/dispatcher'
+import { startUpdate } from '#server/daemon/update'
+import { getSettings } from '#server/utils/settings'
+import { isValidCron, nextRun } from '#server/utils/cron'
+import { currentVersion, isNewerVersion, latestVersion } from '#server/utils/version'
 import { defineNitroPlugin } from 'nitropack/runtime'
 
 let lastCron = ''

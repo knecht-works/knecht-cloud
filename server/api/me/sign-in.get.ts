@@ -1,5 +1,5 @@
-import { getMemberById, listIdentities } from '../../stores/members'
-import { isGithubAppConfigured } from '../../utils/github-credentials'
+import { getMemberById, listIdentities } from '#server/stores/members'
+import { isGithubAppConfigured } from '#server/utils/github-credentials'
 import { defineEventHandler } from 'h3'
 import { requireUserSession } from '#imports'
 

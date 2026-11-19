@@ -1,5 +1,5 @@
-import type { TranscriptItem, TranscriptSink } from '../daemon/agent'
-import { createAgentItem, nextAgentItemSeq, updateAgentItem } from '../stores/agent-items'
+import type { TranscriptItem, TranscriptSink } from '#server/daemon/agent'
+import { createAgentItem, nextAgentItemSeq, updateAgentItem } from '#server/stores/agent-items'
 import { emitItem } from './transcript'
 
 // Writes each item as it arrives and pushes it to the live chat.

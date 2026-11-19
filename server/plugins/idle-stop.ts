@@ -1,4 +1,4 @@
-import { archiveStaleEnvs, reapExpiredArchives, reapIdleEnvs } from '../daemon/envs'
+import { archiveStaleEnvs, reapExpiredArchives, reapIdleEnvs } from '#server/daemon/envs'
 import { defineNitroPlugin } from 'nitropack/runtime'
 
 export default defineNitroPlugin(() => {

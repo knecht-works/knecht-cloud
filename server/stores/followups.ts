@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray } from 'drizzle-orm'
-import { db, schema, type Executor } from '../db'
-import type { Followup, NewFollowup } from '../db/schema'
+import { db, schema, type Executor } from '#server/db'
+import type { Followup, NewFollowup } from '#server/db/schema'
 
 type Scope = { runId: number } | { sessionId: number } | { sessionIds: number[] }
 

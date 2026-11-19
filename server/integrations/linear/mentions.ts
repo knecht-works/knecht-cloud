@@ -1,4 +1,4 @@
-import { splitMentions, type Person } from '../tracker'
+import { splitMentions, type Person } from '#server/integrations/tracker'
 
 interface BodyNode {
   type?: string

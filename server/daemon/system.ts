@@ -1,5 +1,5 @@
 import { execa } from 'execa'
-import { currentVersion, isNewerVersion, latestVersion } from '../utils/version'
+import { currentVersion, isNewerVersion, latestVersion } from '#server/utils/version'
 
 export interface SystemInfo {
   dockerVersion: string

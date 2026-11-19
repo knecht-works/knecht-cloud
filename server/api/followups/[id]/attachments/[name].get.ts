@@ -1,7 +1,7 @@
 import { createReadStream, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { getFollowup } from '../../../../stores/followups'
-import { followupAttachmentsDir } from '../../../../utils/attachments'
+import { getFollowup } from '#server/stores/followups'
+import { followupAttachmentsDir } from '#server/utils/attachments'
 import { defineEventHandler, getRouterParam, createError, setHeader, sendStream } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

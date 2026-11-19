@@ -1,9 +1,9 @@
 import { statfs } from 'node:fs/promises'
 import { z } from 'zod'
 import { GC_CATEGORY_IDS } from '#shared/utils/gc'
-import { collectGarbage } from '../daemon/gc'
-import { zodBadRequest } from '../utils/http'
-import { dataDir } from '../utils/storage'
+import { collectGarbage } from '#server/daemon/gc'
+import { zodBadRequest } from '#server/utils/http'
+import { dataDir } from '#server/utils/storage'
 import { defineEventHandler, readBody } from 'h3'
 
 const bodySchema = z.object({

@@ -1,5 +1,5 @@
-import { getMember, listMembers, removeMember } from '../../stores/members'
-import { requireOwner } from '../../utils/owner'
+import { getMember, listMembers, removeMember } from '#server/stores/members'
+import { requireOwner } from '#server/utils/owner'
 import { defineEventHandler, getRouterParam, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {

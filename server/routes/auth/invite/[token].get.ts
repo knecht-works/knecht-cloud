@@ -1,5 +1,5 @@
-import { findOpenInvite } from '../../../stores/invites'
-import { isGithubAppConfigured } from '../../../utils/github-credentials'
+import { findOpenInvite } from '#server/stores/invites'
+import { isGithubAppConfigured } from '#server/utils/github-credentials'
 import { defineEventHandler, getRouterParam, createError } from 'h3'
 
 export default defineEventHandler((event) => {

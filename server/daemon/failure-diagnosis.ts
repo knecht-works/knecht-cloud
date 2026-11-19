@@ -1,10 +1,10 @@
-import { buildDiagnosisPrompt, DIAGNOSIS_INSTRUCTIONS, diagnosisSchema, stepLabel } from '../utils/run-diagnosis'
-import { defineAiFeature, runAiFeature } from '../utils/ai-feature'
-import { getRunView, setRunDiagnosis } from '../stores/runs'
-import { getSettings } from '../utils/settings'
-import { callTool, type ToolContext } from '../tools/registry'
-import { getRunLogTool, getRunTool, getStepLogTool } from '../tools/runs'
-import { getWorkflowTool } from '../tools/workflows'
+import { buildDiagnosisPrompt, DIAGNOSIS_INSTRUCTIONS, diagnosisSchema, stepLabel } from '#server/utils/run-diagnosis'
+import { defineAiFeature, runAiFeature } from '#server/utils/ai-feature'
+import { getRunView, setRunDiagnosis } from '#server/stores/runs'
+import { getSettings } from '#server/utils/settings'
+import { callTool, type ToolContext } from '#server/tools/registry'
+import { getRunLogTool, getRunTool, getStepLogTool } from '#server/tools/runs'
+import { getWorkflowTool } from '#server/tools/workflows'
 import { isCompositeType, type Step } from '#shared/utils/workflow'
 
 const SYSTEM: ToolContext = { actor: { kind: 'system' }, channel: 'daemon' }

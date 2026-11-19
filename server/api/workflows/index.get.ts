@@ -1,4 +1,4 @@
-import { listWorkflowRows } from '../../stores/workflows'
+import { listWorkflowRows } from '#server/stores/workflows'
 import { ensureStepIds } from '#shared/utils/workflow'
 import { defineEventHandler } from 'h3'
 

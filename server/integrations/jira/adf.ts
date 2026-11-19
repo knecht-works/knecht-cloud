@@ -1,5 +1,5 @@
 import { markdownToAdf as toAdf } from 'marklassian'
-import { splitMentions, type Person } from '../tracker'
+import { splitMentions, type Person } from '#server/integrations/tracker'
 
 export interface AdfNode {
   type?: string
