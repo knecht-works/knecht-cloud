@@ -3,6 +3,8 @@ import { useRoute } from '#app'
 import { useProject } from '~/composables/useProjects'
 import { useIntegrations } from '~/composables/useIntegrations'
 import { computed } from 'vue'
+import KProjectLinkPanel from '~/components/KProjectLinkPanel.vue'
+import { UIcon, NuxtLink } from '#components'
 
 const id = Number(useRoute().params.id)
 

@@ -6,6 +6,8 @@ import { useToastError } from '~/composables/useToastError'
 import { onMounted, ref } from 'vue'
 import { invalidate } from '~/composables/useLiveTopics'
 import { $fetch } from '#build/fetch.mjs'
+import KPasswordModal from '~/components/KPasswordModal.vue'
+import { UIcon, UButton, UTooltip } from '#components'
 
 defineProps<{
   methods: { password: boolean, github: { available: boolean, username: string | null } }

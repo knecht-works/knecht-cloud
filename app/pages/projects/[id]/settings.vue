@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { useRoute, navigateTo } from '#app'
 import { useProject } from '~/composables/useProjects'
+import KProjectHeader from '~/components/KProjectHeader.vue'
+import KProjectHero from '~/components/KProjectHero.vue'
+import KSettingsNav from '~/components/KSettingsNav.vue'
+import { UBreadcrumb, NuxtPage } from '#components'
 
 const id = Number(useRoute().params.id)
 

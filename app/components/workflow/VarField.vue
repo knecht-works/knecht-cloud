@@ -4,6 +4,10 @@ import { insertText } from 'prism-code-editor/utils'
 import type { StepField, VarGroup } from '~/utils/workflow-steps'
 import { computed, ref, watch, onUnmounted, nextTick } from 'vue'
 import { varPathParts } from '~/utils/workflow-steps'
+import WorkflowModelSelect from '~/components/workflow/ModelSelect.vue'
+import WorkflowCodeEditor from '~/components/workflow/CodeEditor.vue'
+import KCodeInput from '~/components/KCodeInput.vue'
+import { USwitch, UFormField } from '#components'
 
 const props = defineProps<{
   field: StepField

@@ -9,6 +9,9 @@ import { useToastError } from '~/composables/useToastError'
 import { $fetch } from '#build/fetch.mjs'
 import { copyText } from '~/utils/clipboard'
 import { useResizableHeight } from '~/composables/useResizableHeight'
+import KStatusDot from '~/components/KStatusDot.vue'
+import KResizeHandle from '~/components/KResizeHandle.vue'
+import { UButton, UIcon, UDropdownMenu, UTooltip } from '#components'
 
 const props = withDefaults(defineProps<{
   sessionId: number

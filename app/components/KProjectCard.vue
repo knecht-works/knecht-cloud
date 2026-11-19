@@ -4,6 +4,12 @@ import type { RunStats } from '#shared/utils/run-stats'
 import type { IntegrationId } from '#shared/utils/integrations'
 import { computed } from 'vue'
 import { projectStatusMeta, projectIntegrations } from '~/utils/dashboard'
+import KProjectTitle from '~/components/KProjectTitle.vue'
+import KStatusBadge from '~/components/KStatusBadge.vue'
+import KRunSparkline from '~/components/KRunSparkline.vue'
+import KRunStatsText from '~/components/KRunStatsText.vue'
+import KIntegrationIcons from '~/components/KIntegrationIcons.vue'
+import { UIcon, UTooltip, NuxtLink } from '#components'
 
 const props = defineProps<{
   id: number

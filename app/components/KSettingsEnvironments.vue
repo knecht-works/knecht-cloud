@@ -4,6 +4,10 @@ import type { DashboardSettings } from '~/composables/useSettings'
 import { useSettings, patchSettings, isPreset } from '~/composables/useSettings'
 import { reactive, ref, watch } from 'vue'
 import { useAutosave } from '~/composables/useAutosave'
+import KSaveStatus from '~/components/KSaveStatus.vue'
+import KUnitInput from '~/components/KUnitInput.vue'
+import KSettingRow from '~/components/KSettingRow.vue'
+import KPanel from '~/components/KPanel.vue'
 
 defineProps<{ editable: boolean }>()
 

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { frameworkMeta } from '~/utils/dashboard'
+import KPageHeader from '~/components/KPageHeader.vue'
+import { UIcon, UTooltip } from '#components'
 
 const props = defineProps<{
   project: {

@@ -8,6 +8,9 @@ import { useProjects } from '~/composables/useProjects'
 import { useIntegrations } from '~/composables/useIntegrations'
 import { useFetch } from '#app'
 import { $fetch } from '#build/fetch.mjs'
+import KTriggerFormSchedule from '~/components/KTriggerFormSchedule.vue'
+import KTriggerForm from '~/components/KTriggerForm.vue'
+import { USelectMenu, UFormField, UIcon, NuxtLink, UButton, UModal } from '#components'
 
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{

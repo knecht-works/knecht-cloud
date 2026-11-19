@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import KStepIcon from '~/components/KStepIcon.vue'
+
 defineProps<{
   name: string
   stepCount?: number

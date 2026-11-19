@@ -5,6 +5,7 @@ import { useIntegrations } from '~/composables/useIntegrations'
 import { ref, computed } from 'vue'
 import { defineShortcuts } from '#imports'
 import { frameworkMeta } from '~/utils/dashboard'
+import { UIcon, UKbd, UTooltip, UCommandPalette, UModal } from '#components'
 
 defineProps<{ collapsed?: boolean }>()
 

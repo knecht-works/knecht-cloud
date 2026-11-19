@@ -9,6 +9,12 @@ import { frameworkMeta, projectStatusMeta, isLiveStatus } from '~/utils/dashboar
 import { integrationUi } from '~/utils/integrations'
 import { useFilterPreference, useQueryPreference, oneOf } from '~/composables/useQueryPreference'
 import { invalidate } from '~/composables/useLiveTopics'
+import KTopBar from '~/components/KTopBar.vue'
+import KListToolbar from '~/components/KListToolbar.vue'
+import KProjectRow from '~/components/KProjectRow.vue'
+import KProjectCard from '~/components/KProjectCard.vue'
+import KProjectSetupModal from '~/components/KProjectSetupModal.vue'
+import { UButton, UTooltip, UIcon } from '#components'
 
 const { data: projects } = await useProjects()
 const { data: runs } = useRuns()

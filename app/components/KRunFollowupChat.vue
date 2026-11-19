@@ -12,6 +12,14 @@ import { isLiveStatus, runStatusMeta, RUN_STATUS_META, timeAgo } from '~/utils/d
 import { useSettings } from '~/composables/useSettings'
 import { useMembers } from '~/composables/useMembers'
 import { useResizableHeight } from '~/composables/useResizableHeight'
+import KStatusDot from '~/components/KStatusDot.vue'
+import ChatDivider from '~/components/chat/Divider.vue'
+import KChatTranscript from '~/components/KChatTranscript.vue'
+import ChatContextRing from '~/components/chat/ContextRing.vue'
+import ChatModelPicker from '~/components/chat/ModelPicker.vue'
+import KResizeHandle from '~/components/KResizeHandle.vue'
+import KPanel from '~/components/KPanel.vue'
+import { UIcon, UButton, UChatMessage, UChatMessages, NuxtLink, UTooltip, UChatPromptSubmit, UChatPrompt } from '#components'
 
 const props = defineProps<{
   runId: number

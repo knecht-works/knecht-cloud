@@ -8,6 +8,13 @@ import { computed, ref, watch } from 'vue'
 import { useAiModels } from '~/composables/useAiModels'
 import { useAutosave } from '~/composables/useAutosave'
 import { refreshNuxtData } from '#app'
+import KSaveStatus from '~/components/KSaveStatus.vue'
+import KSettingRow from '~/components/KSettingRow.vue'
+import KSecretField from '~/components/KSecretField.vue'
+import KPanel from '~/components/KPanel.vue'
+import WorkflowCodeEditor from '~/components/workflow/CodeEditor.vue'
+import KConfirmModal from '~/components/KConfirmModal.vue'
+import { USelect, UButton, UInput, USelectMenu } from '#components'
 
 const toastError = useToastError()
 const { user } = useUserSession()

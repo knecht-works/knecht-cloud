@@ -3,6 +3,7 @@ import type { RouteLocationRaw } from 'vue-router'
 import type { SessionObject } from '~/utils/dashboard'
 import { computed } from 'vue'
 import { sessionObjectMeta, triggerSourceMeta } from '~/utils/dashboard'
+import { UIcon, NuxtLink, UTooltip } from '#components'
 
 const props = defineProps<{
   objects: SessionObject[]

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { RunStatusMeta } from '~/utils/dashboard'
 import { DOT_COLOR_VAR } from '~/utils/dashboard'
+import KStatusDot from '~/components/KStatusDot.vue'
 
 defineProps<{
   meta: RunStatusMeta

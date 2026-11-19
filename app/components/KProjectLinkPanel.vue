@@ -5,6 +5,9 @@ import { integrationUi } from '~/utils/integrations'
 import { useFetch } from '#app'
 import { ref, computed } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
+import KSettingRow from '~/components/KSettingRow.vue'
+import KPanel from '~/components/KPanel.vue'
+import { USelectMenu } from '#components'
 
 const props = defineProps<{
   projectId: number

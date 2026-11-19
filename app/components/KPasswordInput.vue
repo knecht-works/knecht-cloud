@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { UButton, UInput } from '#components'
 
 defineOptions({ inheritAttrs: false })
 

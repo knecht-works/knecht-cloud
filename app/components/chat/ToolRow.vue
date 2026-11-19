@@ -2,6 +2,7 @@
 import { lineDiff } from '#shared/utils/line-diff'
 import type { ChatItem } from '~/composables/useSessionTranscript'
 import { ref, computed } from 'vue'
+import { UIcon } from '#components'
 
 const props = defineProps<{ item: ChatItem }>()
 

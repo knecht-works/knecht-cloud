@@ -4,6 +4,9 @@ import type { WorkflowStep } from '~/utils/dashboard'
 import type { VarGroup, StepField } from '~/utils/workflow-steps'
 import { computed, inject, ref, watch } from 'vue'
 import { stepDef, workflowStepMeta, FORCE_STEP_ISSUES, stepPristine, varPathParts } from '~/utils/workflow-steps'
+import WorkflowVarField from '~/components/workflow/VarField.vue'
+import WorkflowConditionEditor from '~/components/workflow/ConditionEditor.vue'
+import { UInput, UFormField, USwitch, UIcon, UTooltip } from '#components'
 
 const props = defineProps<{
   step: WorkflowStep

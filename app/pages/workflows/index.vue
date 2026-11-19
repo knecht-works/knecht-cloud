@@ -10,6 +10,11 @@ import { ref, computed } from 'vue'
 import { navigateTo } from '#app'
 import { formatDuration, workflowStatusMeta, workflowTriggerMetas, isLiveStatus } from '~/utils/dashboard'
 import { useFilterPreference, useQueryPreference, oneOf } from '~/composables/useQueryPreference'
+import KTopBar from '~/components/KTopBar.vue'
+import KListToolbar from '~/components/KListToolbar.vue'
+import KWorkflowCard from '~/components/KWorkflowCard.vue'
+import KWorkflowRow from '~/components/KWorkflowRow.vue'
+import { UButton, UTooltip, UIcon } from '#components'
 
 const { data: workflows } = await useWorkflows()
 const { data: runs } = useRuns()

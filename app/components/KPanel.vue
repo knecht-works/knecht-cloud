@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { UIcon } from '#components'
 
 const props = withDefaults(defineProps<{
   title: string

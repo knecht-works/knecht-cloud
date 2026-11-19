@@ -6,6 +6,11 @@ import { computed } from 'vue'
 import { useRoute, useCookie, navigateTo } from '#app'
 import { useDbImportToasts } from '~/composables/useDbImportToasts'
 import { useSystemInfo } from '~/composables/useSystemInfo'
+import KBgField from '~/components/KBgField.vue'
+import KLogo from '~/components/KLogo.vue'
+import KAppSearch from '~/components/KAppSearch.vue'
+import KStatusDot from '~/components/KStatusDot.vue'
+import { NuxtLink, UButton, UIcon, UTooltip, UAvatar, UDropdownMenu } from '#components'
 
 const { user, clear } = useUserSession()
 const { data: members } = useMembers()

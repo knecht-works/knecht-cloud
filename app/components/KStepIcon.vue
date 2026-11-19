@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { UIcon } from '#components'
+
 const props = withDefaults(defineProps<{
   icon: string
   color?: string

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { UIcon, UTooltip } from '#components'
+
 defineProps<{
   items: { icon: string, label: string, color: string }[]
 }>()

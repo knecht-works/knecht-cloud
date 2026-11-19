@@ -5,6 +5,13 @@ import { useUserSession } from '#imports'
 import { useMembers } from '~/composables/useMembers'
 import { computed, ref, watch } from 'vue'
 import { useAutosave } from '~/composables/useAutosave'
+import KSettingsEnvironments from '~/components/KSettingsEnvironments.vue'
+import KSettingsPreviews from '~/components/KSettingsPreviews.vue'
+import KSettingsAutoUpdate from '~/components/KSettingsAutoUpdate.vue'
+import KSaveStatus from '~/components/KSaveStatus.vue'
+import KSettingRow from '~/components/KSettingRow.vue'
+import KPanel from '~/components/KPanel.vue'
+import { UInput } from '#components'
 
 // The address is validated against the server's charset because it is spliced
 // verbatim into the copy-pasteable ssh command.
