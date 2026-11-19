@@ -1,8 +1,8 @@
 import { and, asc, count, eq, getTableColumns, isNull, or, sql } from 'drizzle-orm'
 import { db } from '../db'
 import { memberIdentities, members, type Member, type MemberIdentity } from '../db/schema'
-import type { RepoProvider } from '../../shared/utils/integrations'
-import { liveTopics } from '../../shared/utils/live-topics'
+import type { RepoProvider } from '#shared/utils/integrations'
+import { liveTopics } from '#shared/utils/live-topics'
 import { emitTopics } from '../utils/live'
 
 const norm = (login: string) => login.trim().toLowerCase()

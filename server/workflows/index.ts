@@ -1,5 +1,5 @@
 import type { WorkflowRow } from '../db/schema'
-import { ensureStepIds } from '../../shared/utils/workflow'
+import { ensureStepIds } from '#shared/utils/workflow'
 import { getSettings, updateSettings } from '../utils/settings'
 import { createWorkflow, getWorkflowRow, listWorkflowRows } from '../stores/workflows'
 import { parseWorkflow, type Workflow } from './schema'

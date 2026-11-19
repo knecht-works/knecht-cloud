@@ -7,7 +7,7 @@ import { defineConfig } from 'vitest/config'
 //           container/GitHub boundary faked (test/helpers/local-sandbox.ts)
 // The e2e suite against a running instance lives in vitest.e2e.config.ts.
 const path = (p: string) => fileURLToPath(new URL(p, import.meta.url))
-const alias = {
+export const alias = {
   '~': path('./app'),
   '#shared': path('./shared'),
   '#server': path('./server'),

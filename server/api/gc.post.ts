@@ -1,6 +1,6 @@
 import { statfs } from 'node:fs/promises'
 import { z } from 'zod'
-import { GC_CATEGORY_IDS } from '../../shared/utils/gc'
+import { GC_CATEGORY_IDS } from '#shared/utils/gc'
 import { collectGarbage } from '../daemon/gc'
 import { zodBadRequest } from '../utils/http'
 import { dataDir } from '../utils/storage'

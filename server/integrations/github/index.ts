@@ -6,7 +6,7 @@ import { tryParseJson } from '../../utils/json'
 import { hasVerifiedIdentity } from '../../stores/members'
 import { verifySha256Signature } from '../../utils/signature'
 import type { Integration, WebhookComment, WebhookDelivery } from '../types'
-import type { TriggerConfig } from '../../../shared/utils/trigger-form'
+import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { githubObject, matchGithubEvent, type GithubPayload } from './webhook'
 import { githubSnapshot } from './snapshot'
 

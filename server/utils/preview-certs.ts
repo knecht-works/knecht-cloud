@@ -1,4 +1,4 @@
-import { previewLabel } from '../../shared/utils/preview-host'
+import { previewLabel } from '#shared/utils/preview-host'
 import { readDdevHosts } from '../daemon/ddev'
 import { devServerLabel } from './dev-origin'
 import { previewOrigin } from './origin'

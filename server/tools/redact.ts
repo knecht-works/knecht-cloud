@@ -1,4 +1,4 @@
-import { COMPOSITE_CHILD_KEYS, isComposite, type Step } from '../../shared/utils/workflow'
+import { COMPOSITE_CHILD_KEYS, isComposite, type Step } from '#shared/utils/workflow'
 
 // http steps carry credentials literally, in workflows as well as in a run's rendered params.
 // Templated values only reference a secret, so they stay readable.

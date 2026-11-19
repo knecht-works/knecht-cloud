@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { setPasswordHash } from '../../stores/members'
 import { updateMemberSession } from '../../utils/member-session'
-import { passwordProblem } from '../../../shared/utils/account'
+import { passwordProblem } from '#shared/utils/account'
 import { defineEventHandler, readBody, createError } from 'h3'
 import { requireUserSession, hashPassword } from '#imports'
 

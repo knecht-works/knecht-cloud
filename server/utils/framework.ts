@@ -1,6 +1,6 @@
 import type { Octokit } from 'octokit'
 import semver from 'semver'
-import { FRAMEWORKS } from '../../shared/utils/frameworks'
+import { FRAMEWORKS } from '#shared/utils/frameworks'
 import type { DdevEnv, Project } from '../db/schema'
 import { setProjectMeta } from '../stores/projects'
 import { detectEnv, parseDdevConfig, repoShipsDdevConfig, type ReadFile } from './env-detect'

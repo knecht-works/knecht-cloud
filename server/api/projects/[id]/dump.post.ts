@@ -1,5 +1,5 @@
 import { join } from 'node:path'
-import { projectDetectedEnv, resolveEnv } from '../../../../shared/utils/env-spec'
+import { projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
 import { setProjectDump, requireProject } from '../../../stores/projects'
 import { startDbBaseBuild } from '../../../daemon/db-base'
 import { projectDumpDir, sanitizeFilename } from '../../../utils/storage'

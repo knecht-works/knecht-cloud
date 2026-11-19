@@ -5,7 +5,7 @@ import { getSettings } from '../utils/settings'
 import { callTool, type ToolContext } from '../tools/registry'
 import { getRunLogTool, getRunTool, getStepLogTool } from '../tools/runs'
 import { getWorkflowTool } from '../tools/workflows'
-import { isCompositeType, type Step } from '../../shared/utils/workflow'
+import { isCompositeType, type Step } from '#shared/utils/workflow'
 
 const SYSTEM: ToolContext = { actor: { kind: 'system' }, channel: 'daemon' }
 const MAX_SUMMARY_CHARS = 280

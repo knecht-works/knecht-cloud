@@ -2,8 +2,8 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, sql } from 'drizzl
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewRun, Project, Run } from '../db/schema'
-import type { RunDiagnosis } from '../../shared/utils/run'
-import { liveTopics } from '../../shared/utils/live-topics'
+import type { RunDiagnosis } from '#shared/utils/run'
+import { liveTopics } from '#shared/utils/live-topics'
 import { emitRunLog, emitTopics, type RunLogChunk } from '../utils/live'
 import { primaryObjectId } from './session-objects'
 

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { INTEGRATION_IDS } from '../../../../shared/utils/integrations'
+import { INTEGRATION_IDS } from '#shared/utils/integrations'
 import { getIntegration } from '../../../integrations'
 import { linkedProject, projectLinks, setProjectLink } from '../../../stores/project-links'
 import { requireProject } from '../../../stores/projects'

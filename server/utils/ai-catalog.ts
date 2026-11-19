@@ -1,4 +1,4 @@
-import { type AiModel, type AiProviderId, aiProviderSpec, langdockAnthropicBaseUrl, langdockBaseUrl } from '../../shared/utils/ai'
+import { type AiModel, type AiProviderId, aiProviderSpec, langdockAnthropicBaseUrl, langdockBaseUrl } from '#shared/utils/ai'
 import type { Settings } from '../db/schema'
 import { decrypt } from './crypto'
 

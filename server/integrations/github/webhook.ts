@@ -1,6 +1,6 @@
 import { emptyInputs, type TriggerInputs } from '../../utils/inputs'
 import type { SessionObject } from '../../utils/sessions'
-import type { TriggerConfig } from '../../../shared/utils/trigger-form'
+import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { conditionsPass, objectVersion, triggerEvent } from '../trigger-config'
 import { GIT_EXACT_FILTERS as EXACT } from '../git-trigger-form'
 import type { TriggerMatch } from '../types'

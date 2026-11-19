@@ -1,4 +1,4 @@
-import { previewHostname } from '../../shared/utils/preview-host'
+import { previewHostname } from '#shared/utils/preview-host'
 
 export function dashboardOrigin(): string {
   const url = process.env.KNECHT_BASE_URL

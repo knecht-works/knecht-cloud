@@ -1,5 +1,5 @@
 import type { Project, Session, SessionObjectRow } from '../db/schema'
-import type { IntegrationId, ObjectKind } from '../../shared/utils/integrations'
+import type { IntegrationId, ObjectKind } from '#shared/utils/integrations'
 import { getIntegration } from '../integrations'
 import { sessionPreviewUrl } from './preview-target'
 import { getSessionRow, findBranchSession, createSession, requireSession, sessionChanged, updateSession } from '../stores/sessions'

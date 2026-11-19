@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import type { H3Event } from 'h3'
 import { withQuery } from 'ufo'
-import { safeRedirectPath } from '../../../shared/utils/account'
+import { safeRedirectPath } from '#shared/utils/account'
 import { dashboardOrigin } from '../../utils/origin'
 import { githubAppCredentials } from '../../utils/github-credentials'
 import { consumeInvite } from '../../stores/invites'
