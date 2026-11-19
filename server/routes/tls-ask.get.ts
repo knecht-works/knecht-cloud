@@ -1,4 +1,7 @@
 import { getSessionRow } from '../stores/sessions'
+import { defineEventHandler, getQuery, createError } from 'h3'
+import { parsePreviewHost, previewHostname } from '#shared/utils/preview-host'
+import { isPreviewLabel } from '#server/utils/session-services'
 
 // Caddy's on_demand_tls "ask" endpoint (see Caddyfile): 200 means "issue a
 // certificate for this hostname", any error status means refuse. This is the

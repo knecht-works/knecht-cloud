@@ -3,6 +3,9 @@ import { rebootEnv, reviveEnv } from '../../../daemon/envs'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { requireSession } from '../../../stores/sessions'
 import { requireRun } from '../../../stores/runs'
+import { defineEventHandler, createError, getRequestURL } from 'h3'
+import { requireIntParam } from '#server/utils/http'
+import { previewHostname } from '#shared/utils/preview-host'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

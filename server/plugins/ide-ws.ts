@@ -1,4 +1,5 @@
 import { wrapWebsocketResolve } from '../utils/ide-proxy'
+import { defineNitroPlugin } from 'nitropack/runtime'
 
 // See utils/ide-proxy.ts for why this can't be a normal ws route.
 export default defineNitroPlugin((nitroApp) => {

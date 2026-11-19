@@ -116,5 +116,9 @@ export default defineNuxtConfig({
     },
   },
 
-  explicitImports: { mode: { imports: 'strict', components: 'strict', server: 'warn' } },
+  explicitImports: {
+    mode: 'strict',
+    // The checker reads `typeof sessionObjects` (the table) as the server util of the same name.
+    exclude: ['server/db/schema.ts'],
+  },
 })

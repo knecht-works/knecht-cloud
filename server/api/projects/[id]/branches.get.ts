@@ -1,5 +1,7 @@
 import { gitProvider } from '../../../git'
 import { requireProject } from '../../../stores/projects'
+import { defineEventHandler } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler(async (event) => {
   const project = requireProject(requireIntParam(event))

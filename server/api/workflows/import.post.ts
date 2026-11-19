@@ -2,6 +2,8 @@ import { parse } from 'yaml'
 import { z } from 'zod'
 import { createWorkflow, uniqueWorkflowName } from '../../stores/workflows'
 import { workflowDocumentSchema } from '../../workflows/schema'
+import { defineEventHandler, readBody, createError } from 'h3'
+import { zodBadRequest } from '#server/utils/http'
 
 const bodySchema = z.object({
   source: z.string().min(1),

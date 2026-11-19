@@ -1,5 +1,7 @@
 import { updateProjectConfig, requireProject } from '../../stores/projects'
 import { assertDevServerConfig, projectConfigSchema } from '../../utils/project-config'
+import { defineEventHandler, readBody, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

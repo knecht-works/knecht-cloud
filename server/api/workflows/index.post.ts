@@ -1,5 +1,7 @@
 import { createWorkflow, uniqueWorkflowName } from '../../stores/workflows'
 import { workflowCreateSchema } from '../../workflows/schema'
+import { defineEventHandler, readBody } from 'h3'
+import { zodBadRequest } from '#server/utils/http'
 
 export default defineEventHandler(async (event) => {
   const body = (await readBody(event).catch(() => undefined)) ?? {}

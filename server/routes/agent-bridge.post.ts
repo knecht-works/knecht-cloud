@@ -20,6 +20,7 @@ import { getWorkflowRow } from '../stores/workflows'
 import { getSessionRow, updateSession } from '../stores/sessions'
 import { createFollowup, getRunningFollowup, queuedAgentFollowup } from '../stores/followups'
 import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from '../stores/runs'
+import { setResponseStatus, setHeader, defineEventHandler, getHeader, readBody } from 'h3'
 
 // POST /agent-bridge → what the in-sandbox agent can NOT do on its own.
 // Plain git works inside the sandbox (the session's checkout is a

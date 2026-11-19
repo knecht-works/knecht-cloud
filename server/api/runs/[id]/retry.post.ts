@@ -7,6 +7,8 @@ import { withRunSessionEnv } from '../../../utils/run-view'
 import { requireSession } from '../../../stores/sessions'
 import { requireRun, requeueRun } from '../../../stores/runs'
 import { sessionHasActiveFollowup } from '../../../stores/followups'
+import { defineEventHandler, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 // Resuming past completed steps needs the session's checkout (their file state).
 export default defineEventHandler((event) => {

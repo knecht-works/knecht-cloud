@@ -10,6 +10,8 @@ import { requireProject } from '../../../stores/projects'
 import { listSessionsInEnvState } from '../../../stores/sessions'
 import { dataDir, normalizeSharedFolder, projectSharedDir, sanitizeFilename } from '../../../utils/storage'
 import { receiveUpload } from '../../../utils/upload'
+import { defineEventHandler, getQuery, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

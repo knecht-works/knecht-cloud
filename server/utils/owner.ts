@@ -1,6 +1,8 @@
 import type { H3Event } from 'h3'
 import { getMemberById } from '../stores/members'
 import type { Member } from '../db/schema'
+import { requireUserSession } from '#imports'
+import { createError } from 'h3'
 
 export async function isOwner(event: H3Event): Promise<boolean> {
   const { user } = await requireUserSession(event)

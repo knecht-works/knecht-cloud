@@ -5,6 +5,7 @@ import { Transform } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import type { H3Event } from 'h3'
 import { formatBytes } from '../../shared/utils/bytes'
+import { getRequestHeader, createError } from 'h3'
 
 function intHeader(event: H3Event, name: string): number | undefined {
   const header = getRequestHeader(event, name)

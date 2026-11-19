@@ -6,6 +6,8 @@ import { resolveSession } from '../../utils/sessions'
 import { requireProject } from '../../stores/projects'
 import { requireWorkflowRow } from '../../stores/workflows'
 import { createRun } from '../../stores/runs'
+import { defineEventHandler, readBody } from 'h3'
+import { zodBadRequest } from '#server/utils/http'
 
 const bodySchema = z.object({
   projectId: z.number().int(),
