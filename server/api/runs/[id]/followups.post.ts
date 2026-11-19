@@ -1,13 +1,14 @@
 import { z } from 'zod'
 import { startFollowup } from '../../../daemon/followups'
 import { dispatchRuns } from '../../../daemon/dispatcher'
+import { titleRun } from '../../../daemon/run-title'
 import { sessionHasActiveWork } from '../../../utils/sessions'
 import { emitFollowup, emitItem } from '../../../utils/transcript'
 import { CLEAR_COMMAND, PR_COMMAND, PUBLISH_FOLLOWUP_PROMPT } from '../../../../shared/utils/followup'
 import { MODEL_NAME_RE } from '../../../../shared/utils/ai'
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, saveAttachments, type UploadedFile } from '../../../utils/attachments'
 import { requireSession, updateSession } from '../../../stores/sessions'
-import { requireRun } from '../../../stores/runs'
+import { requireRun, sessionHasRunTitle } from '../../../stores/runs'
 import { createFollowup, updateFollowup } from '../../../stores/followups'
 import { createAgentItem } from '../../../stores/agent-items'
 
@@ -84,6 +85,9 @@ export default defineEventHandler(async (event) => {
     ? updateFollowup(inserted.id, { attachments })!
     : inserted
   emitFollowup(followup.id)
+  // A session started without a workflow only says "Boot preview" or "Checkout" until its first prompt names it.
+  if (run.workflowId === null && run.kind === 'workflow' && result.data.prompt !== PR_COMMAND && !sessionHasRunTitle(session.id))
+    void titleRun(run.id, result.data.prompt)
 
   if (session.envState === 'up' && !busy) void startFollowup(followup.id)
   else dispatchRuns()
