@@ -80,8 +80,9 @@ export default defineEventHandler(async (event) => {
     return reply(event, 409, 'the session has no checkout (environment torn down)')
   }
 
-  // Bridge activity lands in the log of the session's newest run.
-  const run = latestSessionRun(sessionId)
+  // Bridge activity lands in the log of the run doing the work, else the session's newest run:
+  // a review the agent's own PR queued must not get the log of the run that opened it.
+  const run = getRunningSessionRun(sessionId) ?? latestSessionRun(sessionId)
   const log = (text: string) => {
     if (run) appendRunLog(run.id, text)
   }
