@@ -10,6 +10,9 @@ import { envTransition, reviveEnv } from '../daemon/envs'
 import { guestAllowed, shareCookieName, shareTokenValid } from './preview-share'
 import { SHARE_PARAM } from '../../shared/utils/preview-access'
 import type { Session } from '../db/schema'
+import { createError, removeResponseHeader, getRequestHeader, getQuery, getRequestURL, setCookie, sendRedirect, setResponseStatus, setResponseHeaders, send } from 'h3'
+import { getUserSession, clearUserSession } from '#imports'
+import { stripPreviewPrefix, previewLabel, previewHostname } from '#shared/utils/preview-host'
 
 // Two URL modes per session (sessions.urlMode), see internals/docs/preview-contract.md.
 

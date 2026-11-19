@@ -11,6 +11,9 @@ import { requireSession, updateSession } from '../../../stores/sessions'
 import { requireRun, sessionHasRunTitle } from '../../../stores/runs'
 import { createFollowup, updateFollowup } from '../../../stores/followups'
 import { createAgentItem } from '../../../stores/agent-items'
+import { defineEventHandler, createError, readBody, getHeader, readMultipartFormData } from 'h3'
+import { requireIntParam, zodBadRequest } from '#server/utils/http'
+import { requireUserSession } from '#imports'
 
 const bodySchema = z.object({
   prompt: z.string().trim().min(1),

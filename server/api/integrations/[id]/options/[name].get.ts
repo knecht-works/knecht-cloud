@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { INTEGRATIONS } from '../../../../integrations'
+import { defineEventHandler, getRouterParam, createError, getQuery } from 'h3'
 
 export default defineEventHandler(async (event) => {
   const integration = INTEGRATIONS.find(i => i.id === getRouterParam(event, 'id'))

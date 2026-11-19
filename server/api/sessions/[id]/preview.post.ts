@@ -1,6 +1,8 @@
 import { requireProject } from '../../../stores/projects'
 import { requireSession } from '../../../stores/sessions'
 import { queueSessionRun } from '../../../utils/session-runs'
+import { defineEventHandler, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler((event) => {
   const session = requireSession(requireIntParam(event))

@@ -8,6 +8,7 @@ import { isValidCron } from '../utils/cron'
 import { loadModelCatalog } from '../utils/ai-catalog'
 import { encrypt } from '../utils/crypto'
 import { requireOwner } from '../utils/owner'
+import { defineEventHandler, readBody, createError } from 'h3'
 
 // PATCH /api/settings → update the tunable settings. Each field is optional so
 // the UI can send only what changed; values are bounded (SETTINGS_LIMITS, also

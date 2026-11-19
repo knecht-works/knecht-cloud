@@ -2,6 +2,7 @@ import type { H3Event } from 'h3'
 import type { UserSession } from '#auth-utils'
 import type { Member } from '../db/schema'
 import { getMemberById } from '../stores/members'
+import { replaceUserSession } from '#imports'
 
 const sessionUser = (member: Member) => ({ id: member.id, login: member.login, name: member.name, avatarUrl: member.avatarUrl })
 

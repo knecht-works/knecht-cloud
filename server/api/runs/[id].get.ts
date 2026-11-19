@@ -3,6 +3,8 @@ import { getRunView, latestSessionPrUrl } from '../../stores/runs'
 import { getProject } from '../../stores/projects'
 import { gitProvider } from '../../git'
 import { withSessionEnv, withSessionObjects } from '../../utils/run-view'
+import { defineEventHandler, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)

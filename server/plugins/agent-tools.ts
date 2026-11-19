@@ -8,6 +8,7 @@ import { toolsDir } from '../utils/storage'
 import { readSandboxAsset } from '../utils/sandbox-assets'
 import { stageIde } from '../daemon/ide'
 import { warmUpDdev } from '../daemon/sandbox'
+import { defineNitroPlugin } from 'nitropack/runtime'
 
 // Without this global config the first `ddev start` boots a router that collides
 // with Caddy on :80/:443. ~/.ddev because daemon/sandbox.ts strips XDG_CONFIG_HOME.

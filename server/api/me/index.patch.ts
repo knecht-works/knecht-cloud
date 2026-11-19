@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { setName } from '../../stores/members'
 import { updateMemberSession } from '../../utils/member-session'
+import { defineEventHandler, readBody, createError } from 'h3'
+import { requireUserSession } from '#imports'
 
 const bodySchema = z.object({ name: z.string().trim().max(80) })
 

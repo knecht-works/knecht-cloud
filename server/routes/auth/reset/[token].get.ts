@@ -1,5 +1,6 @@
 import { findOpenPasswordReset } from '../../../stores/password-resets'
 import { getMemberById } from '../../../stores/members'
+import { defineEventHandler, getRouterParam, createError } from 'h3'
 
 export default defineEventHandler((event) => {
   const reset = findOpenPasswordReset(getRouterParam(event, 'token') ?? '')

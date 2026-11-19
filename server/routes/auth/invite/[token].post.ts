@@ -5,6 +5,8 @@ import { rememberLoginMethod } from '../../../utils/last-login'
 import { isForeignOrigin } from '../../../utils/origin'
 import { passwordProblem, usernameProblem } from '../../../../shared/utils/account'
 import { startMemberSession } from '../../../utils/member-session'
+import { defineEventHandler, getRequestHeader, createError, getRouterParam, readBody } from 'h3'
+import { hashPassword } from '#imports'
 
 const bodySchema = z.object({
   username: z.string().trim().superRefine((v, ctx) => {

@@ -1,5 +1,6 @@
 import { isGithubAppConfigured, saveGithubAppCredentials } from '../../utils/github-credentials'
 import { addMember } from '../../stores/members'
+import { defineEventHandler, sendRedirect, getQuery, getCookie, deleteCookie } from 'h3'
 
 interface Conversion {
   id: number

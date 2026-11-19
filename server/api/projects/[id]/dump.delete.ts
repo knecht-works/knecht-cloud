@@ -1,6 +1,8 @@
 import { rmSync } from 'node:fs'
 import { setProjectDump, requireProject } from '../../../stores/projects'
 import { dropDbBase } from '../../../daemon/db-base'
+import { defineEventHandler } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)

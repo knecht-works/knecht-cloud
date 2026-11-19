@@ -4,6 +4,7 @@ import { GC_CATEGORY_IDS } from '../../shared/utils/gc'
 import { collectGarbage } from '../daemon/gc'
 import { zodBadRequest } from '../utils/http'
 import { dataDir } from '../utils/storage'
+import { defineEventHandler, readBody } from 'h3'
 
 const bodySchema = z.object({
   categories: z.array(z.enum(GC_CATEGORY_IDS)).min(1).optional(),

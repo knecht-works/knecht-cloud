@@ -1,4 +1,5 @@
 import { collectGarbage } from '../daemon/gc'
+import { defineNitroPlugin } from 'nitropack/runtime'
 
 const GC_INTERVAL_MS = 60 * 60_000
 

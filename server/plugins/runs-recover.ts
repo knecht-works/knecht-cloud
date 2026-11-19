@@ -4,6 +4,7 @@ import { getSessionRow } from '../stores/sessions'
 import { appendRunLog, clearPendingDiagnoses, failInterruptedRuns } from '../stores/runs'
 import { failInterruptedSteps } from '../stores/run-steps'
 import { failInterruptedFollowups } from '../stores/followups'
+import { defineNitroPlugin } from 'nitropack/runtime'
 
 export default defineNitroPlugin(() => {
   const interrupted = failInterruptedRuns('\n✗ Interrupted by a daemon restart\n')

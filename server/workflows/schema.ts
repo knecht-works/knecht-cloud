@@ -11,7 +11,7 @@ import {
 } from '../../shared/utils/workflow'
 import { ACTIONS } from './actions'
 
-export type { Step }
+export type { Step } from '../../shared/utils/workflow'
 
 const conditionSchema = z.object({
   left: z.string(),

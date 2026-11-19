@@ -5,6 +5,7 @@ import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'
 import { requireWorkflowRow } from '../../stores/workflows'
 import { createTrigger } from '../../stores/triggers'
+import { defineEventHandler, readBody, createError } from 'h3'
 
 const bodySchema = z.object({
   source: z.enum(TRIGGER_SOURCES),

@@ -4,6 +4,7 @@ import { DDEV_DATABASES, DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGE
 import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
 import { PREVIEW_ACCESS } from '../../shared/utils/preview-access'
 import { normalizeSharedFolder } from './storage'
+import { createError } from 'h3'
 
 export const projectConfigSchema = z.object({
   envVars: z

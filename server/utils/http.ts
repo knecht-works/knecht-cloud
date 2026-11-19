@@ -1,4 +1,5 @@
 import type { H3Event } from 'h3'
+import { getRouterParam, createError } from 'h3'
 
 export function requireIntParam(event: H3Event, name = 'id'): number {
   const value = Number(getRouterParam(event, name))

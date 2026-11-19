@@ -4,6 +4,8 @@ import { rememberLoginMethod } from '../../utils/last-login'
 import { clearLoginFailures, isLoginBlocked, recordLoginFailure } from '../../utils/login-attempts'
 import { isForeignOrigin } from '../../utils/origin'
 import { startMemberSession } from '../../utils/member-session'
+import { defineEventHandler, getRequestHeader, createError, readBody, getRequestIP } from 'h3'
+import { hashPassword, verifyPassword } from '#imports'
 
 const bodySchema = z.object({
   username: z.string().trim().min(1).max(64),

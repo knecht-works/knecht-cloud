@@ -1,6 +1,7 @@
 import { INTEGRATIONS } from '../../../integrations'
 import type { LinkTarget } from '../../../integrations/types'
 import { refreshLinkNames } from '../../../stores/project-links'
+import { defineEventHandler, getRouterParam, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {
   const integration = INTEGRATIONS.find(i => i.id === getRouterParam(event, 'id'))

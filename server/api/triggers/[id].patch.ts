@@ -6,6 +6,8 @@ import { getTriggerSource } from '../../utils/trigger-sources'
 import type { NewTrigger } from '../../db/schema'
 import { requireWorkflowRow } from '../../stores/workflows'
 import { requireTrigger, updateTrigger } from '../../stores/triggers'
+import { defineEventHandler, readBody, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 const bodySchema = z.object({
   active: z.boolean().optional(),

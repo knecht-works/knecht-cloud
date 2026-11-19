@@ -3,6 +3,7 @@ import { startUpdate } from '../daemon/update'
 import { getSettings } from '../utils/settings'
 import { isValidCron, nextRun } from '../utils/cron'
 import { currentVersion, isNewerVersion, latestVersion } from '../utils/version'
+import { defineNitroPlugin } from 'nitropack/runtime'
 
 let lastCron = ''
 let nextFireAt: Date | null = null

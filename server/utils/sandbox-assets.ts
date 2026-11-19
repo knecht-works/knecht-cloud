@@ -1,3 +1,5 @@
+import { useStorage } from 'nitropack/runtime'
+
 // getItemRaw, not getItem: the prod inline asset driver returns a Uint8Array,
 // which String() would render as a comma-joined byte list.
 export async function readSandboxAsset(name: string): Promise<Buffer | null> {

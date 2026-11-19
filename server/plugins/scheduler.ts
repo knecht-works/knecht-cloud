@@ -1,6 +1,7 @@
 import { listDueScheduleTriggers, setTriggerNextFire } from '../stores/triggers'
 import { nextRun } from '../utils/cron'
 import { fireTrigger } from '../utils/triggers'
+import { defineNitroPlugin } from 'nitropack/runtime'
 
 export default defineNitroPlugin(() => {
   setInterval(() => {

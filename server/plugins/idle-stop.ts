@@ -1,4 +1,5 @@
 import { archiveStaleEnvs, reapExpiredArchives, reapIdleEnvs } from '../daemon/envs'
+import { defineNitroPlugin } from 'nitropack/runtime'
 
 export default defineNitroPlugin(() => {
   setInterval(() => {

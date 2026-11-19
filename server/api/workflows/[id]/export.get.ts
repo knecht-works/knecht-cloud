@@ -1,5 +1,7 @@
 import { publishStepsSchema, serializeWorkflow } from '../../../workflows/schema'
 import { requireWorkflowRow } from '../../../stores/workflows'
+import { defineEventHandler, getQuery, setHeader } from 'h3'
+import { requireIntParam, zodBadRequest } from '#server/utils/http'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)

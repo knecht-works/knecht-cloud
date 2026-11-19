@@ -8,6 +8,8 @@ import { consumeInvite } from '../../stores/invites'
 import { rememberLoginMethod } from '../../utils/last-login'
 import { addMember, getMember, getMemberById, linkIdentity, loginWithIdentity } from '../../stores/members'
 import { startMemberSession } from '../../utils/member-session'
+import { defineEventHandler, sendRedirect, getRequestURL, getQuery, setCookie, getCookie, deleteCookie } from 'h3'
+import { getUserSession } from '#imports'
 
 // Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
 export default defineEventHandler(async (event) => {
