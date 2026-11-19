@@ -1,5 +1,5 @@
 import type { Project, Session } from '../db/schema'
-import { describeObject, primaryObject, sessionHasActiveWork, type SessionObject } from '../utils/sessions'
+import { describeObject, sessionHasActiveWork, workObject, type SessionObject } from '../utils/sessions'
 import { getIntegration } from '.'
 import type { CommentAuthor, Integration } from './types'
 import { getRun, latestSessionActor, updateRun } from '../stores/runs'
@@ -7,8 +7,9 @@ import { getRun, latestSessionActor, updateRun } from '../stores/runs'
 type Log = (text: string) => void
 type Assignee = NonNullable<Integration['capabilities']['assignee']>
 
-function held(session: Session): { assignee: Assignee, object: SessionObject } | null {
-  const object = primaryObject(session.id)
+// The object the run works on: a review on the PR leaves the ticket with whoever holds it.
+function held(session: Session, runId: number): { assignee: Assignee, object: SessionObject } | null {
+  const object = workObject(session.id, getRun(runId)?.objectId)
   const assignee = object && getIntegration(object.integration).capabilities.assignee
   return assignee ? { assignee, object } : null
 }
@@ -16,7 +17,7 @@ function held(session: Session): { assignee: Assignee, object: SessionObject } |
 // A run started by hand, or by a change the agent itself made on the object, has no actor:
 // whoever held the object before Knecht gets it back, or whoever gave it to Knecht last.
 export async function takeObject(session: Session, runId: number, project: Project, log: Log): Promise<void> {
-  const target = held(session)
+  const target = held(session, runId)
   if (!target) return
   try {
     const previous = await target.assignee.take(project, target.object)
@@ -33,7 +34,7 @@ export async function takeObject(session: Session, runId: number, project: Proje
 
 // Answers who holds the object afterwards.
 export async function handBackObject(session: Session, runId: number, project: Project, log: Log): Promise<CommentAuthor | null> {
-  const target = held(session)
+  const target = held(session, runId)
   if (!target || sessionHasActiveWork(session.id)) return null
   try {
     const { summary, holder } = await target.assignee.handBack(project, target.object, getRun(runId)?.actor ?? null)

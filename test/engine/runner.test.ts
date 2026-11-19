@@ -96,6 +96,14 @@ describe('runner', () => {
     }
 
     jira.assignee = { accountId: 'user-2', displayName: 'Bob' }
+    const review = makeRun(project, [{ type: 'bash', id: 'work', command: 'true' }])
+    attachTestObject(review.sessionId, { integration: 'jira', kind: 'issue', key: 'REVIEW-1' })
+    const pr = attachTestObject(review.sessionId, { integration: 'github', kind: 'pull_request', key: '9' })
+    db.update(schema.runs).set({ objectId: pr.id }).where(eq(schema.runs.id, review.id)).run()
+    await startRun(review.id, project)
+    expect(jira.assigned).toEqual([])
+    expect(getRun(review.id).log).not.toContain('Knecht holds')
+
     const assigned = ticket({ actor: { id: 'user-3', name: 'Sam' } })
     await startRun(assigned.id, project)
     expect(jira.assigned).toEqual(['knecht', 'user-3'])

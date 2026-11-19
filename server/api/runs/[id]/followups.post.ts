@@ -77,6 +77,7 @@ export default defineEventHandler(async (event) => {
     prompt: result.data.prompt === PR_COMMAND ? PUBLISH_FOLLOWUP_PROMPT : result.data.prompt,
     model: result.data.model ?? null,
     requestedBy: user.login,
+    objectId: run.objectId,
   })
   const attachments = saveAttachments(inserted.id, files)
   const followup = attachments.length
