@@ -16,6 +16,8 @@ usage:
   echo <text> | knecht-reply    same, reading the text from stdin
   knecht-reply --new-thread <text>    start a new comment instead of
                                       answering in the mention's thread
+  knecht-reply --on <KEY> <text>      post on another object of this session,
+                                      e.g. --on PROJ-12 or --on 57
 EOF
   exit 2
 }
@@ -23,10 +25,14 @@ EOF
 require_bridge knecht-reply
 
 new_thread=false
-if [ "${1:-}" = "--new-thread" ]; then
-  new_thread=true
-  shift
-fi
+on=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --new-thread) new_thread=true; shift ;;
+    --on) [ "$#" -ge 2 ] || usage; on="$2"; shift 2 ;;
+    *) break ;;
+  esac
+done
 
 if [ "$#" -gt 0 ]; then
   text="$*"
@@ -35,4 +41,4 @@ else
 fi
 [ -n "$text" ] || usage
 
-bridge_post "{\"op\":\"comment\",\"newThread\":$new_thread,\"body\":$(json_escape "$text")}"
+bridge_post "{\"op\":\"comment\",\"newThread\":$new_thread,\"body\":$(json_escape "$text")$(on_field "$on")}"

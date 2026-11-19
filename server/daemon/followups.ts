@@ -6,7 +6,7 @@ import { createContext } from '../workflows/context'
 import { getIntegration } from '../integrations'
 import { handBackObject, takeObject } from '../integrations/assignee'
 import { sessionCheckoutDir } from '../utils/storage'
-import { agentRepliedSince, describeObject, primaryObject, workObject, withSessionLinks } from '../utils/sessions'
+import { agentRepliedSince, taskBriefing, workObject, withSessionLinks } from '../utils/sessions'
 import { transcriptSink } from '../utils/agent-items'
 import { emitFollowup } from '../utils/transcript'
 import { notice } from './agent'
@@ -131,10 +131,7 @@ async function stageAttachments(rt: ActionRuntime, followup: Followup): Promise<
 // Without the header the agent reads a follow-up as an output-contract correction and does nothing.
 function followupMessage(followup: Followup, session: Session): string {
   const publish = 'Publishing: if this session already has an open pull request, commit your changes (in logical chunks with proper messages) and push when you are done; never open a second PR. Otherwise leave your changes in the working tree for review in the preview, unless the request above asks you to commit, push or open a PR.'
-  const object = followup.origin === 'mention' ? workObject(session.id, followup.objectId) : null
-  const thread = object
-    ? `This session belongs to ${describeObject(object)}.\n\n`
-    : primaryObject(session.id) ? 'This request comes from the Knecht dashboard: answer in your final message, do not use knecht-reply.\n\n' : ''
+  const thread = taskBriefing(session.id, followup.objectId, followup.requestedBy, followup.origin === 'dashboard')
   const attached = followup.attachments.length
     ? `\n\nThe user attached these files; they are in the sandbox, read them as needed:\n${followup.attachments.map(a => `- ${sandboxAttachmentPath(followup.id, a.name)} (${a.type || 'unknown type'}, ${Math.max(1, Math.round(a.size / 1024))} KB)`).join('\n')}`
     : ''

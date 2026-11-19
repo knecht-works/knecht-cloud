@@ -10,7 +10,7 @@ import { addressee, applyLabels, moveToStatus } from '../integrations/capabiliti
 import { verifyBridgeToken } from '../utils/agent-bridge'
 import { gitProvider } from '../git'
 import { withPreviewFooter } from '../utils/origin'
-import { attachPullRequest, describeObject, primaryObject, recordAgentReply, withSessionLinks, workObject, type SessionObject } from '../utils/sessions'
+import { attachPullRequest, describeObject, primaryObject, recordAgentReply, sessionObjects, withSessionLinks, workObject, type SessionObject } from '../utils/sessions'
 import { ticketFetched } from '../utils/object-freshness'
 import { writeObjectSnapshot } from '../utils/object-snapshot'
 import { sessionCheckoutDir } from '../utils/storage'
@@ -33,7 +33,8 @@ import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from 
 //   - `context` (knecht-object): the live state of the session's object, or
 //     of a linked one by key, for the agent to read before it works on a mention.
 //   - `comment` (knecht-reply), `label` (knecht-label), `status`
-//     (knecht-status): act on the session's object through the capabilities
+//     (knecht-status): act on a session object (`on`, else where the work came
+//     from, the ticket for status) through the capabilities
 //     of its integration (ADR 0007). Object sessions only; a workflow can opt
 //     its runs out (workflows.repliesEnabled). The bridge is where the
 //     boundary is enforced: a raw provider token could not be narrowed to
@@ -49,9 +50,9 @@ import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from 
 const bodySchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('credential') }),
   z.object({ op: z.literal('open-pr'), title: z.string().min(1), body: z.string().optional() }),
-  z.object({ op: z.literal('comment'), body: z.string().min(1), newThread: z.boolean().optional() }),
-  z.object({ op: z.literal('label'), add: z.array(z.string().min(1)).optional(), remove: z.array(z.string().min(1)).optional() }),
-  z.object({ op: z.literal('status'), status: z.string().min(1) }),
+  z.object({ op: z.literal('comment'), body: z.string().min(1), newThread: z.boolean().optional(), on: z.string().min(1).optional() }),
+  z.object({ op: z.literal('label'), add: z.array(z.string().min(1)).optional(), remove: z.array(z.string().min(1)).optional(), on: z.string().min(1).optional() }),
+  z.object({ op: z.literal('status'), status: z.string().min(1), on: z.string().min(1).optional() }),
   z.object({ op: z.literal('context'), key: z.string().min(1).optional() }),
 ])
 
@@ -115,29 +116,27 @@ export default defineEventHandler(async (event) => {
         }))
       }
       case 'comment': {
-        const { integration, object, label } = requireObject(session, 'work')
+        const { integration, object, label, isWork } = requireObject(session, 'work', body.on)
         requireRepliesEnabled(sessionId)
         const followup = getRunningFollowup(sessionId)
-        if (followup?.origin === 'dashboard') {
-          throw new BridgeError(`this follow-up was asked in the Knecht dashboard, not on ${label}: answer in your final message instead`)
-        }
-        const target = followup?.replyTo ?? addressee(getRunningSessionRun(sessionId)?.actor)
+        // Whoever asked lives on the object the work came from; on another object nobody is addressed.
+        const target = isWork ? followup?.replyTo ?? addressee(getRunningSessionRun(sessionId)?.actor) : null
         // Still addressed to whoever asked, only no longer under their comment.
         const replyTo = body.newThread && target ? { ...target, thread: null } : target
         const comment = await viaIntegration(() => integration.capabilities.comment(project, object, withSessionLinks(body.body, sessionId, object), replyTo))
-        recordAgentReply(sessionId)
+        if (isWork) recordAgentReply(sessionId)
         log(`\nagent-reply: commented on ${label}\n`)
         return reply(event, 200, `posted the reply on ${label}${comment.url ? `: ${comment.url}` : ''}`)
       }
       case 'label': {
-        const { integration, object, label } = requireObject(session, 'work')
+        const { integration, object, label } = requireObject(session, 'work', body.on)
         requireRepliesEnabled(sessionId)
         const did = await viaIntegration(() => applyLabels(integration, project, object, body.add ?? [], body.remove ?? []))
         log(`\nagent-label: ${did} on ${label}\n`)
         return reply(event, 200, `${did} on ${label}`)
       }
       case 'status': {
-        const { integration, object, label } = requireObject(session, 'primary')
+        const { integration, object, label } = requireObject(session, 'primary', body.on)
         requireRepliesEnabled(sessionId)
         const did = await viaIntegration(() => moveToStatus(integration, project, object, body.status))
         log(`\nagent-status: ${did} on ${label}\n`)
@@ -189,12 +188,24 @@ function currentObject(sessionId: number, of: 'work' | 'primary'): SessionObject
 
 // The object, or a clear refusal: the reply ops only exist on
 // sessions that belong to a ticket, issue or PR.
-function requireObject(session: Session, of: 'work' | 'primary'): { integration: Integration, object: SessionObject, label: string } {
-  const object = currentObject(session.id, of)
+function requireObject(session: Session, of: 'work' | 'primary', key?: string): { integration: Integration, object: SessionObject, label: string, isWork: boolean } {
+  const work = currentObject(session.id, of)
+  const object = key ? objectByKey(session.id, key) : work
   if (!object) {
     throw new BridgeError('this session does not belong to a ticket, issue or pull request, so there is no thread to post on')
   }
-  return { integration: getIntegration(object.integration), object, label: describeObject(object) }
+  const isWork = work?.integration === object.integration && work.key === object.key
+  return { integration: getIntegration(object.integration), object, label: describeObject(object), isWork }
+}
+
+function objectByKey(sessionId: number, key: string): SessionObject {
+  const objects = sessionObjects(sessionId)
+  const wanted = key.replace(/^#/, '').toLowerCase()
+  const object = objects.find(o => o.key.toLowerCase() === wanted)
+  if (!object) {
+    throw new BridgeError(`${key} is not part of this session. Its objects: ${objects.map(o => o.key).join(', ') || 'none'}`)
+  }
+  return object
 }
 
 // A refused or failed provider call is the agent's problem to read, not a server fault.

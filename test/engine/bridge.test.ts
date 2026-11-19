@@ -220,6 +220,28 @@ describe('agent bridge', () => {
     expect(comments.at(-1)).toEqual({ issue: 42, body: 'Review done.' })
   })
 
+  it('acts on another object of the session by key and refuses one outside it', async () => {
+    const project = makeProject()
+    const session = makeRun(project, [], { status: 'success' }).sessionId
+    mkdirSync(join(sessionCheckoutDir(session), '.git'), { recursive: true })
+    attachTestObject(session, { integration: 'jira', kind: 'issue', key: 'PROJ-1' })
+    const pr = attachTestObject(session, { integration: 'github', kind: 'pull_request', key: '42' })
+    makeRun(project, [], { sessionId: session, status: 'running', objectId: pr.id, actor: { id: 'gh-1', name: 'octo' } })
+
+    const res = await call(session, { op: 'comment', body: 'Reviewed, see PR #42.', on: 'proj-1' })
+    expect(res.text).toContain('on ticket PROJ-1')
+    expect(jiraApi.comments.at(-1)).toMatchObject({ key: 'PROJ-1' })
+    expect(JSON.stringify(jiraApi.comments.at(-1)!.body)).not.toContain('mention')
+
+    expect((await call(session, { op: 'status', status: 'In Review', on: 'PROJ-1' })).text).toContain('on ticket PROJ-1')
+    expect((await call(session, { op: 'label', add: ['bug'], on: '#42' })).text).toContain('on pull request #42')
+    labels.added.length = 0
+
+    const foreign = await call(session, { op: 'comment', body: 'hi', on: 'OTHER-9' })
+    expect(foreign.status).toBe(400)
+    expect(foreign.text).toContain('OTHER-9 is not part of this session. Its objects: PROJ-1, 42')
+  })
+
   it('posts a comment on the object and records the reply', async () => {
     const { sessionId, run } = objectSession()
     const res = await call(sessionId, { op: 'comment', body: 'All done.' })
@@ -343,14 +365,12 @@ describe('agent bridge on a Jira ticket', () => {
     })
   })
 
-  it('refuses to comment while a follow-up from the dashboard is running', async () => {
+  it('comments for a follow-up from the dashboard when the agent is asked to', async () => {
     const { run, sessionId } = ticketSession()
-    db.insert(schema.followups).values({ sessionId, runId: run.id, prompt: 'what does this do?', origin: 'dashboard', status: 'running' }).run()
-    const before = jiraApi.comments.length
-    const res = await call(sessionId, { op: 'comment', body: 'It does X.' })
-    expect(res.status).toBe(400)
-    expect(res.text).toContain('dashboard')
-    expect(jiraApi.comments.length).toBe(before)
+    db.insert(schema.followups).values({ sessionId, runId: run.id, prompt: 'post your plan on the ticket', origin: 'dashboard', status: 'running' }).run()
+    const res = await call(sessionId, { op: 'comment', body: 'The plan.' })
+    expect(res.status).toBe(200)
+    expect(jiraApi.comments.at(-1)).toMatchObject({ key: 'PROJ-1', body: { type: 'doc' } })
   })
 
   it('applies only labels that exist in Jira', async () => {
