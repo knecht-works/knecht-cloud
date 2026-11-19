@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import KToggle from '~/components/KToggle.vue'
+import { UTooltip } from '#components'
+
 defineProps<{
   enabled: boolean
 }>()

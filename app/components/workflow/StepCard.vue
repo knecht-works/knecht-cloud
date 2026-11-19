@@ -8,6 +8,10 @@ import { workflowStepMeta, stepIssues, stepPristine } from '~/utils/workflow-ste
 import type { NodeStatus } from '~/utils/step-status'
 import { TREAT, issueSummary, STATUS_LABEL } from '~/utils/step-status'
 import { STEP_KIND_COLOR } from '~/utils/dashboard'
+import KStatusDot from '~/components/KStatusDot.vue'
+import KStepIcon from '~/components/KStepIcon.vue'
+import WorkflowStepSettings from '~/components/workflow/StepSettings.vue'
+import { UIcon, UButton } from '#components'
 
 const props = defineProps<{
   step: WorkflowStep

@@ -2,6 +2,8 @@
 import type { ButtonProps } from '@nuxt/ui'
 import { useUploads } from '~/composables/useUploads'
 import { computed, ref, watch } from 'vue'
+import KProgressRing from '~/components/KProgressRing.vue'
+import { UButton, UTooltip } from '#components'
 
 const props = defineProps<{
   uploadKey: string

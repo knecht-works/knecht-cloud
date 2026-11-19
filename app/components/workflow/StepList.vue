@@ -5,6 +5,9 @@ import type { WorkflowStep } from '~/utils/dashboard'
 import type { VarGroup } from '~/utils/workflow-steps'
 import { inject, computed } from 'vue'
 import { LOOP_VARS, stepOutputGroups } from '~/utils/workflow-steps'
+import WorkflowStepList from '~/components/workflow/StepList.vue'
+import WorkflowStepCard from '~/components/workflow/StepCard.vue'
+import { UIcon } from '#components'
 
 const props = defineProps<{
   steps: WorkflowStep[]

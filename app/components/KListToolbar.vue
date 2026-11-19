@@ -1,6 +1,10 @@
 <script setup lang="ts" generic="S extends string">
 import type { FilterCondition, FilterFields } from '#shared/utils/filter'
 import { computed } from 'vue'
+import KFilterBuilder from '~/components/KFilterBuilder.vue'
+import KFilterChips from '~/components/KFilterChips.vue'
+import KViewToggle from '~/components/KViewToggle.vue'
+import { USelect } from '#components'
 
 const props = defineProps<{
   sortOptions: { value: S, label: string }[]

@@ -2,6 +2,11 @@
 import type { ChatItem, ChatTurn } from '~/composables/useSessionTranscript'
 import { replyActivity, replyItems } from '~/utils/chat-activity'
 import { computed, ref } from 'vue'
+import ChatComark from '~/components/chat/Comark'
+import ChatDivider from '~/components/chat/Divider.vue'
+import ChatToolRow from '~/components/chat/ToolRow.vue'
+import ChatIndicator from '~/components/chat/Indicator.vue'
+import { UIcon } from '#components'
 
 const props = defineProps<{ turns: ChatTurn[] }>()
 

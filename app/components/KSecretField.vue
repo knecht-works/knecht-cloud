@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { UInput } from '#components'
 
 const model = defineModel<string>({ required: true })
 

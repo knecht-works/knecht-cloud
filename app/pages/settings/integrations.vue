@@ -3,6 +3,7 @@ import { useUserSession } from '#imports'
 import { useIntegrations } from '~/composables/useIntegrations'
 import { useMembers } from '~/composables/useMembers'
 import { computed } from 'vue'
+import KIntegrationConnection from '~/components/KIntegrationConnection.vue'
 
 const { user } = useUserSession()
 const { data: integrations } = await useIntegrations()

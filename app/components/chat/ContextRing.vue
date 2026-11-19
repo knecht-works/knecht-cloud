@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { UButton } from '#components'
 
 const props = withDefaults(defineProps<{
   usage: { used: number, size: number, cost: number | null } | null

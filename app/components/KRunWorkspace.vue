@@ -7,6 +7,14 @@ import { computed, ref } from 'vue'
 import { isLiveStatus, runStatusMeta, sessionObjectMeta } from '~/utils/dashboard'
 import { useSessionLogs } from '~/composables/useSessionLogs'
 import { invalidate } from '~/composables/useLiveTopics'
+import KRunHeader from '~/components/KRunHeader.vue'
+import KRunPreviewSection from '~/components/KRunPreviewSection.vue'
+import KRunFollowupChat from '~/components/KRunFollowupChat.vue'
+import KStatusDot from '~/components/KStatusDot.vue'
+import KRunLog from '~/components/KRunLog.vue'
+import KPanel from '~/components/KPanel.vue'
+import KRunTerminalModal from '~/components/KRunTerminalModal.vue'
+import { UIcon } from '#components'
 
 const props = defineProps<{
   runId: number

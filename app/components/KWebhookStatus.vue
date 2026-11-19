@@ -5,6 +5,8 @@ import { useToast } from '#imports'
 import { computed, ref } from 'vue'
 import { timeAgo, errMsg } from '~/utils/dashboard'
 import { copyText } from '~/utils/clipboard'
+import KStatusDot from '~/components/KStatusDot.vue'
+import { UButton, UInput } from '#components'
 
 const props = defineProps<{
   name: string

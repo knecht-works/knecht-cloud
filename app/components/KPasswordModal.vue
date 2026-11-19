@@ -3,6 +3,8 @@ import { passwordProblem } from '#shared/utils/account'
 import { ref, watch } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
 import { errMsg } from '~/utils/dashboard'
+import KPasswordInput from '~/components/KPasswordInput.vue'
+import { UFormField, UButton, UModal } from '#components'
 
 const open = defineModel<boolean>('open', { required: true })
 defineProps<{ hasPassword: boolean }>()

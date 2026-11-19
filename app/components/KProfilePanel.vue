@@ -6,6 +6,10 @@ import { navigateTo } from '#app'
 import { ref, computed } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
 import { squareImageDataUrl } from '~/utils/image'
+import KSignInMethods from '~/components/KSignInMethods.vue'
+import KConfirmModal from '~/components/KConfirmModal.vue'
+import KPanel from '~/components/KPanel.vue'
+import { UButton, UTooltip, UAvatar, UIcon, UInput, UFormField } from '#components'
 
 const { user, clear, fetch: refreshSession } = useUserSession()
 const toast = useToast()

@@ -4,6 +4,8 @@ import { useToast } from '#imports'
 import { ref, computed, watch } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
 import { copyText } from '~/utils/clipboard'
+import KRunTerminal from '~/components/KRunTerminal.vue'
+import { UButton, UModal } from '#components'
 
 interface SshInfo { services: string[], sshCommands: Record<string, string> | null }
 

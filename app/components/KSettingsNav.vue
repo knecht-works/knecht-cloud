@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useRoute } from '#app'
+import { UIcon, NuxtLink } from '#components'
 
 const props = defineProps<{
   sections: { label: string, icon: string, to: string }[]

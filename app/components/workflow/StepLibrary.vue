@@ -4,6 +4,10 @@ import { ref, computed } from 'vue'
 import { STEP_DEFS } from '~/utils/workflow-steps'
 import type { RegisteredStepDef } from '~/utils/workflow-steps'
 import { STEP_KIND_COLOR } from '~/utils/dashboard'
+import KStatusDot from '~/components/KStatusDot.vue'
+import KStepIcon from '~/components/KStepIcon.vue'
+import KPanel from '~/components/KPanel.vue'
+import { UInput, UIcon } from '#components'
 
 const props = defineProps<{ editable: boolean }>()
 const emit = defineEmits<{

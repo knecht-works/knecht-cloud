@@ -3,6 +3,8 @@ import type { EnvState, EnvTransition } from '#shared/utils/run'
 import { useToastError } from '~/composables/useToastError'
 import { computed, ref } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
+import KEnvLifecycle from '~/components/KEnvLifecycle.vue'
+import KPreviewBrowser from '~/components/KPreviewBrowser.vue'
 
 const props = defineProps<{
   runId: number

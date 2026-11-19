@@ -2,6 +2,8 @@
 import { definePageMeta } from '#app/composables/pages'
 import { useRoute, useFetch } from '#app'
 import { computed } from 'vue'
+import KGithubButton from '~/components/KGithubButton.vue'
+import { UAlert, UButton } from '#components'
 
 definePageMeta({ layout: 'auth' })
 

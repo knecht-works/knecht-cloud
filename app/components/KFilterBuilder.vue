@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { isCompleteCondition, type FilterCondition, type FilterFields } from '#shared/utils/filter'
 import { computed, ref, watch } from 'vue'
+import { UButton, UTooltip, USelectMenu, UInput, UDropdownMenu, UPopover } from '#components'
 
 const props = defineProps<{
   fields: FilterFields

@@ -6,6 +6,11 @@ import { useProject } from '~/composables/useProjects'
 import { useRuns } from '~/composables/useRuns'
 import { computed, ref } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
+import KSettingsPreviews from '~/components/KSettingsPreviews.vue'
+import KSettingRow from '~/components/KSettingRow.vue'
+import KPanel from '~/components/KPanel.vue'
+import KConfirmModal from '~/components/KConfirmModal.vue'
+import { UButton } from '#components'
 
 const toast = useToast()
 const toastError = useToastError()

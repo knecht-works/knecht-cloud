@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { UButton, UTooltip } from '#components'
+
 const model = defineModel<'grid' | 'list'>({ required: true })
 
 const OPTIONS = [

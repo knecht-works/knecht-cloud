@@ -11,6 +11,13 @@ import { useAutosave } from '~/composables/useAutosave'
 import { $fetch } from '#build/fetch.mjs'
 import { envVarsToText, parseEnvText } from '#shared/utils/env'
 import { useProjectDump } from '~/composables/useProjectDump'
+import KSaveStatus from '~/components/KSaveStatus.vue'
+import WorkflowCodeEditor from '~/components/workflow/CodeEditor.vue'
+import KPanel from '~/components/KPanel.vue'
+import KDumpProgress from '~/components/KDumpProgress.vue'
+import KUploadButton from '~/components/KUploadButton.vue'
+import KConfirmModal from '~/components/KConfirmModal.vue'
+import { UIcon, UTooltip, UInput, UFormField, USelectMenu, UButton } from '#components'
 
 const toastError = useToastError()
 const id = Number(useRoute().params.id)

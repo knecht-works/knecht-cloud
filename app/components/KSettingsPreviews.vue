@@ -5,6 +5,11 @@ import { useSettings, isPreset, patchSettings } from '~/composables/useSettings'
 import { computed, reactive, ref, watch } from 'vue'
 import { useAutosave } from '~/composables/useAutosave'
 import { $fetch } from '#build/fetch.mjs'
+import KSaveStatus from '~/components/KSaveStatus.vue'
+import KSettingRow from '~/components/KSettingRow.vue'
+import KUnitInput from '~/components/KUnitInput.vue'
+import KPanel from '~/components/KPanel.vue'
+import { USelect } from '#components'
 
 // With a project it edits that project's overrides, where null means the global default.
 const props = defineProps<{

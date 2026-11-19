@@ -116,5 +116,5 @@ export default defineNuxtConfig({
     },
   },
 
-  explicitImports: { mode: { imports: 'strict', components: 'warn', server: 'warn' } },
+  explicitImports: { mode: { imports: 'strict', components: 'strict', server: 'warn' } },
 })

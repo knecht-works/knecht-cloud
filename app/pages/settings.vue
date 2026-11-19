@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import KTopBar from '~/components/KTopBar.vue'
+import KSettingsNav from '~/components/KSettingsNav.vue'
+import { NuxtPage } from '#components'
+
 const SECTIONS = [
   { label: 'Account', icon: 'i-lucide-user-round', to: '/settings' },
   { label: 'Agent', icon: 'i-lucide-sparkles', to: '/settings/agent' },

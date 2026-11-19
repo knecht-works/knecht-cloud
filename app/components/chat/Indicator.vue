@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { setInterval } from '#app/compat/interval'
+import { UChatShimmer } from '#components'
 
 const props = defineProps<{ text: string }>()
 

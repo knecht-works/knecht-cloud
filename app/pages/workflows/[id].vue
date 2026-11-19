@@ -20,6 +20,18 @@ import { runLogTimeline } from '~/utils/run-log'
 import type { StepStatus } from '~/utils/step-status'
 import { RAIL_CTX } from '~/composables/useWorkflowRail'
 import { runDuration, triggerMeta } from '~/utils/dashboard'
+import KCodeInput from '~/components/KCodeInput.vue'
+import KPageHeader from '~/components/KPageHeader.vue'
+import KToggle from '~/components/KToggle.vue'
+import KStepIcon from '~/components/KStepIcon.vue'
+import KTriggerSegments from '~/components/KTriggerSegments.vue'
+import WorkflowStepList from '~/components/workflow/StepList.vue'
+import KRunLog from '~/components/KRunLog.vue'
+import KPanel from '~/components/KPanel.vue'
+import WorkflowStepLibrary from '~/components/workflow/StepLibrary.vue'
+import KTriggerCreateModal from '~/components/KTriggerCreateModal.vue'
+import KConfirmModal from '~/components/KConfirmModal.vue'
+import { UBreadcrumb, UButton, UTooltip, UIcon, UPopover, USelectMenu, UFormField, UDropdownMenu, NuxtLink } from '#components'
 
 const route = useRoute()
 const toast = useToast()

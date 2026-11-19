@@ -2,6 +2,7 @@
 import { useAiModels } from '~/composables/useAiModels'
 import { useSettings } from '~/composables/useSettings'
 import { computed } from 'vue'
+import { USelectMenu } from '#components'
 
 const model = defineModel<string | null>({ default: null })
 const { data: models, error } = useAiModels()
