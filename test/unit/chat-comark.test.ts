@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createSSRApp, h, Suspense } from 'vue'
 import { renderToString } from 'vue/server-renderer'
-import { defineComarkComponent } from '@comark/vue'
 
-Object.assign(globalThis, { defineComarkComponent })
 const ChatComark = (await import('../../app/components/chat/Comark')).default
 
 function render(markdown: string) {
