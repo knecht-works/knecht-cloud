@@ -1,6 +1,8 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/eslint', 'nuxt-auth-utils', '@comark/nuxt', 'nuxt-explicit-imports'],
+  modules: ['@nuxt/ui', '@nuxt/eslint', 'nuxt-auth-utils', '@comark/nuxt'],
+
+  imports: { autoImport: false },
 
   devtools: { enabled: false },
 
@@ -65,6 +67,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
 
   nitro: {
+    imports: { autoImport: false },
     watchOptions: {
       usePolling: !!process.env.KNECHT_DEV_POLLING,
     },
@@ -114,11 +117,5 @@ export default defineNuxtConfig({
     config: {
       stylistic: true,
     },
-  },
-
-  explicitImports: {
-    mode: 'strict',
-    // The checker reads `typeof sessionObjects` (the table) as the server util of the same name.
-    exclude: ['server/db/schema.ts'],
   },
 })
