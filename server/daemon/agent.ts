@@ -18,7 +18,7 @@ export interface TranscriptItem {
   key: string
   type: 'message' | 'tool' | 'usage' | 'notice' | 'divider'
   text: string
-  kind?: ToolKind | null
+  kind?: ToolKind | 'preview' | null
   status?: ToolCallStatus | null
   input?: unknown
   output?: string | null
@@ -49,7 +49,7 @@ const CANCEL_GRACE_MS = 10_000
 const STDERR_TAIL = 4 * 1024
 const OUTPUT_CAP = 4 * 1024
 
-const KIND_LABEL: Record<ToolKind, string> = {
+const KIND_LABEL: Record<NonNullable<TranscriptItem['kind']>, string> = {
   read: 'read',
   edit: 'edit',
   delete: 'delete',
@@ -60,6 +60,7 @@ const KIND_LABEL: Record<ToolKind, string> = {
   fetch: 'fetch',
   switch_mode: 'mode',
   other: 'tool',
+  preview: 'preview',
 }
 
 // One agent process, one ACP session; the turn's last message is the reply callers get back.

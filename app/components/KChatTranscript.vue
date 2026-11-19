@@ -11,7 +11,8 @@ const blocks = computed<Block[]>(() => {
   for (const item of props.turn.items) {
     if (item.type === 'usage') continue
     const last = out.at(-1)
-    if (item.type === 'tool' && last?.kind === 'tools') last.items.push(item)
+    const groups = item.type === 'tool' && item.kind !== 'preview'
+    if (groups && last?.kind === 'tools' && last.items[0]!.kind !== 'preview') last.items.push(item)
     else if (item.type === 'tool') out.push({ kind: 'tools', items: [item] })
     else out.push({ kind: 'item', item })
   }

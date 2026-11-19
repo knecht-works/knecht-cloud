@@ -317,6 +317,58 @@ describe('agent bridge', () => {
   })
 })
 
+describe('agent bridge preview', () => {
+  function codeSession() {
+    const project = makeProject()
+    const run = makeRun(project, [], { status: 'success' })
+    mkdirSync(join(sessionCheckoutDir(run.sessionId), '.git'), { recursive: true })
+    return { project, run, sessionId: run.sessionId }
+  }
+  const runningTurn = (sessionId: number, runId: number, values: Partial<typeof schema.followups.$inferInsert> = {}) =>
+    db.insert(schema.followups).values({ sessionId, runId, prompt: 'fix it', status: 'running', ...values }).returning().get()
+  const queuedTurns = (sessionId: number) => db.select().from(schema.followups).where(eq(schema.followups.sessionId, sessionId)).all().filter(f => f.status === 'queued')
+
+  it('queues an agent follow-up that carries the turn it continues', async () => {
+    const { run, sessionId } = codeSession()
+    const object = attachTestObject(sessionId, { integration: 'github', kind: 'issue', key: '5' })
+    const replyTo = { thread: 't1', person: { id: 'gh-1', name: 'ann' } }
+    runningTurn(sessionId, run.id, { origin: 'mention', objectId: object.id, replyTo, requestedBy: 'ann', model: 'anthropic/claude-opus-5-5' })
+
+    const res = await call(sessionId, { op: 'preview', task: ' check the footer ' })
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('queued a preview boot')
+    expect(queuedTurns(sessionId)).toMatchObject([{ origin: 'agent', runId: run.id, prompt: 'check the footer', objectId: object.id, replyTo, requestedBy: 'ann', model: 'anthropic/claude-opus-5-5' }])
+    expect(db.select().from(schema.runs).where(eq(schema.runs.sessionId, sessionId)).all()).toHaveLength(1)
+  })
+
+  it('queues one agent follow-up however often the agent asks', async () => {
+    const { run, sessionId } = codeSession()
+    runningTurn(sessionId, run.id)
+    await call(sessionId, { op: 'preview' })
+    await call(sessionId, { op: 'preview' })
+    expect(queuedTurns(sessionId)).toHaveLength(1)
+  })
+
+  it('refuses in the turn after a boot, outside a follow-up and once there is a preview', async () => {
+    const failed = codeSession()
+    runningTurn(failed.sessionId, failed.run.id, { origin: 'agent' })
+    const again = await call(failed.sessionId, { op: 'preview' })
+    expect(again.status).toBe(400)
+    expect(again.text).toContain('did not succeed')
+
+    const workflow = codeSession()
+    const inRun = await call(workflow.sessionId, { op: 'preview' })
+    expect(inRun.status).toBe(400)
+    expect(inRun.text).toContain('works in follow-ups and mentions')
+
+    const booted = codeSession()
+    db.update(schema.sessions).set({ tier: 'preview' }).where(eq(schema.sessions.id, booted.sessionId)).run()
+    runningTurn(booted.sessionId, booted.run.id)
+    expect((await call(booted.sessionId, { op: 'preview' })).text).toContain('already has a preview')
+    expect([failed, workflow, booted].flatMap(s => queuedTurns(s.sessionId))).toHaveLength(0)
+  })
+})
+
 describe('agent bridge on a Jira ticket', () => {
   it('writes the raw ticket and its attachments into the checkout and answers an index', async () => {
     const { sessionId } = ticketSession()

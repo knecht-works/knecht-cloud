@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Boot this session's preview, as Knecht. The Knecht host queues the boot and
+# continues the session in a new turn once it is up (server/routes/agent-bridge.post.ts).
+# See sandbox/opencode/AGENTS.md.
+set -euo pipefail
+
+LIB=/usr/local/lib/knecht-bridge-lib
+[ -f "$LIB" ] || { echo "knecht-preview is not available: bridge lib not mounted" >&2; exit 1; }
+. "$LIB"
+
+usage() {
+  cat <<'EOF2'
+usage:
+  knecht-preview ["<what to check once it is up>"]   boot this session's preview, then continue in a new turn
+EOF2
+  exit 2
+}
+
+[ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && usage
+
+[ -n "${KNECHT_BRIDGE_URL:-}" ] && [ -n "${KNECHT_BRIDGE_TOKEN:-}" ] && [ -n "${KNECHT_RUN_ID:-}" ] || {
+  echo "knecht-preview is not available in this run (bridge not configured)" >&2
+  exit 1
+}
+
+bridge_post "{\"op\":\"preview\",\"task\":$(json_escape "$*")}"
