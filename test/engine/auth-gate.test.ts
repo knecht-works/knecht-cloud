@@ -1,18 +1,16 @@
 import { request, createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { createApp, createError, createRouter, defineEventHandler, toNodeListener } from 'h3'
-import '../helpers/routes'
-import { isPreviewHost } from '../../shared/utils/preview-host'
-import { isForeignOrigin } from '../../server/utils/origin'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { createApp, createRouter, defineEventHandler, toNodeListener } from 'h3'
 
-Object.assign(globalThis, {
-  isPreviewHost,
-  isForeignOrigin,
-  requireUserSession: async () => {
-    throw createError({ statusCode: 401, statusMessage: 'No session' })
-  },
-  clearUserSession: async () => {},
+vi.mock('#imports', async () => {
+  const { createError } = await import('h3')
+  return {
+    requireUserSession: async () => {
+      throw createError({ statusCode: 401, statusMessage: 'No session' })
+    },
+    clearUserSession: async () => {},
+  }
 })
 
 const authMiddleware = (await import('../../server/middleware/auth')).default
