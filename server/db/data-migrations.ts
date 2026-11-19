@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import { db, schema } from './index'
-import { stripLegacyModelPrefix } from '../../shared/utils/ai'
-import { TRACKER_IDS } from '../../shared/utils/integrations'
-import type { TriggerCondition } from '../../shared/utils/trigger-form'
-import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '../../shared/utils/workflow'
+import { stripLegacyModelPrefix } from '#shared/utils/ai'
+import { TRACKER_IDS } from '#shared/utils/integrations'
+import type { TriggerCondition } from '#shared/utils/trigger-form'
+import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '#shared/utils/workflow'
 
 // Append-only: entries are tracked by name, never rename or remove a released one.
 const MIGRATIONS: { name: string, run: () => void }[] = [

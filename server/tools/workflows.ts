@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { listWorkflowRows, requireWorkflowRow } from '../stores/workflows'
 import { serializeWorkflow } from '../workflows/schema'
-import { ensureStepIds } from '../../shared/utils/workflow'
+import { ensureStepIds } from '#shared/utils/workflow'
 import { maskStepSecrets } from './redact'
 import { defineTool } from './registry'
 

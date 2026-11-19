@@ -5,7 +5,7 @@ import type { NewWorkflowRow, WorkflowRow } from '../db/schema'
 import { clearStarterWorkflow } from './projects'
 import { unlinkWorkflowRuns } from './runs'
 import { deleteWorkflowTriggers } from './triggers'
-import { liveTopics } from '../../shared/utils/live-topics'
+import { liveTopics } from '#shared/utils/live-topics'
 import { emitTopics } from '../utils/live'
 
 export function getWorkflowRow(id: number): WorkflowRow | undefined {

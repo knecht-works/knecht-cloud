@@ -1,7 +1,7 @@
 import { request as httpRequest } from 'node:http'
 import type { H3Event } from 'h3'
 import { devServerIsPreview } from '../daemon/ddev'
-import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
+import { PREVIEW_FORWARD_PORT, stripPreviewPrefix, parsePreviewHost } from '#shared/utils/preview-host'
 import { devServerCorsOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from './dev-origin'
 import { IDE_DEFAULT_SETTINGS, IDE_PORT, withIdeTokenCookie } from '../daemon/ide'
 import { forgetPreview } from '../daemon/sandbox'
@@ -13,7 +13,6 @@ import { getSessionRow, touchSessionPreview } from '../stores/sessions'
 import { cookieValue, guestAllowed, shareCookieName } from './preview-share'
 import { getUserSession, clearUserSession } from '#imports'
 import { removeResponseHeader, getRequestURL, getRequestHeader, createError, setCookie, sendRedirect } from 'h3'
-import { stripPreviewPrefix, parsePreviewHost } from '#shared/utils/preview-host'
 
 // Route-based ws handlers cannot serve the workbench's arbitrary paths, so
 // wrapWebsocketResolve intercepts h3's ws route resolution instead.

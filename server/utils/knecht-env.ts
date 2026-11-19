@@ -1,7 +1,7 @@
 import { bridgeBaseUrl, bridgeToken } from './agent-bridge'
 import { devServerOrigin } from './dev-origin'
 import { previewOrigin } from './origin'
-import { previewLabel } from '../../shared/utils/preview-host'
+import { previewLabel } from '#shared/utils/preview-host'
 import { describeObject, sessionObjects } from './sessions'
 
 // bridgeEnv goes to the agent process per exec, never into the container env:

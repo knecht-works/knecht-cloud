@@ -1,5 +1,5 @@
 import { getSettingsRow, updateSettingsRow } from '../stores/settings'
-import { keyPreview } from '../../shared/utils/key-preview'
+import { keyPreview } from '#shared/utils/key-preview'
 import { decrypt } from './crypto'
 import { defaultSshTarget } from './ssh'
 import { settingsPreset } from './settings-preset'

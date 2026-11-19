@@ -1,4 +1,4 @@
-import { REPO_PROVIDERS, type RepoProvider } from '../../../../shared/utils/integrations'
+import { REPO_PROVIDERS, type RepoProvider } from '#shared/utils/integrations'
 import { unlinkIdentity } from '../../../stores/members'
 import { defineEventHandler, getRouterParam, createError } from 'h3'
 import { requireUserSession } from '#imports'

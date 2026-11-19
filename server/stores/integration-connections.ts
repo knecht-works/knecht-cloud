@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm'
 import { db } from '../db'
 import { integrationConnections } from '../db/schema'
-import type { IntegrationId } from '../../shared/utils/integrations'
-import { liveTopics } from '../../shared/utils/live-topics'
+import type { IntegrationId } from '#shared/utils/integrations'
+import { liveTopics } from '#shared/utils/live-topics'
 import { emitTopics } from '../utils/live'
 
 type ConnectionRow = typeof integrationConnections.$inferSelect

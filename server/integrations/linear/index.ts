@@ -1,7 +1,7 @@
 import { tryParseJson } from '../../utils/json'
 import { linkedProject } from '../../stores/project-links'
 import { verifySha256Signature } from '../../utils/signature'
-import type { TriggerConfig } from '../../../shared/utils/trigger-form'
+import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { integrationLabelsUrl, labelFilter, objectVersion, priorityFilter } from '../trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '../tracker'
 import type { Integration, WebhookDelivery } from '../types'

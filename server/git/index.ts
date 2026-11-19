@@ -1,4 +1,4 @@
-import type { RepoProvider } from '../../shared/utils/integrations'
+import type { RepoProvider } from '#shared/utils/integrations'
 import type { GitProvider, GitRepo } from './types'
 import { githubProvider } from './github'
 
