@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 // The fast suites (run on every push, .github/workflows/test.yml):
@@ -9,6 +10,7 @@ export default defineConfig({
   test: {
     projects: [
       {
+        resolve: { alias: { '#shared': fileURLToPath(new URL('./shared', import.meta.url)) } },
         test: {
           name: 'unit',
           include: ['test/unit/**/*.test.ts'],

@@ -1,5 +1,4 @@
-// Plain imports only: unit tested in node vitest, which resolves no Nuxt aliases.
-import { COMPACT_COMMAND } from '../../shared/utils/followup'
+import { COMPACT_COMMAND } from '#shared/utils/followup'
 
 type Status = 'pending' | 'in_progress' | 'completed' | 'failed' | null
 
