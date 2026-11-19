@@ -2,9 +2,9 @@ import { randomBytes } from 'node:crypto'
 import { deleteConnection, getConnectionRow, updateConnection, upsertConnection } from '../stores/integration-connections'
 import { decrypt, encrypt } from '../utils/crypto'
 import { dashboardOrigin } from '../utils/origin'
-import { keyPreview } from '../../shared/utils/key-preview'
-import type { ConnectionFormDef, ConnectionStatus } from '../../shared/utils/connection-form'
-import type { IntegrationId } from '../../shared/utils/integrations'
+import { keyPreview } from '#shared/utils/key-preview'
+import type { ConnectionFormDef, ConnectionStatus } from '#shared/utils/connection-form'
+import type { IntegrationId } from '#shared/utils/integrations'
 import type { DeliveryRecord } from './types'
 
 export type Connection<F extends string> = Record<F, string> & {

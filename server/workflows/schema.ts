@@ -8,10 +8,10 @@ import {
   stepTreeDepth,
   WORKFLOW_NAME_RE,
   type Step,
-} from '../../shared/utils/workflow'
+} from '#shared/utils/workflow'
 import { ACTIONS } from './actions'
 
-export type { Step } from '../../shared/utils/workflow'
+export type { Step } from '#shared/utils/workflow'
 
 const conditionSchema = z.object({
   left: z.string(),

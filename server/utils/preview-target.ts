@@ -1,4 +1,4 @@
-import { projectDetectedEnv } from '../../shared/utils/env-spec'
+import { projectDetectedEnv } from '#shared/utils/env-spec'
 import type { Project, Session } from '../db/schema'
 import { previewOrigin } from './origin'
 import { getProject } from '../stores/projects'

@@ -1,6 +1,6 @@
 import type { Project } from '../db/schema'
-import { runWorkspacePath } from '../../shared/utils/routes'
-import { STEP_META_KEYS, type Condition, type Step } from '../../shared/utils/workflow'
+import { runWorkspacePath } from '#shared/utils/routes'
+import { STEP_META_KEYS, type Condition, type Step } from '#shared/utils/workflow'
 import { tryParseJson } from '../utils/json'
 import { dashboardOrigin } from '../utils/origin'
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import type { IntegrationId } from '../../shared/utils/integrations'
-import { TRIGGER_CONDITION_OPS, triggerConfigIssues, type TriggerConfig, type TriggerEventConfig, type TriggerEventDef, type TriggerFilterDef, type TriggerFormDef } from '../../shared/utils/trigger-form'
+import type { IntegrationId } from '#shared/utils/integrations'
+import { TRIGGER_CONDITION_OPS, triggerConfigIssues, type TriggerConfig, type TriggerEventConfig, type TriggerEventDef, type TriggerFilterDef, type TriggerFormDef } from '#shared/utils/trigger-form'
 
 const shape = z.object({
   kind: z.string().min(1),

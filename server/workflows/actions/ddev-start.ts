@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { z } from 'zod'
-import type { Step } from '../../../shared/utils/workflow'
+import type { Step } from '#shared/utils/workflow'
 import { projectDumpDir } from '../../utils/storage'
 import { detectPreviewFavicon } from '../../utils/favicon'
 import { sessionPreviewUrl } from '../../utils/preview-target'

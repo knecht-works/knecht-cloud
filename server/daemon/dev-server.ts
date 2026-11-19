@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from 'node:timers/promises'
-import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
+import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 import { DEV_DAEMON_GROUP } from './ddev'
 import { resolvePreview } from './sandbox'
 

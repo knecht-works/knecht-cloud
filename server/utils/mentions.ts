@@ -7,7 +7,7 @@ import { resolveObjectSession, sessionHasActiveWork } from './sessions'
 import { emitFollowup } from './transcript'
 import { appendRunLog, createRun } from '../stores/runs'
 import { getWorkflowRow } from '../stores/workflows'
-import { ensureStepIds, type Step } from '../../shared/utils/workflow'
+import { ensureStepIds, type Step } from '#shared/utils/workflow'
 import { createFollowup } from '../stores/followups'
 
 export async function handleMention(integration: Integration, project: Project, comment: WebhookComment): Promise<string> {

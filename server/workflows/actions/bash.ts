@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Step } from '../../../shared/utils/workflow'
+import type { Step } from '#shared/utils/workflow'
 import { defineAction, ActionError } from './types'
 
 const STDOUT_TAIL_CHARS = 8_192

@@ -1,4 +1,4 @@
-import { type AiProviderId, type LangdockRegion, langdockAnthropicBaseUrl, langdockBaseUrl, stripLegacyModelPrefix } from '../../shared/utils/ai'
+import { type AiProviderId, type LangdockRegion, langdockAnthropicBaseUrl, langdockBaseUrl, stripLegacyModelPrefix } from '#shared/utils/ai'
 
 // Instance and project rules share ONE file: opencode adds a prompt-cache breakpoint
 // per instructions entry and Anthropic caps cache_control blocks at 4 per request.

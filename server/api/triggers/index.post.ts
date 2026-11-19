@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { TRACKER_IDS, TRIGGER_SOURCES } from '../../../shared/utils/integrations'
+import { TRACKER_IDS, TRIGGER_SOURCES } from '#shared/utils/integrations'
 import { isValidCron, nextRun } from '../../utils/cron'
 import { toSummaries } from '../../utils/triggers'
 import { getTriggerSource } from '../../utils/trigger-sources'

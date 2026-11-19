@@ -1,4 +1,4 @@
-import { connectionIssues, normalizeConnection } from '../../../../shared/utils/connection-form'
+import { connectionIssues, normalizeConnection } from '#shared/utils/connection-form'
 import { connectionOf } from '../../../utils/integration-routes'
 import { requireOwner } from '../../../utils/owner'
 import { defineEventHandler, readBody, createError } from 'h3'

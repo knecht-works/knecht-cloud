@@ -1,4 +1,4 @@
-import type { ConnectionFormDef } from '../../../shared/utils/connection-form'
+import type { ConnectionFormDef } from '#shared/utils/connection-form'
 import { createConnectionStore } from '../connections'
 
 export const PLANE_CONNECTION_FORM: ConnectionFormDef = {

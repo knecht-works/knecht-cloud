@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import semver from 'semver'
 import { parse } from 'yaml'
-import { DDEV_DEFAULT_NODE, DDEV_DEFAULT_PHP, DDEV_PHP_VERSIONS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type DetectedEnv, type EnvSource, type PackageManagerName, type ResolvedFields } from '../../shared/utils/env-spec'
+import { DDEV_DEFAULT_NODE, DDEV_DEFAULT_PHP, DDEV_PHP_VERSIONS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type DetectedEnv, type EnvSource, type PackageManagerName, type ResolvedFields } from '#shared/utils/env-spec'
 
 // Null only for a missing file. Anything else throws: a permission problem must
 // not pass as "the repo has no composer.json".

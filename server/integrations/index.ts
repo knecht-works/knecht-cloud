@@ -1,4 +1,4 @@
-import type { IntegrationId } from '../../shared/utils/integrations'
+import type { IntegrationId } from '#shared/utils/integrations'
 import { github } from './github'
 import { jira } from './jira'
 import { linear } from './linear'

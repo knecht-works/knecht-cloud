@@ -1,5 +1,5 @@
 import { listWorkflowRows } from '../../stores/workflows'
-import { ensureStepIds } from '../../../shared/utils/workflow'
+import { ensureStepIds } from '#shared/utils/workflow'
 import { defineEventHandler } from 'h3'
 
 // The draft is returned exactly as stored: the editor diffs against it.

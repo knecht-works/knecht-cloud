@@ -1,6 +1,6 @@
 import type { Project } from '../db/schema'
 import type { ProjectMeta } from '../utils/framework'
-import type { RepoProvider } from '../../shared/utils/integrations'
+import type { RepoProvider } from '#shared/utils/integrations'
 
 export type GitRepo = Pick<Project, 'repoProvider' | 'owner' | 'name' | 'fullName'>
 

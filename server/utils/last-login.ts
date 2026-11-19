@@ -1,5 +1,5 @@
 import type { H3Event } from 'h3'
-import { LAST_LOGIN_COOKIE, type LoginMethod } from '../../shared/utils/account'
+import { LAST_LOGIN_COOKIE, type LoginMethod } from '#shared/utils/account'
 import { setCookie } from 'h3'
 
 // Readable by the login page, which marks the method as last used.

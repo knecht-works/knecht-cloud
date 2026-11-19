@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import type { Step } from '../../../shared/utils/workflow'
+import type { Step } from '#shared/utils/workflow'
 import { pushBranch } from '../../daemon/git'
 import { gitProvider } from '../../git'
 import type { PullRequest } from '../../git/types'

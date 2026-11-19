@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import type { Project } from '../../db/schema'
-import type { Step } from '../../../shared/utils/workflow'
+import type { Step } from '#shared/utils/workflow'
 import type { RunContext } from '../context'
 import type { SandboxProcess } from '../../daemon/sandbox-process'
 

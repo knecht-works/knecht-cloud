@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { deriveKey } from './crypto'
 import { previewOrigin } from './origin'
-import { parsePreviewHost, previewHostname, stripPreviewPrefix } from '../../shared/utils/preview-host'
+import { parsePreviewHost, previewHostname, stripPreviewPrefix } from '#shared/utils/preview-host'
 
 // The label is public (on-demand certificates land in CT logs), so it only
 // names the dev origin; access still requires the login like every preview host.

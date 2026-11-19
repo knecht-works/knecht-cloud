@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
 import type { NewSession, Project } from '../db/schema'
-import type { EnvState, EnvTransition, SessionTier } from '../../shared/utils/run'
+import type { EnvState, EnvTransition, SessionTier } from '#shared/utils/run'
 import { getSettings } from '../utils/settings'
 import { gitProvider } from '../git'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '../utils/storage'

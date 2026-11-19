@@ -1,8 +1,8 @@
 import { z } from 'zod'
-import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS } from '../../shared/utils/settings-limits'
-import { DDEV_DATABASES, DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGERS } from '../../shared/utils/env-spec'
-import { PREVIEW_FORWARD_PORT } from '../../shared/utils/preview-host'
-import { PREVIEW_ACCESS } from '../../shared/utils/preview-access'
+import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS } from '#shared/utils/settings-limits'
+import { DDEV_DATABASES, DDEV_PHP_VERSIONS, NODE_VERSION_PATTERN, PACKAGE_MANAGERS } from '#shared/utils/env-spec'
+import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
+import { PREVIEW_ACCESS } from '#shared/utils/preview-access'
 import { normalizeSharedFolder } from './storage'
 import { createError } from 'h3'
 

@@ -1,4 +1,4 @@
-import { previewLabel } from '../../shared/utils/preview-host'
+import { previewLabel } from '#shared/utils/preview-host'
 import { readDdevConfig, readDdevHosts } from '../daemon/ddev'
 import { exposedPorts, type ExposedPort } from '../daemon/sandbox'
 import { verifyDevServerLabel } from './dev-origin'

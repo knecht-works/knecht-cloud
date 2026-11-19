@@ -2,7 +2,7 @@ import { and, desc, eq, isNotNull, lte } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '../db'
 import type { NewTrigger, Trigger } from '../db/schema'
-import { liveTopics } from '../../shared/utils/live-topics'
+import { liveTopics } from '#shared/utils/live-topics'
 import { emitTopics } from '../utils/live'
 
 export function requireTrigger(id: number): Trigger {

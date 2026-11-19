@@ -1,4 +1,4 @@
-import type { Step } from '../../../shared/utils/workflow'
+import type { Step } from '#shared/utils/workflow'
 import type { RegisteredAction } from './types'
 import { ddevStartAction } from './ddev-start'
 import { bashAction } from './bash'
