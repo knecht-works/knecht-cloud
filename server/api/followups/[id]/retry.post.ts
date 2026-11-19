@@ -7,6 +7,8 @@ import { requireSession } from '../../../stores/sessions'
 import { requireRun } from '../../../stores/runs'
 import { getFollowup, requeueFollowup } from '../../../stores/followups'
 import { deleteAgentItems } from '../../../stores/agent-items'
+import { defineEventHandler, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 // The failed turn is reused as is (prompt, model, attachments): its transcript starts over.
 export default defineEventHandler((event) => {

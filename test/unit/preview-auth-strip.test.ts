@@ -1,32 +1,33 @@
 import { createServer, request, type IncomingHttpHeaders } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import * as h3 from 'h3'
-import { parsePreviewHost } from '../../shared/utils/preview-host'
-import { isPreviewAuthToken, PREVIEW_AUTH_HEADER, previewAwareFetch } from '../../server/utils/preview-fetch'
-import { withoutKnechtCookies } from '../../server/utils/preview-proxy'
+import { createApp, toNodeListener, type H3Event } from 'h3'
+import { PREVIEW_AUTH_HEADER, previewAwareFetch } from '../../server/utils/preview-fetch'
 
-const seen: { proxy: string, headers: IncomingHttpHeaders, internal?: boolean }[] = []
-function recorder(proxy: string) {
-  return async (event: h3.H3Event, _sessionId: number, ...rest: unknown[]) => {
+const { seen, recorder } = vi.hoisted(() => {
+  const seen: { proxy: string, headers: IncomingHttpHeaders, internal?: boolean }[] = []
+  const recorder = (proxy: string) => async (event: H3Event, _sessionId: number, ...rest: unknown[]) => {
     seen.push({ proxy, headers: { ...event.node.req.headers }, internal: rest[1] as boolean | undefined })
     event.node.res.end('ok')
   }
-}
+  return { seen, recorder }
+})
 
-Object.assign(globalThis, h3, {
-  parsePreviewHost,
-  isPreviewAuthToken,
-  PREVIEW_AUTH_HEADER,
-  withoutKnechtCookies,
-  shareCookieName: (id: number) => `knecht-share-${id}`,
-  getUserSession: async () => ({}),
-  isIdeLabel: (label?: string) => label === 'ide',
+vi.mock('#server/utils/preview-share', () => ({ shareCookieName: (id: number) => `knecht-share-${id}` }))
+vi.mock('#server/utils/session-services', () => ({
   findSessionService: async (_id: number, label: string) => label === 'mailpit' ? { label } : undefined,
+}))
+vi.mock('#server/utils/ide-proxy', () => ({
+  isIdeLabel: (label?: string) => label === 'ide',
   proxyRunIde: recorder('ide'),
   proxyRunService: recorder('service'),
+}))
+vi.mock('#server/utils/preview-proxy', async importOriginal => ({
+  ...await importOriginal<object>(),
   proxyRunPreview: recorder('preview'),
-})
+}))
+
+Object.assign(globalThis, { getUserSession: async () => ({}) })
 const middleware = (await import('../../server/middleware/preview')).default
 
 async function liveToken(sessionId = 5): Promise<string> {
@@ -41,7 +42,7 @@ async function liveToken(sessionId = 5): Promise<string> {
 }
 
 async function send(host: string, headers: Record<string, string>) {
-  const server = createServer(h3.toNodeListener(h3.createApp().use(middleware)))
+  const server = createServer(toNodeListener(createApp().use(middleware)))
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   try {
     const { port } = server.address() as AddressInfo

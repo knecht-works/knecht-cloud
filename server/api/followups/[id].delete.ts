@@ -1,6 +1,8 @@
 import { deleteQueuedFollowup, getFollowup } from '../../stores/followups'
 import { removeAttachments } from '../../utils/attachments'
 import { emitLive } from '../../utils/live'
+import { defineEventHandler, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)

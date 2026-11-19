@@ -5,6 +5,8 @@ import { withRunSessionEnv } from '../../../utils/run-view'
 import { getProject } from '../../../stores/projects'
 import { getSessionRow } from '../../../stores/sessions'
 import { requireRun, appendRunLog, finishActiveRun } from '../../../stores/runs'
+import { defineEventHandler, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)

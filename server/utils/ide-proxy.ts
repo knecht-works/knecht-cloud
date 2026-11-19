@@ -11,6 +11,9 @@ import { isForeignOrigin } from './origin'
 import { knownSessionService, type SessionService } from './session-services'
 import { getSessionRow, touchSessionPreview } from '../stores/sessions'
 import { cookieValue, guestAllowed, shareCookieName } from './preview-share'
+import { getUserSession, clearUserSession } from '#imports'
+import { removeResponseHeader, getRequestURL, getRequestHeader, createError, setCookie, sendRedirect } from 'h3'
+import { stripPreviewPrefix, parsePreviewHost } from '#shared/utils/preview-host'
 
 // Route-based ws handlers cannot serve the workbench's arbitrary paths, so
 // wrapWebsocketResolve intercepts h3's ws route resolution instead.

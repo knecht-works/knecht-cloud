@@ -1,6 +1,7 @@
 import { createPasswordReset } from '../../../stores/password-resets'
 import { getMember } from '../../../stores/members'
 import { requireOwner } from '../../../utils/owner'
+import { defineEventHandler, getRouterParam, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {
   await requireOwner(event)

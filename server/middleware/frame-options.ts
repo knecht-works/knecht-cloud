@@ -1,3 +1,6 @@
+import { defineEventHandler, setResponseHeaders } from 'h3'
+import { isPreviewHost } from '#shared/utils/preview-host'
+
 // Preview, IDE and service hosts are left out: the dashboard frames previews itself.
 export default defineEventHandler((event) => {
   const host = (event.node.req.headers.host ?? '').split(':')[0] ?? ''

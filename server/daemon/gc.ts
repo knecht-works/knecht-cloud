@@ -13,6 +13,7 @@ import { listSessionIds, listSessionsInEnvState } from '../stores/sessions'
 import { deleteToolCallsBefore } from '../stores/tool-calls'
 import { clearModelCatalogCache } from '../utils/ai-catalog'
 import { clearVersionCache } from '../utils/version'
+import { useStorage } from 'nitropack/runtime'
 
 const TOOL_CALL_RETENTION_MS = 90 * 24 * 60 * 60_000
 const PACKAGE_CACHE_MAX_AGE_DAYS = 30

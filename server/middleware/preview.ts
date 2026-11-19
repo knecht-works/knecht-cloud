@@ -1,4 +1,12 @@
 import type { H3Event } from 'h3'
+import { defineEventHandler, removeResponseHeader, getCookie, getRequestHeader } from 'h3'
+import { parsePreviewHost } from '#shared/utils/preview-host'
+import { getUserSession } from '#imports'
+import { shareCookieName } from '#server/utils/preview-share'
+import { isPreviewAuthToken, PREVIEW_AUTH_HEADER } from '#server/utils/preview-fetch'
+import { withoutKnechtCookies, proxyRunPreview } from '#server/utils/preview-proxy'
+import { isIdeLabel, proxyRunIde, proxyRunService } from '#server/utils/ide-proxy'
+import { findSessionService } from '#server/utils/session-services'
 
 export default defineEventHandler(async (event) => {
   const host = (event.node.req.headers.host ?? '').split(':')[0] ?? ''

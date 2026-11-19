@@ -1,5 +1,7 @@
 import { cancelFollowupWork } from '../../../../daemon/followups'
 import { requireRun } from '../../../../stores/runs'
+import { defineEventHandler, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler((event) => {
   const id = requireIntParam(event)

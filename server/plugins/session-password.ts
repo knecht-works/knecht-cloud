@@ -1,3 +1,5 @@
+import { defineNitroPlugin } from 'nitropack/runtime'
+
 // The password seals session cookies and derives the key for stored secrets: with the
 // published placeholder, anyone could forge a login and decrypt the database.
 const PLACEHOLDER = 'change-me-to-a-random-string-at-least-32-chars'

@@ -1,6 +1,8 @@
 import { onRunLog, type RunLogChunk } from '../../../utils/live'
 import { sendEventStream } from '../../../utils/sse'
 import { readRunLog, requireRun } from '../../../stores/runs'
+import { defineEventHandler, getHeader } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 // Event ids are byte offsets: on a reconnect EventSource sends the last one back, and the stream resumes there.
 export default defineEventHandler((event) => {

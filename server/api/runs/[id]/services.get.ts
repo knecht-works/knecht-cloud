@@ -1,6 +1,9 @@
 import { sessionServices } from '../../../utils/session-services'
 import { requireSession } from '../../../stores/sessions'
 import { requireRun } from '../../../stores/runs'
+import { defineEventHandler, getRequestURL } from 'h3'
+import { requireIntParam } from '#server/utils/http'
+import { previewHostname } from '#shared/utils/preview-host'
 
 export default defineEventHandler(async (event) => {
   const run = requireRun(requireIntParam(event))

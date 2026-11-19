@@ -2,6 +2,8 @@ import { createReadStream, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { getFollowup } from '../../../../stores/followups'
 import { followupAttachmentsDir } from '../../../../utils/attachments'
+import { defineEventHandler, getRouterParam, createError, setHeader, sendStream } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 const INLINE_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif'])
 

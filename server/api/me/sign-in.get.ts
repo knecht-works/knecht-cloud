@@ -1,5 +1,7 @@
 import { getMemberById, listIdentities } from '../../stores/members'
 import { isGithubAppConfigured } from '../../utils/github-credentials'
+import { defineEventHandler } from 'h3'
+import { requireUserSession } from '#imports'
 
 export default defineEventHandler(async (event) => {
   const { user } = await requireUserSession(event)

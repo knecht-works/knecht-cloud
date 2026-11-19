@@ -3,6 +3,8 @@ import { INTEGRATION_IDS } from '../../../../shared/utils/integrations'
 import { getIntegration } from '../../../integrations'
 import { linkedProject, projectLinks, setProjectLink } from '../../../stores/project-links'
 import { requireProject } from '../../../stores/projects'
+import { defineEventHandler, readBody, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 const bodySchema = z.object({
   integration: z.enum(INTEGRATION_IDS),

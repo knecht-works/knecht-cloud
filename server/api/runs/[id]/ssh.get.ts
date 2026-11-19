@@ -5,6 +5,8 @@ import { getSettings } from '../../../utils/settings'
 import { defaultSshTarget, sshTerminalCommand } from '../../../utils/ssh'
 import { requireSession, touchSessionPreview } from '../../../stores/sessions'
 import { requireRun } from '../../../stores/runs'
+import { defineEventHandler, createError } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

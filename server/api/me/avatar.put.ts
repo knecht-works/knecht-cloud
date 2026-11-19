@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import { setAvatarImage } from '../../stores/members'
 import { updateMemberSession } from '../../utils/member-session'
+import { defineEventHandler, readBody, createError } from 'h3'
+import { requireUserSession } from '#imports'
 
 // The dashboard scales pictures to 256 px before uploading, which stays far below this.
 const MAX_LENGTH = 300_000

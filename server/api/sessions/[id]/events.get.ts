@@ -1,6 +1,8 @@
 import { onLive } from '../../../utils/live'
 import { sendEventStream } from '../../../utils/sse'
 import { requireSession } from '../../../stores/sessions'
+import { defineEventHandler } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 // One stream per open chat; every transcript write of the session lands here as it happens.
 export default defineEventHandler((event) => {

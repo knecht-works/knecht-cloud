@@ -1,4 +1,5 @@
 import { INTEGRATIONS } from '../../integrations'
+import { defineEventHandler } from 'h3'
 
 export default defineEventHandler(() => INTEGRATIONS.map(i => ({
   id: i.id,

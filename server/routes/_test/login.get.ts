@@ -3,6 +3,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import { loginWithIdentity } from '../../stores/members'
 import { startMemberSession } from '../../utils/member-session'
+import { defineEventHandler, createError, getQuery } from 'h3'
 
 export default defineEventHandler(async (event) => {
   if (!import.meta.dev) {

@@ -8,6 +8,7 @@ import { resolveContainerUser, WEB_PROJECT_DIR } from './sandbox'
 import { resolveSessionContainerIp, sessionContainer } from './session-sandbox'
 import { deriveKey } from '../utils/crypto'
 import { toolsDir } from '../utils/storage'
+import { createError } from 'h3'
 
 const OPENVSCODE_VERSION = '1.109.5'
 export const IDE_CONTAINER_DIR = '/usr/local/lib/openvscode-server'

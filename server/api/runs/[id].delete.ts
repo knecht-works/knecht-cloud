@@ -9,6 +9,8 @@ import { getRun, sessionHasRuns, deleteRun } from '../../stores/runs'
 import { deleteRunSteps } from '../../stores/run-steps'
 import { listFollowupIds, deleteFollowups } from '../../stores/followups'
 import { deleteAgentItems } from '../../stores/agent-items'
+import { defineEventHandler } from 'h3'
+import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)

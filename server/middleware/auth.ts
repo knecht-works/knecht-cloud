@@ -1,5 +1,9 @@
 import { INTEGRATIONS } from '../integrations'
 import { sessionMember } from '../utils/member-session'
+import { defineEventHandler, getRequestHeader, createError } from 'h3'
+import { isPreviewHost } from '#shared/utils/preview-host'
+import { isForeignOrigin } from '#server/utils/origin'
+import { requireUserSession, clearUserSession } from '#imports'
 
 export default defineEventHandler(async (event) => {
   // The router matches the percent-decoded path, so the gate must classify that

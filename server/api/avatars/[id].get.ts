@@ -1,4 +1,5 @@
 import { getMemberById } from '../../stores/members'
+import { defineEventHandler, getRouterParam, createError, setResponseHeader } from 'h3'
 
 export default defineEventHandler((event) => {
   const image = getMemberById(Number(getRouterParam(event, 'id')))?.avatarImage
