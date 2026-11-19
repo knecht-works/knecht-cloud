@@ -143,6 +143,20 @@ describe('runner', () => {
     await running
     expect(jira.assigned).toEqual(['knecht'])
     expect(getRun(taken.id).log).toContain('left PROJ-5 with Bob')
+
+    // The review on the PR the ticket's run opened ends the session's work: the ticket goes back too.
+    jira.assigned.length = 0
+    jira.assignee = null
+    const shipped = ticket({ actor: { id: 'user-3', name: 'Sam' } })
+    const shippedTicket = db.select().from(schema.sessionObjects).where(eq(schema.sessionObjects.sessionId, shipped.sessionId)).get()!
+    db.update(schema.runs).set({ objectId: shippedTicket.id }).where(eq(schema.runs.id, shipped.id)).run()
+    const opened = attachTestObject(shipped.sessionId, { integration: 'github', kind: 'pull_request', key: '10' })
+    const reviewOfPr = makeRun(project, [{ type: 'bash', id: 'work', command: 'true' }], { sessionId: shipped.sessionId, status: 'queued', objectId: opened.id })
+    await startRun(shipped.id, project)
+    expect(jira.assigned).toEqual(['knecht'])
+    await startRun(reviewOfPr.id, project)
+    expect(jira.assigned).toEqual(['knecht', 'user-3'])
+    expect(getRun(reviewOfPr.id).log).toContain(`handed ${shippedTicket.key} back to Sam`)
     jiraConnection.remove()
   })
 

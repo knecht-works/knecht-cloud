@@ -139,6 +139,15 @@ export function latestSessionActor(sessionId: number): Run['actor'] {
     .get()?.actor ?? null
 }
 
+// Actor ids belong to one integration: whoever gave Knecht this object, not a person from another tool.
+export function latestObjectActor(sessionId: number, objectId: number): Run['actor'] {
+  return db.select({ actor: schema.runs.actor })
+    .from(schema.runs)
+    .where(and(eq(schema.runs.sessionId, sessionId), eq(schema.runs.objectId, objectId), isNotNull(schema.runs.actor)))
+    .orderBy(desc(schema.runs.id))
+    .get()?.actor ?? null
+}
+
 export function latestSessionPrUrl(sessionId: number): string | null {
   return db.select({ prUrl: schema.runs.prUrl })
     .from(schema.runs)

@@ -29,6 +29,10 @@ export function sessionObjects(sessionId: number): SessionObject[] {
   return listSessionObjectRows(sessionId).map(toSessionObject)
 }
 
+export function sessionObjectsWithIds(sessionId: number): { id: number, object: SessionObject }[] {
+  return listSessionObjectRows(sessionId).map(row => ({ id: row.id, object: toSessionObject(row) }))
+}
+
 // The object work without one of its own talks to: the ticket if there is one, else the first attached.
 export function primaryObject(sessionId: number): SessionObject | null {
   const [row] = listSessionObjectRows(sessionId)
