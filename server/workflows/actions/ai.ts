@@ -57,7 +57,7 @@ export const aiAction = defineAction({
       if (handover) updateSession(rt.sessionId, { agentHandover: null })
       if (notes) updateSession(rt.sessionId, { agentNotes: null })
       await agent.close()
-      await persistAgentMemory(rt.project.id, rt.sandbox, rt.log)
+      await persistAgentMemory(rt.project.id, rt.sandbox, memoryLog(rt))
     }
   },
 })
@@ -141,7 +141,14 @@ export async function runFollowupPrompt(rt: ActionRuntime, prompt: string, sink:
   }
   finally {
     await agent.close()
-    await persistAgentMemory(rt.project.id, rt.sandbox, rt.log)
+    await persistAgentMemory(rt.project.id, rt.sandbox, memoryLog(rt))
+  }
+}
+
+// A cancel also cancels the copy-back, and its error says nothing the user can act on.
+function memoryLog(rt: ActionRuntime): (text: string) => void {
+  return (text) => {
+    if (!rt.signal.aborted) rt.log(text)
   }
 }
 
