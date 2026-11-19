@@ -6,42 +6,53 @@ const props = defineProps<{
 
 const primary = computed(() => props.objects[0]!)
 const badges = computed(() => props.objects.map(o => ({ ...o, meta: sessionObjectMeta(o.integration, o.kind) })))
+const allClosed = computed(() => props.objects.every(o => o.closed))
+const tint = computed(() => allClosed.value ? 'var(--text-dimmed)' : badges.value[0]!.meta.color)
 </script>
 
 <template>
-  <div class="flex items-center gap-2.5 px-4.5 pb-1 pt-3">
-    <UIcon
-      :name="badges[0]!.meta.icon"
-      class="size-3.5 flex-none"
-      :style="{ color: primary.closed ? 'var(--text-dimmed)' : badges[0]!.meta.color }"
-    />
+  <div class="flex items-center gap-2.5 pl-2">
+    <span
+      class="grid size-5 flex-none place-items-center rounded-md"
+      :style="{ background: `color-mix(in oklab, ${tint} 16%, transparent)` }"
+    >
+      <UIcon
+        :name="badges[0]!.meta.icon"
+        class="size-3"
+        :style="{ color: tint }"
+      />
+    </span>
     <UTooltip :text="primary.title ?? ''">
-      <span class="k-mono min-w-0 truncate text-xs text-default">{{ primary.title }}</span>
+      <span
+        class="min-w-0 truncate text-sm font-medium"
+        :class="allClosed ? 'text-muted' : 'text-highlighted'"
+      >
+        {{ primary.title ?? `${badges[0]!.meta.prefix}${primary.key}` }}
+      </span>
     </UTooltip>
-    <span class="flex flex-none items-center gap-1.5">
+    <div class="flex flex-none items-center gap-2 text-xs text-dimmed">
       <component
         :is="o.url ? 'a' : 'span'"
         v-for="o in badges"
         :key="`${o.integration}:${o.kind}:${o.key}`"
         :href="o.url ?? undefined"
         :target="o.url ? '_blank' : undefined"
-        class="k-mono flex items-center gap-1 rounded-full border border-muted px-1.5 text-2xs text-dimmed transition-colors"
+        class="flex items-center gap-1 tabular-nums transition-colors"
         :class="o.url ? 'hover:text-muted' : ''"
         :aria-label="o.url ? `Open ${o.meta.label.toLowerCase()} ${o.meta.prefix}${o.key} in ${triggerSourceMeta(o.integration).label}` : undefined"
       >
         <UIcon
-          v-if="o !== badges[0]"
           :name="o.meta.icon"
           class="size-3"
           :style="{ color: o.closed ? 'var(--text-dimmed)' : o.meta.color }"
         />
-        {{ o.meta.prefix }}{{ o.key }}
+        {{ o.kind === 'pull_request' ? 'PR ' : '' }}{{ o.meta.prefix }}{{ o.key }}
       </component>
-    </span>
+    </div>
     <NuxtLink
       v-if="project"
       :to="`/projects/${project.id}`"
-      class="k-mono ml-auto hidden flex-none text-2xs text-dimmed transition-colors hover:text-muted md:block"
+      class="ml-auto hidden flex-none text-xs text-dimmed transition-colors hover:text-muted md:block"
     >{{ project.name }}</NuxtLink>
   </div>
 </template>
