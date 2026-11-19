@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { isIP } from 'node:net'
 import { hostname } from 'node:os'
 import { join } from 'node:path'
 import { execa, type Options } from 'execa'
@@ -302,7 +303,8 @@ export async function resolveContainerIp(sessionId: number, container: string, n
       container,
     ])
     const ip = stdout.trim()
-    if (!ip) return null
+    // Docker 29 prints "invalid IP" for a container that is created but not running yet.
+    if (!isIP(ip)) return null
     ips.set(container, ip)
     return ip
   }
