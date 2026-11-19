@@ -311,6 +311,13 @@ describe('follow-ups over ACP', () => {
     expect(itemsOf(followup.id).at(-1)).toMatchObject({ type: 'notice', text: 'posted late', seq: 5 })
   })
 
+  it('names a file once when the title already is its path', async () => {
+    const { run } = await runAi({})
+    const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'READ_PATH' }).returning().get()
+    await startFollowup(followup.id)
+    expect(itemsOf(followup.id).some(i => i.kind === 'read' && i.text === 'README.md')).toBe(true)
+  })
+
   it('caps a tool output at 4 KB', async () => {
     const { run } = await runAi({})
     const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'BIG_OUTPUT' }).returning().get()
