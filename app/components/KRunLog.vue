@@ -19,24 +19,23 @@ export interface RunLogRow {
   finishedAt: string | number | Date | null
 }
 
-const props = defineProps<{
+export interface LogRun {
+  id: number
+  label: string
   log: string
   rows: RunLogRow[]
   live: boolean
-  runStatus: RunStatus
-  runStartedAt: string | number | Date | null
-  runFinishedAt: string | number | Date | null
+  status: RunStatus
+  startedAt: string | number | Date | null
+  finishedAt: string | number | Date | null
+}
+
+const props = defineProps<{
+  runs: LogRun[]
   resizable?: boolean
 }>()
 
-const logBytes = computed(() => new TextEncoder().encode(props.log))
-
-const cutsKey = computed(() => props.rows
-  .map(r => ({ id: r.id, start: r.logStart ?? 0 }))
-  .sort((a, b) => a.start - b.start || a.id - b.id)
-  .map(c => `${c.id}:${c.start}`)
-  .join('|'))
-const hasCuts = computed(() => cutsKey.value !== '')
+type SectionKey = string
 
 // ddev and shell output carry colour codes; cut in bytes first, then clean.
 function trimEdges(text: string): string {
@@ -44,65 +43,67 @@ function trimEdges(text: string): string {
 }
 
 interface LogSection {
-  key: number | 'prelude'
+  key: SectionKey
   row: RunLogRow | null
   text: string
 }
 
-// Clamped: the steps poll can deliver a row whose offset points past the log read in the same tick.
-const sections = computed<LogSection[]>(() => {
-  const bytes = logBytes.value
-  if (!hasCuts.value) return [{ key: 'prelude', row: null, text: props.log }]
-  const rowById = new Map(props.rows.map(r => [r.id, r]))
-  const cuts = cutsKey.value.split('|').map((c) => {
-    const [id, start] = c.split(':')
-    return { id: Number(id), start: Math.min(Number(start), bytes.length) }
-  })
-  const decoder = new TextDecoder()
-  const out: LogSection[] = [
-    { key: 'prelude', row: null, text: trimEdges(decoder.decode(bytes.subarray(0, cuts[0]!.start))) },
-  ]
-  for (const [i, cut] of cuts.entries()) {
-    const end = cuts[i + 1]?.start ?? bytes.length
-    out.push({
-      key: cut.id,
-      row: rowById.get(cut.id) ?? null,
-      text: trimEdges(decoder.decode(bytes.subarray(cut.start, end))),
-    })
-  }
-  return out
-})
+const preludeKey = (run: LogRun): SectionKey => `${run.id}:prelude`
 
-const preludeStatusMeta = computed(() => {
-  if (props.rows.length) return RUN_STATUS_META.success
-  if (props.live) return RUN_STATUS_META.running
-  return RUN_STATUS_META[props.runStatus]
-})
+// Clamped: the steps poll can deliver a row whose offset points past the log read in the same tick.
+function runSections(run: LogRun): LogSection[] {
+  const bytes = new TextEncoder().encode(run.log)
+  const cuts = run.rows
+    .map(r => ({ row: r, start: Math.min(r.logStart ?? 0, bytes.length) }))
+    .sort((a, b) => a.start - b.start || a.row.id - b.row.id)
+  if (!cuts.length) return [{ key: preludeKey(run), row: null, text: run.log }]
+  const decoder = new TextDecoder()
+  return [
+    { key: preludeKey(run), row: null, text: trimEdges(decoder.decode(bytes.subarray(0, cuts[0]!.start))) },
+    ...cuts.map((cut, i) => ({
+      key: `${run.id}:${cut.row.id}`,
+      row: cut.row,
+      text: trimEdges(decoder.decode(bytes.subarray(cut.start, cuts[i + 1]?.start ?? bytes.length))),
+    })),
+  ]
+}
+
+const groups = computed(() => props.runs.map(run => ({ run, sections: runSections(run) })))
+const sections = computed(() => groups.value.flatMap(g => g.sections))
+const showRunHeaders = computed(() => props.runs.length > 1)
+const live = computed(() => props.runs.some(r => r.live))
+
+function preludeStatusMeta(run: LogRun) {
+  if (run.rows.length) return RUN_STATUS_META.success
+  if (run.live) return RUN_STATUS_META.running
+  return RUN_STATUS_META[run.status]
+}
 const now = useNow()
-const preludeDuration = computed(() =>
-  runDuration(props.runStartedAt, props.rows[0]?.startedAt ?? props.runFinishedAt, now.value))
+function preludeDuration(run: LogRun) {
+  return runDuration(run.startedAt, run.rows[0]?.startedAt ?? run.finishedAt, now.value)
+}
 
 const { el: container, height: logHeight, startResize } = useResizableHeight(160)
-const { stick, onScroll } = useStickToBottom(container, () => props.log)
+const { stick, onScroll } = useStickToBottom(container, () => props.runs.map(r => r.log.length).join())
 
-const collapsed = ref(new Set<number | 'prelude'>())
-function toggleCollapsed(key: number | 'prelude') {
+const collapsed = ref(new Set<SectionKey>())
+function toggleCollapsed(key: SectionKey) {
   const next = new Set(collapsed.value)
   if (next.has(key)) next.delete(key)
   else next.add(key)
   collapsed.value = next
 }
 
-const activeKey = ref<number | 'prelude'>('prelude')
+const activeKey = ref<SectionKey | null>(null)
 function updateActive() {
   const node = container.value
   if (!node) return
-  if (stick.value || (props.live && node.scrollHeight <= node.clientHeight)) {
-    activeKey.value = sections.value[sections.value.length - 1]!.key
+  if (stick.value || (live.value && node.scrollHeight <= node.clientHeight)) {
+    activeKey.value = sections.value[sections.value.length - 1]?.key ?? null
     return
   }
   const pos = node.scrollTop + 60
-  let current: number | 'prelude' = 'prelude'
+  let current = sections.value[0]?.key ?? null
   for (const seg of sections.value) {
     const el = anchors.get(seg.key)
     if (el && el.offsetTop <= pos) current = seg.key
@@ -119,15 +120,15 @@ watch(sections, async () => {
   updateActive()
 }, { immediate: true })
 
-const anchors = new Map<number | 'prelude', HTMLElement>()
-function setAnchor(key: number | 'prelude', el: unknown) {
+const anchors = new Map<SectionKey, HTMLElement>()
+function setAnchor(key: SectionKey, el: unknown) {
   if (el instanceof HTMLElement) anchors.set(key, el)
   else anchors.delete(key)
 }
 
 // Unpin first (a live run would yank the view back down). scrollTo on the
 // container, not scrollIntoView, which would also scroll the page.
-function jumpTo(key: number | 'prelude') {
+function jumpTo(key: SectionKey) {
   const target = anchors.get(key)
   if (!container.value || !target) return
   if (collapsed.value.has(key)) toggleCollapsed(key)
@@ -143,62 +144,57 @@ function jumpTo(key: number | 'prelude') {
     :style="{ '--log-h': logHeight ? `${logHeight}px` : '37.5rem' }"
   >
     <nav class="k-scrollbar-none order-1 max-h-40 flex-none overflow-y-auto border-b border-muted lg:order-2 lg:max-h-(--log-h) lg:w-60 lg:border-b-0 lg:border-l">
-      <ul class="py-1.5">
-        <li>
+      <ul
+        v-for="(g, gi) in groups"
+        :key="g.run.id"
+        class="py-1.5"
+        :class="gi ? 'border-t border-muted' : ''"
+      >
+        <li v-if="showRunHeaders">
           <button
             type="button"
-            class="relative flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left transition-colors hover:bg-elevated/50"
-            :class="activeKey === 'prelude' ? 'bg-elevated/50' : ''"
-            @click="jumpTo('prelude')"
+            class="flex w-full cursor-pointer items-center gap-2 px-3.5 pb-1 pt-1.5 text-left"
+            @click="jumpTo(preludeKey(g.run))"
           >
-            <span
-              v-if="activeKey === 'prelude'"
-              class="absolute inset-y-1 left-0 w-0.5 rounded-full"
-              :style="{ background: preludeStatusMeta.text }"
-            />
-            <UIcon
-              name="i-lucide-container"
-              class="size-3.5 flex-none text-dimmed"
-            />
-            <span class="min-w-0 flex-1 truncate text-2sm text-muted">Preparation</span>
-            <span class="k-mono text-2xs text-dimmed">{{ preludeDuration }}</span>
+            <span class="k-mono min-w-0 flex-1 truncate text-2xs text-dimmed">{{ g.run.label }} #{{ g.run.id }}</span>
             <KStatusDot
-              :color="preludeStatusMeta.dot"
-              :pulse="preludeStatusMeta.pulse"
+              :color="RUN_STATUS_META[g.run.status].dot"
+              :pulse="g.run.live"
               :size="5"
             />
           </button>
         </li>
         <li
-          v-for="r in rows"
-          :key="r.id"
+          v-for="seg in g.sections"
+          :key="seg.key"
         >
           <button
             type="button"
             class="relative flex w-full cursor-pointer items-center gap-2 px-3.5 py-1.5 text-left transition-colors hover:bg-elevated/50"
-            :class="activeKey === r.id || r.status === 'running' ? 'bg-elevated/50' : ''"
-            :style="r.depth ? { paddingLeft: `${14 + r.depth * 14}px` } : undefined"
-            @click="jumpTo(r.id)"
+            :class="activeKey === seg.key || seg.row?.status === 'running' ? 'bg-elevated/50' : ''"
+            :style="seg.row?.depth ? { paddingLeft: `${14 + seg.row.depth * 14}px` } : undefined"
+            @click="jumpTo(seg.key)"
           >
             <span
-              v-if="activeKey === r.id"
+              v-if="activeKey === seg.key"
               class="absolute inset-y-1 left-0 w-0.5 rounded-full"
-              :style="{ background: r.statusMeta.text }"
+              :style="{ background: (seg.row?.statusMeta ?? preludeStatusMeta(g.run)).text }"
             />
             <UIcon
-              :name="r.icon"
+              :name="seg.row?.icon ?? 'i-lucide-container'"
               class="size-3.5 flex-none"
-              :style="{ color: r.color }"
+              :class="seg.row ? '' : 'text-dimmed'"
+              :style="seg.row ? { color: seg.row.color } : undefined"
             />
             <span
               class="min-w-0 flex-1 truncate text-2sm"
-              :class="r.status === 'running' ? 'text-highlighted' : 'text-muted'"
-              :style="r.status === 'failed' ? 'color: var(--status-error)' : undefined"
-            >{{ r.label }}</span>
-            <span class="k-mono text-2xs text-dimmed">{{ runDuration(r.startedAt, r.finishedAt, now) }}</span>
+              :class="seg.row?.status === 'running' ? 'text-highlighted' : 'text-muted'"
+              :style="seg.row?.status === 'failed' ? 'color: var(--status-error)' : undefined"
+            >{{ seg.row?.label ?? 'Preparation' }}</span>
+            <span class="k-mono text-2xs text-dimmed">{{ seg.row ? runDuration(seg.row.startedAt, seg.row.finishedAt, now) : preludeDuration(g.run) }}</span>
             <KStatusDot
-              :color="r.statusMeta.dot"
-              :pulse="r.statusMeta.pulse"
+              :color="(seg.row?.statusMeta ?? preludeStatusMeta(g.run)).dot"
+              :pulse="(seg.row?.statusMeta ?? preludeStatusMeta(g.run)).pulse"
               :size="5"
             />
           </button>
@@ -212,75 +208,93 @@ function jumpTo(key: number | 'prelude') {
       class="k-scrollbar-none relative order-2 max-h-(--log-h) min-w-0 flex-1 overflow-y-auto lg:order-1"
       @scroll="handleScroll"
     >
-      <section
-        v-for="(seg, i) in sections"
-        :key="seg.key"
-        :ref="el => setAnchor(seg.key, el)"
-        :class="i ? 'border-t border-muted' : ''"
+      <template
+        v-for="(g, gi) in groups"
+        :key="g.run.id"
       >
-        <header
-          class="sticky top-0 z-10 flex cursor-pointer select-none items-center gap-3 px-4.5 py-3"
-          style="background: var(--surface-muted)"
-          @click="toggleCollapsed(seg.key)"
+        <div
+          v-if="showRunHeaders"
+          class="flex items-center gap-2 px-4.5 pb-1.5 pt-3"
+          :class="gi ? 'border-t border-muted' : ''"
         >
-          <span
-            v-if="activeKey === seg.key"
-            class="absolute inset-y-2.5 left-0 w-0.5 rounded-full"
-            :style="{ background: (seg.row?.statusMeta ?? preludeStatusMeta).text }"
+          <KStatusDot
+            :color="RUN_STATUS_META[g.run.status].dot"
+            :pulse="g.run.live"
+            :size="5"
           />
-          <KStepIcon
-            :icon="seg.row?.icon ?? 'i-lucide-container'"
-            :size="30"
-            :radius="7"
-            :color="seg.row?.color ?? 'var(--text-dimmed)'"
-          />
-          <div class="min-w-0 flex-1">
-            <div class="flex items-baseline gap-2">
-              <span class="truncate text-2sm text-highlighted">{{ seg.row?.label ?? 'Preparation' }}</span>
-              <span
-                v-if="seg.row"
-                class="k-mono text-3xs text-dimmed"
-              >{{ seg.row.stepId }}</span>
-              <span
-                v-if="seg.row && seg.row.iteration !== null"
-                class="k-mono text-3xs text-dimmed"
-              >#{{ seg.row.iteration + 1 }}</span>
-              <span
-                v-if="seg.row && seg.row.attempt > 1"
-                class="k-mono text-3xs text-accent-orange"
-              >{{ seg.row.attempt }} attempts</span>
+          <span class="k-mono truncate text-2xs text-muted">{{ g.run.label }} #{{ g.run.id }}</span>
+          <span class="k-mono flex-none text-2xs text-dimmed">· {{ RUN_STATUS_META[g.run.status].label.toLowerCase() }} · {{ timeAgo(g.run.startedAt) }}</span>
+        </div>
+        <section
+          v-for="(seg, i) in g.sections"
+          :key="seg.key"
+          :ref="el => setAnchor(seg.key, el)"
+          :class="i || (gi && !showRunHeaders) ? 'border-t border-muted' : ''"
+        >
+          <header
+            class="sticky top-0 z-10 flex cursor-pointer select-none items-center gap-3 px-4.5 py-3"
+            style="background: var(--surface-muted)"
+            @click="toggleCollapsed(seg.key)"
+          >
+            <span
+              v-if="activeKey === seg.key"
+              class="absolute inset-y-2.5 left-0 w-0.5 rounded-full"
+              :style="{ background: (seg.row?.statusMeta ?? preludeStatusMeta(g.run)).text }"
+            />
+            <KStepIcon
+              :icon="seg.row?.icon ?? 'i-lucide-container'"
+              :size="30"
+              :radius="7"
+              :color="seg.row?.color ?? 'var(--text-dimmed)'"
+            />
+            <div class="min-w-0 flex-1">
+              <div class="flex items-baseline gap-2">
+                <span class="truncate text-2sm text-highlighted">{{ seg.row?.label ?? 'Preparation' }}</span>
+                <span
+                  v-if="seg.row"
+                  class="k-mono text-3xs text-dimmed"
+                >{{ seg.row.stepId }}</span>
+                <span
+                  v-if="seg.row && seg.row.iteration !== null"
+                  class="k-mono text-3xs text-dimmed"
+                >#{{ seg.row.iteration + 1 }}</span>
+                <span
+                  v-if="seg.row && seg.row.attempt > 1"
+                  class="k-mono text-3xs text-accent-orange"
+                >{{ seg.row.attempt }} attempts</span>
+              </div>
+              <p
+                v-if="seg.row?.error"
+                class="truncate text-xs"
+                style="color: var(--status-error)"
+              >
+                {{ seg.row.error }}
+              </p>
             </div>
-            <p
-              v-if="seg.row?.error"
-              class="truncate text-xs"
-              style="color: var(--status-error)"
-            >
-              {{ seg.row.error }}
-            </p>
-          </div>
-          <UIcon
-            name="i-lucide-chevron-down"
-            class="size-3.5 flex-none text-dimmed transition-transform"
-            :class="collapsed.has(seg.key) ? '-rotate-90' : ''"
-          />
-        </header>
-        <pre
-          v-if="seg.text && !collapsed.has(seg.key)"
-          class="k-mono whitespace-pre-wrap break-words px-4.5 pb-3.5 text-xs leading-loose text-muted"
-        >{{ seg.text }}</pre>
+            <UIcon
+              name="i-lucide-chevron-down"
+              class="size-3.5 flex-none text-dimmed transition-transform"
+              :class="collapsed.has(seg.key) ? '-rotate-90' : ''"
+            />
+          </header>
+          <pre
+            v-if="seg.text && !collapsed.has(seg.key)"
+            class="k-mono whitespace-pre-wrap break-words px-4.5 pb-3.5 text-xs leading-loose text-muted"
+          >{{ seg.text }}</pre>
+          <p
+            v-else-if="seg.row?.status === 'running' && !collapsed.has(seg.key)"
+            class="px-4.5 pb-3.5 text-xs text-dimmed"
+          >
+            …
+          </p>
+        </section>
         <p
-          v-else-if="seg.row?.status === 'running' && !collapsed.has(seg.key)"
-          class="px-4.5 pb-3.5 text-xs text-dimmed"
+          v-if="!g.run.log"
+          class="px-4.5 py-4 text-xs text-dimmed"
         >
           …
         </p>
-      </section>
-      <p
-        v-if="!log"
-        class="px-4.5 py-4 text-xs text-dimmed"
-      >
-        …
-      </p>
+      </template>
     </div>
     <KResizeHandle
       v-if="resizable"
