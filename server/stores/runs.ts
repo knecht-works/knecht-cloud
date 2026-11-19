@@ -37,6 +37,7 @@ const runListColumns = {
   project: schema.projects.fullName,
   sessionId: schema.runs.sessionId,
   workflow: schema.runs.workflow,
+  title: schema.runs.title,
   workflowId: schema.runs.workflowId,
   status: schema.runs.status,
   ...runSessionColumns,

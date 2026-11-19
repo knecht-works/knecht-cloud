@@ -1,5 +1,6 @@
 import type { Project, Session } from '../db/schema'
 import { dispatchRuns } from '../daemon/dispatcher'
+import { titleRun } from '../daemon/run-title'
 import type { Integration, ReplyTarget, WebhookComment } from '../integrations'
 import { emptyInputs } from './inputs'
 import { resolveObjectSession, sessionHasActiveWork } from './sessions'
@@ -71,5 +72,6 @@ function queueMentionRun(project: Project, session: Session, objectId: number | 
     origin: 'mention',
   })
   emitFollowup(followup.id)
+  void titleRun(runId, prompt)
   return runId
 }
