@@ -6,6 +6,8 @@ interface MetaChip { icon: string, text: string, href?: string }
 
 const props = defineProps<{
   runId: number
+  sessionId: number
+  hasEnv: boolean
   status: RunStatus
   kind: 'workflow' | 'mention'
   envState: EnvState
@@ -21,6 +23,7 @@ const emit = defineEmits<{
   deleted: []
   openTerminal: []
   pending: [transition: EnvTransition | null]
+  started: [runId: number]
 }>()
 
 const toastError = useToastError()
@@ -86,6 +89,21 @@ async function envAction(action: keyof typeof ENV_ACTIONS) {
   }
 }
 
+const startingPreview = ref(false)
+async function startPreview() {
+  startingPreview.value = true
+  try {
+    const created = await $fetch(`/api/sessions/${props.sessionId}/preview`, { method: 'POST' })
+    emit('started', created.id)
+  }
+  catch (e) {
+    toastError('Failed to start the preview', e)
+  }
+  finally {
+    startingPreview.value = false
+  }
+}
+
 // The tab opens synchronously (popup blockers kill windows opened after an
 // await) and navigates once the server confirms the IDE is up.
 async function openInVscode() {
@@ -124,13 +142,16 @@ const menuItems = computed(() => {
         ? [{ label: 'Restore environment', icon: 'i-lucide-archive-restore', action: 'restore' as const }]
         : []
   ).map(({ action, ...item }) => ({ ...item, disabled: !!props.busy, onSelect: () => envAction(action) }))
+  const preview = !props.hasEnv && !props.isLive
+    ? [{ label: 'Start preview', icon: 'i-lucide-monitor-play', disabled: startingPreview.value || !!props.busy, onSelect: startPreview }]
+    : []
   const remove = [{
     label: 'Delete run',
     icon: 'i-lucide-trash-2',
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
   }]
-  return [[...lifecycle, ...remove]]
+  return [[...preview, ...lifecycle, ...remove]]
 })
 </script>
 

@@ -77,6 +77,8 @@ function refreshWorkspace() {
   >
     <KRunHeader
       :run-id="run.id"
+      :session-id="run.sessionId"
+      :has-env="run.hasEnv || run.previewLost"
       :status="run.status"
       :kind="run.kind"
       :env-state="run.envState"
@@ -87,6 +89,7 @@ function refreshWorkspace() {
       :meta="meta"
       @changed="() => { refreshWorkspace(); emit('changed') }"
       @deleted="emit('deleted')"
+      @started="(runId) => emit('started', runId)"
       @open-terminal="terminalOpen = true"
       @pending="(t) => { pending = t }"
     />
