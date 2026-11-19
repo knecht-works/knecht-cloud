@@ -242,6 +242,15 @@ describe('agent bridge', () => {
     expect(foreign.text).toContain('OTHER-9 is not part of this session. Its objects: PROJ-1, 42')
   })
 
+  it('logs into the running run, not a newer one queued in the session', async () => {
+    const { project, run, sessionId } = objectSession({ status: 'running' })
+    const queued = makeRun(project, [], { sessionId, status: 'queued' })
+    await call(sessionId, { op: 'comment', body: 'Done.' })
+    const logOf = (id: number) => db.select({ log: schema.runs.log }).from(schema.runs).where(eq(schema.runs.id, id)).get()!.log
+    expect(logOf(run.id)).toContain('agent-reply: commented on issue #5')
+    expect(logOf(queued.id)).not.toContain('agent-reply')
+  })
+
   it('posts a comment on the object and records the reply', async () => {
     const { sessionId, run } = objectSession()
     const res = await call(sessionId, { op: 'comment', body: 'All done.' })
