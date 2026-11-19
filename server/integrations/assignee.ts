@@ -1,8 +1,8 @@
-import type { Project, Session } from '../db/schema'
-import { describeObject, sessionHasActiveWork, sessionObjectsWithIds, workObject, type SessionObject } from '../utils/sessions'
+import type { Project, Session } from '#server/db/schema'
+import { describeObject, sessionHasActiveWork, sessionObjectsWithIds, workObject, type SessionObject } from '#server/utils/sessions'
 import { getIntegration } from '.'
 import type { CommentAuthor, Integration } from './types'
-import { getRun, latestObjectActor, latestSessionActor, updateRun } from '../stores/runs'
+import { getRun, latestObjectActor, latestSessionActor, updateRun } from '#server/stores/runs'
 
 type Log = (text: string) => void
 type Assignee = NonNullable<Integration['capabilities']['assignee']>

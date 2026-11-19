@@ -1,9 +1,9 @@
 import { and, eq, isNull, ne, or } from 'drizzle-orm'
-import { db, schema, type Executor } from '../db'
-import type { Project } from '../db/schema'
+import { db, schema, type Executor } from '#server/db'
+import type { Project } from '#server/db/schema'
 import type { IntegrationId } from '#shared/utils/integrations'
 import { liveTopics } from '#shared/utils/live-topics'
-import { emitTopics } from '../utils/live'
+import { emitTopics } from '#server/utils/live'
 
 export type ProjectLinks = Partial<Record<IntegrationId, string>>
 export type ProjectLinkNames = Partial<Record<IntegrationId, string>>

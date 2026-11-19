@@ -1,4 +1,4 @@
-import { deleteWorkflow, requireWorkflowRow } from '../../stores/workflows'
+import { deleteWorkflow, requireWorkflowRow } from '#server/stores/workflows'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

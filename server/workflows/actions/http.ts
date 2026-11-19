@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { tryParseJson } from '../../utils/json'
+import { tryParseJson } from '#server/utils/json'
 import { defineAction, ActionError } from './types'
 
 // No egress filtering: members already run arbitrary bash in sandboxes.

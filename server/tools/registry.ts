@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import { recordToolCall } from '../stores/tool-calls'
+import { recordToolCall } from '#server/stores/tool-calls'
 
 export type Actor = { kind: 'member', login: string } | { kind: 'system' }
 

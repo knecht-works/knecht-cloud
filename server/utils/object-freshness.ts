@@ -1,4 +1,4 @@
-import type { Integration } from '../integrations'
+import type { Integration } from '#server/integrations'
 
 const MAX_AGE_MS = 10 * 60_000
 

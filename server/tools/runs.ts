@@ -1,8 +1,8 @@
 import { createError } from 'h3'
 import { z } from 'zod'
 import { stripAnsi } from '#shared/utils/ansi'
-import { getRunView, listRunViews, readRunLog, runLogBytes } from '../stores/runs'
-import { listRunSteps, readStepLog } from '../stores/run-steps'
+import { getRunView, listRunViews, readRunLog, runLogBytes } from '#server/stores/runs'
+import { listRunSteps, readStepLog } from '#server/stores/run-steps'
 import { maskSecrets } from './redact'
 import { defineTool } from './registry'
 

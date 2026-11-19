@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
-import type { ActionRuntime } from '../workflows/actions/types'
+import type { ActionRuntime } from '#server/workflows/actions/types'
 import { tryParseJson } from './json'
 import { sanitizeFilename } from './storage'
 

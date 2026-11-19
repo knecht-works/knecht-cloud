@@ -1,4 +1,4 @@
-import { createVendorCache, createVendorFetch, type VendorRequest } from '../vendor-fetch'
+import { createVendorCache, createVendorFetch, type VendorRequest } from '#server/integrations/vendor-fetch'
 import type { AdfNode } from './adf'
 import { jiraCredentials } from './credentials'
 

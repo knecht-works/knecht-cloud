@@ -1,6 +1,6 @@
-import type { NewWorkflowRow } from '../../db/schema'
-import { updateWorkflow, requireWorkflowRow, getWorkflowRowByName } from '../../stores/workflows'
-import { publishStepsSchema, workflowPatchSchema } from '../../workflows/schema'
+import type { NewWorkflowRow } from '#server/db/schema'
+import { updateWorkflow, requireWorkflowRow, getWorkflowRowByName } from '#server/stores/workflows'
+import { publishStepsSchema, workflowPatchSchema } from '#server/workflows/schema'
 import { defineEventHandler, readBody, createError } from 'h3'
 import { requireIntParam, zodBadRequest } from '#server/utils/http'
 

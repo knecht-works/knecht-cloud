@@ -1,4 +1,4 @@
-import { migrateDatabase } from '../db/migrate'
+import { migrateDatabase } from '#server/db/migrate'
 import { defineNitroPlugin } from 'nitropack/runtime'
 
 export default defineNitroPlugin(() => {

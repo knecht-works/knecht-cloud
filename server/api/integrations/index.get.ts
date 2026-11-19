@@ -1,4 +1,4 @@
-import { INTEGRATIONS } from '../../integrations'
+import { INTEGRATIONS } from '#server/integrations'
 import { defineEventHandler } from 'h3'
 
 export default defineEventHandler(() => INTEGRATIONS.map(i => ({

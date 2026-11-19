@@ -1,5 +1,5 @@
-import { listOpenInvites, revokeInvite } from '../../stores/invites'
-import { requireOwner } from '../../utils/owner'
+import { listOpenInvites, revokeInvite } from '#server/stores/invites'
+import { requireOwner } from '#server/utils/owner'
 import { defineEventHandler, getRouterParam, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {

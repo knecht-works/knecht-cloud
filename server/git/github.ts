@@ -1,6 +1,6 @@
-import { resolveProjectMeta } from '../utils/framework'
-import { readRepoDir } from '../utils/github'
-import { createPullRequest, getInstallationClient, getInstallationToken, listAppRepositories, listRepoAssignees, listRepoBranches, listRepoLabels } from '../utils/github-app'
+import { resolveProjectMeta } from '#server/utils/framework'
+import { readRepoDir } from '#server/utils/github'
+import { createPullRequest, getInstallationClient, getInstallationToken, listAppRepositories, listRepoAssignees, listRepoBranches, listRepoLabels } from '#server/utils/github-app'
 import type { GitProvider } from './types'
 
 export const githubProvider: GitProvider = {

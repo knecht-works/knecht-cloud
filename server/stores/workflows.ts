@@ -1,12 +1,12 @@
 import { eq, inArray } from 'drizzle-orm'
 import { createError } from 'h3'
-import { db, schema } from '../db'
-import type { NewWorkflowRow, WorkflowRow } from '../db/schema'
+import { db, schema } from '#server/db'
+import type { NewWorkflowRow, WorkflowRow } from '#server/db/schema'
 import { clearStarterWorkflow } from './projects'
 import { unlinkWorkflowRuns } from './runs'
 import { deleteWorkflowTriggers } from './triggers'
 import { liveTopics } from '#shared/utils/live-topics'
-import { emitTopics } from '../utils/live'
+import { emitTopics } from '#server/utils/live'
 
 export function getWorkflowRow(id: number): WorkflowRow | undefined {
   return db.select().from(schema.workflows).where(eq(schema.workflows.id, id)).get()

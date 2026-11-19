@@ -1,10 +1,10 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import type { Project, Session } from '../db/schema'
+import type { Project, Session } from '#server/db/schema'
 import { shareLinkMaxMinutes, type PreviewAccess } from '#shared/utils/preview-access'
 import { deriveKey } from './crypto'
 import { getSettings } from './settings'
-import { touchSessionPreview, updateSession } from '../stores/sessions'
-import { getProject } from '../stores/projects'
+import { touchSessionPreview, updateSession } from '#server/stores/sessions'
+import { getProject } from '#server/stores/projects'
 
 let cachedKey: Buffer | undefined
 function shareKey(): Buffer {

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { setAvatarImage } from '../../stores/members'
-import { updateMemberSession } from '../../utils/member-session'
+import { setAvatarImage } from '#server/stores/members'
+import { updateMemberSession } from '#server/utils/member-session'
 import { defineEventHandler, readBody, createError } from 'h3'
 import { requireUserSession } from '#imports'
 

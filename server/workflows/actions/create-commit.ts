@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { commitAll } from '../../daemon/git'
-import { getBotIdentity } from '../../utils/github-app'
+import { commitAll } from '#server/daemon/git'
+import { getBotIdentity } from '#server/utils/github-app'
 import { defineAction } from './types'
 
 export const createCommitAction = defineAction({

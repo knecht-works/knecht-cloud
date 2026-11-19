@@ -1,4 +1,4 @@
-import { listRunSteps } from '../../../stores/run-steps'
+import { listRunSteps } from '#server/stores/run-steps'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

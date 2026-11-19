@@ -1,12 +1,12 @@
 import { z } from 'zod'
-import type { Trigger } from '../../db/schema'
+import type { Trigger } from '#server/db/schema'
 import type { TrackerId, TriggerSource } from '#shared/utils/integrations'
 import { triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerFormDef, type TriggerSegment } from '#shared/utils/trigger-form'
-import { INTEGRATIONS, type Integration } from '../../integrations'
-import { gitTriggerForm } from '../../integrations/git-trigger-form'
-import { triggerConfigSchema } from '../../integrations/trigger-config'
-import { projectLinks } from '../../stores/project-links'
-import { getProject } from '../../stores/projects'
+import { INTEGRATIONS, type Integration } from '#server/integrations'
+import { gitTriggerForm } from '#server/integrations/git-trigger-form'
+import { triggerConfigSchema } from '#server/integrations/trigger-config'
+import { projectLinks } from '#server/stores/project-links'
+import { getProject } from '#server/stores/projects'
 
 // `event` is the one-line label; `on`, `conditions` and `scope` are its parts, set off for display.
 export interface TriggerSourceDescription {

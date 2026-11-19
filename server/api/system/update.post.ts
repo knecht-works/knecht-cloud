@@ -1,6 +1,6 @@
-import { startUpdate } from '../../daemon/update'
-import { currentVersion, isNewerVersion, latestVersion } from '../../utils/version'
-import { requireOwner } from '../../utils/owner'
+import { startUpdate } from '#server/daemon/update'
+import { currentVersion, isNewerVersion, latestVersion } from '#server/utils/version'
+import { requireOwner } from '#server/utils/owner'
 import { defineEventHandler, createError } from 'h3'
 
 export default defineEventHandler(async (event) => {

@@ -1,9 +1,9 @@
 import { previewLabel } from '#shared/utils/preview-host'
-import { readDdevHosts } from '../daemon/ddev'
+import { readDdevHosts } from '#server/daemon/ddev'
 import { devServerLabel } from './dev-origin'
 import { previewOrigin } from './origin'
 import { sessionCheckoutDir } from './storage'
-import { getSessionRow } from '../stores/sessions'
+import { getSessionRow } from '#server/stores/sessions'
 
 const ISSUE_TIMEOUT_MS = 60_000
 

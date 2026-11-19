@@ -1,7 +1,7 @@
-import { reviveEnv } from '../../../daemon/envs'
-import { withRunSessionEnv } from '../../../utils/run-view'
-import { requireSession } from '../../../stores/sessions'
-import { requireRun } from '../../../stores/runs'
+import { reviveEnv } from '#server/daemon/envs'
+import { withRunSessionEnv } from '#server/utils/run-view'
+import { requireSession } from '#server/stores/sessions'
+import { requireRun } from '#server/stores/runs'
 import { defineEventHandler, createError } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

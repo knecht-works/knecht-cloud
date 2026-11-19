@@ -1,7 +1,7 @@
 import { parse } from 'yaml'
 import { z } from 'zod'
-import { createWorkflow, uniqueWorkflowName } from '../../stores/workflows'
-import { workflowDocumentSchema } from '../../workflows/schema'
+import { createWorkflow, uniqueWorkflowName } from '#server/stores/workflows'
+import { workflowDocumentSchema } from '#server/workflows/schema'
 import { defineEventHandler, readBody, createError } from 'h3'
 import { zodBadRequest } from '#server/utils/http'
 

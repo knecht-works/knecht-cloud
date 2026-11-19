@@ -1,11 +1,11 @@
 import type { Octokit } from 'octokit'
 import semver from 'semver'
 import { FRAMEWORKS } from '#shared/utils/frameworks'
-import type { DdevEnv, Project } from '../db/schema'
-import { setProjectMeta } from '../stores/projects'
+import type { DdevEnv, Project } from '#server/db/schema'
+import { setProjectMeta } from '#server/stores/projects'
 import { detectEnv, parseDdevConfig, repoShipsDdevConfig, type ReadFile } from './env-detect'
 import { fetchFavicon, fetchFrameworkVersion, fetchPackageManager, repoReader } from './github'
-import { gitProvider } from '../git'
+import { gitProvider } from '#server/git'
 
 export interface ProjectMeta {
   framework: string | null

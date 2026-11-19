@@ -1,9 +1,9 @@
 import { join } from 'node:path'
 import { projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
-import { setProjectDump, requireProject } from '../../../stores/projects'
-import { startDbBaseBuild } from '../../../daemon/db-base'
-import { projectDumpDir, sanitizeFilename } from '../../../utils/storage'
-import { receiveUpload } from '../../../utils/upload'
+import { setProjectDump, requireProject } from '#server/stores/projects'
+import { startDbBaseBuild } from '#server/daemon/db-base'
+import { projectDumpDir, sanitizeFilename } from '#server/utils/storage'
+import { receiveUpload } from '#server/utils/upload'
 import { defineEventHandler, createError, getQuery } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

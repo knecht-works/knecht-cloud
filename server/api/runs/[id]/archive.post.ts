@@ -1,8 +1,8 @@
-import { archiveEnv } from '../../../daemon/envs'
-import { sessionHasActiveWork } from '../../../utils/sessions'
-import { withRunSessionEnv } from '../../../utils/run-view'
-import { requireSession } from '../../../stores/sessions'
-import { requireRun } from '../../../stores/runs'
+import { archiveEnv } from '#server/daemon/envs'
+import { sessionHasActiveWork } from '#server/utils/sessions'
+import { withRunSessionEnv } from '#server/utils/run-view'
+import { requireSession } from '#server/stores/sessions'
+import { requireRun } from '#server/stores/runs'
 import { defineEventHandler, createError } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

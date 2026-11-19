@@ -1,6 +1,6 @@
 import { rmSync } from 'node:fs'
-import { setProjectDump, requireProject } from '../../../stores/projects'
-import { dropDbBase } from '../../../daemon/db-base'
+import { setProjectDump, requireProject } from '#server/stores/projects'
+import { dropDbBase } from '#server/daemon/db-base'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { getMember, listMembers, setOwner } from '../../stores/members'
-import { requireOwner } from '../../utils/owner'
+import { getMember, listMembers, setOwner } from '#server/stores/members'
+import { requireOwner } from '#server/utils/owner'
 import { defineEventHandler, getRouterParam, createError, readBody } from 'h3'
 
 const bodySchema = z.object({ isOwner: z.boolean() })

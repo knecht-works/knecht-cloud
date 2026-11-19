@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { publishStepsSchema, WORKFLOW_FORMAT_VERSION } from '../workflows/schema'
+import { publishStepsSchema, WORKFLOW_FORMAT_VERSION } from '#server/workflows/schema'
 import glossary from '../../CONTEXT.md'
 import { defineTool } from './registry'
 

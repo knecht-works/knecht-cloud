@@ -1,11 +1,11 @@
-import type { Project, Trigger } from '../db/schema'
+import type { Project, Trigger } from '#server/db/schema'
 import type { ConnectionFormDef } from '#shared/utils/connection-form'
 import type { IntegrationId, ObjectKind } from '#shared/utils/integrations'
 import type { TriggerFormDef } from '#shared/utils/trigger-form'
-import type { TriggerInputs } from '../utils/inputs'
-import type { SessionObject } from '../utils/sessions'
+import type { TriggerInputs } from '#server/utils/inputs'
+import type { SessionObject } from '#server/utils/sessions'
 import type { ConnectionStore } from './connections'
-import type { ObjectSnapshot } from '../utils/object-snapshot'
+import type { ObjectSnapshot } from '#server/utils/object-snapshot'
 
 export type WebhookHeaders = (name: string) => string | undefined
 

@@ -1,5 +1,5 @@
-import { INTEGRATIONS } from '../integrations'
-import { sessionMember } from '../utils/member-session'
+import { INTEGRATIONS } from '#server/integrations'
+import { sessionMember } from '#server/utils/member-session'
 import { defineEventHandler, getRequestHeader, createError } from 'h3'
 import { isPreviewHost } from '#shared/utils/preview-host'
 import { isForeignOrigin } from '#server/utils/origin'

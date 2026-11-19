@@ -1,11 +1,11 @@
 import { request } from 'node:http'
-import type { Project } from '../db/schema'
-import { setProjectMeta } from '../stores/projects'
-import { previewTargetPort, readDdevHosts } from '../daemon/ddev'
-import { resolvePreview } from '../daemon/sandbox'
+import type { Project } from '#server/db/schema'
+import { setProjectMeta } from '#server/stores/projects'
+import { previewTargetPort, readDdevHosts } from '#server/daemon/ddev'
+import { resolvePreview } from '#server/daemon/sandbox'
 import { sessionPreviewUrl } from './preview-target'
 import { sessionCheckoutDir } from './storage'
-import { getSessionRow } from '../stores/sessions'
+import { getSessionRow } from '#server/stores/sessions'
 
 const MAX_HTML_BYTES = 512_000
 

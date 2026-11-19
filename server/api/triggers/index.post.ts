@@ -1,10 +1,10 @@
 import { z } from 'zod'
 import { TRACKER_IDS, TRIGGER_SOURCES } from '#shared/utils/integrations'
-import { isValidCron, nextRun } from '../../utils/cron'
-import { toSummaries } from '../../utils/triggers'
-import { getTriggerSource } from '../../utils/trigger-sources'
-import { requireWorkflowRow } from '../../stores/workflows'
-import { createTrigger } from '../../stores/triggers'
+import { isValidCron, nextRun } from '#server/utils/cron'
+import { toSummaries } from '#server/utils/triggers'
+import { getTriggerSource } from '#server/utils/trigger-sources'
+import { requireWorkflowRow } from '#server/stores/workflows'
+import { createTrigger } from '#server/stores/triggers'
 import { defineEventHandler, readBody, createError } from 'h3'
 
 const bodySchema = z.object({

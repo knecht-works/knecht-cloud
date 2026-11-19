@@ -1,5 +1,5 @@
-import { onTopics } from '../utils/live'
-import { sendEventStream } from '../utils/sse'
+import { onTopics } from '#server/utils/live'
+import { sendEventStream } from '#server/utils/sse'
 import { defineEventHandler } from 'h3'
 
 export default defineEventHandler(event =>

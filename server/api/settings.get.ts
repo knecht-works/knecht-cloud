@@ -1,4 +1,4 @@
-import { getSettings, publicSettings } from '../utils/settings'
+import { getSettings, publicSettings } from '#server/utils/settings'
 import { defineEventHandler } from 'h3'
 
 // GET /api/settings → the instance settings (self-seeds defaults on first

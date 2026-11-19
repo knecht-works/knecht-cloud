@@ -1,6 +1,6 @@
 import type { H3Event } from 'h3'
-import { getMemberById } from '../stores/members'
-import type { Member } from '../db/schema'
+import { getMemberById } from '#server/stores/members'
+import type { Member } from '#server/db/schema'
 import { requireUserSession } from '#imports'
 import { createError } from 'h3'
 

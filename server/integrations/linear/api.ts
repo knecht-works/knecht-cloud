@@ -1,5 +1,5 @@
 import { ofetch } from 'ofetch'
-import { createGraphqlClient, createVendorCache, createVendorFetch } from '../vendor-fetch'
+import { createGraphqlClient, createVendorCache, createVendorFetch } from '#server/integrations/vendor-fetch'
 import { linearCredentials } from './credentials'
 
 interface LinearAuth {

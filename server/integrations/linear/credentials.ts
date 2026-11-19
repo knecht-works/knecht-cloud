@@ -1,5 +1,5 @@
 import type { ConnectionFormDef } from '#shared/utils/connection-form'
-import { createConnectionStore } from '../connections'
+import { createConnectionStore } from '#server/integrations/connections'
 
 export const LINEAR_CONNECTION_FORM: ConnectionFormDef = {
   intro: 'Issues start workflows and get Knecht\'s replies. Connect with a personal API key (Settings → Security & access → Personal API keys), ideally of a dedicated "Knecht" account, then link each project to its Linear team in the project settings.',

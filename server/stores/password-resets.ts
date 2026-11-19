@@ -1,7 +1,7 @@
 import { and, eq, gt } from 'drizzle-orm'
-import { db } from '../db'
-import { passwordResets } from '../db/schema'
-import { hashLinkToken, newLinkToken } from '../utils/link-token'
+import { db } from '#server/db'
+import { passwordResets } from '#server/db/schema'
+import { hashLinkToken, newLinkToken } from '#server/utils/link-token'
 
 const RESET_TTL_MS = 24 * 60 * 60 * 1000
 

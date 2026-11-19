@@ -1,8 +1,8 @@
 import { statSync } from 'node:fs'
-import { backfillFrameworks } from '../../utils/framework'
-import { withLinks } from '../../stores/project-links'
-import { requireProject } from '../../stores/projects'
-import { gitProvider } from '../../git'
+import { backfillFrameworks } from '#server/utils/framework'
+import { withLinks } from '#server/stores/project-links'
+import { requireProject } from '#server/stores/projects'
+import { gitProvider } from '#server/git'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

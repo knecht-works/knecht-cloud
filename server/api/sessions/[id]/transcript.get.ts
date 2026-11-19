@@ -1,5 +1,5 @@
-import { sessionTranscript } from '../../../utils/transcript'
-import { requireSession } from '../../../stores/sessions'
+import { sessionTranscript } from '#server/utils/transcript'
+import { requireSession } from '#server/stores/sessions'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 

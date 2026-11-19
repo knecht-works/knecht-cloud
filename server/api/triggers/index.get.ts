@@ -1,5 +1,5 @@
-import { listTriggers } from '../../stores/triggers'
-import { toSummaries, type TriggerSummary } from '../../utils/triggers'
+import { listTriggers } from '#server/stores/triggers'
+import { toSummaries, type TriggerSummary } from '#server/utils/triggers'
 import { defineEventHandler } from 'h3'
 
 export default defineEventHandler((): TriggerSummary[] => {

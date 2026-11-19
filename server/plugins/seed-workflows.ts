@@ -1,4 +1,4 @@
-import { seedWorkflows } from '../workflows'
+import { seedWorkflows } from '#server/workflows'
 import { defineNitroPlugin } from 'nitropack/runtime'
 
 // Runs after migrate.ts: Nitro loads plugins alphabetically.

@@ -1,5 +1,5 @@
-import type { ActionRuntime } from '../workflows/actions/types'
-import { getSessionRow } from '../stores/sessions'
+import type { ActionRuntime } from '#server/workflows/actions/types'
+import { getSessionRow } from '#server/stores/sessions'
 import { copyIntoContainer, execInContainer, resolveContainerIp, spawnInContainer, streamInContainer, webContainerName, WEB_PROJECT_DIR } from './sandbox'
 import { workspaceContainerName } from './workspace'
 import { reviveEnv } from './envs'
