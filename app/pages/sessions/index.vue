@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { runWorkspacePath } from '#shared/utils/routes'
+import { sessionWorkspacePath } from '#shared/utils/routes'
 import { computeRunStats } from '#shared/utils/run-stats'
 
 const { data: runs } = await useRuns()
@@ -137,7 +137,7 @@ const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
     >
       <KSessionList
         :groups="sessionGroups"
-        :run-to="r => runWorkspacePath(r.projectId, r.id)"
+        :session-to="g => sessionWorkspacePath(g.runs[0]!.projectId, g.sessionId)"
         show-project
       />
     </div>

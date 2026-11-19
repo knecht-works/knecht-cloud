@@ -14,11 +14,6 @@ const sessionGroups = computed(() => groupRunsBySession(projectRuns.value))
 
 // The selection is a ref, not a computed from the query, so a new run appearing
 // changes the list but never what the workspace shows.
-function runFromQuery(): number | null {
-  const q = Number(route.query.run)
-  return projectRuns.value.some(r => r.id === q) ? q : null
-}
-
 const offListRun = ref<(typeof projectRuns.value)[number] | null>(null)
 const queryRun = Number(route.query.run)
 if (Number.isInteger(queryRun) && !projectRuns.value.some(r => r.id === queryRun)) {
@@ -29,38 +24,55 @@ if (Number.isInteger(queryRun) && !projectRuns.value.some(r => r.id === queryRun
   }
 }
 
-const selectedRunId = ref<number | null>(runFromQuery() ?? offListRun.value?.id ?? latest.value?.id ?? null)
-const selectedRun = computed(() =>
-  projectRuns.value.find(r => r.id === selectedRunId.value)
-  ?? (offListRun.value?.id === selectedRunId.value ? offListRun.value : null))
-
-onMounted(() => {
-  if (route.query.run && !runFromQuery() && Number(route.query.run) !== offListRun.value?.id)
-    navigateTo({ query: { ...route.query, run: undefined } }, { replace: true })
-})
-
-watch(() => route.query.run, () => {
-  const q = runFromQuery()
-  if (q) selectedRunId.value = q
-  if (q !== null && q === latest.value?.id) lastSeenLatestId.value = q
-})
-
-function selectRun(runId: number) {
-  navigateTo({ query: { ...route.query, run: String(runId) } }, { replace: true })
+// Old links name a run (they sit in published PR bodies and agent comments); they open its session.
+function sessionFromQuery(): number | null {
+  const s = Number(route.query.session)
+  if (sessionGroups.value.some(g => g.sessionId === s) || offListRun.value?.sessionId === s) return s
+  const r = Number(route.query.run)
+  return projectRuns.value.find(run => run.id === r)?.sessionId
+    ?? (offListRun.value && offListRun.value.id === r ? offListRun.value.sessionId : null)
 }
+
+const selectedSessionId = ref<number | null>(sessionFromQuery() ?? latest.value?.sessionId ?? null)
+const selectedGroup = computed(() =>
+  sessionGroups.value.find(g => g.sessionId === selectedSessionId.value)
+  ?? (offListRun.value?.sessionId === selectedSessionId.value
+    ? { sessionId: offListRun.value.sessionId, objects: offListRun.value.objects, runs: [offListRun.value] }
+    : null))
+const selectedRun = computed(() => selectedGroup.value?.runs[0] ?? null)
+
+function selectSession(sessionId: number) {
+  navigateTo({ query: { ...route.query, run: undefined, session: String(sessionId) } }, { replace: true })
+}
+
+function syncQuery() {
+  const q = sessionFromQuery()
+  if (route.query.run && q !== null) selectSession(q)
+  else if ((route.query.run || route.query.session) && q === null)
+    navigateTo({ query: { ...route.query, run: undefined, session: undefined } }, { replace: true })
+}
+
+onMounted(syncQuery)
+
+watch(() => [route.query.session, route.query.run], () => {
+  const q = sessionFromQuery()
+  if (q !== null) selectedSessionId.value = q
+  if (q !== null && q === latest.value?.sessionId) lastSeenLatestId.value = latest.value.id
+  syncQuery()
+})
 
 const lastSeenLatestId = ref(latest.value?.id ?? null)
 const newRun = computed(() =>
-  latest.value && latest.value.id !== selectedRunId.value && latest.value.id !== lastSeenLatestId.value
+  latest.value && latest.value.sessionId !== selectedSessionId.value && latest.value.id !== lastSeenLatestId.value
     ? latest.value
     : null)
 
 watch(runs, () => {
-  if (selectedRunId.value === offListRun.value?.id) return
-  if (selectedRunId.value !== null && !projectRuns.value.some(r => r.id === selectedRunId.value)) {
-    selectedRunId.value = latest.value?.id ?? null
+  if (selectedSessionId.value === offListRun.value?.sessionId) return
+  if (selectedSessionId.value !== null && !sessionGroups.value.some(g => g.sessionId === selectedSessionId.value)) {
+    selectedSessionId.value = latest.value?.sessionId ?? null
     lastSeenLatestId.value = latest.value?.id ?? null
-    navigateTo({ query: { ...route.query, run: undefined } }, { replace: true })
+    navigateTo({ query: { ...route.query, run: undefined, session: undefined } }, { replace: true })
   }
 })
 
@@ -96,11 +108,11 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
 async function onRunStarted(runId: number) {
   await invalidate(liveTopics.runs)
   lastSeenLatestId.value = runId
-  await navigateTo({ query: { ...route.query, run: String(runId) } }, { replace: true })
+  await navigateTo({ query: { ...route.query, session: undefined, run: String(runId) } }, { replace: true })
 }
 
 async function onRunDeleted() {
-  if (offListRun.value?.id === selectedRunId.value) offListRun.value = null
+  if (offListRun.value?.id === selectedRun.value?.id) offListRun.value = null
   await invalidate(liveTopics.runs)
 }
 
@@ -141,6 +153,8 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
           v-if="selectedRun"
           :key="selectedRun.id"
           :run-id="selectedRun.id"
+          :session-id="selectedRun.sessionId"
+          :session-runs="selectedGroup!.runs"
           @deleted="onRunDeleted"
           @started="onRunStarted"
           @changed="invalidate(liveTopics.runs)"
@@ -224,7 +238,7 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
               v-if="newRun"
               type="button"
               class="k-mono flex cursor-pointer items-center gap-1.5 text-2xs text-primary transition-colors hover:text-highlighted"
-              @click="selectRun(newRun.id)"
+              @click="selectSession(newRun.sessionId)"
             >
               <KStatusDot
                 color="primary"
@@ -255,9 +269,10 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
             <div class="max-h-100 overflow-y-auto">
               <KSessionList
                 :groups="sessionGroups"
-                :run-to="r => ({ query: { run: String(r.id) } })"
+                :session-to="g => ({ query: { session: String(g.sessionId) } })"
                 replace
-                :selected-run-id="selectedRunId"
+                :selected-session-id="selectedSessionId"
+                hide-runs
               />
             </div>
           </div>

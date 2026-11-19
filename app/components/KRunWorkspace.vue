@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import type { EnvTransition } from '#shared/utils/run'
 import { liveTopics } from '#shared/utils/live-topics'
+import type { SessionRun } from '~/composables/useSessionLogs'
 
-const props = defineProps<{ runId: number }>()
+const props = defineProps<{
+  runId: number
+  sessionId: number
+  sessionRuns: SessionRun[]
+}>()
 
 const emit = defineEmits<{
   deleted: []
@@ -14,8 +19,6 @@ const id = props.runId
 
 // Not awaited: a blocking async setup would re-trigger Suspense on every run switch.
 const { data: run } = useRun(id)
-const { data: stepRows } = useRunSteps(id)
-const log = useRunLog(id)
 
 const isLive = computed(() => isLiveStatus(run.value?.status))
 
@@ -23,8 +26,6 @@ const statusMeta = computed(() => runStatusMeta(run.value))
 
 const previewOnline = computed(() =>
   run.value?.envState === 'up' && run.value.previewReady)
-
-const timeline = computed(() => runLogTimeline(stepRows.value ?? [], run.value?.status))
 
 const meta = computed(() => {
   const r = run.value
@@ -46,6 +47,7 @@ const meta = computed(() => {
 })
 
 const followupActive = ref(false)
+const logRuns = useSessionLogs(props.sessionId, () => props.sessionRuns, () => followupActive.value)
 const terminalOpen = ref(false)
 
 const pending = ref<EnvTransition | null>(null)
@@ -107,7 +109,7 @@ function refreshWorkspace() {
     />
 
     <KPanel
-      v-if="run.kind !== 'mention'"
+      v-if="logRuns.length"
       title="Log"
       icon="i-lucide-list-checks"
       :pad="0"
@@ -126,12 +128,7 @@ function refreshWorkspace() {
         </span>
       </template>
       <KRunLog
-        :log="log"
-        :rows="timeline"
-        :live="isLive || followupActive"
-        :run-status="run.status"
-        :run-started-at="run.startedAt"
-        :run-finished-at="run.finishedAt"
+        :runs="logRuns"
         resizable
       />
     </KPanel>
