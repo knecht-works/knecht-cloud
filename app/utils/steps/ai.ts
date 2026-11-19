@@ -10,7 +10,6 @@ export const aiStep = defineStep({
   group: 'AI',
   fields: [
     { key: 'prompt', label: 'Prompt', input: 'textarea', rows: 4, required: true, vars: true, placeholder: 'Fix the failing test: {{ steps.s2.stdout }}' },
-    { key: 'system', label: 'Step prompt', input: 'textarea', rows: 3, vars: true, placeholder: 'Optional. Task framing for this step, layered on the instructions.' },
     { key: 'output', label: 'Output format', input: 'textarea', rows: 3, placeholder: 'Optional. One field per line:\nprTitle: string\nlabels: string[]' },
     { key: 'model', label: 'Model', input: 'model', placeholder: 'Default from Settings → Agent' },
   ],

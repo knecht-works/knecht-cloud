@@ -27,7 +27,6 @@ export const aiAction = defineAction({
   params: {
     prompt: z.string().min(1),
     model: z.string().optional(),
-    system: z.string().optional(),
     output: z.string().optional().refine(
       v => v === undefined || isValidOutputSpec(v),
       { message: 'output must be lines of `name: type` (types: string, number, boolean, or their [] arrays)' },
@@ -37,7 +36,7 @@ export const aiAction = defineAction({
     const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId, step.model)
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
-    await writeAgentConfig(rt, step.system ?? '', bareModel)
+    await writeAgentConfig(rt, bareModel)
 
     const workflow = freshContextWorkflow(rt.runId)
     const session = getSessionRow(rt.sessionId)
@@ -132,7 +131,7 @@ async function resolveAgentEnv(
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string, sink: TranscriptSink, model?: string | null): Promise<string> {
   const { model: modelRef, bareModel, env } = await resolveAgentEnv(rt.sessionId, model ?? undefined)
   await rt.sandbox.ensureUp()
-  await writeAgentConfig(rt, null, bareModel)
+  await writeAgentConfig(rt, bareModel)
   const ticket = await refreshTicket(rt)
   const agent = await startSessionAgent(rt, env, sink, modelRef)
   try {
@@ -154,7 +153,7 @@ const SILENT_SINK: TranscriptSink = { item() {}, end() {} }
 export async function compactAgentSession(rt: ActionRuntime, sink: TranscriptSink, model?: string | null): Promise<string> {
   const { bareModel, env } = await resolveAgentEnv(rt.sessionId, model ?? undefined)
   await rt.sandbox.ensureUp()
-  await writeAgentConfig(rt, null, bareModel)
+  await writeAgentConfig(rt, bareModel)
   const current = getSessionRow(rt.sessionId)?.agentSessionId ?? null
   let summary = ''
   if (current) {
@@ -250,7 +249,7 @@ async function readOutputFile(
   return { ok: true, value }
 }
 
-async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareModel: string): Promise<void> {
+async function writeAgentConfig(rt: ActionRuntime, bareModel: string): Promise<void> {
   const settings = getSettings()
   const files: Record<string, string | Uint8Array> = {}
   const agents = await readSandboxAsset('opencode/AGENTS.md')
@@ -263,8 +262,6 @@ async function writeAgentConfig(rt: ActionRuntime, system: string | null, bareMo
     model: bareModel,
     subtaskModel: settings.aiSubtaskModel,
   }), null, 2)
-  // A step always (over)writes workflow.md so one ai step's prompt never leaks into a later one.
-  if (system !== null) files['workflow.md'] = system
   for (const [name, text] of Object.entries(await agentMemoryFiles(rt.project.id))) files[`memory/${name}`] = text
   await installAgentFiles(rt.sandbox, files)
 }

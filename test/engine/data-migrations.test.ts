@@ -276,4 +276,17 @@ describe('0010_single_event_triggers', () => {
     expect(setup('schedule', null, {}, { cron: '0 9 * * *' }).rows).toMatchObject([{ config: {}, cron: '0 9 * * *', active: true }])
     expect(setup('git', null, migrated).rows.map(r => r.config)).toEqual([migrated])
   })
+
+  it('folds an ai step\'s step prompt into its prompt, also in nested steps', () => {
+    makeWorkflow('framed', [
+      { id: 'one', type: 'ai', prompt: 'Fix it.', system: 'You are careful.' } as Step,
+      { id: 'each', type: 'loop', items: '[1]', steps: [{ id: 'two', type: 'ai', prompt: 'Check it.', system: '  ' } as Step] },
+      { id: 'three', type: 'ai', prompt: 'Plain.' },
+    ])
+    rerun('0011_fold_step_prompts')
+    const [one, loop, three] = getSteps('framed')
+    expect(one).toEqual({ id: 'one', type: 'ai', prompt: 'You are careful.\n\nFix it.' })
+    expect((loop as Extract<Step, { type: 'loop' }>).steps[0]).toEqual({ id: 'two', type: 'ai', prompt: 'Check it.' })
+    expect(three).toEqual({ id: 'three', type: 'ai', prompt: 'Plain.' })
+  })
 })
