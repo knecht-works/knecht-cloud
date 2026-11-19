@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RunStats } from '#shared/utils/run-stats'
+import { computed } from 'vue'
 
 const props = defineProps<{
   stats?: RunStats | null

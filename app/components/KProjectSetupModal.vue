@@ -3,6 +3,17 @@ import { liveTopics } from '#shared/utils/live-topics'
 import { runWorkspacePath } from '#shared/utils/routes'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 import { DDEV_DATABASE_GROUPS, formatDatabase, projectDetectedEnv, resolveEnv, type DdevDatabase, type DetectedEnv } from '#shared/utils/env-spec'
+import { useToastError } from '~/composables/useToastError'
+import { ref, computed, watch } from 'vue'
+import { useFetch, navigateTo } from '#app'
+import { useBranchPicker } from '~/composables/useBranchPicker'
+import { useProjects } from '~/composables/useProjects'
+import { $fetch } from '#build/fetch.mjs'
+import { useProjectDump } from '~/composables/useProjectDump'
+import { useUploads } from '~/composables/useUploads'
+import { onLiveTopics } from '~/composables/useLiveTopics'
+import { parseEnvText } from '#shared/utils/env'
+import { errMsg } from '~/utils/dashboard'
 
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ created: [] }>()

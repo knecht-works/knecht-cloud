@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useRoute, navigateTo } from '#app'
+import { useProject } from '~/composables/useProjects'
+
 const id = Number(useRoute().params.id)
 
 const { data: project } = await useProject(id)

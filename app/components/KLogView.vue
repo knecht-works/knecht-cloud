@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useStickToBottom } from '~/composables/useStickToBottom'
+
 const props = withDefaults(defineProps<{
   log: string | null | undefined
   maxHeight?: number

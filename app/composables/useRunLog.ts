@@ -1,4 +1,6 @@
 import type { MaybeRefOrGetter } from 'vue'
+import { ref, computed, toValue, watch } from 'vue'
+import { useEventSource } from '~/composables/useEventSource'
 
 export function useRunLog(runId: MaybeRefOrGetter<number | null | undefined>) {
   const log = ref('')

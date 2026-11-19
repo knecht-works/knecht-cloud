@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import type { WorkflowStep } from '~/utils/dashboard'
+import { ref, computed } from 'vue'
+import { useElementWidth } from '~/composables/useElementWidth'
+import { workflowStepMeta } from '~/utils/workflow-steps'
+import { STEP_KIND_COLOR } from '~/utils/dashboard'
 
 const props = defineProps<{
   steps: WorkflowStep[]

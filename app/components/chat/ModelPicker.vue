@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useAiModels } from '~/composables/useAiModels'
+import { useSettings } from '~/composables/useSettings'
+import { computed } from 'vue'
+
 const model = defineModel<string | null>({ default: null })
 const { data: models, error } = useAiModels()
 const { data: settings } = useSettings()

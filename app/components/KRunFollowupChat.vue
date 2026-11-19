@@ -4,6 +4,14 @@ import type { EnvState } from '#shared/utils/run'
 import type { RunStatus } from '~/utils/dashboard'
 import type { ChatRun, ChatTurn } from '~/composables/useSessionTranscript'
 import { chatTimestamp, copyToClipboard, displayPrompt, recallPrompt } from '~/utils/chat'
+import { useToastError } from '~/composables/useToastError'
+import { useToast } from '#imports'
+import { useSessionTranscript, isTurnActive } from '~/composables/useSessionTranscript'
+import { watch, computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { isLiveStatus, runStatusMeta, RUN_STATUS_META, timeAgo } from '~/utils/dashboard'
+import { useSettings } from '~/composables/useSettings'
+import { useMembers } from '~/composables/useMembers'
+import { useResizableHeight } from '~/composables/useResizableHeight'
 
 const props = defineProps<{
   runId: number

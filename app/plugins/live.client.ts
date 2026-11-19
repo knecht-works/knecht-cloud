@@ -1,3 +1,8 @@
+import { defineNuxtPlugin } from '#app'
+import { useUserSession } from '#imports'
+import { invalidateAll, invalidate } from '~/composables/useLiveTopics'
+import { watch } from 'vue'
+
 export default defineNuxtPlugin(() => {
   const { loggedIn } = useUserSession()
   let source: EventSource | undefined

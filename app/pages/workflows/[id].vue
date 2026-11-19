@@ -1,6 +1,25 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
-import { flattenSteps } from '#shared/utils/workflow'
+import { flattenSteps, WORKFLOW_NAME_RE } from '#shared/utils/workflow'
+import { useRoute, navigateTo } from '#app'
+import { useToast } from '#imports'
+import { useToastError } from '~/composables/useToastError'
+import { useNow } from '~/composables/useNow'
+import { computed, reactive, ref, nextTick, onMounted, toRaw, watch, provide, onUnmounted } from 'vue'
+import { useWorkflows, useTriggers } from '~/composables/useWorkflows'
+import { useProjects } from '~/composables/useProjects'
+import type { WorkflowStep } from '~/utils/dashboard'
+import { useAutosave } from '~/composables/useAutosave'
+import { $fetch } from '#build/fetch.mjs'
+import { invalidate } from '~/composables/useLiveTopics'
+import { useWorkflowTestRun } from '~/composables/useWorkflowTestRun'
+import { makeStep, stepIssues, workflowStepMeta, stepPristine, FORCE_STEP_ISSUES, TRIGGER_VARS, varPathParts, baseVarGroups } from '~/utils/workflow-steps'
+import { useWorkflowDnd } from '~/composables/useStepDnd'
+import { buildStatusMap } from '~/utils/step-status'
+import { runLogTimeline } from '~/utils/run-log'
+import type { StepStatus } from '~/utils/step-status'
+import { RAIL_CTX } from '~/composables/useWorkflowRail'
+import { runDuration, triggerMeta } from '~/utils/dashboard'
 
 const route = useRoute()
 const toast = useToast()

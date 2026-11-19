@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import type { StepField } from '~/utils/workflow-steps'
+import { useAiModels } from '~/composables/useAiModels'
+import { computed } from 'vue'
+
 defineProps<{
   field: StepField
   disabled?: boolean

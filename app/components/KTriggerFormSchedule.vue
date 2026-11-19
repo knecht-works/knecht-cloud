@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+
 const config = defineModel<Record<string, unknown>>('config', { required: true })
 const valid = defineModel<boolean>('valid', { default: false })
 

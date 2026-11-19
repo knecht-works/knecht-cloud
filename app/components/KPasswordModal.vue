@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { passwordProblem } from '#shared/utils/account'
+import { ref, watch } from 'vue'
+import { $fetch } from '#build/fetch.mjs'
+import { errMsg } from '~/utils/dashboard'
 
 const open = defineModel<boolean>('open', { required: true })
 defineProps<{ hasPassword: boolean }>()

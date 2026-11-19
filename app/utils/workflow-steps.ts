@@ -12,6 +12,8 @@ import { loopStep } from '~/utils/steps/loop'
 import { createBranchStep } from '~/utils/steps/create-branch'
 import { createCommitStep } from '~/utils/steps/create-commit'
 import { createPrStep } from '~/utils/steps/create-pr'
+import type { WorkflowStep } from '~/utils/dashboard'
+import { STEP_KIND_COLOR } from '~/utils/dashboard'
 
 export type { RegisteredStepDef, StepField, StepMeta, StepVar } from '~/utils/steps/define'
 

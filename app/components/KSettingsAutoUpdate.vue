@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { useSettings, patchSettings, isPreset } from '~/composables/useSettings'
+import { ref, watch } from 'vue'
+import { useAutosave } from '~/composables/useAutosave'
+
 defineProps<{ editable: boolean }>()
 
 const { data: settings } = useSettings()

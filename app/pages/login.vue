@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { safeRedirectPath } from '#shared/utils/account'
+import { definePageMeta } from '#app/composables/pages'
+import { useRoute, useFetch, navigateTo } from '#app'
+import { watch, computed } from 'vue'
 
 definePageMeta({ layout: 'auth' })
 

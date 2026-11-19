@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { SSH_TARGET_RE } from '#shared/utils/settings-limits'
+import { useSettings, patchSettings, isPreset } from '~/composables/useSettings'
+import { useUserSession } from '#imports'
+import { useMembers } from '~/composables/useMembers'
+import { computed, ref, watch } from 'vue'
+import { useAutosave } from '~/composables/useAutosave'
 
 // The address is validated against the server's charset because it is spliced
 // verbatim into the copy-pasteable ssh command.

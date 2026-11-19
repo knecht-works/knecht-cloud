@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { useProjects } from '~/composables/useProjects'
+import { useWorkflows } from '~/composables/useWorkflows'
+import { useIntegrations } from '~/composables/useIntegrations'
+import { ref, computed } from 'vue'
+import { defineShortcuts } from '#imports'
+import { frameworkMeta } from '~/utils/dashboard'
+
 defineProps<{ collapsed?: boolean }>()
 
 const { data: projects } = useProjects()

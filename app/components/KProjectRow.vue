@@ -2,6 +2,8 @@
 import type { ProjectActivity, ProjectRunSummary } from '~/utils/dashboard'
 import type { RunStats } from '#shared/utils/run-stats'
 import type { IntegrationId } from '#shared/utils/integrations'
+import { computed } from 'vue'
+import { projectStatusMeta, projectIntegrations } from '~/utils/dashboard'
 
 const props = defineProps<{
   id: number

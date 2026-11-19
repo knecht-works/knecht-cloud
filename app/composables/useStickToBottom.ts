@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 
 export function useStickToBottom(el: Ref<HTMLElement | null>, content: () => unknown) {
   const stick = ref(true)

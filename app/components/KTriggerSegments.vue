@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { TriggerSegment } from '#shared/utils/trigger-form'
+import { computed } from 'vue'
 
 const props = defineProps<{ segments: TriggerSegment[] }>()
 

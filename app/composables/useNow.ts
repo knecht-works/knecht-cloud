@@ -1,3 +1,7 @@
+import type { Ref } from 'vue'
+import { useState, onNuxtReady } from '#app'
+import { setInterval } from '#app/compat/interval'
+
 let ticking = false
 
 // The server's clock is reused for hydration, or a live duration renders a different second on the client.

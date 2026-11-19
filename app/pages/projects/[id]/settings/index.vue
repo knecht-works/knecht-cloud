@@ -2,6 +2,15 @@
 import { DDEV_DATABASE_GROUPS, DDEV_PHP_VERSIONS, ENV_DEFAULTS, NODE_LTS_MAJORS, PACKAGE_MANAGERS, type EnvSpec, type DdevDatabase, type PackageManagerName, formatDatabase, formatPackageManager, projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
 import { formatBytes } from '#shared/utils/bytes'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
+import { useToastError } from '~/composables/useToastError'
+import { useRoute } from '#app'
+import { useProject } from '~/composables/useProjects'
+import { computed, ref, watch } from 'vue'
+import { frameworkMeta } from '~/utils/dashboard'
+import { useAutosave } from '~/composables/useAutosave'
+import { $fetch } from '#build/fetch.mjs'
+import { envVarsToText, parseEnvText } from '#shared/utils/env'
+import { useProjectDump } from '~/composables/useProjectDump'
 
 const toastError = useToastError()
 const id = Number(useRoute().params.id)

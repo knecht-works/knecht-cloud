@@ -1,5 +1,7 @@
 import type { Ref } from 'vue'
 import type { PreviewAccess } from '#shared/utils/preview-access'
+import { useFetch } from '#app'
+import { $fetch } from '#build/fetch.mjs'
 
 export interface DashboardSettings {
   idleStopMinutes: number

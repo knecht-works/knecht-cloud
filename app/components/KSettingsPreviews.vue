@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { SETTINGS_LIMITS } from '#shared/utils/settings-limits'
 import { shareLinkMaxMinutes, type PreviewAccess } from '#shared/utils/preview-access'
+import { useSettings, isPreset, patchSettings } from '~/composables/useSettings'
+import { computed, reactive, ref, watch } from 'vue'
+import { useAutosave } from '~/composables/useAutosave'
+import { $fetch } from '#build/fetch.mjs'
 
 // With a project it edits that project's overrides, where null means the global default.
 const props = defineProps<{

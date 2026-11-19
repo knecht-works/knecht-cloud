@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { connectionIssues, normalizeConnection, type ConnectionFormDef } from '#shared/utils/connection-form'
 import type { IntegrationId } from '#shared/utils/integrations'
+import { useIntegrationConnection } from '~/composables/useIntegrationConnection'
+import { computed, reactive, watch, ref } from 'vue'
+import { integrationUi } from '~/utils/integrations'
 
 const props = defineProps<{ id: IntegrationId, name: string, form: ConnectionFormDef, editable: boolean }>()
 

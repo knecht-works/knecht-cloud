@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { ref, computed, watch } from 'vue'
+import { useElementWidth } from '~/composables/useElementWidth'
+
 const props = defineProps<{
   projects: string[]
 }>()

@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { WORKFLOW_DND } from '~/composables/useStepDnd'
 import { RAIL_CTX } from '~/composables/useWorkflowRail'
+import type { WorkflowStep } from '~/utils/dashboard'
+import type { VarGroup } from '~/utils/workflow-steps'
+import { inject, computed, ref } from 'vue'
+import { workflowStepMeta, stepIssues, stepPristine } from '~/utils/workflow-steps'
+import type { NodeStatus } from '~/utils/step-status'
+import { TREAT, issueSummary, STATUS_LABEL } from '~/utils/step-status'
+import { STEP_KIND_COLOR } from '~/utils/dashboard'
 
 const props = defineProps<{
   step: WorkflowStep

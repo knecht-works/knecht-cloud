@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import type { IntegrationId } from '#shared/utils/integrations'
+import { useToastError } from '~/composables/useToastError'
+import { integrationUi } from '~/utils/integrations'
+import { useFetch } from '#app'
+import { ref, computed } from 'vue'
+import { $fetch } from '#build/fetch.mjs'
 
 const props = defineProps<{
   projectId: number

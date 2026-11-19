@@ -1,3 +1,5 @@
+import { ref } from 'vue'
+
 export function useResizableHeight(min: number) {
   const el = ref<HTMLElement | null>(null)
   const height = ref<number | null>(null)

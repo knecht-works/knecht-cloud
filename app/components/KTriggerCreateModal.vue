@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { INTEGRATION_IDS, integrationRole, isTrackerId, type IntegrationId, type TriggerSource } from '#shared/utils/integrations'
+import { computed, ref, watch } from 'vue'
+import { useToast } from '#imports'
+import { useToastError } from '~/composables/useToastError'
+import { integrationUi } from '~/utils/integrations'
+import { useProjects } from '~/composables/useProjects'
+import { useIntegrations } from '~/composables/useIntegrations'
+import { useFetch } from '#app'
+import { $fetch } from '#build/fetch.mjs'
 
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
