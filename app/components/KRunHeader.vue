@@ -10,7 +10,7 @@ const props = defineProps<{
   kind: 'workflow' | 'mention'
   envState: EnvState
   busy: EnvTransition | null
-  prUrl: string | null
+  prs: { url: string, label: string }[]
   isLive: boolean
   statusMeta: RunStatusMeta
   meta: MetaChip[]
@@ -205,15 +205,16 @@ const menuItems = computed(() => {
           />
         </UTooltip>
         <UTooltip
-          v-if="prUrl"
-          text="Open Pull Request"
+          v-for="pr in prs"
+          :key="pr.url"
+          :text="`Open ${pr.label}`"
         >
           <UButton
             color="primary"
             icon="i-lucide-git-pull-request"
-            aria-label="Open Pull Request"
+            :aria-label="`Open ${pr.label}`"
             size="sm"
-            :to="prUrl"
+            :to="pr.url"
             target="_blank"
           />
         </UTooltip>

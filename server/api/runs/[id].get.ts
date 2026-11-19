@@ -1,5 +1,5 @@
 import { envTransition, previewLost } from '../../daemon/envs'
-import { getRunView } from '../../stores/runs'
+import { getRunView, latestSessionPrUrl } from '../../stores/runs'
 import { getProject } from '../../stores/projects'
 import { gitProvider } from '../../git'
 import { withSessionEnv, withSessionObjects } from '../../utils/run-view'
@@ -16,5 +16,5 @@ export default defineEventHandler((event) => {
   const project = getProject(run.projectId)
   const branchUrl = project && run.branch ? gitProvider(project).branchUrl(project, run.branch) : null
   const [withObjects] = withSessionObjects([run])
-  return { ...withSessionEnv(withObjects!), branchUrl, envTransition: envTransition(run.sessionId), previewLost: previewLost(run.sessionId) }
+  return { ...withSessionEnv(withObjects!), branchUrl, envTransition: envTransition(run.sessionId), previewLost: previewLost(run.sessionId), sessionPrUrl: latestSessionPrUrl(run.sessionId) }
 })
