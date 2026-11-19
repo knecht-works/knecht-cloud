@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { AI_PROVIDERS, type AiProviderId, type LangdockRegion } from '#shared/utils/ai'
+import { useToastError } from '~/composables/useToastError'
+import { useUserSession } from '#imports'
+import { useSettings, isPreset, patchSettings } from '~/composables/useSettings'
+import { useMembers } from '~/composables/useMembers'
+import { computed, ref, watch } from 'vue'
+import { useAiModels } from '~/composables/useAiModels'
+import { useAutosave } from '~/composables/useAutosave'
+import { refreshNuxtData } from '#app'
 
 const toastError = useToastError()
 const { user } = useUserSession()

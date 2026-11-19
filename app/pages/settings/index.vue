@@ -1,5 +1,13 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
+import { useUserSession, useToast } from '#imports'
+import { useToastError } from '~/composables/useToastError'
+import { useMembers } from '~/composables/useMembers'
+import { computed, ref } from 'vue'
+import { useInvites } from '~/composables/useInvites'
+import { $fetch } from '#build/fetch.mjs'
+import { invalidate } from '~/composables/useLiveTopics'
+import { copyText } from '~/utils/clipboard'
 
 const { user } = useUserSession()
 const toast = useToast()

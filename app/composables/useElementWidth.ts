@@ -1,3 +1,6 @@
+import type { Ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
+
 export function useElementWidth(el: Ref<HTMLElement | undefined>) {
   const width = ref<number | null>(null)
   let observer: ResizeObserver | undefined

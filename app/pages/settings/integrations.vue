@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import { useUserSession } from '#imports'
+import { useIntegrations } from '~/composables/useIntegrations'
+import { useMembers } from '~/composables/useMembers'
+import { computed } from 'vue'
+
 const { user } = useUserSession()
 const { data: integrations } = await useIntegrations()
 const { data: members } = await useMembers()

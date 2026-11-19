@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { WORKFLOW_DND } from '~/composables/useStepDnd'
 import { RAIL_CTX } from '~/composables/useWorkflowRail'
+import type { WorkflowStep } from '~/utils/dashboard'
+import type { VarGroup } from '~/utils/workflow-steps'
+import { inject, computed } from 'vue'
+import { LOOP_VARS, stepOutputGroups } from '~/utils/workflow-steps'
 
 const props = defineProps<{
   steps: WorkflowStep[]

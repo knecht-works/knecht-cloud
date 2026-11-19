@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { lineDiff } from '#shared/utils/line-diff'
 import type { ChatItem } from '~/composables/useSessionTranscript'
+import { ref, computed } from 'vue'
 
 const props = defineProps<{ item: ChatItem }>()
 

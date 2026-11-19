@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import type { EnvTransition } from '#shared/utils/run'
 import { SHARE_PARAM } from '#shared/utils/preview-access'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
+import { useRequestURL } from '#app'
+import { previewLabel, previewHostname, isWebUrl, parsePreviewHost } from '#shared/utils/preview-host'
+import { useToast } from '#imports'
+import { useToastError } from '~/composables/useToastError'
+import { $fetch } from '#build/fetch.mjs'
+import { copyText } from '~/utils/clipboard'
+import { useResizableHeight } from '~/composables/useResizableHeight'
 
 const props = withDefaults(defineProps<{
   sessionId: number

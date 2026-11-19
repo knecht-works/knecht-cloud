@@ -1,4 +1,9 @@
 import { liveTopics } from '#shared/utils/live-topics'
+import { useToast } from '#imports'
+import { $fetch } from '#build/fetch.mjs'
+import { navigateTo, onNuxtReady } from '#app'
+import { onLiveTopics } from '~/composables/useLiveTopics'
+import { onScopeDispose } from 'vue'
 
 interface ProjectBase {
   id: number

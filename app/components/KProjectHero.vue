@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { frameworkMeta } from '~/utils/dashboard'
+
 const props = defineProps<{
   project: {
     fullName: string

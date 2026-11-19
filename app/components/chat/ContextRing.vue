@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+
 const props = withDefaults(defineProps<{
   usage: { used: number, size: number, cost: number | null } | null
   hoverDelay?: number

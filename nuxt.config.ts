@@ -1,6 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui', '@nuxt/eslint', 'nuxt-auth-utils', '@comark/nuxt'],
+  modules: ['@nuxt/ui', '@nuxt/eslint', 'nuxt-auth-utils', '@comark/nuxt', 'nuxt-explicit-imports'],
 
   devtools: { enabled: false },
 
@@ -115,4 +115,6 @@ export default defineNuxtConfig({
       stylistic: true,
     },
   },
+
+  explicitImports: { mode: { imports: 'strict', components: 'warn', server: 'warn' } },
 })

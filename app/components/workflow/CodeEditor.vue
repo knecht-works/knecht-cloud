@@ -9,6 +9,7 @@ import 'prism-code-editor/languages/bash'
 import 'prism-code-editor/languages/clike'
 import 'prism-code-editor/layout.css'
 import 'prism-code-editor/themes/github-dark.css'
+import { ref, shallowRef, onMounted, watch, onBeforeUnmount } from 'vue'
 
 const props = defineProps<{
   lang: 'javascript' | 'bash' | 'markdown'

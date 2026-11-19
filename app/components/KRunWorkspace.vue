@@ -2,6 +2,11 @@
 import type { EnvTransition } from '#shared/utils/run'
 import { liveTopics } from '#shared/utils/live-topics'
 import type { SessionRun } from '~/composables/useSessionLogs'
+import { useRun } from '~/composables/useRuns'
+import { computed, ref } from 'vue'
+import { isLiveStatus, runStatusMeta, sessionObjectMeta } from '~/utils/dashboard'
+import { useSessionLogs } from '~/composables/useSessionLogs'
+import { invalidate } from '~/composables/useLiveTopics'
 
 const props = defineProps<{
   runId: number

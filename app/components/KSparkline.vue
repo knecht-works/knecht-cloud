@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useId, computed } from 'vue'
+
 const props = defineProps<{
   values: number[]
 }>()

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ChatItem, ChatTurn } from '~/composables/useSessionTranscript'
 import { replyActivity, replyItems } from '~/utils/chat-activity'
+import { computed, ref } from 'vue'
 
 const props = defineProps<{ turns: ChatTurn[] }>()
 

@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { definePageMeta } from '#app/composables/pages'
+import { useRoute, useFetch } from '#app'
+import { computed } from 'vue'
+
 definePageMeta({ layout: 'auth' })
 
 const route = useRoute()

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { RunStatusMeta } from '~/utils/dashboard'
+import { DOT_COLOR_VAR } from '~/utils/dashboard'
 
 defineProps<{
   meta: RunStatusMeta

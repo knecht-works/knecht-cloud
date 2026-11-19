@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+
 const model = defineModel<string>({ required: true })
 
 const props = defineProps<{

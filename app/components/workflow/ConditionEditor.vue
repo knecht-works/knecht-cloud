@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { CONDITION_OPS, type Condition, type ConditionOp } from '#shared/utils/workflow'
+import type { WorkflowStep } from '~/utils/dashboard'
+import type { VarGroup, StepField } from '~/utils/workflow-steps'
+import { ref, computed, inject } from 'vue'
+import { FORCE_STEP_ISSUES, stepPristine } from '~/utils/workflow-steps'
 
 const props = defineProps<{
   step: Extract<WorkflowStep, { type: 'if' }>

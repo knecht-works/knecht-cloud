@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import { useToastError } from '~/composables/useToastError'
+import { useToast } from '#imports'
+import { ref, computed, watch } from 'vue'
+import { $fetch } from '#build/fetch.mjs'
+import { copyText } from '~/utils/clipboard'
+
 interface SshInfo { services: string[], sshCommands: Record<string, string> | null }
 
 const props = defineProps<{ runId: number }>()

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isCompleteCondition, type FilterCondition, type FilterFields } from '#shared/utils/filter'
+import { computed, ref, watch } from 'vue'
 
 const props = defineProps<{
   fields: FilterFields

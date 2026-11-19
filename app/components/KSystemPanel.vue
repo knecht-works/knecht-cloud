@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import { useSystemInfo } from '~/composables/useSystemInfo'
+import { useFetch } from '#app'
+import { computed, ref } from 'vue'
+import { $fetch } from '#build/fetch.mjs'
+import { setInterval } from '#app/compat/interval'
+import { timeAgo } from '~/utils/dashboard'
+
 const { data, status, error, refresh } = useSystemInfo()
 
 const { data: changelog, status: changelogStatus } = useFetch('/api/system/releases', { lazy: true })

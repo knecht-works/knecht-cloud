@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { setInterval } from '#app/compat/interval'
+
 const props = defineProps<{ text: string }>()
 
 const SIZE = 4

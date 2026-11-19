@@ -1,4 +1,5 @@
 import type { MaybeRefOrGetter } from 'vue'
+import { watch, toValue, onScopeDispose } from 'vue'
 
 // A new url closes the old stream and opens one for the new url; null keeps it closed.
 export function useEventSource(url: MaybeRefOrGetter<string | null>, listeners: Record<string, (e: MessageEvent) => void>): void {

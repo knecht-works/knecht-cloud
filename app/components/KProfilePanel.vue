@@ -1,4 +1,12 @@
 <script setup lang="ts">
+import { useUserSession, useToast } from '#imports'
+import { useToastError } from '~/composables/useToastError'
+import { useSignInMethods } from '~/composables/useSignInMethods'
+import { navigateTo } from '#app'
+import { ref, computed } from 'vue'
+import { $fetch } from '#build/fetch.mjs'
+import { squareImageDataUrl } from '~/utils/image'
+
 const { user, clear, fetch: refreshSession } = useUserSession()
 const toast = useToast()
 const toastError = useToastError()

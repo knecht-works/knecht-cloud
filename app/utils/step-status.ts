@@ -1,6 +1,7 @@
-// Type imports only: buildStatusMap is unit tested in plain node vitest, which
-// resolves no Nuxt auto-imports.
 import type { Step } from '#shared/utils/workflow'
+import type { WorkflowStep } from '~/utils/dashboard'
+import type { StepIssue } from '~/utils/workflow-steps'
+import { workflowStepMeta } from '~/utils/workflow-steps'
 
 export type StepStatus = 'idle' | 'selected' | 'done' | 'running' | 'error' | 'pending' | 'skipped' | 'cancelled'
 

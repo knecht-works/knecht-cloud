@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+
 const props = withDefaults(defineProps<{ value: number, size?: number }>(), { size: 16 })
 
 const R = 6.5

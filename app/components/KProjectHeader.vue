@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRoute } from '#app'
+
 const props = defineProps<{
   project: {
     id: number

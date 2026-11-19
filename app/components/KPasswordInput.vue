@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+
 defineOptions({ inheritAttrs: false })
 
 const model = defineModel<string>()

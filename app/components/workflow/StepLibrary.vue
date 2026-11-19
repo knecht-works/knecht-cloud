@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import type { WorkflowStep } from '~/utils/dashboard'
+import { ref, computed } from 'vue'
+import { STEP_DEFS } from '~/utils/workflow-steps'
+import type { RegisteredStepDef } from '~/utils/workflow-steps'
+import { STEP_KIND_COLOR } from '~/utils/dashboard'
+
 const props = defineProps<{ editable: boolean }>()
 const emit = defineEmits<{
   add: [type: WorkflowStep['type']]
