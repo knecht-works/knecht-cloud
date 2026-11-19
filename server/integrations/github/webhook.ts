@@ -11,7 +11,7 @@ export interface GithubPayload {
   sender?: { login?: string }
   pull_request?: GithubSubject & {
     draft?: boolean
-    head?: { ref?: string }
+    head?: { ref?: string, repo?: { full_name?: string } | null }
     base?: { ref?: string }
   }
   issue?: GithubSubject & {
@@ -81,6 +81,11 @@ function issueFires(c: TriggerConfig, payload: GithubPayload): boolean {
   return false
 }
 
+function fromRepo(payload: GithubPayload): boolean {
+  const headRepo = payload.pull_request?.head?.repo?.full_name
+  return !!headRepo && headRepo === payload.repository?.full_name
+}
+
 export function matchGithubEvent(c: TriggerConfig, event: string, payload: GithubPayload): TriggerMatch | null {
   if (event === 'pull_request' && c.kind === 'pull_request') {
     const pr = payload.pull_request
@@ -89,8 +94,9 @@ export function matchGithubEvent(c: TriggerConfig, event: string, payload: Githu
     const fields = { ...subjectFields(pr), draft: [pr?.draft ? 'draft' : 'ready'], base: [pr?.base?.ref ?? ''], head: [head] }
     if (!conditionsPass(c, fields, EXACT)) return null
     return {
-      // The conditions are about the pull request; the run checks out its head.
-      branch: head || null,
+      // The conditions are about the pull request; the run checks out its head. A fork's head ref
+      // names no branch of ours, so it must not reach the session working on a branch of that name.
+      branch: head && fromRepo(payload) ? head : null,
       inputs: subjectInputs(event, pr),
       object: githubObject('pull_request', pr),
       version: objectVersion(pr?.updated_at),
