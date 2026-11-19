@@ -4,6 +4,7 @@ import { ref, computed } from 'vue'
 import { useElementWidth } from '~/composables/useElementWidth'
 import { workflowStepMeta } from '~/utils/workflow-steps'
 import { STEP_KIND_COLOR } from '~/utils/dashboard'
+import { UIcon } from '#components'
 
 const props = defineProps<{
   steps: WorkflowStep[]

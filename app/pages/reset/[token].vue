@@ -2,6 +2,8 @@
 import { definePageMeta } from '#app/composables/pages'
 import { useRoute, useFetch } from '#app'
 import { computed } from 'vue'
+import KAuthForm from '~/components/KAuthForm.vue'
+import { UButton } from '#components'
 
 definePageMeta({ layout: 'auth' })
 

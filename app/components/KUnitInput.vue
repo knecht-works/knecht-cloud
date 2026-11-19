@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { UInput } from '#components'
+
 defineOptions({ inheritAttrs: false })
 
 defineProps<{

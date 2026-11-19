@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { UButton, UModal } from '#components'
+
 const open = defineModel<boolean>('open', { required: true })
 
 defineProps<{

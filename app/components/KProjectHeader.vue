@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute } from '#app'
+import KStartSessionModal from '~/components/KStartSessionModal.vue'
+import { UButton, UTooltip } from '#components'
 
 const props = defineProps<{
   project: {

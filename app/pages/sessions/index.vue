@@ -4,6 +4,11 @@ import { computeRunStats } from '#shared/utils/run-stats'
 import { useRuns, useRunStats } from '~/composables/useRuns'
 import { computed } from 'vue'
 import { formatDuration, groupRunsBySession } from '~/utils/dashboard'
+import KTopBar from '~/components/KTopBar.vue'
+import KMiniBars from '~/components/KMiniBars.vue'
+import KMetric from '~/components/KMetric.vue'
+import KSparkline from '~/components/KSparkline.vue'
+import KSessionList from '~/components/KSessionList.vue'
 
 const { data: runs } = await useRuns()
 

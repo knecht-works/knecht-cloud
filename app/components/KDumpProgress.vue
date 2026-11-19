@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DumpProgress } from '~/composables/useProjectDump'
+import { UProgress, UButton, UTooltip } from '#components'
 
 defineProps<{
   progress: DumpProgress

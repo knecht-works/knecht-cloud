@@ -14,6 +14,9 @@ import { useUploads } from '~/composables/useUploads'
 import { onLiveTopics } from '~/composables/useLiveTopics'
 import { parseEnvText } from '#shared/utils/env'
 import { errMsg } from '~/utils/dashboard'
+import WorkflowCodeEditor from '~/components/workflow/CodeEditor.vue'
+import KDumpProgress from '~/components/KDumpProgress.vue'
+import { UIcon, USelectMenu, UFormField, UButton, UInput, UModal } from '#components'
 
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ created: [] }>()

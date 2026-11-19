@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAttrs, computed } from 'vue'
+import { UTextarea, UInput } from '#components'
 
 defineOptions({ inheritAttrs: false })
 

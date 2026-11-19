@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import KStatusDot from '~/components/KStatusDot.vue'
+
 withDefaults(defineProps<{
   title: string
   sub?: string

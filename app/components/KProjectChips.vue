@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { useElementWidth } from '~/composables/useElementWidth'
+import { UTooltip } from '#components'
 
 const props = defineProps<{
   projects: string[]

@@ -5,6 +5,9 @@ import { computed, ref } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
 import { setInterval } from '#app/compat/interval'
 import { timeAgo } from '~/utils/dashboard'
+import KStatusDot from '~/components/KStatusDot.vue'
+import KPanel from '~/components/KPanel.vue'
+import { UButton, UIcon } from '#components'
 
 const { data, status, error, refresh } = useSystemInfo()
 

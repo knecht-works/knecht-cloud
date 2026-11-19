@@ -2,6 +2,7 @@
 import { defaultTriggerConfig, triggerConfigIssues, type TriggerCondition, type TriggerConfig, type TriggerFormDef, type TriggerValueInput } from '#shared/utils/trigger-form'
 import { ref, computed, watch } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
+import { UIcon, UTooltip, URadioGroup, USelectMenu, UFormField, UButton, UDropdownMenu } from '#components'
 
 const props = withDefaults(defineProps<{ form: TriggerFormDef, optionTargets?: { key: string, name: string }[], showIssues?: boolean }>(), { optionTargets: () => [] })
 const config = defineModel<Record<string, unknown>>('config', { required: true })

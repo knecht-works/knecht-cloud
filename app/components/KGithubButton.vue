@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import KLastUsedBadge from '~/components/KLastUsedBadge.vue'
+import { UIcon, UButton } from '#components'
+
 defineProps<{
   lastUsed?: boolean
 }>()

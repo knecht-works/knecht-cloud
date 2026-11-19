@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { frameworkMeta } from '~/utils/dashboard'
+import KStepIcon from '~/components/KStepIcon.vue'
+import { UIcon } from '#components'
 
 const props = defineProps<{
   fullName: string

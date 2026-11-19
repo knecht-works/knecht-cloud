@@ -9,6 +9,10 @@ import { $fetch } from '#build/fetch.mjs'
 import { useWorkflows } from '~/composables/useWorkflows'
 import { useIntegrations } from '~/composables/useIntegrations'
 import { integrationUi } from '~/utils/integrations'
+import KSaveStatus from '~/components/KSaveStatus.vue'
+import WorkflowCodeEditor from '~/components/workflow/CodeEditor.vue'
+import KPanel from '~/components/KPanel.vue'
+import { USwitch, NuxtLink, USelectMenu, UIcon, UTooltip } from '#components'
 
 const toastError = useToastError()
 const id = Number(useRoute().params.id)

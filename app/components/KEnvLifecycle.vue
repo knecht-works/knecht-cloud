@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { EnvState } from '#shared/utils/run'
+import { UButton, UTooltip } from '#components'
 
 defineProps<{
   envState: EnvState

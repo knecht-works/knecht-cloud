@@ -6,6 +6,10 @@ import { RUN_STATUS_META, runDuration, timeAgo } from '~/utils/dashboard'
 import { useNow } from '~/composables/useNow'
 import { useResizableHeight } from '~/composables/useResizableHeight'
 import { useStickToBottom } from '~/composables/useStickToBottom'
+import KStatusDot from '~/components/KStatusDot.vue'
+import KStepIcon from '~/components/KStepIcon.vue'
+import KResizeHandle from '~/components/KResizeHandle.vue'
+import { UIcon } from '#components'
 
 export interface RunLogRow {
   id: number

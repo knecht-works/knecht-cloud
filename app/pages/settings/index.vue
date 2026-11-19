@@ -8,6 +8,10 @@ import { useInvites } from '~/composables/useInvites'
 import { $fetch } from '#build/fetch.mjs'
 import { invalidate } from '~/composables/useLiveTopics'
 import { copyText } from '~/utils/clipboard'
+import KProfilePanel from '~/components/KProfilePanel.vue'
+import KConfirmModal from '~/components/KConfirmModal.vue'
+import KPanel from '~/components/KPanel.vue'
+import { UAvatar, UBadge, UButton, UDropdownMenu, UIcon, UTooltip } from '#components'
 
 const { user } = useUserSession()
 const toast = useToast()

@@ -10,6 +10,15 @@ import { useWorkflows, useTriggers } from '~/composables/useWorkflows'
 import { workflowRunnable } from '~/utils/workflow-steps'
 import { useStartRun } from '~/composables/useStartRun'
 import { invalidate } from '~/composables/useLiveTopics'
+import KProjectHeader from '~/components/KProjectHeader.vue'
+import KProjectHero from '~/components/KProjectHero.vue'
+import KRunWorkspace from '~/components/KRunWorkspace.vue'
+import KPreviewBrowser from '~/components/KPreviewBrowser.vue'
+import KStatusDot from '~/components/KStatusDot.vue'
+import KSessionList from '~/components/KSessionList.vue'
+import KPanel from '~/components/KPanel.vue'
+import KStepIcon from '~/components/KStepIcon.vue'
+import { UBreadcrumb, UIcon, NuxtLink, UButton, UTooltip } from '#components'
 
 const route = useRoute()
 const id = Number(route.params.id)

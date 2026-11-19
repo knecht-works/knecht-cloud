@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import type { RunStatusMeta, WorkflowStep } from '~/utils/dashboard'
 import type { RunStats } from '#shared/utils/run-stats'
+import KWorkflowTitle from '~/components/KWorkflowTitle.vue'
+import KIntegrationIcons from '~/components/KIntegrationIcons.vue'
+import KStepChain from '~/components/KStepChain.vue'
+import KProjectChips from '~/components/KProjectChips.vue'
+import KRunSparkline from '~/components/KRunSparkline.vue'
+import KRunStatsText from '~/components/KRunStatsText.vue'
+import KStatusBadge from '~/components/KStatusBadge.vue'
+import KAutomationToggle from '~/components/KAutomationToggle.vue'
+import { NuxtLink } from '#components'
 
 defineProps<{
   id: number

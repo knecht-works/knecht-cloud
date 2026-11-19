@@ -5,6 +5,10 @@ import { useToastError } from '~/composables/useToastError'
 import { ref } from 'vue'
 import { $fetch } from '#build/fetch.mjs'
 import { formatBytes } from '#shared/utils/bytes'
+import KTopBar from '~/components/KTopBar.vue'
+import KSystemPanel from '~/components/KSystemPanel.vue'
+import KPanel from '~/components/KPanel.vue'
+import { UCheckbox, UButton } from '#components'
 
 const toast = useToast()
 const toastError = useToastError()

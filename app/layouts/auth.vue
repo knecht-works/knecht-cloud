@@ -1,3 +1,8 @@
+<script setup lang="ts">
+import KBgField from '~/components/KBgField.vue'
+import KLogo from '~/components/KLogo.vue'
+</script>
+
 <template>
   <div class="relative flex min-h-screen items-center justify-center overflow-hidden bg-(--surface-base) p-4">
     <KBgField />

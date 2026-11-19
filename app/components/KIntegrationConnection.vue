@@ -4,6 +4,11 @@ import type { IntegrationId } from '#shared/utils/integrations'
 import { useIntegrationConnection } from '~/composables/useIntegrationConnection'
 import { computed, reactive, watch, ref } from 'vue'
 import { integrationUi } from '~/utils/integrations'
+import KSecretField from '~/components/KSecretField.vue'
+import KWebhookStatus from '~/components/KWebhookStatus.vue'
+import KConfirmModal from '~/components/KConfirmModal.vue'
+import KPanel from '~/components/KPanel.vue'
+import { UButton, UDropdownMenu, UInput, UFormField } from '#components'
 
 const props = defineProps<{ id: IntegrationId, name: string, form: ConnectionFormDef, editable: boolean }>()
 
