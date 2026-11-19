@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { configureSessionEnv, devDaemonCommand, readDdevConfig } from '../../server/daemon/ddev'
-import type { SessionEnvProject } from '../../server/daemon/ddev'
-import { devServerLabel } from '../../server/utils/dev-origin'
+import { configureSessionEnv, devDaemonCommand, readDdevConfig } from '#server/daemon/ddev'
+import type { SessionEnvProject } from '#server/daemon/ddev'
+import { devServerLabel } from '#server/utils/dev-origin'
 
 const project = (overrides: Partial<SessionEnvProject> = {}): SessionEnvProject => ({
   id: 5,

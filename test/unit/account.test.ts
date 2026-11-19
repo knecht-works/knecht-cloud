@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { passwordProblem, safeRedirectPath, usernameProblem } from '../../shared/utils/account'
+import { passwordProblem, safeRedirectPath, usernameProblem } from '#shared/utils/account'
 
 describe('usernameProblem', () => {
   it.each(['samuel', 'Samuel.Reichor', 'samuel_reichor', 'samuel--r', 'a', 'octo-cat', 'x'.repeat(39)])('accepts %s', (name) => {

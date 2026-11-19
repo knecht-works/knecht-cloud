@@ -2,8 +2,8 @@ import { emptyInputs, type TriggerInputs } from '#server/utils/inputs'
 import type { SessionObject } from '#server/utils/sessions'
 import type { IntegrationId } from '#shared/utils/integrations'
 import type { TriggerConfig, TriggerFilterDef, TriggerFormDef } from '#shared/utils/trigger-form'
-import { conditionsPass, integrationLabelsUrl, labeledEvent, listedOnlyKeys, triggerEvent } from './trigger-config'
-import type { CommentAuthor, TriggerMatch, WebhookComment, WebhookDelivery } from './types'
+import { conditionsPass, integrationLabelsUrl, labeledEvent, listedOnlyKeys, triggerEvent } from '#server/integrations/trigger-config'
+import type { CommentAuthor, TriggerMatch, WebhookComment, WebhookDelivery } from '#server/integrations/types'
 
 // Issue trackers share one set of rules: when a trigger fires, what a run gets as
 // inputs, what the agent reads as context, what counts as a mention. An integration

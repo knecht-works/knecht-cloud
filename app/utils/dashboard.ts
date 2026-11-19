@@ -2,7 +2,7 @@ import type { Step } from '#shared/utils/workflow'
 import type { EnvState, EnvTransition } from '#shared/utils/run'
 import { INTEGRATION_IDS, type IntegrationId, type ObjectKind } from '#shared/utils/integrations'
 import { FRAMEWORKS } from '#shared/utils/frameworks'
-import { INTEGRATION_UI, integrationUi, type SessionObjectMeta } from './integrations'
+import { INTEGRATION_UI, integrationUi, type SessionObjectMeta } from '~/utils/integrations'
 
 export type RunStatus = 'queued' | 'running' | 'success' | 'failed' | 'cancelled'
 

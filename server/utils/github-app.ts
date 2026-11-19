@@ -1,6 +1,6 @@
 import type { Octokit } from 'octokit'
 import { App } from 'octokit'
-import { githubAppCredentials } from './github-credentials'
+import { githubAppCredentials } from '#server/utils/github-credentials'
 import { ofetch } from 'ofetch'
 
 let cachedApp: App | null = null

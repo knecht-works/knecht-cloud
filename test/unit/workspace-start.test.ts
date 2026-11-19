@@ -1,9 +1,9 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
-import { KNECHT_COMPOSE_FILE, writeDdevConfig } from '../../server/daemon/ddev'
-import { sessionCheckoutDir } from '../../server/utils/storage'
-import { resolveEnv } from '../../shared/utils/env-spec'
+import { KNECHT_COMPOSE_FILE, writeDdevConfig } from '#server/daemon/ddev'
+import { sessionCheckoutDir } from '#server/utils/storage'
+import { resolveEnv } from '#shared/utils/env-spec'
 
 const SESSION = 1001
 const dockerRuns = vi.hoisted(() => [] as string[][])
@@ -14,10 +14,10 @@ vi.mock('execa', () => ({
     return { stdout: '', stderr: '', exitCode: 0 }
   },
 }))
-vi.mock('../../server/stores/sessions', () => ({ getSessionRow: () => ({ id: SESSION, projectId: 3 }) }))
-vi.mock('../../server/stores/projects', () => ({ getProject: () => ({ id: 3, envVars: [], sharedFolders: [] }) }))
-vi.mock('../../server/utils/agent-bridge', () => ({ writeBridgeCredentialHelper: async () => {} }))
-vi.mock('../../server/daemon/sandbox', () => ({
+vi.mock('#server/stores/sessions', () => ({ getSessionRow: () => ({ id: SESSION, projectId: 3 }) }))
+vi.mock('#server/stores/projects', () => ({ getProject: () => ({ id: 3, envVars: [], sharedFolders: [] }) }))
+vi.mock('#server/utils/agent-bridge', () => ({ writeBridgeCredentialHelper: async () => {} }))
+vi.mock('#server/daemon/sandbox', () => ({
   WEB_PROJECT_DIR: '/var/www/html',
   attachKnecht: async () => {},
   ddevWebImage: async () => 'ddev/ddev-webserver:v1',
@@ -25,7 +25,7 @@ vi.mock('../../server/daemon/sandbox', () => ({
   knechtContainer: async () => null,
 }))
 
-const { ensureWorkspaceUp } = await import('../../server/daemon/workspace')
+const { ensureWorkspaceUp } = await import('#server/daemon/workspace')
 
 describe('startWorkspace', () => {
   it('takes mounts and limits from Knecht, not from the compose file in the checkout', async () => {

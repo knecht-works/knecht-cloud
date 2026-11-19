@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MODEL_NAME_RE, stripLegacyModelPrefix } from '../../shared/utils/ai'
+import { MODEL_NAME_RE, stripLegacyModelPrefix } from '#shared/utils/ai'
 
 describe('MODEL_NAME_RE', () => {
   it('accepts bare, slashed and versioned model names', () => {

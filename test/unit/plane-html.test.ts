@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addressedTo, htmlToMarkdown, markdownToHtml } from '../../server/integrations/plane/html'
+import { addressedTo, htmlToMarkdown, markdownToHtml } from '#server/integrations/plane/html'
 
 describe('markdownToHtml', () => {
   it('round-trips the subset Knecht replies use', () => {

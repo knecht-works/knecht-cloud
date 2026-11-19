@@ -2,27 +2,27 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import type { Step } from '../../shared/utils/workflow'
+import { db, schema } from '#server/db'
+import type { Step } from '#shared/utils/workflow'
 import { checkoutDirOf } from '../helpers/local-sandbox'
 import { attachTestObject, getRun, getSessionRow, getSteps, makeProject, makeRun } from '../helpers/db'
 
-vi.mock('../../server/daemon/git', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../server/daemon/git')>()
+vi.mock('#server/daemon/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#server/daemon/git')>()
   const { fakeCheckout } = await import('../helpers/local-sandbox')
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
-vi.mock('../../server/daemon/sandbox', () => ({ startEnvStack: async () => {} }))
-vi.mock('../../server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
-vi.mock('../../server/daemon/envs', () => ({ markCheckedOut: () => {}, reviveEnv: async () => {} }))
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/daemon/sandbox', () => ({ startEnvStack: async () => {} }))
+vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
+vi.mock('#server/daemon/envs', () => ({ markCheckedOut: () => {}, reviveEnv: async () => {} }))
+vi.mock('#server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
   createIssueComment: async () => {},
 }))
 const jiraFetches = vi.hoisted(() => ({ count: 0 }))
-vi.mock('../../server/integrations/jira/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+vi.mock('#server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/jira/api')>(),
   getJiraIssueRaw: async (key: string) => {
     jiraFetches.count++
     if (key === 'DOWN-1') throw new Error('Jira is unreachable')
@@ -32,12 +32,12 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   downloadJiraAttachment: async () => Buffer.from('png'),
 }))
 // Nitro's useStorage does not exist in the engine tests.
-vi.mock('../../server/utils/sandbox-assets', () => ({ readSandboxAsset: async () => Buffer.from('# Knecht sandbox instructions\n') }))
+vi.mock('#server/utils/sandbox-assets', () => ({ readSandboxAsset: async () => Buffer.from('# Knecht sandbox instructions\n') }))
 
-const { startRun, cancelRun } = await import('../../server/daemon/runner')
-const { startFollowup } = await import('../../server/daemon/followups')
-const { updateSettings } = await import('../../server/utils/settings')
-const { encrypt } = await import('../../server/utils/crypto')
+const { startRun, cancelRun } = await import('#server/daemon/runner')
+const { startFollowup } = await import('#server/daemon/followups')
+const { updateSettings } = await import('#server/utils/settings')
+const { encrypt } = await import('#server/utils/crypto')
 
 updateSettings({ aiProvider: 'anthropic', aiModel: 'claude-sonnet-4-5', aiKeyEnc: encrypt('sk-test') })
 
@@ -120,8 +120,8 @@ describe('ai step over ACP', () => {
   })
 
   it('fetches the ticket again only after a webhook reported a change while webhooks arrive', async () => {
-    const { jiraConnection } = await import('../../server/integrations/jira/credentials')
-    const { ticketChanged } = await import('../../server/utils/object-freshness')
+    const { jiraConnection } = await import('#server/integrations/jira/credentials')
+    const { ticketChanged } = await import('#server/utils/object-freshness')
     const project = makeProject()
     const steps = (prefix: string) => [{ type: 'ai' as const, id: `${prefix}1`, prompt: 'one' }, { type: 'ai' as const, id: `${prefix}2`, prompt: 'two' }]
     const run = makeRun(project, steps('a'))
@@ -268,7 +268,7 @@ describe('follow-ups over ACP', () => {
   })
 
   it('pushes every item to the session stream as it is written', async () => {
-    const { onLive } = await import('../../server/utils/live')
+    const { onLive } = await import('#server/utils/live')
     const { run } = await runAi({})
     const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'hello' }).returning().get()
     const seen: string[] = []
@@ -302,8 +302,8 @@ describe('follow-ups over ACP', () => {
   })
 
   it('continues the seq of a follow-up when a sink is reopened for it', async () => {
-    const { transcriptSink } = await import('../../server/utils/agent-items')
-    const { notice } = await import('../../server/daemon/agent')
+    const { transcriptSink } = await import('#server/utils/agent-items')
+    const { notice } = await import('#server/daemon/agent')
     const { run } = await runAi({})
     const followup = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: 'hello' }).returning().get()
     await startFollowup(followup.id)

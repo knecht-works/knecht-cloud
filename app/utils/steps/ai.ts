@@ -1,5 +1,5 @@
 import { aiOutputFields } from '#shared/utils/workflow'
-import { defineStep } from './define'
+import { defineStep } from '~/utils/steps/define'
 
 export const aiStep = defineStep({
   type: 'ai',

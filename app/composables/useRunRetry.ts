@@ -1,6 +1,6 @@
 import { useToastError } from '~/composables/useToastError'
 import { ref } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
+import { $fetch } from '#imports'
 
 export function useRunRetry(runId: number, onDone: () => void) {
   const toastError = useToastError()

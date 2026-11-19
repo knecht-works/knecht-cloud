@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm'
-import { db, schema } from './index'
+import { db, schema } from '#server/db/index'
 import { stripLegacyModelPrefix } from '#shared/utils/ai'
 import { TRACKER_IDS } from '#shared/utils/integrations'
 import type { TriggerCondition } from '#shared/utils/trigger-form'

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { frameworkUrlMode } from '../../shared/utils/frameworks'
+import { frameworkUrlMode } from '#shared/utils/frameworks'
 
 describe('frameworkUrlMode', () => {
   it('starts a CMS that keeps its base URL in the database in rewrite mode', () => {

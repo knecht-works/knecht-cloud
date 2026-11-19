@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import { describe, expect, it, vi } from 'vitest'
-import type { ActionRuntime } from '../../server/workflows/actions/types'
-import { writeObjectSnapshot, type ObjectSnapshot, type SnapshotFile } from '../../server/utils/object-snapshot'
+import type { ActionRuntime } from '#server/workflows/actions/types'
+import { writeObjectSnapshot, type ObjectSnapshot, type SnapshotFile } from '#server/utils/object-snapshot'
 
 function localSandbox(dir: string) {
   return {

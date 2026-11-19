@@ -5,7 +5,7 @@ import type { NewRun, Project, Run } from '#server/db/schema'
 import type { RunDiagnosis } from '#shared/utils/run'
 import { liveTopics } from '#shared/utils/live-topics'
 import { emitRunLog, emitTopics, type RunLogChunk } from '#server/utils/live'
-import { primaryObjectId } from './session-objects'
+import { primaryObjectId } from '#server/stores/session-objects'
 
 type RunStatus = Run['status']
 type FinalStatus = 'success' | 'failed' | 'cancelled'

@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { useToast } from '#imports'
+import { useToast, useRoute, navigateTo, $fetch } from '#imports'
 import { useToastError } from '~/composables/useToastError'
-import { useRoute, navigateTo } from '#app'
 import { useProject } from '~/composables/useProjects'
 import { useRuns } from '~/composables/useRuns'
 import { computed, ref } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
 import KSettingsPreviews from '~/components/KSettingsPreviews.vue'
 import KSettingRow from '~/components/KSettingRow.vue'
 import KPanel from '~/components/KPanel.vue'

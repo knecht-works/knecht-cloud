@@ -1,11 +1,11 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
-import type { Project } from '../../server/db/schema'
+import type { Project } from '#server/db/schema'
 import { attachTestObject, getSessionRow, makeMember, makeProject, makeRun, sessionObjectOf } from '../helpers/db'
 
 const reactions: number[] = []
 const comments: { issue: number, body: string }[] = []
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/utils/github-app', () => ({
   addCommentReaction: async (_o: string, _r: string, id: number) => {
     reactions.push(id)
   },
@@ -14,11 +14,11 @@ vi.mock('../../server/utils/github-app', () => ({
     return { url: 'https://x/comment' }
   },
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { db, schema } = await import('../../server/db')
-const { github } = await import('../../server/integrations/github')
-const { handleMention: handle } = await import('../../server/utils/mentions')
+const { db, schema } = await import('#server/db')
+const { github } = await import('#server/integrations/github')
+const { handleMention: handle } = await import('#server/utils/mentions')
 
 function payload(body: string, overrides: Record<string, unknown> = {}) {
   return {

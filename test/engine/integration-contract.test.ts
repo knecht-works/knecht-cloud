@@ -1,16 +1,16 @@
 import { createHmac } from 'node:crypto'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import type { TriggerConfig } from '../../shared/utils/trigger-form'
+import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { makeProject } from '../helpers/db'
 import { triggerSourceOf } from '../helpers/integration-webhook-suite'
 
-vi.mock('../../server/utils/github-app', () => ({}))
-vi.mock('../../server/integrations/jira/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+vi.mock('#server/utils/github-app', () => ({}))
+vi.mock('#server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/jira/api')>(),
 }))
 const planeProjects = vi.hoisted(() => [] as { id: string, identifier: string, name: string }[])
-vi.mock('../../server/integrations/plane/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
+vi.mock('#server/integrations/plane/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/plane/api')>(),
   listPlaneProjects: async () => planeProjects,
   planeProjectById: async (id: string) => planeProjects.find(p => p.id === id),
   getPlaneWorkItem: async (_projectId: string, id: string) => ({ id, sequence_id: 1, name: 'T', description_html: '<p>B</p>', state: 's1', labels: [], assignees: [], created_by: 'u1' }),
@@ -18,23 +18,23 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
   listPlaneLabels: async () => [],
   listPlaneMembers: async () => [{ id: 'u1', displayName: 'Ann' }],
 }))
-vi.mock('../../server/integrations/linear/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
+vi.mock('#server/integrations/linear/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/linear/api')>(),
   getLinearIssue: async (id: string) => ({ id, identifier: id.replace(/^li-/, ''), title: 'T', description: 'B', url: 'https://linear.app/acme/issue/x', priority: 0, state: { name: 'Todo', type: 'unstarted' }, creator: { name: 'Ann' }, assignee: null, labels: { nodes: [] } }),
   listLinearStates: async () => [{ id: 's1', name: 'Todo', type: 'unstarted' }],
 }))
 
-const { db, schema } = await import('../../server/db')
-const { INTEGRATIONS } = await import('../../server/integrations')
-const { getTriggerSource } = await import('../../server/utils/trigger-sources')
-const { gitTriggerForm } = await import('../../server/integrations/git-trigger-form')
-const { defaultTriggerConfig, triggerEventLabel, triggerSummary } = await import('../../shared/utils/trigger-form')
-const { INPUT_KEYS } = await import('../../server/utils/inputs')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
-const { jiraConnection, jiraCredentials } = await import('../../server/integrations/jira/credentials')
-const { planeConnection } = await import('../../server/integrations/plane/credentials')
-const { linearConnection } = await import('../../server/integrations/linear/credentials')
+const { db, schema } = await import('#server/db')
+const { INTEGRATIONS } = await import('#server/integrations')
+const { getTriggerSource } = await import('#server/utils/trigger-sources')
+const { gitTriggerForm } = await import('#server/integrations/git-trigger-form')
+const { defaultTriggerConfig, triggerEventLabel, triggerSummary } = await import('#shared/utils/trigger-form')
+const { INPUT_KEYS } = await import('#server/utils/inputs')
+const { setProjectLink } = await import('#server/stores/project-links')
+const { saveGithubAppCredentials } = await import('#server/utils/github-credentials')
+const { jiraConnection, jiraCredentials } = await import('#server/integrations/jira/credentials')
+const { planeConnection } = await import('#server/integrations/plane/credentials')
+const { linearConnection } = await import('#server/integrations/linear/credentials')
 
 let jiraKeys = 0
 let planeKeys = 0

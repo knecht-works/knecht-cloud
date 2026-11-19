@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { makeProject, makeRun, makeSession } from '../helpers/db'
-import { appendRunLog } from '../../server/stores/runs'
+import { appendRunLog } from '#server/stores/runs'
 
-const handler = (await import('../../server/api/sessions/[id]/logs.get')).default
+const handler = (await import('#server/api/sessions/[id]/logs.get')).default
 
 function get(sessionId: number) {
   return callRoute(handler, { method: 'GET', route: '/sessions/:id/logs', path: `/sessions/${sessionId}/logs` })

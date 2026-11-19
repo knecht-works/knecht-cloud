@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const checkSessionPassword = (await import('../../server/plugins/session-password')).default as unknown as () => void
+const checkSessionPassword = (await import('#server/plugins/session-password')).default as unknown as () => void
 
 afterEach(() => {
   vi.unstubAllEnvs()

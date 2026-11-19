@@ -1,4 +1,4 @@
-import type { ActionRuntime } from '../../server/workflows/actions'
+import type { ActionRuntime } from '#server/workflows/actions'
 
 export function bareRuntime(): ActionRuntime {
   return {

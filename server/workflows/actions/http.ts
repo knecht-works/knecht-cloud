@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { tryParseJson } from '#server/utils/json'
-import { defineAction, ActionError } from './types'
+import { defineAction, ActionError } from '#server/workflows/actions/types'
 
 // No egress filtering: members already run arbitrary bash in sandboxes.
 const MAX_BODY_CHARS = 48_000

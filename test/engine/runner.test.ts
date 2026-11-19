@@ -1,29 +1,29 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, expect, it, vi } from 'vitest'
-import type { Step } from '../../shared/utils/workflow'
+import type { Step } from '#shared/utils/workflow'
 import { checkoutDirOf } from '../helpers/local-sandbox'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
+import { db, schema } from '#server/db'
 import { attachTestObject, getRun, getSessionRow, getSteps, makeProject, makeRun, makeSession, requeue } from '../helpers/db'
 
-vi.mock('../../server/daemon/git', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../server/daemon/git')>()
+vi.mock('#server/daemon/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#server/daemon/git')>()
   const { fakeCheckout } = await import('../helpers/local-sandbox')
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
 const startEnvStack = vi.hoisted(() => vi.fn(async () => {}))
-vi.mock('../../server/daemon/sandbox', () => ({ startEnvStack }))
+vi.mock('#server/daemon/sandbox', () => ({ startEnvStack }))
 const removeWorkspace = vi.hoisted(() => vi.fn(async (_sessionId: number) => {}))
-vi.mock('../../server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace }))
-vi.mock('../../server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace }))
+vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
+vi.mock('#server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
 const jiraComments = vi.hoisted(() => [] as { key: string, text: string, first?: unknown }[])
 const jira = vi.hoisted(() => ({ assignee: null as { accountId: string, displayName: string } | null, assigned: [] as (string | null)[] }))
-vi.mock('../../server/integrations/jira/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+vi.mock('#server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/jira/api')>(),
   getJiraIssueFields: async () => ({ reporter: { accountId: 'user-1', displayName: 'Ann Example' } }),
   getJiraIssuePeople: async () => ({ assignee: jira.assignee, reporter: { accountId: 'user-1', displayName: 'Ann Example' } }),
   assignJiraIssue: async (_key: string, accountId: string | null) => {
@@ -37,8 +37,8 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   },
 }))
 
-const { startRun, cancelRun } = await import('../../server/daemon/runner')
-const { jiraConnection } = await import('../../server/integrations/jira/credentials')
+const { startRun, cancelRun } = await import('#server/daemon/runner')
+const { jiraConnection } = await import('#server/integrations/jira/credentials')
 
 async function execute(steps: Step[], overrides: Parameters<typeof makeRun>[2] = {}) {
   const project = makeProject()
@@ -65,7 +65,7 @@ describe('runner', () => {
     expect(jiraComments).toHaveLength(0)
 
     // The agent replied itself during the run (knecht-reply): no second comment about the PR.
-    const { recordAgentReply } = await import('../../server/utils/sessions')
+    const { recordAgentReply } = await import('#server/utils/sessions')
     const replied = ticket({ prUrl: 'https://x/pull/6' })
     db.update(schema.runs).set({ steps: [{ type: 'bash', id: 'work', command: 'sleep 0.2' }] }).where(eq(schema.runs.id, replied.id)).run()
     const running = startRun(replied.id, project)

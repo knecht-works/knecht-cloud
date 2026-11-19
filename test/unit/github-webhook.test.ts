@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { githubObject, matchGithubEvent, type GithubPayload } from '../../server/integrations/github/webhook'
-import type { TriggerConfig } from '../../shared/utils/trigger-form'
+import { githubObject, matchGithubEvent, type GithubPayload } from '#server/integrations/github/webhook'
+import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 function trigger(overrides: Partial<TriggerConfig>): TriggerConfig {

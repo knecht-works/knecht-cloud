@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createGraphqlClient, createVendorCache, createVendorFetch } from '../../server/integrations/vendor-fetch'
+import { createGraphqlClient, createVendorCache, createVendorFetch } from '#server/integrations/vendor-fetch'
 import { withServer } from '../helpers/http-server'
 
 interface Auth {

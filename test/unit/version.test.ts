@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isNewerVersion } from '../../server/utils/version'
+import { isNewerVersion } from '#server/utils/version'
 
 describe('isNewerVersion', () => {
   it('compares stable tags numerically', () => {

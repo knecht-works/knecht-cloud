@@ -7,7 +7,7 @@ import {
   slugifyStepId,
   stepTreeDepth,
   type Step,
-} from '../../shared/utils/workflow'
+} from '#shared/utils/workflow'
 
 describe('ensureStepIds', () => {
   it('backfills ids from labels (or the type) and de-duplicates collisions', () => {

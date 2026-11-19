@@ -7,8 +7,8 @@ import { hasVerifiedIdentity } from '#server/stores/members'
 import { verifySha256Signature } from '#server/utils/signature'
 import type { Integration, WebhookComment, WebhookDelivery } from '#server/integrations/types'
 import type { TriggerConfig } from '#shared/utils/trigger-form'
-import { githubObject, matchGithubEvent, type GithubPayload } from './webhook'
-import { githubSnapshot } from './snapshot'
+import { githubObject, matchGithubEvent, type GithubPayload } from '#server/integrations/github/webhook'
+import { githubSnapshot } from '#server/integrations/github/snapshot'
 
 const MENTION_HANDLE = 'knecht-works'
 

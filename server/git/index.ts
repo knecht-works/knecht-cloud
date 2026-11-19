@@ -1,6 +1,6 @@
 import type { RepoProvider } from '#shared/utils/integrations'
-import type { GitProvider, GitRepo } from './types'
-import { githubProvider } from './github'
+import type { GitProvider, GitRepo } from '#server/git/types'
+import { githubProvider } from '#server/git/github'
 
 export const GIT_PROVIDERS: Record<RepoProvider, GitProvider> = {
   github: githubProvider,

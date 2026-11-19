@@ -1,6 +1,6 @@
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
-import { previewHostname } from '../../shared/utils/preview-host'
+import { previewHostname } from '#shared/utils/preview-host'
 
 export const BASE_URL = (process.env.KNECHT_E2E_BASE_URL ?? 'http://lvh.me:3333').replace(/\/+$/, '')
 

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import type { AgentItemView, FollowupView } from './transcript'
+import type { AgentItemView, FollowupView } from '#server/utils/transcript'
 
 export type LiveEvent
   = | { type: 'item', sessionId: number, item: AgentItemView }

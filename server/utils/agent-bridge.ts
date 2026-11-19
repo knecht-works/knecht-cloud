@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { execa } from 'execa'
-import { deriveKey } from './crypto'
+import { deriveKey } from '#server/utils/crypto'
 
 function bridgeKey(): Buffer {
   return deriveKey('knecht-agent-bridge', 'hmac-token')

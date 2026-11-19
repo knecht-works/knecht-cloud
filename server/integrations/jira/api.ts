@@ -1,6 +1,6 @@
 import { createVendorCache, createVendorFetch, type VendorRequest } from '#server/integrations/vendor-fetch'
-import type { AdfNode } from './adf'
-import { jiraCredentials } from './credentials'
+import type { AdfNode } from '#server/integrations/jira/adf'
+import { jiraCredentials } from '#server/integrations/jira/credentials'
 
 interface JiraAuth {
   siteUrl: string

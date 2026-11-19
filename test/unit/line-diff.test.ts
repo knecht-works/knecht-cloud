@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { lineDiff } from '../../shared/utils/line-diff'
+import { lineDiff } from '#shared/utils/line-diff'
 
 describe('lineDiff', () => {
   it('marks changed lines and keeps the unchanged ones in place', () => {

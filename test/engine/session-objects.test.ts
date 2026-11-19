@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { db, schema } from '../../server/db'
-import { fireTrigger } from '../../server/utils/triggers'
-import { updateSession } from '../../server/stores/sessions'
-import { attachObject, attachPullRequest, primaryObject, resolveObjectSession, resolveSession, sessionObjects, syncObjectStatus, workObject } from '../../server/utils/sessions'
+import { db, schema } from '#server/db'
+import { fireTrigger } from '#server/utils/triggers'
+import { updateSession } from '#server/stores/sessions'
+import { attachObject, attachPullRequest, primaryObject, resolveObjectSession, resolveSession, sessionObjects, syncObjectStatus, workObject } from '#server/utils/sessions'
 import { getRun, getSessionRow, makeProject } from '../helpers/db'
 
 const ticket = { integration: 'jira' as const, kind: 'issue' as const, key: 'KN-1', title: 'Login fails' }

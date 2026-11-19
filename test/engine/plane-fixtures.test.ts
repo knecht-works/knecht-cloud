@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { makeProject } from '../helpers/db'
 import { makeTrigger, runsOf } from '../helpers/integration-webhook-suite'
-import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
+import type { TriggerConfig, TriggerEventConfig } from '#shared/utils/trigger-form'
 import { allOf } from '../helpers/trigger-conditions'
 
 // Real deliveries of one Plane project, captured with KNECHT_DUMP_WEBHOOKS=1.
@@ -23,19 +23,19 @@ const PLANE_PROJECT = { id: 'fc80d364-b685-4f24-957a-f77456d31d4b', identifier: 
 const STATE_NAMES: Record<string, string> = { backlog: 'Backlog', unstarted: 'Todo', started: 'In Progress', completed: 'Done', cancelled: 'Cancelled' }
 const states = new Map(fixtures.map(({ data }) => [data.state_id as string, { id: data.state_id as string, name: STATE_NAMES[data.state_group as string]!, group: data.state_group as string }]))
 const api = vi.hoisted(() => ({ item: {} as Record<string, unknown> }))
-vi.mock('../../server/integrations/plane/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
+vi.mock('#server/integrations/plane/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/plane/api')>(),
   planeProjectById: async () => PLANE_PROJECT,
   getPlaneWorkItem: async () => api.item,
   listPlaneStates: async () => [...states.values()],
   listPlaneLabels: async () => [{ id: '4e5eff12-3878-4543-a925-2613172a0ff8', name: 'Bug' }],
   listPlaneMembers: async () => [{ id: SAMUEL, displayName: 'Samuel' }, { id: KNECHT_ACCOUNT, displayName: 'Knecht' }],
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { planeConnection } = await import('../../server/integrations/plane/credentials')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const handler = (await import('../../server/api/plane/webhook.post')).default
+const { planeConnection } = await import('#server/integrations/plane/credentials')
+const { setProjectLink } = await import('#server/stores/project-links')
+const handler = (await import('#server/api/plane/webhook.post')).default
 
 const SECRET = 'plane_wh_secret'
 

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { asc, eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import { runDataMigrations } from '../../server/db/data-migrations'
-import { getTriggerSource } from '../../server/utils/trigger-sources'
-import type { Step } from '../../shared/utils/workflow'
+import { db, schema } from '#server/db'
+import { runDataMigrations } from '#server/db/data-migrations'
+import { getTriggerSource } from '#server/utils/trigger-sources'
+import type { Step } from '#shared/utils/workflow'
 import { makeProject, makeRun } from '../helpers/db'
 
 // The engine setup runs the SQL migrations but not runDataMigrations, so they execute here.

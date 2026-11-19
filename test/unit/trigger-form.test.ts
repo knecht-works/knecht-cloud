@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultTriggerConfig, segmentsText, triggerConfigIssues, triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerFormDef } from '../../shared/utils/trigger-form'
+import { defaultTriggerConfig, segmentsText, triggerConfigIssues, triggerEventLabel, triggerSummary, type TriggerConfig, type TriggerFormDef } from '#shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 const FORM: TriggerFormDef = [

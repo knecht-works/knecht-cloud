@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchesFilters, parseFilters, serializeFilters, uniqueOptions, type FilterFacts, type FilterFields } from '../../shared/utils/filter'
+import { matchesFilters, parseFilters, serializeFilters, uniqueOptions, type FilterFacts, type FilterFields } from '#shared/utils/filter'
 
 const FIELDS: FilterFields = {
   stack: { label: 'Stack', ops: ['is', 'is not'] },

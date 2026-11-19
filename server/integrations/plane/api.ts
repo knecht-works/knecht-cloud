@@ -1,6 +1,6 @@
 import { ofetch } from 'ofetch'
 import { createVendorCache, createVendorFetch } from '#server/integrations/vendor-fetch'
-import { planeCredentials } from './credentials'
+import { planeCredentials } from '#server/integrations/plane/credentials'
 
 interface PlaneAuth {
   siteUrl: string

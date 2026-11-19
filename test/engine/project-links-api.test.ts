@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { makeProject } from '../helpers/db'
 
-vi.mock('../../server/utils/github-app', () => ({}))
+vi.mock('#server/utils/github-app', () => ({}))
 
-const handler = (await import('../../server/api/projects/[id]/link.put')).default
-const { linkedProject, projectLinks, refreshLinkNames, withLinks } = await import('../../server/stores/project-links')
+const handler = (await import('#server/api/projects/[id]/link.put')).default
+const { linkedProject, projectLinks, refreshLinkNames, withLinks } = await import('#server/stores/project-links')
 
 const put = (projectId: number, body: object) =>
   callRoute(handler, { method: 'PUT', route: '/:id', path: `/${projectId}`, body })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { navigateTo } from '#app'
+import { navigateTo } from '#imports'
 
 // Not routeRules: on preview subdomains the proxy middleware intercepts first,
 // which a global redirect would bypass.

@@ -1,8 +1,8 @@
 import type { ServerResponse } from 'node:http'
 import { describe, expect, it } from 'vitest'
-import { linkCheckAction } from '../../server/workflows/actions/link-check'
-import { ActionError } from '../../server/workflows/actions'
-import type { Step } from '../../shared/utils/workflow'
+import { linkCheckAction } from '#server/workflows/actions/link-check'
+import { ActionError } from '#server/workflows/actions'
+import type { Step } from '#shared/utils/workflow'
 import { bareRuntime } from '../helpers/action-rt'
 import { withServer, type Route } from '../helpers/http-server'
 

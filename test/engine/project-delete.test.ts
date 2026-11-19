@@ -3,29 +3,29 @@ import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, expect, it, vi } from 'vitest'
 import { eq, type SQL } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import { dataDir } from '../../server/utils/storage'
+import { db, schema } from '#server/db'
+import { dataDir } from '#server/utils/storage'
 import { getSteps, makeProject, makeRun, makeSession } from '../helpers/db'
 
-vi.mock('../../server/daemon/git', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../server/daemon/git')>()
+vi.mock('#server/daemon/git', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('#server/daemon/git')>()
   const { fakeCheckout } = await import('../helpers/local-sandbox')
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
-vi.mock('../../server/daemon/sandbox', () => ({}))
-vi.mock('../../server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
+vi.mock('#server/daemon/sandbox', () => ({}))
+vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
 const tornDown: number[] = []
-vi.mock('../../server/daemon/envs', () => ({
+vi.mock('#server/daemon/envs', () => ({
   markCheckedOut: () => {},
   teardownSession: async (sessionId: number) => { tornDown.push(sessionId) },
 }))
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
 
-const { deleteProject } = await import('../../server/utils/projects')
-const { startRun } = await import('../../server/daemon/runner')
+const { deleteProject } = await import('#server/utils/projects')
+const { startRun } = await import('#server/daemon/runner')
 
 function count(table: typeof schema.runs | typeof schema.sessions | typeof schema.runSteps | typeof schema.followups, where: SQL) {
   return db.select().from(table).where(where).all().length

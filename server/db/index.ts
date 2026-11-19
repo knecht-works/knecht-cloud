@@ -3,7 +3,7 @@ import { dirname } from 'node:path'
 import Database, { type RunResult } from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core'
-import * as schema from './schema'
+import * as schema from '#server/db/schema'
 
 const dbPath = process.env.KNECHT_DB_PATH || '.data/knecht.db'
 mkdirSync(dirname(dbPath), { recursive: true })

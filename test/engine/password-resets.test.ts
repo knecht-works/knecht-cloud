@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-const { db, schema } = await import('../../server/db')
-const { addMember } = await import('../../server/stores/members')
-const { consumePasswordReset, createPasswordReset, findOpenPasswordReset } = await import('../../server/stores/password-resets')
+const { db, schema } = await import('#server/db')
+const { addMember } = await import('#server/stores/members')
+const { consumePasswordReset, createPasswordReset, findOpenPasswordReset } = await import('#server/stores/password-resets')
 
 describe('password resets', () => {
   it('works once, and a new link replaces the older one', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { httpAction } from '../../server/workflows/actions/http'
-import { ActionError } from '../../server/workflows/actions'
-import type { Step } from '../../shared/utils/workflow'
+import { httpAction } from '#server/workflows/actions/http'
+import { ActionError } from '#server/workflows/actions'
+import type { Step } from '#shared/utils/workflow'
 import { bareRuntime } from '../helpers/action-rt'
 import { withServer } from '../helpers/http-server'
 

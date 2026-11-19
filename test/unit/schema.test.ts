@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { parseWorkflow, serializeWorkflow, workflowDocumentSchema } from '../../server/workflows/schema'
-import type { Step } from '../../shared/utils/workflow'
+import { parseWorkflow, serializeWorkflow, workflowDocumentSchema } from '#server/workflows/schema'
+import type { Step } from '#shared/utils/workflow'
 
 const KITCHEN_SINK = readFileSync(new URL('../fixtures/workflows/kitchen-sink.yaml', import.meta.url), 'utf8')
 

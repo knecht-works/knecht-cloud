@@ -8,8 +8,8 @@ import { writeBridgeCredentialHelper } from '#server/utils/agent-bridge'
 import { sessionCheckoutDir, sessionSandboxName } from '#server/utils/storage'
 import { getProject } from '#server/stores/projects'
 import { getSessionRow } from '#server/stores/sessions'
-import { KNECHT_CONFIG_FILE, WEB_MEM_LIMIT, WEB_PIDS_LIMIT, webVolumes } from './ddev'
-import { attachKnecht, ddevWebImage, forgetPreview, knechtContainer, WEB_PROJECT_DIR } from './sandbox'
+import { KNECHT_CONFIG_FILE, WEB_MEM_LIMIT, WEB_PIDS_LIMIT, webVolumes } from '#server/daemon/ddev'
+import { attachKnecht, ddevWebImage, forgetPreview, knechtContainer, WEB_PROJECT_DIR } from '#server/daemon/sandbox'
 
 export const WORKSPACE_LABEL = 'works.knecht.workspace'
 

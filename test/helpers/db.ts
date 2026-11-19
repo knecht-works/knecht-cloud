@@ -1,7 +1,7 @@
 import { asc, eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import type { Project, Run, Session } from '../../server/db/schema'
-import { ensureStepIds, type Step } from '../../shared/utils/workflow'
+import { db, schema } from '#server/db'
+import type { Project, Run, Session } from '#server/db/schema'
+import { ensureStepIds, type Step } from '#shared/utils/workflow'
 
 let nextRepoId = 1
 

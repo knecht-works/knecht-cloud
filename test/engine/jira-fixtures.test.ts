@@ -4,20 +4,20 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { makeProject } from '../helpers/db'
 import { makeTrigger, runsOf } from '../helpers/integration-webhook-suite'
-import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
+import type { TriggerConfig, TriggerEventConfig } from '#shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 // Status ids of the captured site, by category; the changelog carries only ids.
 const STATUS_CATEGORIES: Record<string, string> = { 10072: 'new', 10037: 'indeterminate', 10038: 'done' }
-vi.mock('../../server/integrations/jira/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+vi.mock('#server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/jira/api')>(),
   getJiraStatusCategory: async (id: string) => STATUS_CATEGORIES[id] ?? null,
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { jiraConnection } = await import('../../server/integrations/jira/credentials')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const handler = (await import('../../server/api/jira/webhook.post')).default
+const { jiraConnection } = await import('#server/integrations/jira/credentials')
+const { setProjectLink } = await import('#server/stores/project-links')
+const handler = (await import('#server/api/jira/webhook.post')).default
 
 const SECRET = 'jira_wh_secret'
 const KNECHT_ACCOUNT = '712020:6e6c010f-5693-48ea-9049-18a3f7ce3087'

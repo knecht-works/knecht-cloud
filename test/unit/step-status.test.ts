@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { Step } from '../../shared/utils/workflow'
-import { buildStatusMap, type RunStepRowLike } from '../../app/utils/step-status'
+import type { Step } from '#shared/utils/workflow'
+import { buildStatusMap, type RunStepRowLike } from '~/utils/step-status'
 
 // Fixture: bash(a) → if(cond) { then: [bash(b), bash(c)], else: [bash(d)] } → bash(e)
 function ifTree(): Step[] {

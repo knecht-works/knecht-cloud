@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { previewCertOrigins } from '../../server/utils/preview-certs'
-import { devServerLabel } from '../../server/utils/dev-origin'
+import { previewCertOrigins } from '#server/utils/preview-certs'
+import { devServerLabel } from '#server/utils/dev-origin'
 
 afterEach(() => vi.unstubAllEnvs())
 

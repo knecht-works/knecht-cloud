@@ -1,9 +1,8 @@
 import { PR_COMMAND, PUBLISH_FOLLOWUP_PROMPT } from '#shared/utils/followup'
 import type { RunStatus } from '~/utils/dashboard'
 import { ref, computed, watch } from 'vue'
-import { useFetch } from '#app'
+import { useFetch, $fetch } from '#imports'
 import { useEventSource } from '~/composables/useEventSource'
-import { $fetch } from '#build/fetch.mjs'
 import { errMsg } from '~/utils/dashboard'
 
 export type ChatItemStatus = 'pending' | 'in_progress' | 'completed' | 'failed'

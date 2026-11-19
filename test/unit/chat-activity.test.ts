@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { replyActivity, replyItems, type ActivityTurn } from '../../app/utils/chat-activity'
+import { replyActivity, replyItems, type ActivityTurn } from '~/utils/chat-activity'
 
 type Item = ActivityTurn['items'][number]
 

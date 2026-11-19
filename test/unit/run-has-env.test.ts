@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { runHasEnv } from '../../shared/utils/run'
-import type { Step } from '../../shared/utils/workflow'
+import { runHasEnv } from '#shared/utils/run'
+import type { Step } from '#shared/utils/workflow'
 
 const boot = [{ type: 'ddev-start' }] as Step[]
 const noBoot = [{ type: 'create-pr' }] as Step[]

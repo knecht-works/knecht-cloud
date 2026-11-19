@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ActionRuntime } from '../../server/workflows/actions/types'
+import type { ActionRuntime } from '#server/workflows/actions/types'
 
 const hostSpawns = vi.hoisted(() => [] as unknown[][])
 vi.mock('execa', () => ({
@@ -9,7 +9,7 @@ vi.mock('execa', () => ({
   },
 }))
 
-const { commitAll, createBranch, currentBranch, pushBranch } = await import('../../server/daemon/git')
+const { commitAll, createBranch, currentBranch, pushBranch } = await import('#server/daemon/git')
 const credentials = { cloneUrl: 'https://github.com/acme/app.git', username: 'x-access-token', token: 'secret-token' }
 
 function recordingSandbox() {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-const { addMember, getMemberById, hasVerifiedIdentity, loginWithIdentity } = await import('../../server/stores/members')
+const { addMember, getMemberById, hasVerifiedIdentity, loginWithIdentity } = await import('#server/stores/members')
 
 const profile = { name: 'Octo Cat', avatarUrl: 'https://avatars/1' }
 
@@ -43,7 +43,7 @@ describe('getMemberById', () => {
 
 describe('linkIdentity and unlinkIdentity', () => {
   it('links GitHub to a password member, and unlinks it while the password remains', async () => {
-    const { linkIdentity, listIdentities, unlinkIdentity } = await import('../../server/stores/members')
+    const { linkIdentity, listIdentities, unlinkIdentity } = await import('#server/stores/members')
     const member = addMember({ login: 'pw-only', passwordHash: 'hash' })
 
     expect(linkIdentity(member.id, 'github', { subject: '50', username: 'PwGithub' })).toBe('linked')
@@ -55,14 +55,14 @@ describe('linkIdentity and unlinkIdentity', () => {
   })
 
   it('never takes an account that belongs to another member', async () => {
-    const { linkIdentity } = await import('../../server/stores/members')
+    const { linkIdentity } = await import('#server/stores/members')
     const member = addMember({ login: 'thief', passwordHash: 'hash' })
     expect(linkIdentity(member.id, 'github', { subject: '1', username: 'whatever' })).toBe('taken')
     expect(linkIdentity(member.id, 'github', { subject: '99', username: 'owner' })).toBe('taken')
   })
 
   it('keeps the last way to sign in', async () => {
-    const { unlinkIdentity } = await import('../../server/stores/members')
+    const { unlinkIdentity } = await import('#server/stores/members')
     const owner = loginWithIdentity('github', { subject: '1', username: 'owner' }, profile)!
     expect(unlinkIdentity(owner.id, 'github')).toBe(false)
     expect(hasVerifiedIdentity('github', 'owner')).toBe(true)
@@ -73,8 +73,8 @@ describe('sessionMember', () => {
   const session = (id: number, sessionVersion?: number) => ({ user: { id, login: '', name: null, avatarUrl: null }, sessionVersion })
 
   it('ends the sessions from before a password change', async () => {
-    const { setPasswordHash } = await import('../../server/stores/members')
-    const { sessionMember } = await import('../../server/utils/member-session')
+    const { setPasswordHash } = await import('#server/stores/members')
+    const { sessionMember } = await import('#server/utils/member-session')
     const member = addMember({ login: 'changes-password', passwordHash: 'old' })
     expect(sessionMember(session(member.id, member.sessionVersion))?.id).toBe(member.id)
     expect(sessionMember(session(member.id))?.id).toBe(member.id)
@@ -88,7 +88,7 @@ describe('sessionMember', () => {
 
 describe('setOwner', () => {
   it('promotes and demotes, but always keeps one owner', async () => {
-    const { listMembers, setOwner } = await import('../../server/stores/members')
+    const { listMembers, setOwner } = await import('#server/stores/members')
     const owners = () => listMembers().filter(m => m.isOwner).map(m => m.login)
     const second = addMember({ login: 'second-owner', passwordHash: 'hash' })
     expect(setOwner(second.id, true)).toBe(true)
@@ -101,7 +101,7 @@ describe('setOwner', () => {
 
 describe('own name and picture', () => {
   it('survive a later provider login', async () => {
-    const { setAvatarImage, setName } = await import('../../server/stores/members')
+    const { setAvatarImage, setName } = await import('#server/stores/members')
     const owner = loginWithIdentity('github', { subject: '1', username: 'owner' }, profile)!
     setName(owner.id, 'Sam')
     setAvatarImage(owner.id, 'data:image/png;base64,AAAA')

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { credentialDevServerTags, devServerCorsOrigin, devServerLabel, devServerOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from '../../server/utils/dev-origin'
-import { parsePreviewHost, previewHostname, previewLabel } from '../../shared/utils/preview-host'
+import { credentialDevServerTags, devServerCorsOrigin, devServerLabel, devServerOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from '#server/utils/dev-origin'
+import { parsePreviewHost, previewHostname, previewLabel } from '#shared/utils/preview-host'
 
 describe('dev origin label', () => {
   it('is a per-session token that fits a DNS label and survives the preview host round trip', () => {

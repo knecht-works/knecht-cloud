@@ -3,8 +3,8 @@ import { z } from 'zod'
 import { stripAnsi } from '#shared/utils/ansi'
 import { getRunView, listRunViews, readRunLog, runLogBytes } from '#server/stores/runs'
 import { listRunSteps, readStepLog } from '#server/stores/run-steps'
-import { maskSecrets } from './redact'
-import { defineTool } from './registry'
+import { maskSecrets } from '#server/tools/redact'
+import { defineTool } from '#server/tools/registry'
 
 const RUN_STATUSES = ['queued', 'running', 'success', 'failed', 'cancelled'] as const
 

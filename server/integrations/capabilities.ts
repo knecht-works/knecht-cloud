@@ -1,6 +1,6 @@
 import type { Project } from '#server/db/schema'
 import type { SessionObject } from '#server/utils/sessions'
-import type { CommentAuthor, Integration, ReplyTarget } from './types'
+import type { CommentAuthor, Integration, ReplyTarget } from '#server/integrations/types'
 
 const list = (names: string[]) => names.join(', ') || '(none)'
 

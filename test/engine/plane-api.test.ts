@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { withServer } from '../helpers/http-server'
-import { getPlaneWorkItem, getPlaneWorkItemByKey } from '../../server/integrations/plane/api'
-import { planeConnection } from '../../server/integrations/plane/credentials'
+import { getPlaneWorkItem, getPlaneWorkItemByKey } from '#server/integrations/plane/api'
+import { planeConnection } from '#server/integrations/plane/credentials'
 
 const json = (body: unknown) => (_req: unknown, res: { setHeader(k: string, v: string): void, end(s: string): void }) => {
   res.setHeader('content-type', 'application/json')

@@ -2,17 +2,17 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { eq } from 'drizzle-orm'
 import { MockLanguageModelV4 } from 'ai/test'
-import { db, schema } from '../../server/db'
-import { appendRunLog } from '../../server/stores/runs'
-import { createRunStep } from '../../server/stores/run-steps'
-import { defineTool } from '../../server/tools/registry'
-import { getStepLogTool } from '../../server/tools/runs'
+import { db, schema } from '#server/db'
+import { appendRunLog } from '#server/stores/runs'
+import { createRunStep } from '#server/stores/run-steps'
+import { defineTool } from '#server/tools/registry'
+import { getStepLogTool } from '#server/tools/runs'
 import { makeProject, makeRun } from '../helpers/db'
 
 let model: MockLanguageModelV4
-vi.mock('../../server/utils/llm', () => ({ languageModel: async () => model }))
+vi.mock('#server/utils/llm', () => ({ languageModel: async () => model }))
 
-const { defineAiFeature, runAiFeature } = await import('../../server/utils/ai-feature')
+const { defineAiFeature, runAiFeature } = await import('#server/utils/ai-feature')
 
 const usage = {
   inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 },

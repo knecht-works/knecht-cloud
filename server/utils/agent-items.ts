@@ -1,6 +1,6 @@
 import type { TranscriptItem, TranscriptSink } from '#server/daemon/agent'
 import { createAgentItem, nextAgentItemSeq, updateAgentItem } from '#server/stores/agent-items'
-import { emitItem } from './transcript'
+import { emitItem } from '#server/utils/transcript'
 
 // Writes each item as it arrives and pushes it to the live chat.
 export function transcriptSink(sessionId: number, followupId: number): TranscriptSink {

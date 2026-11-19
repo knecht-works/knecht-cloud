@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hasPreviewTarget } from '../../server/utils/preview-target'
+import { hasPreviewTarget } from '#server/utils/preview-target'
 
 const env = { webserver: 'nginx-fpm', phpVersion: null, dbType: null, dbVersion: null, nodeVersion: null, packageManager: null }
 const ddevProject = { ddevEnv: { ...env, detected: { source: 'ddev' as const, fields: {}, warnings: [] } }, devServer: null, previewPort: null }

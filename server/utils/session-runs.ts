@@ -1,7 +1,7 @@
 import type { Project, Run, Session } from '#server/db/schema'
 import { dispatchRuns } from '#server/daemon/dispatcher'
 import { createRun, sessionHasRuns } from '#server/stores/runs'
-import { emptyInputs } from './inputs'
+import { emptyInputs } from '#server/utils/inputs'
 
 export function queueSessionRun(project: Project, session: Session, preview: boolean): Run {
   const name = sessionHasRuns(session.id)

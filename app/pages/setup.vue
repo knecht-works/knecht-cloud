@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { definePageMeta } from '#app/composables/pages'
-import { useRoute, useFetch } from '#app'
+import { definePageMeta, useRoute, useFetch } from '#imports'
 import { computed } from 'vue'
 import KGithubButton from '~/components/KGithubButton.vue'
 import { UAlert, UButton } from '#components'

@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { isPreviewHost, parsePreviewHost, stripPreviewPrefix } from '#shared/utils/preview-host'
-import { dashboardOrigin } from './origin'
+import { dashboardOrigin } from '#server/utils/origin'
 
 const SECRET = randomBytes(32)
 
