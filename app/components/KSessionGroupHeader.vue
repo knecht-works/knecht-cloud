@@ -1,13 +1,19 @@
 <script setup lang="ts">
+import type { RouteLocationRaw } from 'vue-router'
+
 const props = defineProps<{
   objects: SessionObject[]
+  title: string
   project?: { id: number, name: string }
+  to: RouteLocationRaw
+  replace?: boolean
+  quiet?: boolean
 }>()
 
-const primary = computed(() => props.objects[0]!)
 const badges = computed(() => props.objects.map(o => ({ ...o, meta: sessionObjectMeta(o.integration, o.kind) })))
-const allClosed = computed(() => props.objects.every(o => o.closed))
-const tint = computed(() => allClosed.value ? 'var(--text-dimmed)' : badges.value[0]!.meta.color)
+const allClosed = computed(() => props.objects.length > 0 && props.objects.every(o => o.closed))
+const icon = computed(() => badges.value[0]?.meta.icon ?? 'i-lucide-message-square')
+const tint = computed(() => allClosed.value ? 'var(--text-dimmed)' : badges.value[0]?.meta.color ?? 'var(--text-toned)')
 </script>
 
 <template>
@@ -17,18 +23,21 @@ const tint = computed(() => allClosed.value ? 'var(--text-dimmed)' : badges.valu
       :style="{ background: `color-mix(in oklab, ${tint} 16%, transparent)` }"
     >
       <UIcon
-        :name="badges[0]!.meta.icon"
+        :name="icon"
         class="size-3"
         :style="{ color: tint }"
       />
     </span>
-    <UTooltip :text="primary.title ?? ''">
-      <span
-        class="min-w-0 truncate text-sm font-medium"
-        :class="allClosed ? 'text-muted' : 'text-highlighted'"
+    <UTooltip :text="title">
+      <NuxtLink
+        :to="to"
+        :replace="replace"
+        tabindex="-1"
+        class="relative z-2 min-w-0 truncate text-sm font-medium"
+        :class="allClosed ? (quiet ? 'text-dimmed' : 'text-muted') : quiet ? 'text-toned transition-colors group-hover:text-highlighted' : 'text-highlighted'"
       >
-        {{ primary.title ?? `${badges[0]!.meta.prefix}${primary.key}` }}
-      </span>
+        {{ title }}
+      </NuxtLink>
     </UTooltip>
     <div class="flex flex-none items-center gap-2 text-xs text-dimmed">
       <component
@@ -37,7 +46,7 @@ const tint = computed(() => allClosed.value ? 'var(--text-dimmed)' : badges.valu
         :key="`${o.integration}:${o.kind}:${o.key}`"
         :href="o.url ?? undefined"
         :target="o.url ? '_blank' : undefined"
-        class="flex items-center gap-1 tabular-nums transition-colors"
+        class="relative z-2 flex items-center gap-1 tabular-nums transition-colors"
         :class="o.url ? 'hover:text-muted' : ''"
         :aria-label="o.url ? `Open ${o.meta.label.toLowerCase()} ${o.meta.prefix}${o.key} in ${triggerSourceMeta(o.integration).label}` : undefined"
       >
@@ -52,7 +61,7 @@ const tint = computed(() => allClosed.value ? 'var(--text-dimmed)' : badges.valu
     <NuxtLink
       v-if="project"
       :to="`/projects/${project.id}`"
-      class="ml-auto hidden flex-none text-xs text-dimmed transition-colors hover:text-muted md:block"
+      class="relative z-2 ml-auto hidden flex-none text-xs text-dimmed transition-colors hover:text-muted md:block"
     >{{ project.name }}</NuxtLink>
   </div>
 </template>

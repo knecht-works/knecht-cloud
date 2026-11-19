@@ -39,6 +39,7 @@ const runListColumns = {
   workflow: schema.runs.workflow,
   title: schema.runs.title,
   workflowId: schema.runs.workflowId,
+  kind: schema.runs.kind,
   status: schema.runs.status,
   ...runSessionColumns,
   steps: schema.runs.steps,
@@ -64,7 +65,6 @@ export function getRunView(id: number) {
   return db
     .select({
       ...runListColumns,
-      kind: schema.runs.kind,
       branch: schema.runs.branch,
       prUrl: schema.runs.prUrl,
     })

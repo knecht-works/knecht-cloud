@@ -351,6 +351,18 @@ const mode = computed<Mode>(() => {
 const statusMap = computed(() => buildStatusMap(steps.value, activeRun.value, activeRunSteps.value))
 
 const testTimeline = computed(() => runLogTimeline(activeRunSteps.value, activeRun.value?.status))
+const testLogRuns = computed(() => activeRun.value
+  ? [{
+      id: activeRun.value.id,
+      label: meta.name,
+      log: activeRunLog.value,
+      rows: testTimeline.value,
+      live: mode.value === 'running',
+      status: activeRun.value.status,
+      startedAt: activeRun.value.startedAt,
+      finishedAt: activeRun.value.finishedAt,
+    }]
+  : [])
 
 const statusOf = (step: WorkflowStep | undefined): StepStatus | undefined =>
   step ? statusMap.value.get(step.id ?? '')?.status : undefined
@@ -988,12 +1000,7 @@ const pr = computed(() => {
                   <span class="k-mono text-3xs text-dimmed">run #{{ activeRun.id }}</span>
                 </template>
                 <KRunLog
-                  :log="activeRunLog"
-                  :rows="testTimeline"
-                  live
-                  :run-status="activeRun.status"
-                  :run-started-at="activeRun.startedAt"
-                  :run-finished-at="activeRun.finishedAt"
+                  :runs="testLogRuns"
                 />
               </KPanel>
 
@@ -1035,12 +1042,7 @@ const pr = computed(() => {
                 </div>
                 <div class="border-t border-muted">
                   <KRunLog
-                    :log="activeRunLog"
-                    :rows="testTimeline"
-                    :live="false"
-                    :run-status="activeRun.status"
-                    :run-started-at="activeRun.startedAt"
-                    :run-finished-at="activeRun.finishedAt"
+                    :runs="testLogRuns"
                   />
                 </div>
               </KPanel>
@@ -1058,12 +1060,7 @@ const pr = computed(() => {
                 </div>
                 <div class="border-t border-muted">
                   <KRunLog
-                    :log="activeRunLog"
-                    :rows="testTimeline"
-                    :live="false"
-                    :run-status="activeRun.status"
-                    :run-started-at="activeRun.startedAt"
-                    :run-finished-at="activeRun.finishedAt"
+                    :runs="testLogRuns"
                   />
                 </div>
               </KPanel>
