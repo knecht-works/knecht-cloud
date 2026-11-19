@@ -163,6 +163,12 @@ export function getRunningSessionRun(sessionId: number): Run | undefined {
     .get()
 }
 
+export function sessionHasRunTitle(sessionId: number): boolean {
+  return !!db.select({ id: schema.runs.id }).from(schema.runs)
+    .where(and(eq(schema.runs.sessionId, sessionId), isNotNull(schema.runs.title)))
+    .get()
+}
+
 export function sessionHasRuns(sessionId: number): boolean {
   return !!db.select({ id: schema.runs.id }).from(schema.runs).where(eq(schema.runs.sessionId, sessionId)).get()
 }

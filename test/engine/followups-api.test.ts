@@ -12,6 +12,12 @@ vi.mock('../../server/daemon/followups', () => ({
   },
 }))
 vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+const titled: { runId: number, prompt: string }[] = []
+vi.mock('../../server/daemon/run-title', () => ({
+  titleRun: async (runId: number, prompt: string) => {
+    titled.push({ runId, prompt })
+  },
+}))
 Object.assign(globalThis, { requireUserSession: async () => ({ user: { login: 'samuelreichor' } }) })
 
 const { db, schema } = await import('../../server/db')
@@ -66,6 +72,32 @@ describe('POST /api/runs/:id/followups', () => {
     const run = liveRun('cancelled')
     db.update(schema.runs).set({ kind: 'mention' }).where(eq(schema.runs.id, run.id)).run()
     expect((await post(run.id)).status).toBe(200)
+  })
+})
+
+describe('session title', () => {
+  it('names a session started without a workflow after its first prompt', async () => {
+    const run = liveRun('success')
+    await post(run.id, { prompt: 'Fix the footer hover' })
+    expect(titled).toContainEqual({ runId: run.id, prompt: 'Fix the footer hover' })
+  })
+
+  it('keeps a title the run already has and never names a run from /pr', async () => {
+    const named = liveRun('success')
+    db.update(schema.runs).set({ title: 'Fix the footer' }).where(eq(schema.runs.id, named.id)).run()
+    await post(named.id, { prompt: 'and the header' })
+    const published = liveRun('success')
+    await post(published.id, { prompt: '/pr' })
+    expect(titled.map(t => t.runId)).not.toContain(named.id)
+    expect(titled.map(t => t.runId)).not.toContain(published.id)
+  })
+
+  it('keeps the name when a later run joins the session, such as a started preview', async () => {
+    const first = liveRun('success')
+    db.update(schema.runs).set({ title: 'Fix the footer' }).where(eq(schema.runs.id, first.id)).run()
+    const preview = makeRun(makeProject(), [], { sessionId: first.sessionId, projectId: first.projectId, status: 'success' })
+    await post(preview.id, { prompt: 'now the header' })
+    expect(titled.map(t => t.runId)).not.toContain(preview.id)
   })
 })
 
