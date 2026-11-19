@@ -1,5 +1,4 @@
-import { defineNuxtPlugin } from '#app'
-import { useUserSession } from '#imports'
+import { defineNuxtPlugin, useUserSession } from '#imports'
 import { invalidateAll, invalidate } from '~/composables/useLiveTopics'
 import { watch } from 'vue'
 

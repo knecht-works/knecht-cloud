@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import { fireTrigger } from '../../server/utils/triggers'
+import { db, schema } from '#server/db'
+import { fireTrigger } from '#server/utils/triggers'
 import { makeProject } from '../helpers/db'
 
 // Created runs are marked failed immediately: the test env has no GitHub App.

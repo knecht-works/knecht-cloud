@@ -1,25 +1,25 @@
 import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
-import type { Project } from '../../server/db/schema'
-import type { TriggerConfig } from '../../shared/utils/trigger-form'
+import type { Project } from '#server/db/schema'
+import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { makeMember, makeProject, sessionObjectOf } from '../helpers/db'
 import { describeIntegrationWebhook, makeTrigger, runsOf, type WebhookRequest } from '../helpers/integration-webhook-suite'
 import { allOf } from '../helpers/trigger-conditions'
 
 const comments: { repo: string, issue: number, body: string }[] = []
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/utils/github-app', () => ({
   addCommentReaction: async () => {},
   createIssueComment: async (_o: string, repo: string, issue: number, body: string) => {
     comments.push({ repo, issue, body })
     return { url: 'https://x/comment' }
   },
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
-const { github } = await import('../../server/integrations/github')
-const handler = (await import('../../server/api/github/webhook.post')).default
+const { saveGithubAppCredentials } = await import('#server/utils/github-credentials')
+const { github } = await import('#server/integrations/github')
+const handler = (await import('#server/api/github/webhook.post')).default
 
 const SECRET = 'whsec-test'
 

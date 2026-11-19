@@ -4,13 +4,13 @@ import { createError, getHeader, readRawBody, type H3Event } from 'h3'
 import type { Integration } from '#server/integrations'
 import { integrationRole, isTrackerId } from '#shared/utils/integrations'
 import { stopEnv } from '#server/daemon/envs'
-import { handleMention } from './mentions'
-import { sessionHasActiveWork, syncObjectStatus } from './sessions'
-import { fireTrigger } from './triggers'
+import { handleMention } from '#server/utils/mentions'
+import { sessionHasActiveWork, syncObjectStatus } from '#server/utils/sessions'
+import { fireTrigger } from '#server/utils/triggers'
 import { listActiveTriggers } from '#server/stores/triggers'
 import { findObjectSession, getSessionRow } from '#server/stores/sessions'
-import { ticketChanged } from './object-freshness'
-import { dataDir } from './storage'
+import { ticketChanged } from '#server/utils/object-freshness'
+import { dataDir } from '#server/utils/storage'
 
 // No session gate: the integration authenticates the delivery with its signature over the raw body.
 export async function handleWebhook(integration: Integration, event: H3Event) {

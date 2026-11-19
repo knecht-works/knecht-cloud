@@ -3,15 +3,15 @@ import { eq } from 'drizzle-orm'
 import { attachTestObject, makeProject, makeRun } from '../helpers/db'
 
 const comments: { issue: number, body: string }[] = []
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/utils/github-app', () => ({
   createIssueComment: async (_o: string, _r: string, issue: number, body: string) => {
     comments.push({ issue, body })
     return { url: 'https://x/comment' }
   },
 }))
-vi.mock('../../server/daemon/envs', () => ({ reviveEnv: async () => {} }))
-vi.mock('../../server/daemon/git', () => ({ currentBranch: async () => 'main' }))
-vi.mock('../../server/daemon/session-sandbox', () => ({
+vi.mock('#server/daemon/envs', () => ({ reviveEnv: async () => {} }))
+vi.mock('#server/daemon/git', () => ({ currentBranch: async () => 'main' }))
+vi.mock('#server/daemon/session-sandbox', () => ({
   sessionSandbox: () => ({
     projectDir: '/var/www/html',
     ensureUp: async () => {},
@@ -21,8 +21,8 @@ vi.mock('../../server/daemon/session-sandbox', () => ({
   }),
 }))
 const agent = vi.hoisted(() => ({ reply: async (): Promise<string> => 'agent reply', messages: [] as string[] }))
-vi.mock('../../server/workflows/actions/ai', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/workflows/actions/ai')>(),
+vi.mock('#server/workflows/actions/ai', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/workflows/actions/ai')>(),
   runFollowupPrompt: (_rt: unknown, message: string) => {
     agent.messages.push(message)
     return agent.reply()
@@ -30,7 +30,7 @@ vi.mock('../../server/workflows/actions/ai', async importOriginal => ({
 }))
 
 const boot = vi.hoisted(() => ({ calls: 0, error: null as string | null }))
-vi.mock('../../server/workflows/actions/ddev-start', () => ({
+vi.mock('#server/workflows/actions/ddev-start', () => ({
   ddevStartAction: {
     run: async (_step: unknown, rt: { log: (text: string) => void }) => {
       boot.calls++
@@ -41,9 +41,9 @@ vi.mock('../../server/workflows/actions/ddev-start', () => ({
   },
 }))
 
-const { db, schema } = await import('../../server/db')
-const { recordAgentReply } = await import('../../server/utils/sessions')
-const { startFollowup } = await import('../../server/daemon/followups')
+const { db, schema } = await import('#server/db')
+const { recordAgentReply } = await import('#server/utils/sessions')
+const { startFollowup } = await import('#server/daemon/followups')
 const getRunStatus = (id: number) => db.select().from(schema.runs).where(eq(schema.runs.id, id)).get()!.status
 
 function objectFollowup(origin: 'mention' | 'dashboard') {

@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import { appendRunLog, finishRun, requeueRun } from '../../server/stores/runs'
-import { createRunStep } from '../../server/stores/run-steps'
+import { db, schema } from '#server/db'
+import { appendRunLog, finishRun, requeueRun } from '#server/stores/runs'
+import { createRunStep } from '#server/stores/run-steps'
 import { makeProject, makeRun, getRun } from '../helpers/db'
 
 const generateText = vi.fn()
 vi.mock('ai', async importOriginal => ({ ...await importOriginal<typeof import('ai')>(), generateText: (...args: unknown[]) => generateText(...args) }))
-vi.mock('../../server/utils/llm', () => ({ languageModel: async () => ({}) }))
-vi.mock('../../server/utils/settings', () => ({ getSettings: () => ({ aiKeyEnc: 'enc', aiModel: 'm' }) }))
+vi.mock('#server/utils/llm', () => ({ languageModel: async () => ({}) }))
+vi.mock('#server/utils/settings', () => ({ getSettings: () => ({ aiKeyEnc: 'enc', aiModel: 'm' }) }))
 
-const { diagnoseRunFailure } = await import('../../server/daemon/failure-diagnosis')
+const { diagnoseRunFailure } = await import('#server/daemon/failure-diagnosis')
 
 function answer(output: { summary: string, stepIds: number[] }) {
   return { output, steps: [], totalUsage: {} }

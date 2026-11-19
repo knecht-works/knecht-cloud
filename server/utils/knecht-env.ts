@@ -1,8 +1,8 @@
-import { bridgeBaseUrl, bridgeToken } from './agent-bridge'
-import { devServerOrigin } from './dev-origin'
-import { previewOrigin } from './origin'
+import { bridgeBaseUrl, bridgeToken } from '#server/utils/agent-bridge'
+import { devServerOrigin } from '#server/utils/dev-origin'
+import { previewOrigin } from '#server/utils/origin'
 import { previewLabel } from '#shared/utils/preview-host'
-import { describeObject, sessionObjects } from './sessions'
+import { describeObject, sessionObjects } from '#server/utils/sessions'
 
 // bridgeEnv goes to the agent process per exec, never into the container env:
 // the token authorizes pushes and PRs on the session's repo.

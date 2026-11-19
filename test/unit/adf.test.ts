@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from '../../server/integrations/jira/adf'
+import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from '#server/integrations/jira/adf'
 
 describe('markdownToAdf', () => {
   it('round-trips the subset Knecht replies use', () => {

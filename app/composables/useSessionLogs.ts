@@ -2,11 +2,10 @@ import { liveTopics } from '#shared/utils/live-topics'
 import type { LogRun } from '~/components/KRunLog.vue'
 import type { RunStatus } from '~/utils/dashboard'
 import { runLogTimeline } from '~/utils/run-log'
-import { useFetch } from '#app'
+import { useFetch, $fetch } from '#imports'
 import { watch, computed, shallowRef } from 'vue'
 import { isLiveStatus } from '~/utils/dashboard'
 import { useRunLog } from '~/composables/useRunLog'
-import { $fetch } from '#build/fetch.mjs'
 import { onLiveTopics } from '~/composables/useLiveTopics'
 
 export interface SessionRun {

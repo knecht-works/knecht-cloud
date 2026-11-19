@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-const { staleBuilders, staleImages } = await import('../../server/daemon/gc')
+const { staleBuilders, staleImages } = await import('#server/daemon/gc')
 
 const keep = { ddevTag: 'v1.25.5', sessions: new Set([216]), building: (tag: string) => tag.includes('knecht-base-31-live') }
 

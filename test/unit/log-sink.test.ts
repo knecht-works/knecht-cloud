@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { logSink } from '../../server/daemon/agent'
+import { logSink } from '#server/daemon/agent'
 
 describe('logSink', () => {
   it('streams a message once and forgets its offset when the turn ends', () => {

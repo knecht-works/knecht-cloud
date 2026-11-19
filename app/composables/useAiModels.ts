@@ -1,4 +1,4 @@
-import { useFetch } from '#app'
+import { useFetch } from '#imports'
 import type { AiModel } from '#shared/utils/ai'
 
 export function useAiModels() {

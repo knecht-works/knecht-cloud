@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { publishStepsSchema, WORKFLOW_FORMAT_VERSION } from '#server/workflows/schema'
 import glossary from '../../CONTEXT.md'
-import { defineTool } from './registry'
+import { defineTool } from '#server/tools/registry'
 
 export const describeWorkflowFormatTool = defineTool({
   name: 'describe_workflow_format',

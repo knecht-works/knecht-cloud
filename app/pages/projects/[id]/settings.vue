@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useRoute, navigateTo } from '#app'
+import { useRoute, navigateTo } from '#imports'
 import { useProject } from '~/composables/useProjects'
 import KProjectHeader from '~/components/KProjectHeader.vue'
 import KProjectHero from '~/components/KProjectHero.vue'

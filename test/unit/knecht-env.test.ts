@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { devServerLabel } from '../../server/utils/dev-origin'
-import { sessionEnv } from '../../server/utils/knecht-env'
+import { devServerLabel } from '#server/utils/dev-origin'
+import { sessionEnv } from '#server/utils/knecht-env'
 
 describe('sessionEnv', () => {
   it('names the primary preview origin and one origin per additional host', () => {

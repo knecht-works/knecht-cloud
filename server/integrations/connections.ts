@@ -5,7 +5,7 @@ import { dashboardOrigin } from '#server/utils/origin'
 import { keyPreview } from '#shared/utils/key-preview'
 import type { ConnectionFormDef, ConnectionStatus } from '#shared/utils/connection-form'
 import type { IntegrationId } from '#shared/utils/integrations'
-import type { DeliveryRecord } from './types'
+import type { DeliveryRecord } from '#server/integrations/types'
 
 export type Connection<F extends string> = Record<F, string> & {
   accountName: string | null

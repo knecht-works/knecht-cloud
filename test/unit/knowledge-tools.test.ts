@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../CONTEXT.md', () => ({ default: '# Knecht' }))
 
-const { describeWorkflowFormatTool, glossaryTool } = await import('../../server/tools/knowledge')
+const { describeWorkflowFormatTool, glossaryTool } = await import('#server/tools/knowledge')
 
 describe('knowledge tools', () => {
   it('describes every step type of a workflow document', async () => {

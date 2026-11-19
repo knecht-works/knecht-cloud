@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ActionRuntime } from '../../server/workflows/actions/types'
-import { AGENT_CONFIG_SUBDIR, agentMemoryFiles, installAgentFiles, MEMORY_SUBDIR, persistAgentMemory, projectMemoryDir } from '../../server/utils/agent-memory'
+import type { ActionRuntime } from '#server/workflows/actions/types'
+import { AGENT_CONFIG_SUBDIR, agentMemoryFiles, installAgentFiles, MEMORY_SUBDIR, persistAgentMemory, projectMemoryDir } from '#server/utils/agent-memory'
 
 const PROJECT = 7
 

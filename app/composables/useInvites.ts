@@ -1,6 +1,6 @@
 import { liveTopics } from '#shared/utils/live-topics'
 import { useLiveTopics } from '~/composables/useLiveTopics'
-import { useFetch } from '#app'
+import { useFetch } from '#imports'
 
 // Only owners may list invites, so the page passes whether to load them at all.
 export function useInvites(enabled: boolean) {

@@ -1,7 +1,7 @@
 import type { LocationQueryValue } from 'vue-router'
 import { parseFilters, serializeFilters, type FilterCondition, type FilterFields } from '#shared/utils/filter'
 import type { Ref } from 'vue'
-import { useRoute, useRouter, useCookie } from '#app'
+import { useRoute, useRouter, useCookie } from '#imports'
 import { ref, watch } from 'vue'
 
 type QueryValue = LocationQueryValue | LocationQueryValue[] | undefined

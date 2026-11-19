@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { useToastError } from '~/composables/useToastError'
-import { useToast } from '#imports'
+import { useToast, $fetch } from '#imports'
 import { ref, computed, watch } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
 import { copyText } from '~/utils/clipboard'
 import KRunTerminal from '~/components/KRunTerminal.vue'
 import { UButton, UModal } from '#components'

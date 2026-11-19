@@ -10,7 +10,7 @@ import { checkoutReader, detectEnv, GENERATED_MARKER, parseDdevConfig, type Ddev
 import { sessionEnv } from '#server/utils/knecht-env'
 import { dashboardOrigin } from '#server/utils/origin'
 import { normalizeSharedFolder, projectSharedDir, sessionSandboxName, toolsDir } from '#server/utils/storage'
-import { WEB_PROJECT_DIR } from './sandbox'
+import { WEB_PROJECT_DIR } from '#server/daemon/sandbox'
 
 export type UrlMode = 'env' | 'rewrite'
 

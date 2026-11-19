@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { matchGithubEvent, type GithubPayload } from '../../server/integrations/github/webhook'
-import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
+import { matchGithubEvent, type GithubPayload } from '#server/integrations/github/webhook'
+import type { TriggerConfig, TriggerEventConfig } from '#shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 // Real deliveries of knecht-works/test-craftcms, captured with KNECHT_DUMP_WEBHOOKS=1.

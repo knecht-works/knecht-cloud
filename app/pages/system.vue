@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { GC_AUTO_CATEGORIES, GC_CATEGORIES, type GcCategory } from '~~/shared/utils/gc'
-import { useToast } from '#imports'
+import { GC_AUTO_CATEGORIES, GC_CATEGORIES, type GcCategory } from '#shared/utils/gc'
+import { useToast, $fetch } from '#imports'
 import { useToastError } from '~/composables/useToastError'
 import { ref } from 'vue'
-import { $fetch } from '#build/fetch.mjs'
 import { formatBytes } from '#shared/utils/bytes'
 import KTopBar from '~/components/KTopBar.vue'
 import KSystemPanel from '~/components/KSystemPanel.vue'

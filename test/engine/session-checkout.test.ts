@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { makeProject, makeSession } from '../helpers/db'
 import { credentialsFor, git, remoteWithMain } from '../helpers/git-remote'
 
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/utils/github-app', () => ({
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
 
-const { prepareSessionCheckout } = await import('../../server/daemon/git')
+const { prepareSessionCheckout } = await import('#server/daemon/git')
 
 describe('prepareSessionCheckout', () => {
   it('clones a branch that is on origin', async () => {

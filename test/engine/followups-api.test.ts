@@ -3,32 +3,32 @@ import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { callRoute } from '../helpers/routes'
 import { makeProject, makeRun } from '../helpers/db'
-import type { LiveEvent } from '../../server/utils/live'
+import type { LiveEvent } from '#server/utils/live'
 
 const started: number[] = []
-vi.mock('../../server/daemon/followups', () => ({
+vi.mock('#server/daemon/followups', () => ({
   startFollowup: async (id: number) => {
     started.push(id)
   },
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 const titled: { runId: number, prompt: string }[] = []
-vi.mock('../../server/daemon/run-title', () => ({
+vi.mock('#server/daemon/run-title', () => ({
   titleRun: async (runId: number, prompt: string) => {
     titled.push({ runId, prompt })
   },
 }))
 vi.mock('#imports', () => ({ requireUserSession: async () => ({ user: { login: 'samuelreichor' } }) }))
 
-const { db, schema } = await import('../../server/db')
-const { onLive } = await import('../../server/utils/live')
-const { PUBLISH_FOLLOWUP_PROMPT } = await import('../../shared/utils/followup')
-const { followupAttachmentsDir } = await import('../../server/utils/attachments')
-const handler = (await import('../../server/api/runs/[id]/followups.post')).default
-const deleteHandler = (await import('../../server/api/followups/[id].delete')).default
-const transcriptHandler = (await import('../../server/api/sessions/[id]/transcript.get')).default
-const attachmentHandler = (await import('../../server/api/followups/[id]/attachments/[name].get')).default
-const retryHandler = (await import('../../server/api/followups/[id]/retry.post')).default
+const { db, schema } = await import('#server/db')
+const { onLive } = await import('#server/utils/live')
+const { PUBLISH_FOLLOWUP_PROMPT } = await import('#shared/utils/followup')
+const { followupAttachmentsDir } = await import('#server/utils/attachments')
+const handler = (await import('#server/api/runs/[id]/followups.post')).default
+const deleteHandler = (await import('#server/api/followups/[id].delete')).default
+const transcriptHandler = (await import('#server/api/sessions/[id]/transcript.get')).default
+const attachmentHandler = (await import('#server/api/followups/[id]/attachments/[name].get')).default
+const retryHandler = (await import('#server/api/followups/[id]/retry.post')).default
 
 function post(runId: number, body: Record<string, unknown> = { prompt: 'more' }) {
   return callRoute(handler, { route: '/runs/:id/followups', path: `/runs/${runId}/followups`, body })

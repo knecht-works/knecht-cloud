@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const pulls = { create: vi.fn(), list: vi.fn() }
 
-vi.mock('../../server/utils/github-credentials', () => ({ githubAppCredentials: () => ({ appId: '1', privateKey: 'k' }) }))
+vi.mock('#server/utils/github-credentials', () => ({ githubAppCredentials: () => ({ appId: '1', privateKey: 'k' }) }))
 vi.mock('octokit', () => ({
   App: class {
     octokit = { rest: { apps: { getRepoInstallation: async () => ({ data: { id: 1 } }) } } }
@@ -10,7 +10,7 @@ vi.mock('octokit', () => ({
   },
 }))
 
-const { createPullRequest } = await import('../../server/utils/github-app')
+const { createPullRequest } = await import('#server/utils/github-app')
 const params = { title: 't', body: 'b', head: 'knecht/19', base: 'main' }
 
 describe('createPullRequest', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
-import { db, schema } from '../../server/db'
-import { deleteWorkflow } from '../../server/stores/workflows'
+import { db, schema } from '#server/db'
+import { deleteWorkflow } from '#server/stores/workflows'
 import { getRun, makeProject, makeRun } from '../helpers/db'
 
 describe('deleteWorkflow', () => {

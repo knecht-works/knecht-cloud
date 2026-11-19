@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
-import { useUserSession, useToast } from '#imports'
+import { useUserSession, useToast, $fetch } from '#imports'
 import { useToastError } from '~/composables/useToastError'
 import { useMembers } from '~/composables/useMembers'
 import { computed, ref } from 'vue'
 import { useInvites } from '~/composables/useInvites'
-import { $fetch } from '#build/fetch.mjs'
 import { invalidate } from '~/composables/useLiveTopics'
 import { copyText } from '~/utils/clipboard'
 import KProfilePanel from '~/components/KProfilePanel.vue'

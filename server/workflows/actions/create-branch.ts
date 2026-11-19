@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { createBranch } from '#server/daemon/git'
-import { defineAction } from './types'
+import { defineAction } from '#server/workflows/actions/types'
 import { requireSession, updateSession } from '#server/stores/sessions'
 import { updateRun } from '#server/stores/runs'
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useRoute } from '#app'
+import { useRoute } from '#imports'
 import { UIcon, NuxtLink } from '#components'
 
 const props = defineProps<{

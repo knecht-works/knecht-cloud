@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { makeProject } from '../helpers/db'
 import { makeTrigger, runsOf } from '../helpers/integration-webhook-suite'
-import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
+import type { TriggerConfig, TriggerEventConfig } from '#shared/utils/trigger-form'
 import { allOf } from '../helpers/trigger-conditions'
 
 // Real deliveries of the CRA team of a Linear workspace, captured with KNECHT_DUMP_WEBHOOKS=1.
@@ -17,16 +17,16 @@ const fixtures = readdirSync(DIR).sort().map((file) => {
 
 // The delivery carries the issue Linear would answer when fetched, so the API is served from the fixtures.
 const api = vi.hoisted(() => ({ issues: new Map<string, Record<string, unknown>>(), states: new Map<string, { id: string, name: string, type: string }>() }))
-vi.mock('../../server/integrations/linear/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
+vi.mock('#server/integrations/linear/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/linear/api')>(),
   getLinearIssue: async (id: string) => api.issues.get(id),
   listLinearStates: async () => [...api.states.values()],
 }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { linearConnection } = await import('../../server/integrations/linear/credentials')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const handler = (await import('../../server/api/linear/webhook.post')).default
+const { linearConnection } = await import('#server/integrations/linear/credentials')
+const { setProjectLink } = await import('#server/stores/project-links')
+const handler = (await import('#server/api/linear/webhook.post')).default
 
 const SECRET = 'lin_wh_secret'
 const KNECHT_ACCOUNT = 'a01b5370-e8eb-47ec-85f7-5002aa38aca0'

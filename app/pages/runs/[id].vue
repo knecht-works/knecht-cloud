@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { runWorkspacePath } from '#shared/utils/routes'
-import { useRoute, navigateTo } from '#app'
+import { useRoute, navigateTo } from '#imports'
 import { useRun } from '~/composables/useRuns'
 
 // Old-scheme links sit in published PR bodies, so /runs/:id must keep resolving.

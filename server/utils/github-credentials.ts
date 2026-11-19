@@ -1,5 +1,5 @@
 import { getGithubAppRow, saveGithubAppRow } from '#server/stores/github-app'
-import { decrypt, encrypt } from './crypto'
+import { decrypt, encrypt } from '#server/utils/crypto'
 
 export interface GithubAppCredentials {
   appId: string

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 
 const access = vi.hoisted(() => ({ owner: true }))
-vi.mock('../../server/utils/owner', async () => {
+vi.mock('#server/utils/owner', async () => {
   const { createError } = await import('h3')
   return {
     requireOwner: async () => {
@@ -11,7 +11,7 @@ vi.mock('../../server/utils/owner', async () => {
   }
 })
 
-const patch = (await import('../../server/api/settings.patch')).default
+const patch = (await import('#server/api/settings.patch')).default
 const send = (body: object) => callRoute(patch, { method: 'PATCH', body })
 
 describe('PATCH /api/settings', () => {

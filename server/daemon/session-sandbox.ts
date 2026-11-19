@@ -1,8 +1,8 @@
 import type { ActionRuntime } from '#server/workflows/actions/types'
 import { getSessionRow } from '#server/stores/sessions'
-import { copyIntoContainer, execInContainer, resolveContainerIp, spawnInContainer, streamInContainer, webContainerName, WEB_PROJECT_DIR } from './sandbox'
-import { workspaceContainerName } from './workspace'
-import { reviveEnv } from './envs'
+import { copyIntoContainer, execInContainer, resolveContainerIp, spawnInContainer, streamInContainer, webContainerName, WEB_PROJECT_DIR } from '#server/daemon/sandbox'
+import { workspaceContainerName } from '#server/daemon/workspace'
+import { reviveEnv } from '#server/daemon/envs'
 
 // Read per call: a ddev-start step promotes the session mid-run.
 export function sessionContainer(sessionId: number): string {

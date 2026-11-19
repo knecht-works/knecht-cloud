@@ -3,8 +3,8 @@ import type { Project } from '#server/db/schema'
 import { setProjectMeta } from '#server/stores/projects'
 import { previewTargetPort, readDdevHosts } from '#server/daemon/ddev'
 import { resolvePreview } from '#server/daemon/sandbox'
-import { sessionPreviewUrl } from './preview-target'
-import { sessionCheckoutDir } from './storage'
+import { sessionPreviewUrl } from '#server/utils/preview-target'
+import { sessionCheckoutDir } from '#server/utils/storage'
 import { getSessionRow } from '#server/stores/sessions'
 
 const MAX_HTML_BYTES = 512_000

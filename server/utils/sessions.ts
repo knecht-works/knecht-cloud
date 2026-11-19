@@ -1,7 +1,7 @@
 import type { Project, Session, SessionObjectRow } from '#server/db/schema'
 import type { IntegrationId, ObjectKind } from '#shared/utils/integrations'
 import { getIntegration } from '#server/integrations'
-import { sessionPreviewUrl } from './preview-target'
+import { sessionPreviewUrl } from '#server/utils/preview-target'
 import { getSessionRow, findBranchSession, createSession, requireSession, sessionChanged, updateSession } from '#server/stores/sessions'
 import { findObjectRow, getObjectRow, insertObjectRow, listSessionObjectRows, updateObjectRow } from '#server/stores/session-objects'
 import { latestSessionPrUrl, sessionHasActiveRun } from '#server/stores/runs'

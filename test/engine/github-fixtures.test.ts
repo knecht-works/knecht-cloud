@@ -4,15 +4,15 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 import { makeProject } from '../helpers/db'
 import { makeWorkflow, triggerSourceOf } from '../helpers/integration-webhook-suite'
-import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
+import type { TriggerConfig, TriggerEventConfig } from '#shared/utils/trigger-form'
 
-vi.mock('../../server/utils/github-app', () => ({ addCommentReaction: async () => {}, createIssueComment: async () => ({ url: '' }) }))
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+vi.mock('#server/utils/github-app', () => ({ addCommentReaction: async () => {}, createIssueComment: async () => ({ url: '' }) }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
 
-const { saveGithubAppCredentials } = await import('../../server/utils/github-credentials')
-const { db, schema } = await import('../../server/db')
+const { saveGithubAppCredentials } = await import('#server/utils/github-credentials')
+const { db, schema } = await import('#server/db')
 const { eq } = await import('drizzle-orm')
-const handler = (await import('../../server/api/github/webhook.post')).default
+const handler = (await import('#server/api/github/webhook.post')).default
 
 const SECRET = 'whsec-test'
 

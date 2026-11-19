@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { listProjects, requireProject } from '#server/stores/projects'
-import { defineTool } from './registry'
+import { defineTool } from '#server/tools/registry'
 
 export const listProjectsTool = defineTool({
   name: 'list_projects',

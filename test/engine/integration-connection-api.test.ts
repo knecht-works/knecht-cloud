@@ -7,7 +7,7 @@ const myself = async () => {
   return { displayName: 'Knecht', accountId: 'acc-1' }
 }
 const access = vi.hoisted(() => ({ owner: true }))
-vi.mock('../../server/utils/owner', async () => {
+vi.mock('#server/utils/owner', async () => {
   const { createError } = await import('h3')
   return {
     requireOwner: async () => {
@@ -16,28 +16,28 @@ vi.mock('../../server/utils/owner', async () => {
     isOwner: async () => access.owner,
   }
 })
-vi.mock('../../server/utils/github-app', () => ({}))
-vi.mock('../../server/integrations/jira/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+vi.mock('#server/utils/github-app', () => ({}))
+vi.mock('#server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/jira/api')>(),
   jiraMyself: myself,
   listJiraStatuses: async (key: string) => [`${key} To Do`, `${key} Done`],
 }))
-vi.mock('../../server/integrations/plane/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
+vi.mock('#server/integrations/plane/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/plane/api')>(),
   planeMyself: myself,
 }))
-vi.mock('../../server/integrations/linear/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
+vi.mock('#server/integrations/linear/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/linear/api')>(),
   linearMyself: myself,
 }))
 
-const { INTEGRATIONS } = await import('../../server/integrations')
+const { INTEGRATIONS } = await import('#server/integrations')
 const routes = {
-  get: (await import('../../server/api/integrations/[id]/connection.get')).default,
-  post: (await import('../../server/api/integrations/[id]/connection.post')).default,
-  delete: (await import('../../server/api/integrations/[id]/connection.delete')).default,
-  secret: (await import('../../server/api/integrations/[id]/webhook-secret.post')).default,
-  options: (await import('../../server/api/integrations/[id]/options/[name].get')).default,
+  get: (await import('#server/api/integrations/[id]/connection.get')).default,
+  post: (await import('#server/api/integrations/[id]/connection.post')).default,
+  delete: (await import('#server/api/integrations/[id]/connection.delete')).default,
+  secret: (await import('#server/api/integrations/[id]/webhook-secret.post')).default,
+  options: (await import('#server/api/integrations/[id]/options/[name].get')).default,
 }
 
 const call = (handler: keyof typeof routes, id: string, opts: RouteCall = {}) =>

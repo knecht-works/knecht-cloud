@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rewriteModeRequestHeaders, withoutSecureFlag } from '../../server/utils/preview-proxy'
+import { rewriteModeRequestHeaders, withoutSecureFlag } from '#server/utils/preview-proxy'
 
 const mappings = [{ host: 'site.ddev.site', previewHost: '7.preview.lvh.me:3333' }]
 

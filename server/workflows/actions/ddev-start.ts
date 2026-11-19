@@ -10,7 +10,7 @@ import { waitForDevServer } from '#server/daemon/dev-server'
 import { bootEnv, inTransition, promoteToPreview } from '#server/daemon/envs'
 import { readyDbBase, waitForDbBaseBuild, type ReadyDbBase } from '#server/daemon/db-base'
 import type { DbBase } from '#server/db/schema'
-import { defineAction, type ActionRuntime } from './types'
+import { defineAction, type ActionRuntime } from '#server/workflows/actions/types'
 import { getProject } from '#server/stores/projects'
 import { getSessionRow } from '#server/stores/sessions'
 

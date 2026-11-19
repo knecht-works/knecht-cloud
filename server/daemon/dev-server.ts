@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from 'node:timers/promises'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
-import { DEV_DAEMON_GROUP } from './ddev'
-import { resolvePreview } from './sandbox'
+import { DEV_DAEMON_GROUP } from '#server/daemon/ddev'
+import { resolvePreview } from '#server/daemon/sandbox'
 
 // ddev starts the daemon group before the boot commands install its
 // dependencies, so supervisord gives up on it and every boot path restarts it.

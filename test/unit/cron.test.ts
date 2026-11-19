@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isValidCron, nextRun } from '../../server/utils/cron'
+import { isValidCron, nextRun } from '#server/utils/cron'
 
 const at = (y: number, mo: number, d: number, h = 0, mi = 0) => new Date(y, mo - 1, d, h, mi)
 

@@ -4,11 +4,11 @@ import { callRoute } from '../helpers/routes'
 import { makeProject, makeRun, makeSession, sessionObjectOf } from '../helpers/db'
 
 const dispatched: number[] = []
-vi.mock('../../server/daemon/dispatcher', () => ({ dispatchRuns: () => dispatched.push(1) }))
+vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => dispatched.push(1) }))
 
-const { db, schema } = await import('../../server/db')
-const startHandler = (await import('../../server/api/projects/[id]/sessions.post')).default
-const previewHandler = (await import('../../server/api/sessions/[id]/preview.post')).default
+const { db, schema } = await import('#server/db')
+const startHandler = (await import('#server/api/projects/[id]/sessions.post')).default
+const previewHandler = (await import('#server/api/sessions/[id]/preview.post')).default
 
 function start(projectId: number, body: Record<string, unknown> = {}) {
   return callRoute(startHandler, { route: '/projects/:id/sessions', path: `/projects/${projectId}/sessions`, body })

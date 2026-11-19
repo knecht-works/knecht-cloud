@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isOwnPreviewUrl, isPreviewAuthToken, PREVIEW_AUTH_HEADER, previewAwareFetch } from '../../server/utils/preview-fetch'
+import { isOwnPreviewUrl, isPreviewAuthToken, PREVIEW_AUTH_HEADER, previewAwareFetch } from '#server/utils/preview-fetch'
 import { withServer } from '../helpers/http-server'
 
 describe('isOwnPreviewUrl', () => {

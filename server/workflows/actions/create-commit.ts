@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { commitAll } from '#server/daemon/git'
 import { getBotIdentity } from '#server/utils/github-app'
-import { defineAction } from './types'
+import { defineAction } from '#server/workflows/actions/types'
 
 export const createCommitAction = defineAction({
   type: 'create-commit',

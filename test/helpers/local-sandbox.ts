@@ -3,9 +3,9 @@ import { copyFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa, type Options } from 'execa'
-import { toSandboxProcess, type SandboxProcess } from '../../server/daemon/sandbox-process'
-import type { Project } from '../../server/db/schema'
-import type { ActionRuntime } from '../../server/workflows/actions/types'
+import { toSandboxProcess, type SandboxProcess } from '#server/daemon/sandbox-process'
+import type { Project } from '#server/db/schema'
+import type { ActionRuntime } from '#server/workflows/actions/types'
 
 // Keyed by runId so a resumed run gets the same dir back, marker files included.
 const checkouts = new Map<number, string>()

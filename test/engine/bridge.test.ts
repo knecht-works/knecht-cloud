@@ -7,7 +7,7 @@ import { attachTestObject, makeProject, makeRun } from '../helpers/db'
 
 const comments: { issue: number, body: string }[] = []
 const labels: { added: string[], removed: string[] } = { added: [], removed: [] }
-vi.mock('../../server/utils/github-app', () => ({
+vi.mock('#server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   createIssueComment: async (_o: string, _r: string, issue: number, body: string) => {
     comments.push({ issue, body })
@@ -50,8 +50,8 @@ const jiraApi = vi.hoisted(() => ({
   labels: [] as { key: string, add: string[], remove: string[] }[],
   transitions: [] as { key: string, id: string }[],
 }))
-vi.mock('../../server/integrations/jira/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/jira/api')>(),
+vi.mock('#server/integrations/jira/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/jira/api')>(),
   addJiraComment: async (key: string, body: unknown, parentId?: string | null) => {
     jiraApi.comments.push({ key, body, parentId })
     return { url: `https://acme.atlassian.net/browse/${key}?focusedCommentId=1` }
@@ -83,8 +83,8 @@ vi.mock('../../server/integrations/jira/api', async importOriginal => ({
   downloadJiraAttachment: async () => Buffer.from('png'),
 }))
 
-vi.mock('../../server/integrations/linear/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/linear/api')>(),
+vi.mock('#server/integrations/linear/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/linear/api')>(),
   getLinearIssueRaw: async (id: string) => ({
     identifier: id,
     title: 'Footer missing',
@@ -101,8 +101,8 @@ vi.mock('../../server/integrations/linear/api', async importOriginal => ({
   }),
   downloadLinearUpload: async (url: string) => Buffer.from(url.endsWith('/c') ? 'png' : 'log'),
 }))
-vi.mock('../../server/integrations/plane/api', async importOriginal => ({
-  ...await importOriginal<typeof import('../../server/integrations/plane/api')>(),
+vi.mock('#server/integrations/plane/api', async importOriginal => ({
+  ...await importOriginal<typeof import('#server/integrations/plane/api')>(),
   planeProjectByIdentifier: async (identifier: string) => ({ id: 'p1', identifier, name: identifier }),
   getPlaneWorkItemByKey: async () => ({ id: 'w2', sequence_id: 2, name: 'Dark mode' }),
   getPlaneWorkItemRaw: async () => ({
@@ -131,9 +131,9 @@ vi.mock('../../server/integrations/plane/api', async importOriginal => ({
   downloadPlaneAttachment: async () => Buffer.from('png'),
 }))
 // The bridge writes through the session's container; here that is the checkout itself.
-vi.mock('../../server/daemon/session-sandbox', async () => {
+vi.mock('#server/daemon/session-sandbox', async () => {
   const { execa } = await import('execa')
-  const { sessionCheckoutDir } = await import('../../server/utils/storage')
+  const { sessionCheckoutDir } = await import('#server/utils/storage')
   return {
     sessionSandbox: (sessionId: number) => ({
       exec: async ([cmd, ...args]: string[], opts?: { input?: string | Uint8Array }) => (await execa(cmd!, args, { cwd: sessionCheckoutDir(sessionId), input: opts?.input })).stdout,
@@ -141,11 +141,11 @@ vi.mock('../../server/daemon/session-sandbox', async () => {
   }
 })
 
-const { db, schema } = await import('../../server/db')
-const { bridgeToken } = await import('../../server/utils/agent-bridge')
-const { sessionCheckoutDir } = await import('../../server/utils/storage')
-const { setProjectLink } = await import('../../server/stores/project-links')
-const handler = (await import('../../server/routes/agent-bridge.post')).default
+const { db, schema } = await import('#server/db')
+const { bridgeToken } = await import('#server/utils/agent-bridge')
+const { sessionCheckoutDir } = await import('#server/utils/storage')
+const { setProjectLink } = await import('#server/stores/project-links')
+const handler = (await import('#server/routes/agent-bridge.post')).default
 
 function call(sessionId: number, body: object, token = bridgeToken(sessionId)) {
   return callRoute(handler, { body, headers: { 'x-knecht-run-id': String(sessionId), 'x-knecht-token': token } })

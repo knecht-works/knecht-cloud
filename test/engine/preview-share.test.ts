@@ -4,24 +4,24 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, toNodeListener } from 'h3'
 import { callRoute } from '../helpers/routes'
 import { getSessionRow, makeProject, makeSession } from '../helpers/db'
-import type { Project } from '../../server/db/schema'
+import type { Project } from '#server/db/schema'
 
 const reviveEnv = vi.fn(async (_sessionId: number) => {})
-vi.mock('../../server/daemon/envs', () => ({
+vi.mock('#server/daemon/envs', () => ({
   envTransition: () => null,
   reviveEnv: (sessionId: number) => reviveEnv(sessionId),
 }))
-vi.mock('../../server/daemon/sandbox', () => ({
+vi.mock('#server/daemon/sandbox', () => ({
   resolvePreview: async () => null,
   forgetPreview: () => {},
 }))
 
 vi.mock('#imports', () => ({ getUserSession: async () => ({}), clearUserSession: async () => {} }))
 
-const { proxyRunPreview } = await import('../../server/utils/preview-proxy')
-const { cookieValue, shareSession, shareToken } = await import('../../server/utils/preview-share')
-const { updateSettings } = await import('../../server/utils/settings')
-const share = (await import('../../server/api/sessions/[id]/share.post')).default
+const { proxyRunPreview } = await import('#server/utils/preview-proxy')
+const { cookieValue, shareSession, shareToken } = await import('#server/utils/preview-share')
+const { updateSettings } = await import('#server/utils/settings')
+const share = (await import('#server/api/sessions/[id]/share.post')).default
 
 afterEach(() => {
   updateSettings({ previewAccess: 'login', shareLinkHours: 24, idleStopMinutes: 1440, previewRetentionDays: 7 })
@@ -99,7 +99,7 @@ describe('preview access', () => {
   it('refuses an expired share link, even with the right token', async () => {
     const session = previewSession()
     shareSession(session.id, { shareLinkHours: null })
-    const { db, schema } = await import('../../server/db')
+    const { db, schema } = await import('#server/db')
     const { eq } = await import('drizzle-orm')
     db.update(schema.sessions).set({ shareExpiresAt: new Date(Date.now() - 1000) }).where(eq(schema.sessions.id, session.id)).run()
 

@@ -5,7 +5,7 @@ import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 const startEnvStack = vi.fn(async (_sessionId: number) => {})
 const stopEnvStack = vi.fn(async (_sessionId: number) => {})
 const forgetPreview = vi.fn()
-vi.mock('../../server/daemon/sandbox', () => ({
+vi.mock('#server/daemon/sandbox', () => ({
   envStackRunning: async () => true,
   execInSandbox: async () => ({ stdout: '' }),
   forgetPreview: (sessionId: number) => forgetPreview(sessionId),
@@ -13,10 +13,10 @@ vi.mock('../../server/daemon/sandbox', () => ({
   startEnvStack: (sessionId: number) => startEnvStack(sessionId),
   stopEnvStack: (sessionId: number) => stopEnvStack(sessionId),
 }))
-vi.mock('../../server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace: async () => {} }))
+vi.mock('#server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace: async () => {} }))
 
-const { db, schema } = await import('../../server/db')
-const { reconcileEnvStates } = await import('../../server/daemon/envs')
+const { db, schema } = await import('#server/db')
+const { reconcileEnvStates } = await import('#server/daemon/envs')
 
 function makeSessionInState(envState: 'up' | 'stopped' | 'archived', tier: 'code' | 'preview' = 'preview') {
   const project = makeProject()

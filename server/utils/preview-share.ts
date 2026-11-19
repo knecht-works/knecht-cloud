@@ -1,8 +1,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import type { Project, Session } from '#server/db/schema'
 import { shareLinkMaxMinutes, type PreviewAccess } from '#shared/utils/preview-access'
-import { deriveKey } from './crypto'
-import { getSettings } from './settings'
+import { deriveKey } from '#server/utils/crypto'
+import { getSettings } from '#server/utils/settings'
 import { touchSessionPreview, updateSession } from '#server/stores/sessions'
 import { getProject } from '#server/stores/projects'
 

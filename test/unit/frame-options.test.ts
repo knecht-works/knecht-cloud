@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { describe, expect, it } from 'vitest'
 import * as h3 from 'h3'
 
-const frameOptions = (await import('../../server/middleware/frame-options')).default
+const frameOptions = (await import('#server/middleware/frame-options')).default
 
 // node:http, not fetch: fetch drops a custom Host header.
 async function headersFor(host: string): Promise<IncomingHttpHeaders> {

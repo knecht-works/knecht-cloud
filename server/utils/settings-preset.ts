@@ -1,6 +1,6 @@
 import { getTableColumns } from 'drizzle-orm'
 import { settings } from '#server/db/schema'
-import { encrypt } from './crypto'
+import { encrypt } from '#server/utils/crypto'
 import type { Settings } from '#server/db/schema'
 
 // The AI key is encrypted once and memoized: encrypt() uses a fresh nonce per

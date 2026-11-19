@@ -40,19 +40,19 @@ vi.mock('execa', () => ({
   }),
 }))
 const readDir = vi.fn(async (_repo: unknown, _dir: string, _ref?: string): Promise<Record<string, string>> => ({}))
-vi.mock('../../server/git', () => ({
+vi.mock('#server/git', () => ({
   gitProvider: () => ({ readDir }),
 }))
-vi.mock('../../server/daemon/sandbox', () => ({
+vi.mock('#server/daemon/sandbox', () => ({
   DDEV_ENV: {},
   WEB_PROJECT_DIR: '/var/www/html',
   ddevDefaultDatabase: async () => 'mariadb:11.8',
   ddevWebImage: async () => 'ddev/ddev-webserver:test',
 }))
 
-const { archiveDbVolume, cloneDbBase, dropDbBase, readyDbBase, restoreDbVolume, startDbBaseBuild, waitForDbBaseBuild } = await import('../../server/daemon/db-base')
-const { getProject, setProjectDbBase } = await import('../../server/stores/projects')
-const { projectDumpDir } = await import('../../server/utils/storage')
+const { archiveDbVolume, cloneDbBase, dropDbBase, readyDbBase, restoreDbVolume, startDbBaseBuild, waitForDbBaseBuild } = await import('#server/daemon/db-base')
+const { getProject, setProjectDbBase } = await import('#server/stores/projects')
+const { projectDumpDir } = await import('#server/utils/storage')
 
 function checkout(config: string): string {
   const dir = join(projectDumpDir(0), '..', `checkout-${Math.random().toString(36).slice(2)}`)

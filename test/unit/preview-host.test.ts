@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isPreviewHost, isWebUrl, parsePreviewHost, previewHostname, previewLabel, stripPreviewPrefix } from '../../shared/utils/preview-host'
+import { isPreviewHost, isWebUrl, parsePreviewHost, previewHostname, previewLabel, stripPreviewPrefix } from '#shared/utils/preview-host'
 
 describe('preview host scheme', () => {
   it('builds and parses primary and labeled origins symmetrically', () => {

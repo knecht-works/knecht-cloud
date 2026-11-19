@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-const { db, schema } = await import('../../server/db')
-const { consumeInvite, createInvite, findOpenInvite, listOpenInvites, revokeInvite } = await import('../../server/stores/invites')
+const { db, schema } = await import('#server/db')
+const { consumeInvite, createInvite, findOpenInvite, listOpenInvites, revokeInvite } = await import('#server/stores/invites')
 
 describe('invites', () => {
   it('works once and never exposes the token', () => {

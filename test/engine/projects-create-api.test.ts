@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { callRoute } from '../helpers/routes'
 
-vi.mock('../../server/git', () => ({
+vi.mock('#server/git', () => ({
   gitProvider: () => ({ projectMeta: async () => { throw new Error('offline') } }),
 }))
 
-const { requireProject } = await import('../../server/stores/projects')
-const handler = (await import('../../server/api/projects/index.post')).default
+const { requireProject } = await import('#server/stores/projects')
+const handler = (await import('#server/api/projects/index.post')).default
 
 let nextRepoId = 9000
 function repo() {

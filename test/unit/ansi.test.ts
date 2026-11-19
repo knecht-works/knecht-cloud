@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { stripAnsi } from '../../shared/utils/ansi'
+import { stripAnsi } from '#shared/utils/ansi'
 
 describe('stripAnsi', () => {
   it('removes colour and cursor sequences and keeps the text', () => {

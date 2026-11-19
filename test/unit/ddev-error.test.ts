@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ddevErrorLine } from '../../server/utils/ddev-error'
+import { ddevErrorLine } from '#server/utils/ddev-error'
 
 describe('ddevErrorLine', () => {
   it('takes the error ddev printed before its usage text', () => {

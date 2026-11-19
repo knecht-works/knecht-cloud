@@ -5,8 +5,8 @@ import type { NewSession, Project, Run, Session } from '#server/db/schema'
 import type { SessionObject } from '#server/utils/sessions'
 import { liveTopics } from '#shared/utils/live-topics'
 import { emitTopics } from '#server/utils/live'
-import { listSessionRunIds } from './runs'
-import { findObjectRow } from './session-objects'
+import { listSessionRunIds } from '#server/stores/runs'
+import { findObjectRow } from '#server/stores/session-objects'
 
 export function getSessionRow(id: number): Session | undefined {
   return db.select().from(schema.sessions).where(eq(schema.sessions.id, id)).get()

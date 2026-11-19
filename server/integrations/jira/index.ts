@@ -6,9 +6,9 @@ import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { integrationLabelsUrl, labelFilter, objectVersion } from '#server/integrations/trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type Person, type TrackerChange, type TrackerDef, type TrackerIssue } from '#server/integrations/tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '#server/integrations/types'
-import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from './adf'
-import { addJiraComment, assignJiraIssue, downloadJiraAttachment, forgetJiraCache, getJiraComment, getJiraIssuePeople, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraIssueRaw, getJiraStatusCategory, jiraIssueUrl, listJiraIssueComments, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from './api'
-import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from './credentials'
+import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from '#server/integrations/jira/adf'
+import { addJiraComment, assignJiraIssue, downloadJiraAttachment, forgetJiraCache, getJiraComment, getJiraIssuePeople, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraIssueRaw, getJiraStatusCategory, jiraIssueUrl, listJiraIssueComments, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from '#server/integrations/jira/api'
+import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from '#server/integrations/jira/credentials'
 
 export const JIRA_STATUS_CATEGORIES = { new: 'To Do', indeterminate: 'In Progress', done: 'Done' } as const
 

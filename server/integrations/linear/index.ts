@@ -5,9 +5,9 @@ import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { integrationLabelsUrl, labelFilter, objectVersion, priorityFilter } from '#server/integrations/trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef, type TrackerIssue } from '#server/integrations/tracker'
 import type { Integration, WebhookDelivery } from '#server/integrations/types'
-import { addLinearComment, downloadLinearUpload, forgetLinearCache, getLinearComment, getLinearHandle, getLinearIssue, getLinearIssueRaw, type LinearComment, linearMyself, listLinearComments, listLinearLabels, listLinearStates, listLinearTeams, updateLinearIssue, type LinearIssue, type LinearState } from './api'
-import { LINEAR_CONNECTION_FORM, linearConnection, linearCredentials } from './credentials'
-import { addressedTo, bodyDataMentionIds, withHandles, type LinearPerson } from './mentions'
+import { addLinearComment, downloadLinearUpload, forgetLinearCache, getLinearComment, getLinearHandle, getLinearIssue, getLinearIssueRaw, type LinearComment, linearMyself, listLinearComments, listLinearLabels, listLinearStates, listLinearTeams, updateLinearIssue, type LinearIssue, type LinearState } from '#server/integrations/linear/api'
+import { LINEAR_CONNECTION_FORM, linearConnection, linearCredentials } from '#server/integrations/linear/credentials'
+import { addressedTo, bodyDataMentionIds, withHandles, type LinearPerson } from '#server/integrations/linear/mentions'
 
 export const LINEAR_STATE_TYPES = { triage: 'Triage', backlog: 'Backlog', unstarted: 'Unstarted', started: 'Started', completed: 'Completed', canceled: 'Canceled' } as const
 

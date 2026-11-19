@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { evalConditions, render, renderStepParams, resolveLoopItems, type RunContext } from '../../server/workflows/context'
-import type { Step } from '../../shared/utils/workflow'
+import { evalConditions, render, renderStepParams, resolveLoopItems, type RunContext } from '#server/workflows/context'
+import type { Step } from '#shared/utils/workflow'
 
 function ctx(extra: Record<string, unknown> = {}): RunContext {
   return {

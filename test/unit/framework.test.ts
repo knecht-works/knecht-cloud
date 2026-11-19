@@ -1,7 +1,7 @@
 import type { Octokit } from 'octokit'
 import { describe, expect, it } from 'vitest'
-import { resolveProjectMeta } from '../../server/utils/framework'
-import { repoReader } from '../../server/utils/github'
+import { resolveProjectMeta } from '#server/utils/framework'
+import { repoReader } from '#server/utils/github'
 
 function octokitWith(files: Record<string, string>, fail?: number): Octokit {
   return {

@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
-import { defineAction, ActionError } from './types'
+import { defineAction, ActionError } from '#server/workflows/actions/types'
 
 // User JavaScript runs in the run's web container, never in the control-plane process.
 const RESULT_MARKER = '__KNECHT_JS_RESULT__'

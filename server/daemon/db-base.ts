@@ -12,8 +12,8 @@ import { gitProvider } from '#server/git'
 import { advanceProjectDbBase, getProject, listBuildingDbBases, setProjectDbBase } from '#server/stores/projects'
 import { ddevErrorLine } from '#server/utils/ddev-error'
 import { dataDir, projectDumpDir, sessionSandboxName } from '#server/utils/storage'
-import { freeHostPorts, readDdevConfig } from './ddev'
-import { DDEV_ENV, ddevDefaultDatabase, ddevWebImage } from './sandbox'
+import { freeHostPorts, readDdevConfig } from '#server/daemon/ddev'
+import { DDEV_ENV, ddevDefaultDatabase, ddevWebImage } from '#server/daemon/sandbox'
 
 export const DB_BASE_PREFIX = 'knecht-base-'
 

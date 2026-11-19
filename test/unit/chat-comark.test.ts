@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createSSRApp, h, Suspense } from 'vue'
 import { renderToString } from 'vue/server-renderer'
 
-const ChatComark = (await import('../../app/components/chat/Comark')).default
+const ChatComark = (await import('~/components/chat/Comark')).default
 
 function render(markdown: string) {
   return renderToString(createSSRApp({ render: () => h(Suspense, null, { default: () => h(ChatComark, { markdown }) }) }))

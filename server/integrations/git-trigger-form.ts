@@ -1,5 +1,5 @@
 import type { TriggerFilterDef, TriggerFormDef } from '#shared/utils/trigger-form'
-import { labeledEvent, labelFilter, listedOnlyKeys } from './trigger-config'
+import { labeledEvent, labelFilter, listedOnlyKeys } from '#server/integrations/trigger-config'
 
 const LABELS_URL = '/api/git/options/labels'
 const LABEL_FILTER = labelFilter(LABELS_URL)

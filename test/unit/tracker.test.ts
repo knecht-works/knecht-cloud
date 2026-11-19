@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef } from '../../server/integrations/tracker'
-import { htmlMentionIds } from '../../server/integrations/plane/html'
-import type { TriggerConfig, TriggerEventConfig } from '../../shared/utils/trigger-form'
+import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type TrackerChange, type TrackerDef } from '#server/integrations/tracker'
+import { htmlMentionIds } from '#server/integrations/plane/html'
+import type { TriggerConfig, TriggerEventConfig } from '#shared/utils/trigger-form'
 import { allOf, noneOf } from '../helpers/trigger-conditions'
 
 const DEF: TrackerDef = {

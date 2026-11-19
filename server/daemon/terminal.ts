@@ -1,7 +1,7 @@
 import Docker from 'dockerode'
-import { resolveContainerUser, serviceContainerName, WEB_PROJECT_DIR } from './sandbox'
-import { sessionContainer } from './session-sandbox'
-import { reviveEnv } from './envs'
+import { resolveContainerUser, serviceContainerName, WEB_PROJECT_DIR } from '#server/daemon/sandbox'
+import { sessionContainer } from '#server/daemon/session-sandbox'
+import { reviveEnv } from '#server/daemon/envs'
 
 const docker = new Docker({ socketPath: '/var/run/docker.sock' })
 
