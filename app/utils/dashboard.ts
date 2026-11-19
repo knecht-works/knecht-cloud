@@ -183,7 +183,6 @@ export function groupRunsBySession<T extends SessionRunRow>(runs: T[]): SessionG
   }
   return [...bySession.values()].map((groupRuns) => {
     const head = groupRuns[0]!
-    groupRuns.reverse()
     return {
       sessionId: head.sessionId,
       objects: head.objects,

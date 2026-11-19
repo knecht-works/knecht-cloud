@@ -235,7 +235,7 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
             </button>
             <span
               v-else
-              class="k-mono text-2xs text-dimmed"
+              class="text-xs tabular-nums text-dimmed"
             >{{ sessionGroups.length }} {{ sessionGroups.length === 1 ? 'session' : 'sessions' }}</span>
           </template>
 
@@ -251,13 +251,15 @@ const workflowRows = computed(() => startableWorkflows.value.flatMap((w) => {
               No runs yet. Start a workflow to boot this project.
             </p>
           </div>
-          <div class="max-h-100 overflow-y-auto">
-            <KSessionList
-              :groups="sessionGroups"
-              :run-to="r => ({ query: { run: String(r.id) } })"
-              replace
-              :selected-run-id="selectedRunId"
-            />
+          <div class="@container">
+            <div class="max-h-100 overflow-y-auto">
+              <KSessionList
+                :groups="sessionGroups"
+                :run-to="r => ({ query: { run: String(r.id) } })"
+                replace
+                :selected-run-id="selectedRunId"
+              />
+            </div>
           </div>
         </KPanel>
 

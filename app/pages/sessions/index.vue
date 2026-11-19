@@ -133,7 +133,7 @@ const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
 
     <div
       v-else
-      class="k-card overflow-hidden"
+      class="@container k-card overflow-hidden"
     >
       <KSessionList
         :groups="sessionGroups"
