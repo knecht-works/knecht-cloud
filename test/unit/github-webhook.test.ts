@@ -25,6 +25,16 @@ describe('matchGithubEvent objects', () => {
     expect(match!.inputs).toMatchObject({ status: 'open', assignee: 'ann', labels: 'bug, ui', author: 'sam' })
   })
 
+  it('a pull request from the repo carries its head branch, one from a fork none', () => {
+    const repository = { full_name: 'acme/site' }
+    const own = pr('opened', { head: { ref: 'knecht/session-3', repo: repository } }, { repository })
+    const fork = pr('opened', { head: { ref: 'knecht/session-3', repo: { full_name: 'mallory/site' } } }, { repository })
+    const deletedFork = pr('opened', { head: { ref: 'knecht/session-3', repo: null } }, { repository })
+    expect(matchGithubEvent(trigger({}), 'pull_request', own)!.branch).toBe('knecht/session-3')
+    expect(matchGithubEvent(trigger({}), 'pull_request', fork)!.branch).toBeNull()
+    expect(matchGithubEvent(trigger({}), 'pull_request', deletedFork)!.branch).toBeNull()
+  })
+
   it('an issues delivery carries the issue as object', () => {
     const match = matchGithubEvent(trigger({ kind: 'issue', event: { type: 'opened' } }), 'issues', {
       action: 'opened',
