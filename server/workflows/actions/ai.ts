@@ -3,6 +3,7 @@ import { logSink, openAgent, type AgentSession, type TranscriptSink } from '#ser
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '#shared/utils/workflow'
 import { AI_PROVIDERS, type AiProviderId, MODEL_NAME_RE, aiProviderSpec, stripLegacyModelPrefix } from '#shared/utils/ai'
 import { getSettings } from '#server/utils/settings'
+import { type AiConnection, resolveAiConnection } from '#server/utils/ai-connection'
 import { decrypt } from '#server/utils/crypto'
 import { tryParseJson } from '#server/utils/json'
 import { bridgeEnv } from '#server/utils/knecht-env'
@@ -32,10 +33,10 @@ export const aiAction = defineAction({
     freshContext: z.boolean().optional(),
   },
   async run(step, rt) {
-    const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId, step.model)
+    const { model, bareModel, env, connection } = await resolveAgentEnv(rt, step.model)
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
-    await writeAgentConfig(rt, bareModel)
+    await writeAgentConfig(rt, bareModel, connection)
 
     const fresh = !!step.freshContext
     const session = getSessionRow(rt.sessionId)
@@ -93,14 +94,13 @@ async function startAgent(rt: ActionRuntime, env: Record<string, string>, sessio
 }
 
 async function resolveAgentEnv(
-  sessionId: number,
-  stepModel?: string,
-): Promise<{ model: string, bareModel: string, env: Record<string, string> }> {
-  const settings = getSettings()
-  if (!settings.aiKeyEnc) {
+  rt: ActionRuntime,
+  stepModel?: string | null,
+): Promise<{ model: string, bareModel: string, env: Record<string, string>, connection: AiConnection }> {
+  const { connection, model: configured } = await resolveAiConnection(rt.project.id, stepModel)
+  if (!connection.aiKeyEnc) {
     throw new Error('AI provider API key not configured, add it under Settings → Agent')
   }
-  const configured = stepModel?.trim() || settings.aiModel
   if (!configured) {
     throw new Error('No default model configured (a provider switch clears it), pick one under Settings → Agent')
   }
@@ -108,23 +108,24 @@ async function resolveAgentEnv(
   if (!MODEL_NAME_RE.test(bare)) {
     throw new Error(`Invalid model '${bare}': expected a bare model name, e.g. claude-sonnet-4-5`)
   }
-  const provider = settings.aiProvider as AiProviderId
+  const provider = connection.aiProvider as AiProviderId
   if (!aiProviderSpec(provider)) {
     throw new Error(`Unsupported provider '${provider}'. Supported: ${AI_PROVIDERS.map(p => p.id).join(', ')}`)
   }
   const model = agentModelRef(provider, bare)
-  const key = decrypt(settings.aiKeyEnc)
+  const key = decrypt(connection.aiKeyEnc)
   return {
     model,
     bareModel: bare,
-    env: { [AGENT_KEY_ENV]: key, ...await bridgeEnv(sessionId) },
+    env: { [AGENT_KEY_ENV]: key, ...await bridgeEnv(rt.sessionId) },
+    connection,
   }
 }
 
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string, sink: TranscriptSink, model?: string | null): Promise<string> {
-  const { model: modelRef, bareModel, env } = await resolveAgentEnv(rt.sessionId, model ?? undefined)
+  const { model: modelRef, bareModel, env, connection } = await resolveAgentEnv(rt, model)
   await rt.sandbox.ensureUp()
-  await writeAgentConfig(rt, bareModel)
+  await writeAgentConfig(rt, bareModel, connection)
   const ticket = await refreshTicket(rt)
   const agent = await startSessionAgent(rt, env, sink, modelRef)
   try {
@@ -151,9 +152,9 @@ const SILENT_SINK: TranscriptSink = { item() {}, end() {} }
 
 // The summary is never shown: it is stored on the session and opens the next turn's fresh agent session.
 export async function compactAgentSession(rt: ActionRuntime, sink: TranscriptSink, model?: string | null): Promise<string> {
-  const { bareModel, env } = await resolveAgentEnv(rt.sessionId, model ?? undefined)
+  const { bareModel, env, connection } = await resolveAgentEnv(rt, model)
   await rt.sandbox.ensureUp()
-  await writeAgentConfig(rt, bareModel)
+  await writeAgentConfig(rt, bareModel, connection)
   const current = getSessionRow(rt.sessionId)?.agentSessionId ?? null
   let summary = ''
   if (current) {
@@ -249,7 +250,7 @@ async function readOutputFile(
   return { ok: true, value }
 }
 
-async function writeAgentConfig(rt: ActionRuntime, bareModel: string): Promise<void> {
+async function writeAgentConfig(rt: ActionRuntime, bareModel: string, connection: AiConnection): Promise<void> {
   const settings = getSettings()
   const files: Record<string, string | Uint8Array> = {}
   const agents = await readSandboxAsset('opencode/AGENTS.md')
@@ -257,10 +258,10 @@ async function writeAgentConfig(rt: ActionRuntime, bareModel: string): Promise<v
   // Always written, empty when unset, so the static path in the generated config resolves.
   files['rules.md'] = buildAgentRules(settings.agentInstructions, rt.project.agentInstructions)
   files['opencode.json'] = JSON.stringify(buildOpencodeConfig({
-    provider: settings.aiProvider as AiProviderId,
-    region: settings.aiRegion,
+    provider: connection.aiProvider as AiProviderId,
+    region: connection.aiRegion,
     model: bareModel,
-    subtaskModel: settings.aiSubtaskModel,
+    subtaskModel: connection.aiSubtaskModel,
   }), null, 2)
   for (const [name, text] of Object.entries(await agentMemoryFiles(rt.project.id))) files[`memory/${name}`] = text
   await installAgentFiles(rt.sandbox, files)

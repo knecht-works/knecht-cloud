@@ -24,7 +24,7 @@ export async function runAiFeature<O extends z.ZodType>(
   feature: AiFeature<O>,
   prompt: string,
   ctx: ToolContext,
-  options: { maxOutputTokens?: number, abortSignal?: AbortSignal } = {},
+  { projectId, ...options }: { projectId?: number | null, maxOutputTokens?: number, abortSignal?: AbortSignal } = {},
 ): Promise<z.output<O>> {
   const tools = Object.fromEntries(feature.tools.map(t => [t.name, tool({
     description: t.description,
@@ -32,7 +32,7 @@ export async function runAiFeature<O extends z.ZodType>(
     execute: input => callTool(t, input, ctx),
   })]))
   const result = await generateText({
-    model: await languageModel(feature.model),
+    model: await languageModel(feature.model, projectId),
     instructions: feature.instructions,
     prompt,
     tools,

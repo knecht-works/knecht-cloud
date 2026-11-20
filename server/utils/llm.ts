@@ -7,23 +7,23 @@ import { type AiProviderId, type LangdockRegion, langdockAnthropicBaseUrl, langd
 import { registryRoute } from '#server/utils/ai-catalog'
 import { decrypt } from '#server/utils/crypto'
 import { langdockProviderKey } from '#server/utils/opencode-config'
-import { getSettings } from '#server/utils/settings'
+import { aiConnection } from '#server/utils/ai-connection'
 
 export type ModelRole = 'default' | 'fast'
 
-export async function languageModel(role: ModelRole): Promise<LanguageModel> {
-  const settings = getSettings()
-  if (!settings.aiKeyEnc) {
+export async function languageModel(role: ModelRole, projectId?: number | null): Promise<LanguageModel> {
+  const connection = aiConnection(projectId)
+  if (!connection.aiKeyEnc) {
     throw new Error('AI provider API key not configured, add it under Settings → Agent')
   }
-  const configured = role === 'fast' ? settings.aiSubtaskModel ?? settings.aiModel : settings.aiModel
+  const configured = role === 'fast' ? connection.aiSubtaskModel ?? connection.aiModel : connection.aiModel
   if (!configured) {
     throw new Error('No default model configured (a provider switch clears it), pick one under Settings → Agent')
   }
-  const provider = settings.aiProvider as AiProviderId
+  const provider = connection.aiProvider as AiProviderId
   const model = stripLegacyModelPrefix(configured)
   const route = provider === 'opencode' || provider === 'opencode-go' ? await registryRoute(provider, model) : {}
-  return createLanguageModel({ provider, region: settings.aiRegion, model, apiKey: decrypt(settings.aiKeyEnc), ...route })
+  return createLanguageModel({ provider, region: connection.aiRegion, model, apiKey: decrypt(connection.aiKeyEnc), ...route })
 }
 
 export interface LanguageModelInput {

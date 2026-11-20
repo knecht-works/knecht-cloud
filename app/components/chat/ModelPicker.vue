@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { useAiModels } from '~/composables/useAiModels'
-import { useSettings } from '~/composables/useSettings'
+import { useProjectAiModels } from '~/composables/useAiModels'
+import { useProjectAi } from '~/composables/useProjects'
 import { computed } from 'vue'
 import { USelectMenu } from '#components'
 
+const props = defineProps<{ projectId: number }>()
 const model = defineModel<string | null>({ default: null })
-const { data: models, error } = useAiModels()
-const { data: settings } = useSettings()
+const { data: models, error } = useProjectAiModels(props.projectId)
+const { data: ai } = useProjectAi(props.projectId)
 
 // Sentinel, not '': Reka's Combobox reserves the empty string for "cleared".
 const DEFAULT_ID = '__default__'
 const items = computed(() => [
-  { label: settings.value?.aiModel ?? 'Default model', id: DEFAULT_ID },
+  { label: ai.value?.effective.aiModel ?? 'Default model', id: DEFAULT_ID },
   ...models.value.map(m => ({ label: m.id, id: m.id })),
 ])
 const value = computed({
