@@ -87,6 +87,18 @@ describe('MCP OAuth', () => {
     })
   })
 
+  it('keeps the working connection while a reconnect is not finished', async () => {
+    await withOAuthMcpServer(async (server) => {
+      const { project, row } = await connect(server.url)
+      await startMcpOAuth(row, REDIRECT, 'second')
+
+      const setup = await prepareMcp(project.id)
+
+      expect(setup.notices).toEqual([])
+      expect(setup.env).toEqual({ KNECHT_MCP_DOCS_0: 'Bearer at-1' })
+    })
+  })
+
   it('says so when a server is not connected yet', async () => {
     const project = makeProject()
     insertMcpServer({ projectId: project.id, name: 'docs', url: 'https://docs.example/mcp', auth: 'oauth' })
