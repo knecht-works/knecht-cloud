@@ -8,7 +8,7 @@ export default defineEventHandler(async (event) => {
   await requireOwner(event)
   const row = requireMcpServer(requireIntParam(event))
   try {
-    const headers = mcpHeaders(row)
+    const headers = await mcpHeaders(row)
     return { tools: await probeMcpServer(mcpServerUrl(row), Object.fromEntries(headers.map(h => [h.name, h.value]))) }
   }
   catch (e) {

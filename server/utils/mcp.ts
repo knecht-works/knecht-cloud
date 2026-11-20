@@ -6,6 +6,7 @@ import { mcpCatalogEntry } from '#shared/utils/mcp'
 import type { McpServer } from '#server/db/schema'
 import { effectiveMcpServers } from '#server/stores/mcp-servers'
 import { decrypt } from '#server/utils/crypto'
+import { mcpAccessToken } from '#server/utils/mcp-oauth'
 import type { OpencodeMcpServer } from '#server/utils/opencode-config'
 
 const PROBE_TIMEOUT_MS = 8000
@@ -31,7 +32,7 @@ export function mcpServerUrl(row: Pick<McpServer, 'catalogId' | 'url' | 'auth'>)
   return row.auth === 'oauth' ? entry.oauthUrl ?? entry.url : entry.url
 }
 
-export function mcpHeaders(row: McpServer): ResolvedHeader[] {
+export async function mcpHeaders(row: McpServer): Promise<ResolvedHeader[]> {
   const headers = row.headers.map(h => h.value === null
     ? { name: h.name, value: decrypt(row.secretsEnc[h.name]!), secret: true }
     : { name: h.name, value: h.value, secret: false })
@@ -39,6 +40,7 @@ export function mcpHeaders(row: McpServer): ResolvedHeader[] {
   if (entry && row.auth === 'token' && row.secretsEnc.token) {
     headers.push({ name: entry.token.header, value: `${entry.token.prefix}${decrypt(row.secretsEnc.token)}`, secret: true })
   }
+  if (row.auth === 'oauth') headers.push({ name: 'Authorization', value: `Bearer ${await mcpAccessToken(row)}`, secret: true })
   return headers
 }
 
@@ -84,7 +86,7 @@ export async function prepareMcp(projectId: number): Promise<McpSetup> {
   await Promise.all(effectiveMcpServers(projectId).map(async (row) => {
     try {
       const url = mcpServerUrl(row)
-      const headers = mcpHeaders(row)
+      const headers = await mcpHeaders(row)
       if (headers.some(h => !SAFE_HEADER_VALUE_RE.test(h.value))) throw new Error('a header value contains a quote, a backslash or a control character')
       await probeMcpServer(url, Object.fromEntries(headers.map(h => [h.name, h.value])))
       const config: Record<string, string> = {}
