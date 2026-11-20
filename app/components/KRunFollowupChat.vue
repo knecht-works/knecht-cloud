@@ -120,7 +120,7 @@ function focusPrompt() {
   promptRef.value?.textareaRef?.focus()
 }
 
-const MODEL_KEY = 'knecht.chat.model'
+const MODEL_KEY = `knecht.chat.model:${props.projectId}`
 const model = ref<string | null>(null)
 onMounted(() => {
   try {
