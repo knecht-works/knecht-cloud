@@ -359,7 +359,7 @@ export const workflows = sqliteTable('workflows', {
   publishedAt: integer('published_at', { mode: 'timestamp' }),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   repliesEnabled: integer('replies_enabled', { mode: 'boolean' }).notNull().default(true),
-  // Its ai steps start a throwaway conversation instead of continuing the session's.
+  // Superseded by the ai step's freshContext; only data migration 0012 still reads it.
   freshContext: integer('fresh_context', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at', { mode: 'timestamp' })
     .notNull()

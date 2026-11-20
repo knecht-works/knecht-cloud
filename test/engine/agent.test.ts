@@ -175,8 +175,7 @@ describe('ai step over ACP', () => {
 
 describe('a workflow with its own conversation', () => {
   function freshRun(project = makeProject(), sessionId?: number) {
-    const wf = db.insert(schema.workflows).values({ name: `fresh-${Math.random()}`, steps: [], freshContext: true }).returning().get()
-    return makeRun(project, [{ type: 'ai', id: 'review', prompt: 'review it' }], { workflowId: wf.id, ...(sessionId ? { sessionId } : {}) })
+    return makeRun(project, [{ type: 'ai', id: 'review', prompt: 'review it', freshContext: true }], sessionId ? { sessionId } : {})
   }
 
   it('leaves the session\'s conversation and hand-over alone', async () => {
@@ -203,6 +202,17 @@ describe('a workflow with its own conversation', () => {
     const second = followup('SAW_NOTES')
     await startFollowup(second.id)
     expect(itemsOf(second.id).find(i => i.type === 'message')!.text).toBe('notes: no')
+  })
+
+  it('lets the workflow\'s other ai steps continue the session\'s conversation', async () => {
+    const project = makeProject()
+    const run = makeRun(project, [
+      { type: 'ai', id: 'review', prompt: 'review it', freshContext: true },
+      { type: 'ai', id: 'fix', prompt: 'SAW_NOTES' },
+    ])
+    await startRun(run.id, project)
+    expect(getSteps(run.id)[1]!.outputs).toEqual({ text: 'notes: yes' })
+    expect(getSessionRow(run.sessionId).agentSessionId).toMatch(/^ses_stub_/)
   })
 
   it('hands it to the next workflow in the session\'s conversation too', async () => {

@@ -3,6 +3,7 @@ import { createError } from 'h3'
 import { db, schema, type Executor } from '#server/db'
 import type { NewRun, Project, Run } from '#server/db/schema'
 import type { RunDiagnosis } from '#shared/utils/run'
+import { flattenSteps } from '#shared/utils/workflow'
 import { liveTopics } from '#shared/utils/live-topics'
 import { emitRunLog, emitTopics, type RunLogChunk } from '#server/utils/live'
 import { primaryObjectId } from '#server/stores/session-objects'
@@ -117,12 +118,15 @@ export function listSessionRunSummaries(sessionId: number) {
     prUrl: schema.runs.prUrl,
     createdAt: schema.runs.createdAt,
     finishedAt: schema.runs.finishedAt,
-    freshContext: sql<boolean>`coalesce(${schema.workflows.freshContext}, 0)`.mapWith(Boolean),
+    steps: schema.runs.steps,
   }).from(schema.runs)
-    .leftJoin(schema.workflows, eq(schema.workflows.id, schema.runs.workflowId))
     .where(eq(schema.runs.sessionId, sessionId))
     .orderBy(asc(schema.runs.id))
     .all()
+    .map(({ steps, ...run }) => ({
+      ...run,
+      freshContext: flattenSteps(steps ?? []).some(s => s.type === 'ai' && s.freshContext),
+    }))
 }
 
 export function latestSessionRun(sessionId: number): Run | undefined {
