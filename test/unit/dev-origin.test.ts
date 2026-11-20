@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { credentialDevServerTags, devServerCorsOrigin, devServerLabel, devServerOrigin, looksLikeDevServerLabel, pointTagsAtDevServer, verifyDevServerLabel } from '#server/utils/dev-origin'
+import { credentialDevServerTags, devServerCorsOrigin, devServerLabel, devServerOrigin, devServerUseNote, looksLikeDevServerLabel, pointTagsAtDevServer, verifyDevServerLabel } from '#server/utils/dev-origin'
 import { parsePreviewHost, previewHostname, previewLabel } from '#shared/utils/preview-host'
 
 describe('dev origin label', () => {
@@ -104,5 +104,31 @@ describe('pointTagsAtDevServer', () => {
       `<img src="https://localhost:3000/logo.png">`,
     ]
     for (const html of untouched) expect(point(html)).toBe(html)
+  })
+})
+
+describe('devServerUseNote', () => {
+  const dev = { port: 3000, hosts: ['rotax.ddev.site'] }
+  const devHost = 'dev--7.preview.knecht.test'
+  const note = (html: string) => devServerUseNote(html, dev, devHost)
+
+  it('says nothing when the page loads from the dev origin or from Vite behind the site', () => {
+    expect(note(`<script type="module" src="https://${devHost}/@vite/client"></script>`)).toBeNull()
+    expect(note(`<script type="module" src="/@vite/client"></script>`)).toBeNull()
+  })
+
+  it('names a local dev server URL, which previews rewrite', () => {
+    expect(note(`<script type="module" src="https://localhost:3000/assets/js/app.ts"></script>`))
+      .toContain('https://localhost:3000/assets/js/app.ts')
+  })
+
+  it('warns about a loopback URL on another port than the dev server', () => {
+    const line = note(`<script type="module" src="http://localhost:5173/src/app.js"></script>`)
+    expect(line).toContain('http://localhost:5173/src/app.js')
+    expect(line).toContain('port 3000')
+  })
+
+  it('warns when the page loads nothing from the dev server', () => {
+    expect(note(`<script type="module" src="/dist/assets/app-abc.js"></script>`)).toContain('loads nothing from it')
   })
 })

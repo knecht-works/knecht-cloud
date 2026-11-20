@@ -8,7 +8,7 @@ import { gitProvider } from '#server/git'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '#server/utils/storage'
 import { configureSessionEnv } from '#server/daemon/ddev'
 import { archiveDbVolume, archivedDbVolume, cloneDbBase, readyDbBase, restoreDbVolume, type ReadyDbBase } from '#server/daemon/db-base'
-import { restartDevServer, waitForDevServer } from '#server/daemon/dev-server'
+import { noteDevServerUse, restartDevServer, waitForDevServer } from '#server/daemon/dev-server'
 import { prepareSessionCheckout } from '#server/daemon/git'
 import { ensureWorkspaceUp, removeWorkspace, runOnCheckout } from '#server/daemon/workspace'
 import { envStackRunning, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from '#server/daemon/sandbox'
@@ -112,6 +112,7 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
       log(`\n▶ Starting the dev server on port ${port}\n`)
       await restartDevServer(exec)
       await waitForDevServer(sessionId, port)
+      await noteDevServerUse(sessionId, log)
     }
   }
   catch (e) {
