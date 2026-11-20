@@ -143,3 +143,7 @@ async function refresh(id: number): Promise<string> {
     throw e
   }
 }
+
+export function mcpSettingsPath(row: Pick<McpServer, 'projectId'>): string {
+  return row.projectId === null ? '/settings/agent' : `/projects/${row.projectId}/settings/agent`
+}
