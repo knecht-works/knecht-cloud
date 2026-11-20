@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { logSink, openAgent, type AgentSession, type TranscriptSink } from '#server/daemon/agent'
+import { logSink, notice, openAgent, type AgentSession, type TranscriptSink } from '#server/daemon/agent'
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '#shared/utils/workflow'
 import { AI_PROVIDERS, type AiProviderId, MODEL_NAME_RE, aiProviderSpec, stripLegacyModelPrefix } from '#shared/utils/ai'
 import { getSettings } from '#server/utils/settings'
@@ -10,6 +10,7 @@ import { bridgeEnv } from '#server/utils/knecht-env'
 import { agentMemoryFiles, installAgentFiles, persistAgentMemory } from '#server/utils/agent-memory'
 import { AGENT_KEY_ENV, agentModelRef, buildAgentRules, buildOpencodeConfig } from '#server/utils/opencode-config'
 import { readSandboxAsset } from '#server/utils/sandbox-assets'
+import { prepareMcp } from '#server/utils/mcp'
 import { defineAction, ActionError } from '#server/workflows/actions/types'
 import type { ActionRuntime } from '#server/workflows/actions/types'
 import { getSessionRow, updateSession } from '#server/stores/sessions'
@@ -36,7 +37,8 @@ export const aiAction = defineAction({
     const { model, bareModel, env, connection } = await resolveAgentEnv(rt, step.model)
     rt.log(`\n▶ ai (${model}): ${oneLine(step.prompt, 100)}\n`)
     await rt.sandbox.ensureUp()
-    await writeAgentConfig(rt, bareModel, connection)
+    const sink = logSink(rt.log)
+    const mcpEnv = await writeAgentConfig(rt, bareModel, connection, sink)
 
     const fresh = !!step.freshContext
     const session = getSessionRow(rt.sessionId)
@@ -46,8 +48,8 @@ export const aiAction = defineAction({
     const briefing = taskBriefing(rt.sessionId, run?.objectId, run?.actor?.name)
     const prompt = `${handover ? handoverPreamble(handover) : ''}${notes ? notesPreamble(notes) : ''}${briefing}${await refreshTicket(rt)}${step.prompt}`
     const agent = fresh
-      ? await startAgent(rt, env, null, logSink(rt.log), model)
-      : await startSessionAgent(rt, env, logSink(rt.log), model)
+      ? await startAgent(rt, { ...env, ...mcpEnv }, null, sink, model)
+      : await startSessionAgent(rt, { ...env, ...mcpEnv }, sink, model)
     try {
       const result = step.output ? await runWithOutput(rt, agent, prompt, step.output) : await promptText(agent, prompt)
       if (fresh) addAgentNote(rt.sessionId, `The workflow "${run?.workflow}" (run #${rt.runId}) worked in this session in a conversation of its own. Its final message:\n\n${result.text}`)
@@ -125,9 +127,9 @@ async function resolveAgentEnv(
 export async function runFollowupPrompt(rt: ActionRuntime, prompt: string, sink: TranscriptSink, model?: string | null): Promise<string> {
   const { model: modelRef, bareModel, env, connection } = await resolveAgentEnv(rt, model)
   await rt.sandbox.ensureUp()
-  await writeAgentConfig(rt, bareModel, connection)
+  const mcpEnv = await writeAgentConfig(rt, bareModel, connection, sink)
   const ticket = await refreshTicket(rt)
-  const agent = await startSessionAgent(rt, env, sink, modelRef)
+  const agent = await startSessionAgent(rt, { ...env, ...mcpEnv }, sink, modelRef)
   try {
     const { text } = await agent.prompt(`${ticket}${prompt}`)
     if (!text) throw new Error('the agent produced no output')
@@ -154,11 +156,11 @@ const SILENT_SINK: TranscriptSink = { item() {}, end() {} }
 export async function compactAgentSession(rt: ActionRuntime, sink: TranscriptSink, model?: string | null): Promise<string> {
   const { bareModel, env, connection } = await resolveAgentEnv(rt, model)
   await rt.sandbox.ensureUp()
-  await writeAgentConfig(rt, bareModel, connection)
+  const mcpEnv = await writeAgentConfig(rt, bareModel, connection, SILENT_SINK)
   const current = getSessionRow(rt.sessionId)?.agentSessionId ?? null
   let summary = ''
   if (current) {
-    const agent = await startAgent(rt, env, current, SILENT_SINK)
+    const agent = await startAgent(rt, { ...env, ...mcpEnv }, current, SILENT_SINK)
     try {
       if (agent.loaded) summary = (await agent.prompt(HANDOVER_PROMPT)).text.trim()
     }
@@ -250,8 +252,10 @@ async function readOutputFile(
   return { ok: true, value }
 }
 
-async function writeAgentConfig(rt: ActionRuntime, bareModel: string, connection: AiConnection): Promise<void> {
+async function writeAgentConfig(rt: ActionRuntime, bareModel: string, connection: AiConnection, sink: TranscriptSink): Promise<Record<string, string>> {
   const settings = getSettings()
+  const mcp = await prepareMcp(rt.project.id)
+  for (const text of mcp.notices) sink.item(notice(text))
   const files: Record<string, string | Uint8Array> = {}
   const agents = await readSandboxAsset('opencode/AGENTS.md')
   if (agents) files['AGENTS.md'] = agents
@@ -262,9 +266,11 @@ async function writeAgentConfig(rt: ActionRuntime, bareModel: string, connection
     region: connection.aiRegion,
     model: bareModel,
     subtaskModel: connection.aiSubtaskModel,
+    mcp: mcp.servers,
   }), null, 2)
   for (const [name, text] of Object.entries(await agentMemoryFiles(rt.project.id))) files[`memory/${name}`] = text
   await installAgentFiles(rt.sandbox, files)
+  return mcp.env
 }
 
 function isValidOutputSpec(text: string): boolean {
