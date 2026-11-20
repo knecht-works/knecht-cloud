@@ -90,8 +90,11 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
       </template>
       <div>
         <p class="mb-2.5 text-xs leading-relaxed text-muted">
-          Rules the agent follows in this project only, on top of the
-          instance-wide instructions from Settings → Agent.
+          Rules the agent follows in this project only, on top of the instructions from the global
+          <NuxtLink
+            to="/settings/agent"
+            class="text-toned underline underline-offset-2"
+          >Agent settings</NuxtLink>.
         </p>
         <div class="k-code-box">
           <WorkflowCodeEditor
