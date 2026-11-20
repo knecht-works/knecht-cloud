@@ -16,6 +16,7 @@ vi.mock('#imports', () => ({ getUserSession: async () => ({}), clearUserSession:
 
 const { proxyRunPreview } = await import('#server/utils/preview-proxy')
 const { devServerLabel } = await import('#server/utils/dev-origin')
+const { noteDevServerUse } = await import('#server/daemon/dev-server')
 
 let site: Server
 beforeAll(async () => {
@@ -73,5 +74,28 @@ describe('preview proxy and the local dev server URL', () => {
     const session = devSession('env', null)
     const tag = '<script type="module" src="https://localhost:3000/assets/js/app.ts"></script>'
     expect(await page(session.id, `<html><head>${tag}</head></html>`)).toContain(tag)
+  })
+})
+
+describe('noteDevServerUse', () => {
+  async function bootLog(html: string, previewHosts = ['rotax.ddev.site']): Promise<string> {
+    upstream.html = html
+    const session = makeSession(makeProject(), { envState: 'up', tier: 'preview', previewHosts, previewPort: 3000 })
+    const lines: string[] = []
+    await noteDevServerUse(session.id, text => lines.push(text))
+    return lines.join('')
+  }
+
+  it('logs the local dev server URL the start page loads', async () => {
+    expect(await bootLog('<script type="module" src="https://localhost:3000/assets/js/app.ts"></script>'))
+      .toContain('https://localhost:3000/assets/js/app.ts')
+  })
+
+  it('logs that the start page loads nothing from the dev server', async () => {
+    expect(await bootLog('<script type="module" src="/dist/app-abc.js"></script>')).toContain('loads nothing from it')
+  })
+
+  it('stays quiet in a generated environment, where the dev server serves the page', async () => {
+    expect(await bootLog('<script type="module" src="/dist/app-abc.js"></script>', [])).toBe('')
   })
 })

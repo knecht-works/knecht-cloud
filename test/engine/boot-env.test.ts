@@ -50,7 +50,9 @@ vi.mock('#server/daemon/db-base', () => ({
   restoreDbVolume: async (_sessionId: number, archive: string) => { calls.push(`restore ${archive}`) },
 }))
 const waitForDevServer = vi.fn(async (_sessionId: number, _port: number) => {})
+const noteDevServerUse = vi.fn(async (_sessionId: number, _log: (text: string) => void) => {})
 vi.mock('#server/daemon/dev-server', () => ({
+  noteDevServerUse: (sessionId: number, log: (text: string) => void) => noteDevServerUse(sessionId, log),
   restartDevServer: async (exec: (command: string[]) => Promise<number>) => {
     await exec(['supervisorctl', 'restart', 'webextradaemons:*'])
   },
@@ -96,6 +98,7 @@ describe('bootEnv', () => {
       'supervisorctl restart webextradaemons:*',
     ])
     expect(waitForDevServer).toHaveBeenCalledWith(session.id, 3000)
+    expect(noteDevServerUse).toHaveBeenCalledWith(session.id, expect.any(Function))
   })
 
   it('copies the project\'s base database before ddev starts instead of importing', async () => {

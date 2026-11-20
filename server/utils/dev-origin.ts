@@ -87,6 +87,22 @@ export function pointTagsAtDevServer(html: string, dev: LocalDevServer, origin: 
   })
 }
 
+export function devServerUseNote(html: string, dev: LocalDevServer, devHost: string | null): string | null {
+  const urls = [...html.matchAll(RESOURCE_TAG_RE)]
+    .map(([tag]) => attr(tag, urlAttr(tag)))
+    .filter((url): url is string => !!url)
+  const local = urls.find(url => localUrlKind(url, dev) === 'dev-port')
+  if (local) {
+    return `Note: the start page loads the dev server from ${local}, which only works on a developer's machine. Previews point it at the dev server's own origin; to fix it in the project, build that URL from KNECHT_DEV_SERVER_URL.`
+  }
+  const loopback = urls.find(url => localUrlKind(url, dev) === 'loopback')
+  if (loopback) {
+    return `Warning: the start page loads ${loopback}, but the dev server runs on port ${dev.port}. Build that URL from KNECHT_DEV_SERVER_URL, or check the preview port.`
+  }
+  if (urls.some(url => urlHost(url) === devHost || url.includes('/@vite/client'))) return null
+  return `Warning: a dev server runs on port ${dev.port}, but the start page loads nothing from it, so the site probably serves its built assets. Check the framework's dev mode switch (Craft: CRAFT_ENVIRONMENT=dev).`
+}
+
 function localUrlKind(url: string, dev: LocalDevServer): 'dev-port' | 'loopback' | null {
   if (!URL_ORIGIN_RE.test(url)) return null
   let parsed: URL
