@@ -526,6 +526,13 @@
       "when": 1795181872035,
       "tag": "0074_project-ai-settings",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "6",
+      "when": 1795197945045,
+      "tag": "0075_mcp-servers",
+      "breakpoints": true
     }
   ]
 }
