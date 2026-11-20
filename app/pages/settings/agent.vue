@@ -5,6 +5,7 @@ import { useAutosave } from '~/composables/useAutosave'
 import KSaveStatus from '~/components/KSaveStatus.vue'
 import KPanel from '~/components/KPanel.vue'
 import KSettingsAi from '~/components/KSettingsAi.vue'
+import KSettingsMcp from '~/components/KSettingsMcp.vue'
 import WorkflowCodeEditor from '~/components/workflow/CodeEditor.vue'
 
 const { data: settings } = await useSettings()
@@ -27,6 +28,8 @@ watch(agentInstructions, () => {
 <template>
   <div class="flex flex-col gap-4.5">
     <KSettingsAi />
+
+    <KSettingsMcp />
 
     <KPanel
       title="Instructions"

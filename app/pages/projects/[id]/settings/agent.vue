@@ -11,6 +11,7 @@ import { integrationUi } from '~/utils/integrations'
 import KSaveStatus from '~/components/KSaveStatus.vue'
 import WorkflowCodeEditor from '~/components/workflow/CodeEditor.vue'
 import KPanel from '~/components/KPanel.vue'
+import KSettingsMcp from '~/components/KSettingsMcp.vue'
 import { USwitch, NuxtLink, USelectMenu, UIcon, UTooltip } from '#components'
 
 const toastError = useToastError()
@@ -178,5 +179,6 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
         </div>
       </div>
     </KPanel>
+    <KSettingsMcp :project-id="project.id" />
   </div>
 </template>
