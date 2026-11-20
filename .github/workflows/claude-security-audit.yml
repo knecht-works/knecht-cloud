@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: read
       id-token: write
 
@@ -41,10 +41,33 @@ jobs:
             every changed source file, migration and workflow, without truncating it with head or tail.
             Do not stop until every changed file has been looked at.
 
-            Report each confirmed finding as an inline comment on the affected lines. When you are done,
-            post exactly one summary comment on the PR with `gh pr comment`: the areas you reviewed, the
-            findings you reported, and anything you noted but did not report, or that nothing was found.
+            Report each confirmed finding as an inline comment on the affected lines. Before posting, read the existing
+            inline comments with `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments`
+            and do not post a finding that is already there.
 
-            CI note: this is a non-interactive run that terminates the moment your turn ends. Never launch background agents. Run every agent synchronously (run_in_background: false) and finish the entire review, including posting comments, before ending your turn.
-          claude_args: '--allowedTools "Skill,Read,Grep,Glob,Bash(git diff:*),Bash(git log:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"'
+            When you are done, write a summary in Markdown to the file `audit-summary.md` in the working
+            directory: the areas you reviewed, the findings you reported, and anything you noted but did not
+            report, or that nothing was found. Do not post it yourself, a later step does that.
+
+            CI note: this is a non-interactive run that terminates the moment your turn ends. Never launch background agents. Run every agent synchronously (run_in_background: false) and finish the entire review, including the summary file, before ending your turn.
+          claude_args: '--allowedTools "Skill,Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments:*),mcp__github_inline_comment__create_inline_comment"'
           show_full_output: true
+
+      - name: Post or update summary comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          MARKER: '<!-- claude-security-audit -->'
+        run: |
+          if [ ! -s audit-summary.md ]; then
+            echo "::error::Claude did not write audit-summary.md, the audit did not finish"
+            exit 1
+          fi
+          body="$(printf '%s\n## Security review\n\n' "$MARKER"; cat audit-summary.md)"
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body"
+          else
+            gh pr comment "$PR" -R "$REPO" --body "$body"
+          fi
