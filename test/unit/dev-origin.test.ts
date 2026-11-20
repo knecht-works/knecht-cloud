@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { credentialDevServerTags, devServerCorsOrigin, devServerLabel, devServerOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from '#server/utils/dev-origin'
+import { credentialDevServerTags, devServerCorsOrigin, devServerLabel, devServerOrigin, looksLikeDevServerLabel, pointTagsAtDevServer, verifyDevServerLabel } from '#server/utils/dev-origin'
 import { parsePreviewHost, previewHostname, previewLabel } from '#shared/utils/preview-host'
 
 describe('dev origin label', () => {
@@ -72,5 +72,37 @@ describe('credentialDevServerTags', () => {
       `<link rel="modulepreload" href="https://${devServerLabel(8)}--8.preview.knecht.test/src/app.js">`,
     ]
     for (const html of untouched) expect(rewrite(html)).toBe(html)
+  })
+})
+
+describe('pointTagsAtDevServer', () => {
+  const dev = { port: 3000, hosts: ['rotax.ddev.site', 'cp.rotax.ddev.site'] }
+  const target = 'https://dev--7.preview.knecht.test'
+  const point = (html: string) => pointTagsAtDevServer(html, dev, target)
+
+  it('points script and link URLs on the local dev server at the dev origin', () => {
+    expect(point(`<script type="module" src="https://localhost:3000/assets/js/app.ts"></script>`))
+      .toBe(`<script type="module" src="${target}/assets/js/app.ts"></script>`)
+    expect(point(`<script type="module" src="http://0.0.0.0:3000/@vite/client"></script>`))
+      .toBe(`<script type="module" src="${target}/@vite/client"></script>`)
+    expect(point(`<link rel='stylesheet' href='//127.0.0.1:3000/src/app.css?v=1&amp;x=2'>`))
+      .toBe(`<link rel='stylesheet' href='${target}/src/app.css?v=1&amp;x=2'>`)
+    expect(point(`<script type=module src=https://[::1]:3000/app.ts></script>`))
+      .toBe(`<script type=module src=${target}/app.ts></script>`)
+    expect(point(`<link rel="modulepreload" href="https://CP.rotax.ddev.site:3000/src/app.js">`))
+      .toBe(`<link rel="modulepreload" href="${target}/src/app.js">`)
+  })
+
+  it('leaves URLs alone that are not the dev server', () => {
+    const untouched = [
+      `<script type="module" src="https://rotax.ddev.site/dist/app.js"></script>`,
+      `<script type="module" src="https://localhost:5173/app.ts"></script>`,
+      `<script type="module" src="https://other.ddev.site:3000/app.ts"></script>`,
+      `<script type="module" src="/assets/js/app.ts"></script>`,
+      `<script type="module" data-src="https://localhost:3000/app.ts"></script>`,
+      `<a href="https://localhost:3000/">dev</a>`,
+      `<img src="https://localhost:3000/logo.png">`,
+    ]
+    for (const html of untouched) expect(point(html)).toBe(html)
   })
 })

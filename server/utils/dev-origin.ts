@@ -58,7 +58,7 @@ export function devServerCorsOrigin(origin: string | undefined, sessionId: numbe
 // Their imports inherit the mode, so marking the entry tags covers the whole graph.
 export function credentialDevServerTags(html: string, sessionId: number, baseHost: string): string {
   const devHost = previewHostname(sessionId, baseHost, devServerLabel(sessionId))
-  return html.replace(/<(?:script|link)\b[^>]*>/gi, (tag) => {
+  return html.replace(RESOURCE_TAG_RE, (tag) => {
     const isModule = attr(tag, 'type') === 'module' || attr(tag, 'rel') === 'modulepreload'
     const url = attr(tag, 'src') ?? attr(tag, 'href')
     if (!isModule || urlHost(url) !== devHost) return tag
@@ -67,9 +67,57 @@ export function credentialDevServerTags(html: string, sessionId: number, baseHos
   })
 }
 
+export interface LocalDevServer {
+  port: number
+  hosts: string[]
+}
+
+const RESOURCE_TAG_RE = /<(?:script|link)\b[^>]*>/gi
+const LOOPBACK_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]']
+const URL_ORIGIN_RE = /^(?:[a-z][a-z0-9+.-]*:)?\/\/[^/?#]+/i
+
+// Framework plugins render the dev server URL of a developer's machine
+// (localhost, or the ddev router on the dev port), which no preview visitor reaches.
+export function pointTagsAtDevServer(html: string, dev: LocalDevServer, origin: string): string {
+  return html.replace(RESOURCE_TAG_RE, (tag) => {
+    const name = urlAttr(tag)
+    const url = attr(tag, name)
+    if (!url || localUrlKind(url, dev) !== 'dev-port') return tag
+    return withAttr(tag, name, url.replace(URL_ORIGIN_RE, origin))
+  })
+}
+
+function localUrlKind(url: string, dev: LocalDevServer): 'dev-port' | 'loopback' | null {
+  if (!URL_ORIGIN_RE.test(url)) return null
+  let parsed: URL
+  try {
+    parsed = new URL(url, 'http://relative.invalid')
+  }
+  catch {
+    return null
+  }
+  const loopback = LOOPBACK_HOSTS.includes(parsed.hostname)
+  const projectHost = dev.hosts.some(h => h.toLowerCase() === parsed.hostname)
+  if (parsed.port === String(dev.port) && (loopback || projectHost)) return 'dev-port'
+  return loopback ? 'loopback' : null
+}
+
+function urlAttr(tag: string): 'src' | 'href' {
+  return /^<link/i.test(tag) ? 'href' : 'src'
+}
+
+function attrPattern(name: string): RegExp {
+  return new RegExp(`(\\s${name}\\s*=\\s*)(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i')
+}
+
 function attr(tag: string, name: string): string | undefined {
-  const match = new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i').exec(tag)
-  return match?.[1] ?? match?.[2] ?? match?.[3]
+  const match = attrPattern(name).exec(tag)
+  return match?.[2] ?? match?.[3] ?? match?.[4]
+}
+
+function withAttr(tag: string, name: string, value: string): string {
+  return tag.replace(attrPattern(name), (_, lead: string, double?: string, single?: string) =>
+    `${lead}${double !== undefined ? `"${value}"` : single !== undefined ? `'${value}'` : value}`)
 }
 
 function urlHost(url: string | undefined): string | null {
