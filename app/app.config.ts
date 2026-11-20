@@ -1,3 +1,5 @@
+import { defineAppConfig } from '#imports'
+
 // sm, md and lg match the button sizes below, so a control and a button of the
 // same size are the same height (enforced by knecht-forms/control-row-size).
 const controlSizes = {
