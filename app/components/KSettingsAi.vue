@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { AI_PROVIDERS, type AiProviderId, type LangdockRegion, aiProviderSpec } from '#shared/utils/ai'
+import { AI_PROVIDERS, DEFAULT_MODEL_CHOICES, type AiProviderId, type LangdockRegion, aiProviderSpec } from '#shared/utils/ai'
 import { useToastError } from '~/composables/useToastError'
 import { useUserSession, refreshNuxtData, $fetch } from '#imports'
 import { useSettings, isPreset, patchSettings } from '~/composables/useSettings'
@@ -13,14 +13,24 @@ import KSettingRow from '~/components/KSettingRow.vue'
 import KSecretField from '~/components/KSecretField.vue'
 import KPanel from '~/components/KPanel.vue'
 import KConfirmModal from '~/components/KConfirmModal.vue'
-import { USelect, UButton, UInput, USelectMenu } from '#components'
+import { USelect, UButton, UInput, USelectMenu, UTooltip } from '#components'
 
 // With a project it edits that project's overrides, where null inherits Settings → Agent.
 const props = defineProps<{ projectId?: number }>()
 
 const toastError = useToastError()
 const { user } = useUserSession()
-const { data: settings, error: settingsError } = await useSettings()
+const { data: fetchedSettings, error: settingsError } = await useSettings()
+// patchSettings merges into the shallow ref in place, so nothing here would see the save without this copy.
+const settingsSaves = ref(0)
+const settings = computed(() => {
+  void settingsSaves.value
+  return fetchedSettings.value && { ...fetchedSettings.value }
+})
+async function saveSettings(body: Record<string, unknown>) {
+  await patchSettings(fetchedSettings, body)
+  settingsSaves.value++
+}
 const { data: members } = await useMembers()
 const { data: projectAi, error: projectAiError } = props.projectId ? await useProjectAi(props.projectId) : { data: ref(null), error: ref(null) }
 const loadError = computed(() => props.projectId ? projectAiError.value : settingsError.value)
@@ -49,7 +59,9 @@ const aiProvider = ref<ProviderChoice>()
 const aiRegion = ref<LangdockRegion>()
 const aiModel = ref('')
 const aiSubtaskModel = ref(NO_SUBTASK_MODEL)
-watch(source, (s) => {
+// Keyed on the values: a live refetch brings a new object with the same values, and resetting on it would drop an edit still waiting for its save.
+watch(() => JSON.stringify(source.value), () => {
+  const s = source.value
   if (!s) return
   aiProvider.value = s.provider
   aiRegion.value = s.region
@@ -57,10 +69,15 @@ watch(source, (s) => {
   aiSubtaskModel.value = s.subtask
 }, { immediate: true })
 const inheritsProvider = computed(() => aiProvider.value === INHERIT)
+const switchingProvider = computed(() => !!source.value && aiProvider.value !== source.value.provider)
+// The model list still belongs to the saved connection until the new provider's key is saved.
+const awaitingKey = computed(() => !inheritsProvider.value && switchingProvider.value)
+const keyMissing = computed(() => awaitingKey.value || (!props.projectId && !settings.value?.aiKeyConfigured))
+const needsModel = computed(() => !inheritsProvider.value && !keyMissing.value && !savingAiKey.value && !aiModel.value.trim())
 const ownKeyPreview = computed(() => projectAi.value?.overrides?.aiKeyPreview)
 const keyPreview = computed(() => {
+  if (switchingProvider.value) return inheritsProvider.value ? settings.value?.aiKeyPreview : undefined
   if (!props.projectId) return settings.value?.aiKeyPreview
-  if (aiProvider.value !== source.value?.provider) return undefined
   return ownKeyPreview.value ?? (inheritsProvider.value ? settings.value?.aiKeyPreview : undefined)
 })
 
@@ -106,7 +123,7 @@ const confirmingProvider = computed({
 function selectProvider(next: ProviderChoice) {
   if (next === aiProvider.value) return
   const picked = (m: string) => !!m && m !== INHERIT && m !== NO_SUBTASK_MODEL
-  if (picked(aiModel.value) || picked(aiSubtaskModel.value) || ownKeyPreview.value) pendingProvider.value = next
+  if (!keyMissing.value && (picked(aiModel.value) || picked(aiSubtaskModel.value) || ownKeyPreview.value)) pendingProvider.value = next
   else applyProvider(next)
 }
 function confirmProvider() {
@@ -126,6 +143,8 @@ async function patchProject(body: Record<string, unknown>) {
 }
 
 const { state: saveState, error: saveError, schedule, invalid } = useAutosave(async () => {
+  const switched = aiProvider.value !== source.value?.provider
+  const regionChanged = aiRegion.value !== source.value?.region
   if (props.projectId) {
     await patchProject({
       ...projectProviderBody(),
@@ -134,15 +153,24 @@ const { state: saveState, error: saveError, schedule, invalid } = useAutosave(as
     })
   }
   else {
-    await patchSettings(settings, {
+    await saveSettings({
       aiProvider: aiProvider.value,
       aiRegion: aiRegion.value,
       aiModel: nullIf(aiModel.value, ''),
       aiSubtaskModel: nullIf(aiSubtaskModel.value, NO_SUBTASK_MODEL),
     })
   }
-  await refreshNuxtData(modelsKey)
+  // Only the connection decides the catalog; refetching after a model change would flash the loading state.
+  if (switched || regionChanged) await refreshNuxtData(modelsKey)
 })
+// Runs once the new provider's catalog is loaded; a project prefers the global default model when it is offered.
+function preselectModel() {
+  if (inheritsProvider.value || aiModel.value.trim()) return
+  const offered = new Set(aiModels.value.map(m => m.id))
+  const inherited = props.projectId ? settings.value?.aiModel : null
+  const pick = [inherited, ...DEFAULT_MODEL_CHOICES[aiProvider.value as AiProviderId] ?? []].find(m => m && offered.has(m))
+  if (pick) aiModel.value = pick
+}
 watch([aiProvider, aiRegion, aiModel, aiSubtaskModel], () => {
   const s = source.value
   if (!s) return
@@ -152,12 +180,10 @@ watch([aiProvider, aiRegion, aiModel, aiSubtaskModel], () => {
     && aiModel.value === s.model
     && aiSubtaskModel.value === s.subtask
   ) return
-  if (!aiModel.value.trim() && aiProvider.value === s.provider) {
+  // Saved alone, the switch would leave the project without a working key, so it goes along with the key.
+  if (awaitingKey.value) return
+  if (!aiModel.value.trim()) {
     return invalid('Pick a default model')
-  }
-  // Saved alone, the switch would leave the project without a working key until one is added.
-  if (props.projectId && !inheritsProvider.value && aiProvider.value !== s.provider) {
-    return invalid('Save a key for this provider first')
   }
   schedule()
 })
@@ -165,24 +191,35 @@ watch([aiProvider, aiRegion, aiModel, aiSubtaskModel], () => {
 const aiKey = ref('')
 const aiKeyChanged = computed(() => !!aiKey.value.trim())
 const savingAiKey = ref(false)
+const aiKeyRejected = ref(false)
+// Keeps the model fields on a placeholder until the new provider's catalog is in and a model is preselected.
+const loadingCatalog = ref(false)
+watch(aiKey, () => {
+  aiKeyRejected.value = false
+})
 async function saveAiKey(value: string | null) {
   savingAiKey.value = true
+  loadingCatalog.value = keyMissing.value
   try {
     // The pending provider goes along: saved after the key, its switch would drop the key again.
     if (props.projectId) await patchProject({ ...projectProviderBody(), aiKey: value })
-    else await patchSettings(settings, { aiKey: value })
+    else await saveSettings({ aiProvider: aiProvider.value, aiRegion: aiRegion.value, aiKey: value })
     aiKey.value = ''
     await refreshNuxtData(modelsKey)
+    preselectModel()
   }
   catch (e) {
+    aiKeyRejected.value = true
     toastError('Could not save the key', e)
   }
   finally {
     savingAiKey.value = false
+    loadingCatalog.value = false
   }
 }
 
 const status = computed(() => {
+  if (awaitingKey.value) return 'Key needed'
   if (!props.projectId) return settings.value?.aiKeyConfigured ? 'Ready' : 'Not configured'
   if (!projectAi.value?.effective.aiKeyConfigured) return 'Not configured'
   return ownKeyPreview.value ? 'Own key' : 'Global key'
@@ -204,7 +241,7 @@ const status = computed(() => {
       <span
         v-else
         class="k-mono text-2xs"
-        :class="status === 'Not configured' ? 'text-dimmed' : 'text-primary'"
+        :class="status === 'Not configured' || status === 'Key needed' ? 'text-dimmed' : 'text-primary'"
       >
         {{ status }}
       </span>
@@ -269,22 +306,35 @@ const status = computed(() => {
             :preview="keyPreview"
             :placeholder="projectId ? 'Paste the project\'s key' : 'oc_sk_…'"
             :disabled="providerLocked('aiKey')"
+            :invalid="aiKeyRejected"
           >
-            <UButton
-              v-if="aiKeyChanged && !providerLocked('aiKey')"
-              type="submit"
-              color="primary"
-              label="Save"
-              :loading="savingAiKey"
-            />
-            <UButton
-              v-else-if="projectId && inheritsProvider && ownKeyPreview && isOwner"
-              color="neutral"
-              variant="ghost"
-              label="Use global"
-              :loading="savingAiKey"
-              @click="saveAiKey(null)"
-            />
+            <!-- Always one square button, so the field does not resize while typing or saving. -->
+            <UTooltip
+              v-if="projectId && inheritsProvider && !switchingProvider && ownKeyPreview && !aiKeyChanged"
+              text="Use the global key"
+            >
+              <UButton
+                color="neutral"
+                variant="outline"
+                icon="i-lucide-undo-2"
+                aria-label="Use the global key"
+                :disabled="savingAiKey || !isOwner"
+                @click="saveAiKey(null)"
+              />
+            </UTooltip>
+            <UTooltip
+              v-else
+              text="Save key"
+            >
+              <UButton
+                type="submit"
+                :color="aiKeyChanged ? 'primary' : 'neutral'"
+                icon="i-lucide-save"
+                aria-label="Save key"
+                :disabled="!aiKeyChanged || providerLocked('aiKey')"
+                :loading="savingAiKey"
+              />
+            </UTooltip>
           </KSecretField>
         </form>
       </KSettingRow>
@@ -298,8 +348,16 @@ const status = computed(() => {
             : 'Used by every ai step that doesn\'t pick its own. A step whose model this provider lacks runs on Settings → Agent.'"
         :preset="!projectId && isPreset(settings, 'aiModel')"
       >
+        <USelect
+          v-if="keyMissing || loadingCatalog"
+          :items="[]"
+          :placeholder="loadingCatalog ? 'Loading models…' : 'Save a key first'"
+          aria-label="Default model"
+          disabled
+          class="w-full"
+        />
         <UInput
-          v-if="aiModelsError"
+          v-else-if="aiModelsError"
           :model-value="aiModel === INHERIT ? '' : aiModel"
           :placeholder="inheritsProvider ? globalDefault(settings?.aiModel) : 'claude-opus-5-5'"
           :disabled="providerLocked('aiModel')"
@@ -314,17 +372,13 @@ const status = computed(() => {
           :items="modelItems"
           value-key="id"
           :filter-fields="['label', 'description']"
-          :loading="aiModelsStatus === 'pending'"
+          :loading="aiModelsStatus === 'pending' && !aiModels.length"
           :disabled="providerLocked('aiModel')"
-          placeholder="claude-opus-5-5"
+          :placeholder="needsModel ? 'Pick a default model' : 'claude-opus-5-5'"
+          :color="saveError ? 'error' : needsModel ? 'primary' : undefined"
+          :highlight="!!saveError || needsModel"
           class="w-full"
         />
-        <p
-          v-if="saveError"
-          class="mt-2 text-xs leading-normal text-error"
-        >
-          {{ saveError }}
-        </p>
       </KSettingRow>
 
       <KSettingRow
@@ -332,8 +386,16 @@ const status = computed(() => {
         hint="A faster model for the agent's small internal tasks and exploration subagents. The main model still does the actual work."
         :preset="!projectId && isPreset(settings, 'aiSubtaskModel')"
       >
+        <USelect
+          v-if="keyMissing || loadingCatalog"
+          :items="[]"
+          :placeholder="loadingCatalog ? 'Loading models…' : 'Save a key first'"
+          aria-label="Subtask model"
+          disabled
+          class="w-full"
+        />
         <UInput
-          v-if="aiModelsError"
+          v-else-if="aiModelsError"
           :model-value="aiSubtaskModel === NO_SUBTASK_MODEL || aiSubtaskModel === INHERIT ? '' : aiSubtaskModel"
           :placeholder="inheritsProvider ? globalDefault(settings?.aiSubtaskModel) : 'None, the main model handles everything'"
           :disabled="providerLocked('aiSubtaskModel')"
@@ -346,7 +408,7 @@ const status = computed(() => {
           :items="subtaskItems"
           value-key="id"
           :filter-fields="['label', 'description']"
-          :loading="aiModelsStatus === 'pending'"
+          :loading="aiModelsStatus === 'pending' && !aiModels.length"
           :disabled="providerLocked('aiSubtaskModel')"
           placeholder="None"
           class="w-full"
@@ -357,7 +419,7 @@ const status = computed(() => {
     <KConfirmModal
       v-model:open="confirmingProvider"
       title="Switch the provider?"
-      :description="projectId ? 'The project\'s key and model choices are cleared.' : 'Your model choices are cleared.'"
+      :description="projectId ? 'The project\'s key and model choices are cleared.' : 'The API key and model choices are cleared.'"
       detail="The default and subtask model don't exist at the new provider, so you pick new ones afterwards."
       confirm-label="Switch"
       @confirm="confirmProvider"
