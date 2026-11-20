@@ -1,13 +1,17 @@
 <script setup lang="ts">
 import { useProjectAiModels } from '~/composables/useAiModels'
 import { useProjectAi } from '~/composables/useProjects'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { USelectMenu } from '#components'
 
 const props = defineProps<{ projectId: number }>()
 const model = defineModel<string | null>({ default: null })
-const { data: models, error } = useProjectAiModels(props.projectId)
+const { data: models, status, error } = useProjectAiModels(props.projectId)
 const { data: ai } = useProjectAi(props.projectId)
+// A remembered model the provider no longer offers would fail the turn without showing in the picker.
+watch([models, status, model], () => {
+  if (status.value === 'success' && model.value && !models.value.some(m => m.id === model.value)) model.value = null
+}, { immediate: true })
 
 // Sentinel, not '': Reka's Combobox reserves the empty string for "cleared".
 const DEFAULT_ID = '__default__'
