@@ -15,6 +15,16 @@ export const AI_PROVIDERS = [
 ] as const satisfies readonly AiProviderSpec[]
 export type AiProviderId = typeof AI_PROVIDERS[number]['id']
 
+// Preselected in this order once a provider's catalog loads without a default model. The last is the most likely to stay listed.
+export const DEFAULT_MODEL_CHOICES: Record<AiProviderId, readonly string[]> = {
+  'opencode': ['claude-sonnet-5-5', 'claude-sonnet-5', 'gpt-6.2-sol'],
+  'opencode-go': ['kimi-k3.1-pro', 'qwen4-max', 'deepseek-v4.1-flash'],
+  'anthropic': ['claude-sonnet-5-5', 'claude-sonnet-5', 'claude-opus-5-5'],
+  'openai': ['gpt-6.2-sol', 'gpt-6.1-sol', 'gpt-6-sol'],
+  'google': ['gemini-4-neon', 'gemini-4-carbon', 'gemini-3.8-flash'],
+  'langdock': ['claude-sonnet-5-5', 'claude-sonnet-5', 'claude-opus-5-5'],
+}
+
 export function aiProviderSpec(id: string): AiProviderSpec | undefined {
   return AI_PROVIDERS.find(p => p.id === id)
 }
