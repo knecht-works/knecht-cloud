@@ -38,6 +38,7 @@ const { startRun, cancelRun } = await import('#server/daemon/runner')
 const { startFollowup } = await import('#server/daemon/followups')
 const { updateSettings } = await import('#server/utils/settings')
 const { encrypt } = await import('#server/utils/crypto')
+const { setProjectAiSettings } = await import('#server/stores/project-ai-settings')
 
 updateSettings({ aiProvider: 'anthropic', aiModel: 'claude-sonnet-4-5', aiKeyEnc: encrypt('sk-test') })
 
@@ -45,8 +46,7 @@ function itemsOf(followupId: number) {
   return db.select().from(schema.agentItems).where(eq(schema.agentItems.followupId, followupId)).orderBy(schema.agentItems.seq).all()
 }
 
-async function runAi(step: Partial<Extract<Step, { type: 'ai' }>>) {
-  const project = makeProject()
+async function runAi(step: Partial<Extract<Step, { type: 'ai' }>>, project = makeProject()) {
   const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'do the thing', ...step }])
   await startRun(run.id, project)
   return { run: getRun(run.id), step: getSteps(run.id)[0]!, project }
@@ -67,6 +67,15 @@ describe('ai step over ACP', () => {
     const { run } = await runAi({})
     const config = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(`${checkoutDirOf(run.id)}/.knecht/opencode/opencode.json`, 'utf8')))
     expect(config).toMatchObject({ model: 'anthropic/claude-sonnet-4-5', permission: 'allow' })
+  })
+
+  it('runs on the project\'s own AI connection when it has one', async () => {
+    const project = makeProject()
+    setProjectAiSettings(project.id, { aiProvider: 'openai', aiRegion: 'eu', aiKeyEnc: encrypt('sk-project'), aiModel: 'gpt-5', aiSubtaskModel: 'gpt-5-mini' })
+    const { run } = await runAi({}, project)
+    const config = JSON.parse(await import('node:fs/promises').then(fs => fs.readFile(`${checkoutDirOf(run.id)}/.knecht/opencode/opencode.json`, 'utf8')))
+    expect(config).toMatchObject({ model: 'openai/gpt-5', small_model: 'openai/gpt-5-mini' })
+    expect(run.log).toContain('▶ ai (openai/gpt-5)')
   })
 
   it('answers a permission request with allow', async () => {

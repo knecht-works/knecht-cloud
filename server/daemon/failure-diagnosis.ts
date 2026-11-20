@@ -1,7 +1,7 @@
 import { buildDiagnosisPrompt, DIAGNOSIS_INSTRUCTIONS, diagnosisSchema, stepLabel } from '#server/utils/run-diagnosis'
 import { defineAiFeature, runAiFeature } from '#server/utils/ai-feature'
 import { getRunView, setRunDiagnosis } from '#server/stores/runs'
-import { getSettings } from '#server/utils/settings'
+import { aiConnection } from '#server/utils/ai-connection'
 import { callTool, type ToolContext } from '#server/tools/registry'
 import { getRunLogTool, getRunTool, getStepLogTool } from '#server/tools/runs'
 import { getWorkflowTool } from '#server/tools/workflows'
@@ -20,9 +20,10 @@ const diagnosis = defineAiFeature({
 })
 
 export async function diagnoseRunFailure(runId: number): Promise<void> {
-  const settings = getSettings()
-  const finishedAt = getRunView(runId)?.finishedAt
-  if (!settings.aiKeyEnc || !settings.aiModel || !finishedAt) return
+  const view = getRunView(runId)
+  const finishedAt = view?.finishedAt
+  const connection = aiConnection(view?.projectId)
+  if (!connection.aiKeyEnc || !connection.aiModel || !finishedAt) return
   setRunDiagnosis(runId, finishedAt, { state: 'pending' })
   try {
     const run = await callTool(getRunTool, { runId }, SYSTEM)
@@ -36,6 +37,7 @@ export async function diagnoseRunFailure(runId: number): Promise<void> {
     const runLogTail = failed.length ? undefined : (await callTool(getRunLogTool, { runId }, SYSTEM)).text
 
     const output = await runAiFeature(diagnosis, buildDiagnosisPrompt(run, stepLogs, runLogTail), SYSTEM, {
+      projectId: view?.projectId,
       maxOutputTokens: 400,
       abortSignal: AbortSignal.timeout(60_000),
     })

@@ -16,7 +16,7 @@ const { data: models, status, error } = useAiModels()
 // Sentinel, not '': Reka's Combobox reserves the empty string for "cleared".
 const DEFAULT_ID = '__default__'
 const items = computed(() => [
-  { label: 'Default from Settings → Agent', id: DEFAULT_ID },
+  { label: 'Default of the project or Settings → Agent', id: DEFAULT_ID },
   ...models.value.map(m => ({ label: m.id, description: `${m.name} · ${m.provider}`, id: m.id })),
 ])
 

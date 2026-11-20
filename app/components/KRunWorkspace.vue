@@ -129,6 +129,7 @@ function refreshWorkspace() {
       v-model:active="followupActive"
       :run-id="run.id"
       :session-id="run.sessionId"
+      :project-id="run.projectId"
       :status="run.status"
       :kind="run.kind"
       :env-state="run.envState"

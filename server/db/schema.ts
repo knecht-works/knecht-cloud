@@ -400,6 +400,25 @@ export const settings = sqliteTable('settings', {
 
 export type Settings = typeof settings.$inferSelect
 
+// Null fields inherit Settings → Agent, except under an own provider, which inherits nothing.
+// Kept off the projects table so the key cannot leak through a route that returns a project row.
+export const projectAiSettings = sqliteTable('project_ai_settings', {
+  // PRAGMA foreign_keys is off, so the cascade is declarative; deleteProject removes the row.
+  projectId: integer('project_id')
+    .primaryKey()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  aiProvider: text('ai_provider'),
+  aiRegion: text('ai_region', { enum: ['eu', 'us'] }),
+  aiKeyEnc: text('ai_key_enc'),
+  aiModel: text('ai_model'),
+  aiSubtaskModel: text('ai_subtask_model'),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+})
+
+export type ProjectAiSettings = typeof projectAiSettings.$inferSelect
+
 export const dataMigrations = sqliteTable('data_migrations', {
   name: text('name').primaryKey(),
   appliedAt: integer('applied_at', { mode: 'timestamp' })
