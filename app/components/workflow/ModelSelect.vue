@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { StepField } from '~/utils/workflow-steps'
 import { useAiModels } from '~/composables/useAiModels'
+import { SUBTASK_MODEL_REF } from '#shared/utils/ai'
 import { computed } from 'vue'
 import KCodeInput from '~/components/KCodeInput.vue'
 import { USelectMenu, UFormField } from '#components'
@@ -15,8 +16,10 @@ const { data: models, status, error } = useAiModels()
 
 // Sentinel, not '': Reka's Combobox reserves the empty string for "cleared".
 const DEFAULT_ID = '__default__'
+const DEFAULT_SOURCE = 'Set by global or project settings'
 const items = computed(() => [
-  { label: 'Default of the project or Settings → Agent', id: DEFAULT_ID },
+  { label: 'Default model', description: DEFAULT_SOURCE, id: DEFAULT_ID },
+  { label: 'Default subtask model', description: DEFAULT_SOURCE, id: SUBTASK_MODEL_REF },
   ...models.value.map(m => ({ label: m.id, description: `${m.name} · ${m.provider}`, id: m.id })),
 ])
 
