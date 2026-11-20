@@ -188,7 +188,7 @@ html {
 *:has(> a:focus-visible),
 *:has(> [data-slot="body"] > textarea:focus-visible) {
   --tw-ring-shadow: var(--tw-ring-inset,) 0 0 0 calc(2px + var(--tw-ring-offset-width, 0px)) var(--ui-primary);
-  outline-width: 0;
+  outline: none;
 }
 
 *:focus-visible:not([tabindex="-1"], .k-code-editor *, .outline-none, .focus\:outline-none),

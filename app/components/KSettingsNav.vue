@@ -21,7 +21,7 @@ function isActive(to: string) {
     v-if="tabs"
     class="flex flex-col gap-5"
   >
-    <nav class="flex gap-6 overflow-x-auto">
+    <nav class="-m-0.5 flex gap-6 overflow-x-auto p-0.5">
       <NuxtLink
         v-for="s in sections"
         :key="s.to"
