@@ -12,6 +12,16 @@ export interface OpencodeConfigInput {
   region: LangdockRegion
   model: string
   subtaskModel: string | null
+  mcp?: Record<string, OpencodeMcpServer>
+}
+
+export interface OpencodeMcpServer {
+  type: 'remote'
+  url: string
+  headers: Record<string, string>
+  // Knecht does the OAuth flow itself; opencode's own would wait for a browser in the sandbox.
+  oauth: false
+  enabled: true
 }
 
 export interface OpencodeConfig {
@@ -26,6 +36,7 @@ export interface OpencodeConfig {
     options: { baseURL?: string, apiKey: string, setCacheKey?: false }
     models?: Record<string, object>
   }>
+  mcp?: Record<string, OpencodeMcpServer>
 }
 
 export function langdockProviderKey(bareModel: string): 'langdock' | 'langdock-anthropic' {
@@ -57,6 +68,7 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
     permission: 'allow',
   }
   if (input.subtaskModel) config.small_model = agentModelRef(input.provider, models[1]!)
+  if (input.mcp && Object.keys(input.mcp).length) config.mcp = input.mcp
   // Without an explicit apiKey opencode looks the key up under a per-provider env name.
   if (input.provider !== 'langdock') {
     config.provider = { [input.provider]: { options: { apiKey: AGENT_KEY_REF } } }

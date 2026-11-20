@@ -21,6 +21,13 @@ describe('buildOpencodeConfig', () => {
     })
   })
 
+  it('adds the MCP servers only when there are any', () => {
+    const base = { provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null } as const
+    const server = { type: 'remote', url: 'https://mcp.example/mcp', headers: { Authorization: '{env:KNECHT_MCP_DOCS_0}' }, oauth: false, enabled: true } as const
+    expect(buildOpencodeConfig({ ...base, mcp: {} }).mcp).toBeUndefined()
+    expect(buildOpencodeConfig({ ...base, mcp: { docs: server } }).mcp).toEqual({ docs: server })
+  })
+
   it('declares langdock as a custom provider with the region endpoint and env key', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'gpt-5.1', subtaskModel: null })
     expect(config.provider!.langdock).toEqual({
