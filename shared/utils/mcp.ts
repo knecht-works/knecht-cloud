@@ -17,6 +17,7 @@ export interface McpCatalogEntry {
   id: string
   label: string
   description: string
+  summary: string
   docsUrl: string
   url: string
   // Context7 serves its OAuth flow under its own path.
@@ -29,7 +30,8 @@ export const MCP_CATALOG: readonly McpCatalogEntry[] = [
   {
     id: 'sentry',
     label: 'Sentry',
-    description: 'Issues, stack traces, traces and releases from sentry.io.',
+    description: 'Issues, traces and releases from Sentry.',
+    summary: 'Errors and traces',
     docsUrl: 'https://mcp.sentry.dev',
     url: 'https://mcp.sentry.dev/mcp',
     auth: ['oauth', 'token'],
@@ -45,7 +47,8 @@ export const MCP_CATALOG: readonly McpCatalogEntry[] = [
   {
     id: 'context7',
     label: 'Context7',
-    description: 'Current documentation and code examples for libraries and frameworks.',
+    description: 'Docs and code examples of libraries and frameworks.',
+    summary: 'Library docs',
     docsUrl: 'https://context7.com/docs',
     url: 'https://mcp.context7.com/mcp',
     oauthUrl: 'https://mcp.context7.com/mcp/oauth',
@@ -61,7 +64,8 @@ export const MCP_CATALOG: readonly McpCatalogEntry[] = [
   {
     id: 'notion',
     label: 'Notion',
-    description: 'Pages and databases of a Notion workspace.',
+    description: 'Pages and databases from Notion.',
+    summary: 'Pages and databases',
     docsUrl: 'https://developers.notion.com/docs/mcp',
     url: 'https://mcp.notion.com/mcp',
     auth: ['oauth', 'token'],
@@ -76,7 +80,8 @@ export const MCP_CATALOG: readonly McpCatalogEntry[] = [
   {
     id: 'cloudflare',
     label: 'Cloudflare',
-    description: 'The whole Cloudflare API: DNS, Workers, R2, caching and its documentation.',
+    description: 'DNS, Workers, R2 and docs from Cloudflare.',
+    summary: 'DNS, Workers, R2',
     docsUrl: 'https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/',
     url: 'https://mcp.cloudflare.com/mcp',
     auth: ['oauth', 'token'],

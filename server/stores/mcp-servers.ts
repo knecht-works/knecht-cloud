@@ -16,12 +16,30 @@ export function effectiveMcpServers(projectId: number): McpServer[] {
     .where(or(isNull(schema.mcpServers.projectId), eq(schema.mcpServers.projectId, projectId)))
     .orderBy(asc(schema.mcpServers.name))
     .all()
+  const off = new Set(mcpServersOffIn(projectId))
   const byName = new Map<string, McpServer>()
   for (const row of rows) {
-    if (row.projectId === null && byName.has(row.name)) continue
+    if (row.projectId === null && (byName.has(row.name) || off.has(row.id))) continue
     byName.set(row.name, row)
   }
   return [...byName.values()].filter(row => row.enabled)
+}
+
+export function mcpServersOffIn(projectId: number): number[] {
+  return db.select({ serverId: schema.mcpServerProjectOff.serverId }).from(schema.mcpServerProjectOff)
+    .where(eq(schema.mcpServerProjectOff.projectId, projectId))
+    .all()
+    .map(r => r.serverId)
+}
+
+export function setMcpServerOffIn(projectId: number, serverId: number, off: boolean): void {
+  if (off) {
+    db.insert(schema.mcpServerProjectOff).values({ projectId, serverId }).onConflictDoNothing().run()
+    return
+  }
+  db.delete(schema.mcpServerProjectOff)
+    .where(and(eq(schema.mcpServerProjectOff.projectId, projectId), eq(schema.mcpServerProjectOff.serverId, serverId)))
+    .run()
 }
 
 export function getMcpServer(id: number): McpServer | undefined {
@@ -51,9 +69,13 @@ export function updateMcpServer(id: number, patch: Partial<Omit<NewMcpServer, 'i
 }
 
 export function deleteMcpServer(id: number): void {
-  db.delete(schema.mcpServers).where(eq(schema.mcpServers.id, id)).run()
+  db.transaction((tx) => {
+    tx.delete(schema.mcpServerProjectOff).where(eq(schema.mcpServerProjectOff.serverId, id)).run()
+    tx.delete(schema.mcpServers).where(eq(schema.mcpServers.id, id)).run()
+  })
 }
 
 export function deleteProjectMcpServers(projectId: number, tx: Executor = db): void {
+  tx.delete(schema.mcpServerProjectOff).where(eq(schema.mcpServerProjectOff.projectId, projectId)).run()
   tx.delete(schema.mcpServers).where(eq(schema.mcpServers.projectId, projectId)).run()
 }

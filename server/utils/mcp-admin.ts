@@ -18,7 +18,7 @@ export const mcpHeaderInput = z.object({
 })
 
 export const mcpServerInput = z.object({
-  name: z.string().regex(MCP_NAME_RE, 'lowercase letters, digits and dashes, starting with a letter'),
+  name: z.string().regex(MCP_NAME_RE, 'at most 32 lowercase letters, digits and dashes, starting with a letter'),
   catalogId: z.string().nullable(),
   url: z.string().trim().max(2000).nullable(),
   auth: z.enum(MCP_AUTH_MODES),
