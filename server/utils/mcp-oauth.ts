@@ -15,6 +15,7 @@ export interface McpOAuthState {
   expiresAt?: number
   verifier?: string
   discovery?: OAuthDiscoveryState
+  pending?: McpOAuthState
 }
 
 export function readOAuthState(row: Pick<McpServer, 'oauthEnc'>): McpOAuthState {
@@ -28,7 +29,7 @@ export function encryptOAuthState(state: McpOAuthState): string {
 class KnechtOAuthProvider implements OAuthClientProvider {
   authorizationUrl: URL | undefined
 
-  constructor(private id: number, public data: McpOAuthState, private flowState = '') {}
+  constructor(private id: number, public data: McpOAuthState, private flowState = '', private inFlight = false) {}
 
   get redirectUrl() {
     return this.data.redirectUrl
@@ -88,11 +89,13 @@ class KnechtOAuthProvider implements OAuthClientProvider {
 
   private save(patch: Partial<McpOAuthState>) {
     this.data = { ...this.data, ...patch }
-    updateMcpServer(this.id, { oauthEnc: encryptOAuthState(this.data) })
+    const state = this.inFlight ? { ...readOAuthState(getMcpServer(this.id)!), pending: this.data } : this.data
+    updateMcpServer(this.id, { oauthEnc: encryptOAuthState(state) })
   }
 }
 
-// A fresh sign-in drops the old tokens, so auth() cannot answer with a refresh instead of a redirect.
+// A fresh sign-in starts without tokens, so auth() cannot answer with a refresh instead of a redirect.
+// It lives under `pending` until it finishes, so the working connection keeps its tokens meanwhile.
 export async function startMcpOAuth(row: McpServer, redirectUrl: string, flowState: string): Promise<URL> {
   const { client, manualClient, discovery } = readOAuthState(row)
   const registered = client && 'redirect_uris' in client ? client.redirect_uris : undefined
@@ -101,7 +104,7 @@ export async function startMcpOAuth(row: McpServer, redirectUrl: string, flowSta
     redirectUrl,
     discovery,
     ...(keepClient ? { client, manualClient } : {}),
-  }, flowState)
+  }, flowState, true)
   if (await auth(provider, { serverUrl: mcpServerUrl(row) }) !== 'REDIRECT' || !provider.authorizationUrl) {
     throw new Error('the server did not ask for a sign-in')
   }
@@ -109,7 +112,7 @@ export async function startMcpOAuth(row: McpServer, redirectUrl: string, flowSta
 }
 
 export async function finishMcpOAuth(row: McpServer, code: string, connectedBy: string): Promise<void> {
-  const provider = new KnechtOAuthProvider(row.id, readOAuthState(row))
+  const provider = new KnechtOAuthProvider(row.id, readOAuthState(row).pending ?? {}, '', true)
   await auth(provider, { serverUrl: mcpServerUrl(row), authorizationCode: code })
   updateMcpServer(row.id, { oauthEnc: encryptOAuthState({ ...provider.data, verifier: undefined }), connectedBy, connectedAt: new Date(), authError: null })
 }
