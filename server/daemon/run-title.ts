@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { defineAiFeature, runAiFeature } from '#server/utils/ai-feature'
-import { updateRun } from '#server/stores/runs'
-import { getSettings } from '#server/utils/settings'
+import { getRun, updateRun } from '#server/stores/runs'
+import { aiConnection } from '#server/utils/ai-connection'
 import type { ToolContext } from '#server/tools/registry'
 
 const SYSTEM: ToolContext = { actor: { kind: 'system' }, channel: 'daemon' }
@@ -19,10 +19,12 @@ Plain text: no quotes, no trailing period, no mention of the agent or the person
 })
 
 export async function titleRun(runId: number, prompt: string): Promise<void> {
-  const settings = getSettings()
-  if (!settings.aiKeyEnc || !settings.aiModel) return
+  const projectId = getRun(runId)?.projectId
+  const connection = aiConnection(projectId)
+  if (!connection.aiKeyEnc || !connection.aiModel) return
   try {
     const { title } = await runAiFeature(runTitle, prompt, SYSTEM, {
+      projectId,
       maxOutputTokens: 100,
       abortSignal: AbortSignal.timeout(30_000),
     })

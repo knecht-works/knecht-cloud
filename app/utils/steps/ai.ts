@@ -11,7 +11,7 @@ export const aiStep = defineStep({
   fields: [
     { key: 'prompt', label: 'Prompt', input: 'textarea', rows: 4, required: true, vars: true, placeholder: 'Fix the failing test: {{ steps.s2.stdout }}' },
     { key: 'output', label: 'Output format', input: 'textarea', rows: 3, placeholder: 'Optional. One field per line:\nprTitle: string\nlabels: string[]' },
-    { key: 'model', label: 'Model', input: 'model', placeholder: 'Default from Settings → Agent' },
+    { key: 'model', label: 'Preferred model', input: 'model', placeholder: 'Default of the project or Settings → Agent' },
   ],
   outputs: [
     { path: 'text', hint: 'The agent\'s output' },

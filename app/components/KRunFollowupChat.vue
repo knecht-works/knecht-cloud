@@ -9,7 +9,7 @@ import { useToast } from '#imports'
 import { useSessionTranscript, isTurnActive } from '~/composables/useSessionTranscript'
 import { watch, computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { isLiveStatus, runStatusMeta, RUN_STATUS_META, timeAgo } from '~/utils/dashboard'
-import { useSettings } from '~/composables/useSettings'
+import { useProjectAi } from '~/composables/useProjects'
 import { useMembers } from '~/composables/useMembers'
 import { useResizableHeight } from '~/composables/useResizableHeight'
 import KStatusDot from '~/components/KStatusDot.vue'
@@ -24,6 +24,7 @@ import { UIcon, UButton, UChatMessage, UChatMessages, NuxtLink, UTooltip, UChatP
 const props = defineProps<{
   runId: number
   sessionId: number
+  projectId: number
   status: RunStatus
   kind: 'workflow' | 'mention'
   envState: EnvState
@@ -61,8 +62,8 @@ const blockedHint = computed(() => {
   return 'The environment is gone. Run the workflow again to continue the conversation.'
 })
 
-const { data: settings } = useSettings()
-const aiConfigured = computed(() => !!settings.value?.aiKeyConfigured)
+const { data: projectAi } = useProjectAi(props.projectId)
+const aiConfigured = computed(() => !!projectAi.value?.effective.aiKeyConfigured)
 const promptDisabled = computed(() => !aiConfigured.value || !canFollowup.value)
 
 const { data: members } = useMembers()
@@ -619,7 +620,10 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
                 />
               </div>
               <div class="flex items-center gap-1.5">
-                <ChatModelPicker v-model="model" />
+                <ChatModelPicker
+                  v-model="model"
+                  :project-id="projectId"
+                />
                 <UChatPromptSubmit
                   color="primary"
                   size="sm"

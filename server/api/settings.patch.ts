@@ -5,8 +5,9 @@ import { AGENT_INSTRUCTIONS_MAX, SETTINGS_LIMITS, SSH_TARGET_RE } from '#shared/
 import { getSettings, publicSettings, type SettingsPatch, updateSettings } from '#server/utils/settings'
 import { settingsPreset } from '#server/utils/settings-preset'
 import { isValidCron } from '#server/utils/cron'
-import { loadModelCatalog } from '#server/utils/ai-catalog'
+import { assertModelsInCatalog } from '#server/utils/ai-connection'
 import { encrypt } from '#server/utils/crypto'
+import { detachFromGlobalProvider } from '#server/stores/project-ai-settings'
 import { requireOwner } from '#server/utils/owner'
 import { defineEventHandler, readBody, createError } from 'h3'
 
@@ -74,34 +75,13 @@ export default defineEventHandler(async (event) => {
     if (!('aiSubtaskModel' in settingsPatch)) settingsPatch.aiSubtaskModel = null
   }
   await assertModelInCatalog(settingsPatch)
-  return publicSettings(updateSettings(settingsPatch))
+  const previous = getSettings()
+  const updated = updateSettings(settingsPatch)
+  if (updated.aiProvider !== previous.aiProvider) detachFromGlobalProvider(previous)
+  return publicSettings(updated)
 })
 
-// A provider (or region/key/model) change must fail at save time when the
-// stored model would no longer resolve, not mid-run. Best
-// effort by design: when the catalog itself cannot be loaded the save goes
-// through, because a catalog outage must never lock the settings page.
 async function assertModelInCatalog(patch: SettingsPatch): Promise<void> {
   if (!['aiProvider', 'aiRegion', 'aiModel', 'aiSubtaskModel', 'aiKeyEnc'].some(f => f in patch)) return
-  const effective = { ...getSettings(), ...patch }
-  if (!effective.aiModel && !effective.aiSubtaskModel) return
-  let ids: Set<string>
-  try {
-    ids = new Set((await loadModelCatalog(effective)).map(m => m.id))
-  }
-  catch {
-    return
-  }
-  if (effective.aiModel && !ids.has(effective.aiModel)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: `The model '${effective.aiModel}' is not available at ${effective.aiProvider}. Pick a model from its catalog first.`,
-    })
-  }
-  if (effective.aiSubtaskModel && !ids.has(effective.aiSubtaskModel)) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: `The subtask model '${effective.aiSubtaskModel}' is not available at ${effective.aiProvider}. Clear or change it first.`,
-    })
-  }
+  await assertModelsInCatalog({ ...getSettings(), ...patch })
 }

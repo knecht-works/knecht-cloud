@@ -27,7 +27,7 @@ export function publicSettings(settings: Settings) {
   }
 }
 
-function encKeyPreview(enc: string): string | undefined {
+export function encKeyPreview(enc: string): string | undefined {
   try {
     return keyPreview(decrypt(enc))
   }

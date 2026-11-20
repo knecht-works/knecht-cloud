@@ -4,13 +4,14 @@ import { decrypt } from '#server/utils/crypto'
 
 const LIVE_TTL_MS = 30 * 1000
 const REGISTRY_TTL_MS = 60 * 60 * 1000
-let cache: { at: number, ttl: number, scope: string, models: AiModel[] } | null = null
+const cache = new Map<string, { at: number, ttl: number, models: AiModel[] }>()
 
-export async function loadModelCatalog(settings: Settings): Promise<AiModel[]> {
+export async function loadModelCatalog(settings: Pick<Settings, 'aiProvider' | 'aiRegion' | 'aiKeyEnc'>): Promise<AiModel[]> {
   const provider = settings.aiProvider as AiProviderId
   const spec = aiProviderSpec(provider)
   const scope = `${provider}:${settings.aiRegion}:${settings.aiKeyEnc ?? ''}`
-  if (cache && cache.scope === scope && Date.now() - cache.at < cache.ttl) return cache.models
+  const cached = cache.get(scope)
+  if (cached && Date.now() - cached.at < cached.ttl) return cached.models
   try {
     const key = settings.aiKeyEnc ? decrypt(settings.aiKeyEnc) : null
     let live = false
@@ -27,11 +28,11 @@ export async function loadModelCatalog(settings: Settings): Promise<AiModel[]> {
     else {
       models = await registryModels(provider)
     }
-    cache = { at: Date.now(), ttl: live ? LIVE_TTL_MS : REGISTRY_TTL_MS, scope, models }
+    cache.set(scope, { at: Date.now(), ttl: live ? LIVE_TTL_MS : REGISTRY_TTL_MS, models })
     return models
   }
   catch (e) {
-    if (cache?.scope === scope) return cache.models
+    if (cached) return cached.models
     throw new Error(`Could not load the model catalog: ${(e as Error).message}`, { cause: e })
   }
 }
@@ -116,6 +117,6 @@ async function registryModels(provider: AiProviderId): Promise<AiModel[]> {
 }
 
 export function clearModelCatalogCache(): void {
-  cache = null
+  cache.clear()
   registryCache = null
 }
