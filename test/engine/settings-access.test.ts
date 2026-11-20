@@ -11,6 +11,9 @@ vi.mock('#server/utils/owner', async () => {
   }
 })
 
+vi.mock('#server/utils/ai-key', () => ({ assertAiKeyAccepted: async () => {} }))
+
+const { getSettings, updateSettings } = await import('#server/utils/settings')
 const patch = (await import('#server/api/settings.patch')).default
 const send = (body: object) => callRoute(patch, { method: 'PATCH', body })
 
@@ -33,5 +36,12 @@ describe('PATCH /api/settings', () => {
     access.owner = true
     expect(res.status).toBe(200)
     expect(res.json).toMatchObject({ agentInstructions: 'Answer in German.' })
+  })
+
+  it('drops the key and models on a provider switch unless the patch brings a key', async () => {
+    updateSettings({ aiProvider: 'opencode', aiKeyEnc: 'old-key', aiModel: 'claude-opus-5-5', aiSubtaskModel: 'claude-sonnet-5' })
+    expect((await send({ aiProvider: 'anthropic' })).status).toBe(200)
+    expect(getSettings()).toMatchObject({ aiProvider: 'anthropic', aiKeyEnc: null, aiModel: null, aiSubtaskModel: null })
+    expect((await send({ aiProvider: 'openai', aiKey: 'sk-new' })).json).toMatchObject({ aiProvider: 'openai', aiKeyConfigured: true })
   })
 })

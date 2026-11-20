@@ -72,10 +72,11 @@ export default defineEventHandler(async (event) => {
     ...patch,
     ...(aiKey !== undefined ? { aiKeyEnc: aiKey === null ? null : encrypt(aiKey) } : {}),
   }
-  // A provider switch clears both models (unless the patch sets them): the old
+  // A provider switch clears the key and both models (unless the patch sets them): the old
   // provider's names would not resolve at the new one, and a stale model must
   // never block saving the new provider's API key.
   if (settingsPatch.aiProvider && settingsPatch.aiProvider !== getSettings().aiProvider) {
+    if (!('aiKeyEnc' in settingsPatch)) settingsPatch.aiKeyEnc = null
     if (!('aiModel' in settingsPatch)) settingsPatch.aiModel = null
     if (!('aiSubtaskModel' in settingsPatch)) settingsPatch.aiSubtaskModel = null
   }
