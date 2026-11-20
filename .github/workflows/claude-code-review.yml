@@ -49,9 +49,18 @@ jobs:
             inline comments with `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/comments`
             and do not post a finding that is already there.
 
-            When you are done, write a short summary in Markdown to the file `review-summary.md` in the
-            working directory: the findings you reported (one line each), anything you noted but did not
-            report, or that nothing was found. Do not post it yourself, a later step does that.
+            When you are done, write a short summary in Markdown to the file `review-summary.md` in the working
+            directory. The step that posts it adds the `## Code review` heading, so do not write a title or any
+            `#`/`##` heading yourself. Use exactly this structure and keep each bullet to one line:
+
+                ### Findings
+                - <severity>: <what goes wrong> (`path:line`)
+
+                ### Noted, not reported
+                - <one line each>
+
+            Write "None." under Findings when there are none, and leave out "Noted, not reported" when it is empty.
+            Do not post it yourself, a later step does that.
 
             CI note: this is a non-interactive run that terminates the moment your turn ends. Do the review
             yourself and do not launch subagents. Finish everything, including the summary file, before ending your turn.
