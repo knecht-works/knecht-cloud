@@ -6,6 +6,7 @@ import { DDEV_DATABASES, PACKAGE_MANAGERS, type DetectedEnv } from '../../shared
 import { INTEGRATION_IDS, OBJECT_KINDS, REPO_PROVIDERS, TRACKER_IDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
 import type { Step } from '../../shared/utils/workflow'
 import { PREVIEW_ACCESS } from '../../shared/utils/preview-access'
+import { MCP_AUTH_MODES } from '../../shared/utils/mcp'
 
 export interface DdevEnv {
   webserver: string | null
@@ -418,6 +419,43 @@ export const projectAiSettings = sqliteTable('project_ai_settings', {
 })
 
 export type ProjectAiSettings = typeof projectAiSettings.$inferSelect
+
+export interface McpHeader {
+  name: string
+  // Null for a secret header, whose value sits in secretsEnc under the header name.
+  value: string | null
+}
+
+// projectId null = global, active in every project; a project server of the same name replaces it.
+export const mcpServers = sqliteTable('mcp_servers', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  // PRAGMA foreign_keys is off, so the cascade is declarative; deleteProjectCascade removes the rows.
+  projectId: integer('project_id')
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  catalogId: text('catalog_id'),
+  // Only set for a custom server: a catalog server follows the catalog's URL.
+  url: text('url'),
+  auth: text('auth', { enum: MCP_AUTH_MODES }).notNull().default('none'),
+  headers: text('headers', { mode: 'json' }).$type<McpHeader[]>().notNull().default(sql`'[]'`),
+  secretsEnc: text('secrets_enc', { mode: 'json' }).$type<Record<string, string>>().notNull().default(sql`'{}'`),
+  oauthEnc: text('oauth_enc'),
+  connectedBy: text('connected_by'),
+  connectedAt: integer('connected_at', { mode: 'timestamp' }),
+  authError: text('auth_error'),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' })
+    .notNull()
+    .default(sql`(unixepoch())`),
+}, table => [
+  // SQLite treats NULLs as distinct, so a plain index would allow two globals of one name.
+  uniqueIndex('mcp_servers_name_idx').on(sql`coalesce(${table.projectId}, 0)`, table.name),
+])
+
+export type McpServer = typeof mcpServers.$inferSelect
 
 export const dataMigrations = sqliteTable('data_migrations', {
   name: text('name').primaryKey(),
