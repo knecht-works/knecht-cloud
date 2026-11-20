@@ -9,6 +9,7 @@ import { deleteAgentItems } from '#server/stores/agent-items'
 import { deleteFollowups } from '#server/stores/followups'
 import { deleteProjectLinks } from '#server/stores/project-links'
 import { deleteProjectAiSettings } from '#server/stores/project-ai-settings'
+import { deleteProjectMcpServers } from '#server/stores/mcp-servers'
 import { deleteRunSteps } from '#server/stores/run-steps'
 import { deleteProjectRuns, listProjectRunIds } from '#server/stores/runs'
 import { deleteProjectSessions } from '#server/stores/sessions'
@@ -112,6 +113,7 @@ export function deleteProjectCascade(id: number, sessionIds: number[]): void {
     removeProjectFromTriggers(id, tx)
     deleteProjectLinks(id, tx)
     deleteProjectAiSettings(id, tx)
+    deleteProjectMcpServers(id, tx)
     tx.delete(schema.projects).where(eq(schema.projects.id, id)).run()
   })
   projectChanged(id)
