@@ -8,7 +8,8 @@ import { consumeInvite } from '#server/stores/invites'
 import { rememberLoginMethod } from '#server/utils/last-login'
 import { addMember, getMember, getMemberById, linkIdentity, loginWithIdentity } from '#server/stores/members'
 import { startMemberSession } from '#server/utils/member-session'
-import { defineEventHandler, sendRedirect, getRequestURL, getQuery, setCookie, getCookie, deleteCookie } from 'h3'
+import { defineEventHandler, sendRedirect, getRequestURL, getQuery, getCookie, deleteCookie } from 'h3'
+import { popFlowCookie, setFlowCookie } from '#server/utils/flow-cookie'
 import { getUserSession } from '#imports'
 
 // Hand-rolled OAuth: the client id and secret live in the DB (setup flow), not in static config.
@@ -98,21 +99,6 @@ export default defineEventHandler(async (event) => {
     return sendRedirect(event, '/login?error=oauth')
   }
 })
-
-// __Host- cookies cannot be planted by a preview subdomain, so a callback only
-// completes a flow this browser started here. Plain http (dev) cannot set them.
-const secure = process.env.NODE_ENV === 'production'
-const flowCookie = (name: string) => `${secure ? '__Host-' : ''}knecht-${name}`
-
-function setFlowCookie(event: H3Event, name: string, value: string) {
-  setCookie(event, flowCookie(name), value, { httpOnly: true, sameSite: 'lax', secure, path: '/', maxAge: 600 })
-}
-
-function popFlowCookie(event: H3Event, name: string): string | undefined {
-  const value = getCookie(event, flowCookie(name))
-  deleteCookie(event, flowCookie(name), { secure, path: '/' })
-  return value
-}
 
 // Only our own base domain is honored (no open redirect).
 function popRedirect(event: H3Event): string {
