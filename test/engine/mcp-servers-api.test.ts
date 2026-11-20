@@ -18,6 +18,7 @@ const create = (await import('#server/api/mcp-servers/index.post')).default
 const patch = (await import('#server/api/mcp-servers/[id].patch')).default
 const remove = (await import('#server/api/mcp-servers/[id].delete')).default
 const test = (await import('#server/api/mcp-servers/[id]/test.post')).default
+const projectOff = (await import('#server/api/mcp-servers/[id]/project-off.put')).default
 const { getMcpServer } = await import('#server/stores/mcp-servers')
 const { decrypt } = await import('#server/utils/crypto')
 const { encryptOAuthState, readOAuthState } = await import('#server/utils/mcp-oauth')
@@ -36,6 +37,21 @@ beforeEach(() => {
 })
 
 describe('MCP server API', () => {
+  it('switches a global server off in one project and lists it as off there', async () => {
+    const project = makeProject()
+    const global = (await post({ name: 'docs', url: 'https://a.example/mcp' })).json as View
+    const own = (await post({ projectId: project.id, name: 'own', url: 'https://b.example/mcp' })).json as View
+    const put = (id: number, body: object) => callRoute(projectOff, { method: 'PUT', route: '/:id', path: `/${id}`, body })
+
+    expect((await put(global.id, { projectId: project.id, off: true })).status).toBe(200)
+    expect((await put(own.id, { projectId: project.id, off: true })).status).toBe(400)
+    const res = await callRoute(list, { method: 'GET', path: `/?projectId=${project.id}` })
+    expect((res.json as { offHere: number[] }).offHere).toEqual([global.id])
+
+    access.owner = false
+    expect((await put(global.id, { projectId: project.id, off: false })).status).toBe(403)
+  })
+
   it('stores a catalog token encrypted and never returns it', async () => {
     const res = await post({ name: 'sentry', catalogId: 'sentry', auth: 'token', token: 'sntryu_secret_123456' })
     expect(res.status).toBe(200)

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { makeProject } from '../helpers/db'
 import { withMcpServer } from '../helpers/mcp-server'
 
-const { effectiveMcpServers, insertMcpServer } = await import('#server/stores/mcp-servers')
+const { deleteMcpServer, effectiveMcpServers, insertMcpServer, mcpServersOffIn, setMcpServerOffIn } = await import('#server/stores/mcp-servers')
 const { mcpHeaders, prepareMcp } = await import('#server/utils/mcp')
 const { encrypt } = await import('#server/utils/crypto')
 const { db, schema } = await import('#server/db')
@@ -35,6 +35,31 @@ describe('effectiveMcpServers', () => {
 
     expect(effectiveMcpServers(project.id)).toEqual([])
     expect(effectiveMcpServers(makeProject().id).map(s => s.name)).toEqual(['docs'])
+  })
+})
+
+describe('switching a global server off in a project', () => {
+  it('leaves it out of that project only, until it is switched on again', () => {
+    clearMcp()
+    const project = makeProject()
+    const docs = insertMcpServer({ projectId: null, name: 'docs', url: 'https://global.example/mcp' })
+    setMcpServerOffIn(project.id, docs.id, true)
+    setMcpServerOffIn(project.id, docs.id, true)
+
+    expect(effectiveMcpServers(project.id)).toEqual([])
+    expect(effectiveMcpServers(makeProject().id).map(s => s.name)).toEqual(['docs'])
+
+    setMcpServerOffIn(project.id, docs.id, false)
+    expect(effectiveMcpServers(project.id).map(s => s.name)).toEqual(['docs'])
+  })
+
+  it('forgets the switch when the server is deleted', () => {
+    clearMcp()
+    const project = makeProject()
+    const docs = insertMcpServer({ projectId: null, name: 'docs', url: 'https://global.example/mcp' })
+    setMcpServerOffIn(project.id, docs.id, true)
+    deleteMcpServer(docs.id)
+    expect(mcpServersOffIn(project.id)).toEqual([])
   })
 })
 

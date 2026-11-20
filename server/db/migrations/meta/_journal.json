@@ -533,6 +533,13 @@
       "when": 1795197945045,
       "tag": "0075_mcp-servers",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "6",
+      "when": 1795205663514,
+      "tag": "0076_mcp-server-project-off",
+      "breakpoints": true
     }
   ]
 }

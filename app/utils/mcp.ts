@@ -6,7 +6,7 @@ const MCP_ICONS: Record<string, string> = {
 }
 
 export function mcpIcon(catalogId: string | null): string {
-  return (catalogId && MCP_ICONS[catalogId]) || 'i-lucide-server'
+  return (catalogId && MCP_ICONS[catalogId]) || 'i-lucide-globe'
 }
 
 // Sentry's colored logo is dark purple and disappears on a dark background, so it keeps the tinted glyph.
