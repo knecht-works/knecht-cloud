@@ -2,11 +2,11 @@
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import { $fetch, navigateTo, useRequestURL, useToast } from '#imports'
 import { MCP_MAX_HEADERS, mcpCatalogEntry, type McpAuthMode, type McpServerView } from '#shared/utils/mcp'
-import { useToastError } from '~/composables/useToastError'
+import { errMsg } from '~/utils/dashboard'
 import { mcpIcon, mcpIconColor } from '~/utils/mcp'
 import { copyText } from '~/utils/clipboard'
 import KSecretField from '~/components/KSecretField.vue'
-import { UButton, UFormField, UIcon, UInput, UModal, USelect, USwitch } from '#components'
+import { UAlert, UButton, UFormField, UIcon, UInput, UModal, USelect, USwitch, UTooltip } from '#components'
 
 const open = defineModel<boolean>('open', { required: true })
 const props = defineProps<{
@@ -17,7 +17,6 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ saved: [McpServerView] }>()
 
-const toastError = useToastError()
 const toast = useToast()
 const callbackUrl = `${useRequestURL().origin}/auth/mcp/callback`
 
@@ -36,6 +35,7 @@ const ownClient = ref(false)
 const clientId = ref('')
 const clientSecret = ref('')
 const saving = ref(false)
+const error = ref<{ field: 'name' | 'url' | null, message: string } | null>(null)
 
 const catalogId = computed(() => props.server ? props.server.catalogId : props.source)
 const entry = computed(() => mcpCatalogEntry(catalogId.value))
@@ -54,9 +54,14 @@ watch(open, (isOpen) => {
   ownClient.value = !!s?.oauth.manualClient
   clientId.value = ''
   clientSecret.value = ''
+  error.value = null
 }, { immediate: true })
 
-// Sized for the tallest sign-in mode, so switching tabs does not resize the dialog.
+watch([name, url, auth], () => {
+  error.value = null
+})
+
+// Sized for the tallest authentication method, so switching it does not resize the dialog.
 const form = useTemplateRef<HTMLFormElement>('form')
 const minHeight = ref(0)
 watch(form, async (el) => {
@@ -131,7 +136,11 @@ async function save() {
     if (saved.auth === 'oauth' && !saved.oauth.connected) await navigateTo(`/auth/mcp/${saved.id}`, { external: true })
   }
   catch (e) {
-    toastError('Could not save the MCP server', e)
+    const message = errMsg(e, 'Could not save the MCP server.')
+    const field = /^(name|url): (.+)$/.exec(message)
+    error.value = field
+      ? { field: field[1] as 'name' | 'url', message: field[2]!.charAt(0).toUpperCase() + field[2]!.slice(1) }
+      : { field: null, message }
   }
   finally {
     saving.value = false
@@ -182,6 +191,7 @@ async function save() {
         <UFormField
           v-if="!entry"
           label="URL"
+          :error="error?.field === 'url' ? error.message : undefined"
         >
           <UInput
             v-model="url"
@@ -192,6 +202,7 @@ async function save() {
 
         <UFormField
           label="Name"
+          :error="error?.field === 'name' ? error.message : undefined"
           :help="projectId ? 'The agent sees its tools under this name. It replaces a global server with the same name here.' : 'The agent sees its tools under this name.'"
         >
           <UInput
@@ -203,7 +214,7 @@ async function save() {
 
         <UFormField
           v-if="authItems.length > 1"
-          label="Sign-in"
+          label="Authentication"
         >
           <USelect
             v-model="auth"
@@ -252,14 +263,16 @@ async function save() {
                 class="w-full"
               >
                 <template #trailing>
-                  <UButton
-                    color="neutral"
-                    variant="link"
-                    size="sm"
-                    icon="i-lucide-copy"
-                    aria-label="Copy redirect URL"
-                    @click="copyCallback"
-                  />
+                  <UTooltip text="Copy redirect URL">
+                    <UButton
+                      color="neutral"
+                      variant="link"
+                      size="sm"
+                      icon="i-lucide-copy"
+                      aria-label="Copy redirect URL"
+                      @click="copyCallback"
+                    />
+                  </UTooltip>
                 </template>
               </UInput>
             </UFormField>
@@ -313,21 +326,25 @@ async function save() {
                 aria-label="Header value"
                 class="min-w-0 flex-1"
               />
-              <UButton
-                color="neutral"
-                variant="outline"
-                :icon="header.secret ? 'i-lucide-lock' : 'i-lucide-lock-open'"
-                :aria-label="header.secret ? 'Secret, click to store it in plain text' : 'Plain text, click to store it as a secret'"
-                :aria-pressed="header.secret"
-                @click="header.secret = !header.secret"
-              />
-              <UButton
-                color="neutral"
-                variant="ghost"
-                icon="i-lucide-x"
-                aria-label="Remove header"
-                @click="headers.splice(i, 1)"
-              />
+              <UTooltip :text="header.secret ? 'Stored as a secret. Click to store it in plain text.' : 'Stored in plain text. Click to store it as a secret.'">
+                <UButton
+                  color="neutral"
+                  variant="outline"
+                  :icon="header.secret ? 'i-lucide-lock' : 'i-lucide-lock-open'"
+                  :aria-label="header.secret ? 'Secret, click to store it in plain text' : 'Plain text, click to store it as a secret'"
+                  :aria-pressed="header.secret"
+                  @click="header.secret = !header.secret"
+                />
+              </UTooltip>
+              <UTooltip text="Remove header">
+                <UButton
+                  color="neutral"
+                  variant="ghost"
+                  icon="i-lucide-x"
+                  aria-label="Remove header"
+                  @click="headers.splice(i, 1)"
+                />
+              </UTooltip>
             </div>
             <UButton
               color="neutral"
@@ -339,6 +356,12 @@ async function save() {
             />
           </div>
         </UFormField>
+        <UAlert
+          v-if="error && !error.field"
+          color="error"
+          variant="subtle"
+          :description="error.message"
+        />
       </form>
     </template>
 

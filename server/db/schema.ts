@@ -457,6 +457,17 @@ export const mcpServers = sqliteTable('mcp_servers', {
 
 export type McpServer = typeof mcpServers.$inferSelect
 
+export const mcpServerProjectOff = sqliteTable('mcp_server_project_off', {
+  projectId: integer('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  serverId: integer('server_id')
+    .notNull()
+    .references(() => mcpServers.id, { onDelete: 'cascade' }),
+}, table => [
+  primaryKey({ columns: [table.projectId, table.serverId] }),
+])
+
 export const dataMigrations = sqliteTable('data_migrations', {
   name: text('name').primaryKey(),
   appliedAt: integer('applied_at', { mode: 'timestamp' })
