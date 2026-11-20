@@ -38,7 +38,7 @@ export interface Condition {
 export type Step = StepMeta & (
   | { type: 'ddev-start', commands?: string }
   | { type: 'bash', command: string }
-  | { type: 'ai', prompt: string, model?: string, output?: string }
+  | { type: 'ai', prompt: string, model?: string, output?: string, freshContext?: boolean }
   | { type: 'js', code: string, input?: string }
   | { type: 'http', method: string, url: string, headers?: string, body?: string }
   | { type: 'if', conditions: Condition[][], then: Step[], else: Step[] }

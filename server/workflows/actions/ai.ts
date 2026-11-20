@@ -13,8 +13,6 @@ import { defineAction, ActionError } from '#server/workflows/actions/types'
 import type { ActionRuntime } from '#server/workflows/actions/types'
 import { getSessionRow, updateSession } from '#server/stores/sessions'
 import { getRun } from '#server/stores/runs'
-import { getWorkflowRow } from '#server/stores/workflows'
-import type { WorkflowRow } from '#server/db/schema'
 import { getIntegration } from '#server/integrations'
 import { freshTicketSince, ticketFetched } from '#server/utils/object-freshness'
 import { snapshotDir, writeObjectSnapshot } from '#server/utils/object-snapshot'
@@ -31,6 +29,7 @@ export const aiAction = defineAction({
       v => v === undefined || isValidOutputSpec(v),
       { message: 'output must be lines of `name: type` (types: string, number, boolean, or their [] arrays)' },
     ),
+    freshContext: z.boolean().optional(),
   },
   async run(step, rt) {
     const { model, bareModel, env } = await resolveAgentEnv(rt.sessionId, step.model)
@@ -38,19 +37,19 @@ export const aiAction = defineAction({
     await rt.sandbox.ensureUp()
     await writeAgentConfig(rt, bareModel)
 
-    const workflow = freshContextWorkflow(rt.runId)
+    const fresh = !!step.freshContext
     const session = getSessionRow(rt.sessionId)
-    const handover = workflow ? null : session?.agentHandover
-    const notes = workflow ? null : session?.agentNotes
+    const handover = fresh ? null : session?.agentHandover
+    const notes = fresh ? null : session?.agentNotes
     const run = getRun(rt.runId)
     const briefing = taskBriefing(rt.sessionId, run?.objectId, run?.actor?.name)
     const prompt = `${handover ? handoverPreamble(handover) : ''}${notes ? notesPreamble(notes) : ''}${briefing}${await refreshTicket(rt)}${step.prompt}`
-    const agent = workflow
+    const agent = fresh
       ? await startAgent(rt, env, null, logSink(rt.log), model)
       : await startSessionAgent(rt, env, logSink(rt.log), model)
     try {
       const result = step.output ? await runWithOutput(rt, agent, prompt, step.output) : await promptText(agent, prompt)
-      if (workflow) addAgentNote(rt.sessionId, `The workflow "${workflow.name}" (run #${rt.runId}) worked in this session in a conversation of its own. Its final message:\n\n${result.text}`)
+      if (fresh) addAgentNote(rt.sessionId, `The workflow "${run?.workflow}" (run #${rt.runId}) worked in this session in a conversation of its own. Its final message:\n\n${result.text}`)
       return result
     }
     finally {
@@ -67,12 +66,6 @@ async function promptText(agent: AgentSession, prompt: string): Promise<{ text: 
   if (!text) throw new Error('the agent produced no output')
   const json = tryParseJson(stripFences(text))
   return json === undefined ? { text } : { text, json }
-}
-
-function freshContextWorkflow(runId: number): WorkflowRow | undefined {
-  const workflowId = getRun(runId)?.workflowId
-  const workflow = workflowId ? getWorkflowRow(workflowId) : undefined
-  return workflow?.freshContext ? workflow : undefined
 }
 
 function addAgentNote(sessionId: number, note: string): void {

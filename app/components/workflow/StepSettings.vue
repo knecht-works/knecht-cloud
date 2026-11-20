@@ -20,7 +20,7 @@ const meta = computed(() => workflowStepMeta(props.step))
 
 const record = computed(() => props.step as unknown as Record<string, string | boolean>)
 
-const policy = computed(() => props.step as { continueOnError?: boolean, timeoutSeconds?: number })
+const policy = computed(() => props.step as { continueOnError?: boolean, timeoutSeconds?: number, freshContext?: boolean })
 
 const forced = inject(FORCE_STEP_ISSUES, () => ref(false), true)
 const pristine = computed(() => stepPristine(props.step))
@@ -196,6 +196,17 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
         label="Continue on error"
         @update:model-value="policy.continueOnError = $event"
       />
+      <UTooltip
+        v-if="step.type === 'ai'"
+        text="Starts without the session's chat history. Its final message is passed on to the session's next turn."
+      >
+        <USwitch
+          :model-value="step.freshContext ?? false"
+          :disabled="!editable"
+          label="Fresh context"
+          @update:model-value="policy.freshContext = $event"
+        />
+      </UTooltip>
     </div>
 
     <div

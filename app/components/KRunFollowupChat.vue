@@ -398,7 +398,7 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
                   :size="5"
                 />
                 <span class="k-mono truncate">{{ entry.run.workflow }} #{{ entry.run.id }}</span>
-                <span>· {{ RUN_STATUS_META[entry.run.status].label.toLowerCase() }}<template v-if="entry.run.freshContext"> · own conversation</template> · {{ timeAgo(entry.run.createdAt) }}</span>
+                <span>· {{ RUN_STATUS_META[entry.run.status].label.toLowerCase() }}<template v-if="entry.run.freshContext"> · fresh context</template> · {{ timeAgo(entry.run.createdAt) }}</span>
               </ChatDivider>
               <template v-else-if="entry.turn.prompt === CLEAR_COMMAND || entry.turn.prompt === COMPACT_COMMAND">
                 <KChatTranscript :turns="[entry.turn]" />

@@ -108,7 +108,6 @@ export const workflowPatchSchema = z.object({
   description: z.string().optional(),
   enabled: z.boolean().optional(),
   repliesEnabled: z.boolean().optional(),
-  freshContext: z.boolean().optional(),
   draftSteps: draftStepsSchema.optional(),
 })
 
