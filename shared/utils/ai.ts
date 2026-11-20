@@ -33,6 +33,9 @@ export function langdockAnthropicBaseUrl(region: LangdockRegion): string {
 // Shell-safe charset: the ai action splices this into a bash command line.
 export const MODEL_NAME_RE = /^[\w.:-]+(\/[\w.:-]+)*$/
 
+// A step model that stands for the connection's subtask model. MODEL_NAME_RE rejects '@', so no real model collides.
+export const SUBTASK_MODEL_REF = '@subtask'
+
 export function stripLegacyModelPrefix(model: string): string {
   const slash = model.indexOf('/')
   if (slash < 1) return model

@@ -56,6 +56,11 @@ describe('resolveAiConnection', () => {
     expect(await resolveAiConnection(project.id, 'claude-opus-5-5')).toMatchObject({ connection: { aiProvider: 'anthropic', aiKeyEnc: 'global-key' }, model: 'claude-opus-5-5' })
   })
 
+  it('resolves the subtask reference to the subtask model, else the default model', async () => {
+    expect(await resolveAiConnection(makeProject().id, '@subtask')).toMatchObject({ connection: { aiKeyEnc: 'global-key' }, model: 'claude-sonnet-5' })
+    expect(await resolveAiConnection(projectWithOwnConnection().id, '@subtask')).toMatchObject({ connection: { aiKeyEnc: 'project-key' }, model: 'gpt-5' })
+  })
+
   it('stays on the project connection when its catalog cannot be loaded', async () => {
     const project = projectWithOwnConnection()
     catalog.fail = true
