@@ -3,7 +3,7 @@ import { db, schema } from '#server/db/index'
 import { stripLegacyModelPrefix } from '#shared/utils/ai'
 import { TRACKER_IDS } from '#shared/utils/integrations'
 import type { TriggerCondition } from '#shared/utils/trigger-form'
-import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences, type Step } from '#shared/utils/workflow'
+import { deriveStepId, ensureStepIds, flattenSteps, renameStepReferences } from '#shared/utils/workflow'
 
 // Append-only: entries are tracked by name, never rename or remove a released one.
 const MIGRATIONS: { name: string, run: () => void }[] = [
@@ -18,7 +18,6 @@ const MIGRATIONS: { name: string, run: () => void }[] = [
   { name: '0009_trigger_roles', run: triggerRoles },
   { name: '0010_single_event_triggers', run: singleEventTriggers },
   { name: '0011_fold_step_prompts', run: foldStepPrompts },
-  { name: '0012_step_fresh_context', run: stepFreshContext },
 ]
 
 export function runDataMigrations(): void {
@@ -29,22 +28,6 @@ export function runDataMigrations(): void {
     if (applied.has(migration.name)) continue
     migration.run()
     db.insert(schema.dataMigrations).values({ name: migration.name }).run()
-  }
-}
-
-// Own conversation moved from the workflow to each ai step. Run snapshots follow so queued runs keep the behaviour.
-function stepFreshContext(): void {
-  const markAi = (steps: Step[]) => {
-    for (const step of flattenSteps(steps)) if (step.type === 'ai') step.freshContext = true
-    return steps
-  }
-  for (const row of db.select().from(schema.workflows).where(eq(schema.workflows.freshContext, true)).all()) {
-    db.update(schema.workflows)
-      .set({ steps: markAi(row.steps), draftSteps: row.draftSteps && markAi(row.draftSteps) })
-      .where(eq(schema.workflows.id, row.id)).run()
-    for (const run of db.select().from(schema.runs).where(eq(schema.runs.workflowId, row.id)).all()) {
-      if (run.steps) db.update(schema.runs).set({ steps: markAi(run.steps) }).where(eq(schema.runs.id, run.id)).run()
-    }
   }
 }
 

@@ -289,24 +289,4 @@ describe('0010_single_event_triggers', () => {
     expect((loop as Extract<Step, { type: 'loop' }>).steps[0]).toEqual({ id: 'two', type: 'ai', prompt: 'Check it.' })
     expect(three).toEqual({ id: 'three', type: 'ai', prompt: 'Plain.' })
   })
-
-  it('moves a workflow\'s own conversation onto its ai steps, draft and queued runs included', () => {
-    const nested: Step[] = [
-      { id: 'one', type: 'ai', prompt: 'p' },
-      { id: 'cmd', type: 'bash', command: 'ls' },
-      { id: 'each', type: 'loop', items: '[]', steps: [{ id: 'two', type: 'ai', prompt: 'q' }] },
-    ]
-    const wf = db.insert(schema.workflows).values({ name: 'own-conv', steps: nested, draftSteps: nested, freshContext: true }).returning().get()
-    makeWorkflow('shared-conv', [{ id: 'one', type: 'ai', prompt: 'p' }])
-    const run = makeRun(makeProject(), nested, { workflowId: wf.id })
-    rerun('0012_step_fresh_context')
-
-    const row = db.select().from(schema.workflows).where(eq(schema.workflows.id, wf.id)).get()!
-    for (const steps of [row.steps, row.draftSteps!, db.select().from(schema.runs).where(eq(schema.runs.id, run.id)).get()!.steps!]) {
-      expect(steps[0]).toMatchObject({ freshContext: true })
-      expect(steps[1]).not.toHaveProperty('freshContext')
-      expect((steps[2] as Extract<Step, { type: 'loop' }>).steps[0]).toMatchObject({ freshContext: true })
-    }
-    expect(getSteps('shared-conv')[0]).not.toHaveProperty('freshContext')
-  })
 })

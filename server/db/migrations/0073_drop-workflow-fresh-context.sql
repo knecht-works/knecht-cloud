@@ -1,0 +1,1 @@
+ALTER TABLE `workflows` DROP COLUMN `fresh_context`;
