@@ -5,6 +5,7 @@ import { requireProject } from '#server/stores/projects'
 import { getProjectAiSettings, setProjectAiSettings, type ProjectAiValues } from '#server/stores/project-ai-settings'
 import { assertModelsInCatalog, mergeAiConnection, projectAiView } from '#server/utils/ai-connection'
 import { getSettings } from '#server/utils/settings'
+import { assertAiKeyAccepted } from '#server/utils/ai-key'
 import { encrypt } from '#server/utils/crypto'
 import { requireIntParam, zodBadRequest } from '#server/utils/http'
 import { requireOwner } from '#server/utils/owner'
@@ -41,8 +42,10 @@ export default defineEventHandler(async (event) => {
   if (aiKey !== undefined) values.aiKeyEnc = aiKey === null ? null : encrypt(aiKey)
   if (values.aiProvider === null) values.aiRegion = null
   else values.aiRegion ??= 'eu'
+  const connection = mergeAiConnection(getSettings(), values)
+  if (aiKey) await assertAiKeyAccepted(connection.aiProvider as AiProviderId, connection.aiRegion, aiKey)
   if (['aiProvider', 'aiRegion', 'aiModel', 'aiSubtaskModel'].some(f => f in patch) || aiKey) {
-    await assertModelsInCatalog(mergeAiConnection(getSettings(), values))
+    await assertModelsInCatalog(connection)
   }
   setProjectAiSettings(id, values)
   return projectAiView(id)

@@ -16,6 +16,15 @@ vi.mock('#server/utils/ai-catalog', () => ({
     (aiProvider === 'openai' ? ['gpt-5', 'gpt-5-mini'] : ['claude-opus-5-5', 'claude-sonnet-5']).map(id => ({ id, name: id, provider: aiProvider })),
 }))
 
+vi.mock('#server/utils/ai-key', async () => {
+  const { createError } = await import('h3')
+  return {
+    assertAiKeyAccepted: async (_provider: string, _region: string, key: string) => {
+      if (key.startsWith('sk-bad')) throw createError({ statusCode: 400, statusMessage: 'Key rejected by Anthropic.' })
+    },
+  }
+})
+
 const patch = (await import('#server/api/projects/[id]/ai.patch')).default
 const get = (await import('#server/api/projects/[id]/ai.get')).default
 const { getProjectAiSettings } = await import('#server/stores/project-ai-settings')
@@ -56,6 +65,13 @@ describe('PATCH /api/projects/:id/ai', () => {
     const project = makeProject()
     await send(project.id, { aiKey: 'sk-project-123456' })
     expect(viewOf(await send(project.id, { aiKey: null })).overrides).toBeNull()
+    expect(getProjectAiSettings(project.id)).toBeUndefined()
+  })
+
+  it('keeps a key the provider rejects out', async () => {
+    const project = makeProject()
+    const res = await send(project.id, { aiProvider: 'openai', aiKey: 'sk-bad-123456' })
+    expect(res.status).toBe(400)
     expect(getProjectAiSettings(project.id)).toBeUndefined()
   })
 
