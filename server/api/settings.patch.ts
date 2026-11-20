@@ -6,6 +6,7 @@ import { getSettings, publicSettings, type SettingsPatch, updateSettings } from 
 import { settingsPreset } from '#server/utils/settings-preset'
 import { isValidCron } from '#server/utils/cron'
 import { assertModelsInCatalog } from '#server/utils/ai-connection'
+import { assertAiKeyAccepted } from '#server/utils/ai-key'
 import { encrypt } from '#server/utils/crypto'
 import { detachFromGlobalProvider } from '#server/stores/project-ai-settings'
 import { requireOwner } from '#server/utils/owner'
@@ -63,6 +64,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'Not a valid cron schedule (5 fields, e.g. "0 3 * * *").' })
   }
   const { aiKey, ...patch } = result.data
+  if (aiKey) {
+    const current = getSettings()
+    await assertAiKeyAccepted(patch.aiProvider ?? current.aiProvider as AiProviderId, patch.aiRegion ?? current.aiRegion, aiKey)
+  }
   const settingsPatch: SettingsPatch = {
     ...patch,
     ...(aiKey !== undefined ? { aiKeyEnc: aiKey === null ? null : encrypt(aiKey) } : {}),
