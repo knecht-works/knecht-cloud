@@ -219,16 +219,6 @@ async function toggleEnabled() {
   }
 }
 
-async function setFreshContext(freshContext: boolean) {
-  try {
-    await $fetch(`/api/workflows/${id.value}`, { method: 'PATCH', body: { freshContext } })
-    await invalidate(liveTopics.workflows)
-  }
-  catch (e) {
-    toastError('Failed to update workflow', e)
-  }
-}
-
 const confirmDelete = ref(false)
 
 const menuItems = computed(() => [
@@ -237,13 +227,6 @@ const menuItems = computed(() => [
     icon: saved.value?.enabled ? 'i-lucide-pause' : 'i-lucide-zap',
     disabled: togglingEnabled.value,
     onSelect: () => { void toggleEnabled() },
-  }, {
-    label: 'Own conversation',
-    icon: 'i-lucide-message-square-dashed',
-    type: 'checkbox' as const,
-    checked: !!saved.value?.freshContext,
-    onUpdateChecked: (v: boolean) => { void setFreshContext(v) },
-    onSelect: (e: Event) => e.preventDefault(),
   }],
   [
     ...(['yaml', 'json'] as const).map(format => ({
