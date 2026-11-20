@@ -20,6 +20,8 @@ const remove = (await import('#server/api/mcp-servers/[id].delete')).default
 const test = (await import('#server/api/mcp-servers/[id]/test.post')).default
 const { getMcpServer } = await import('#server/stores/mcp-servers')
 const { decrypt } = await import('#server/utils/crypto')
+const { encryptOAuthState, readOAuthState } = await import('#server/utils/mcp-oauth')
+const { updateMcpServer } = await import('#server/stores/mcp-servers')
 const { db, schema } = await import('#server/db')
 
 type View = { id: number, name: string, url: string, tokenPreview: string | null, headers: { name: string, secret: boolean, value: string | null, preview: string | null }[] }
@@ -85,6 +87,33 @@ describe('MCP server API', () => {
     expect((await post({ name: 'more', url: 'https://b.example/mcp' })).status).toBe(403)
     expect((await callRoute(remove, { method: 'DELETE', route: '/:id', path: `/${view.id}` })).status).toBe(403)
     expect(getMcpServer(view.id)).toBeDefined()
+  })
+
+  it('keeps an OAuth connection only while the server stays the same', async () => {
+    const view = (await post({ name: 'docs', url: 'https://a.example/mcp', auth: 'oauth' })).json as View
+    const connect = () => updateMcpServer(view.id, { oauthEnc: encryptOAuthState({ tokens: { access_token: 'at', token_type: 'Bearer' } }), connectedBy: 'sam', connectedAt: new Date() })
+
+    connect()
+    await update(view.id, { name: 'docs', url: 'https://a.example/mcp', auth: 'oauth', enabled: false })
+    expect(getMcpServer(view.id)!.connectedBy).toBe('sam')
+
+    await update(view.id, { name: 'docs', url: 'https://b.example/mcp', auth: 'oauth' })
+    expect(getMcpServer(view.id)).toMatchObject({ oauthEnc: null, connectedAt: null })
+
+    connect()
+    await update(view.id, { name: 'docs', url: 'https://b.example/mcp', auth: 'none' })
+    expect(getMcpServer(view.id)).toMatchObject({ oauthEnc: null, connectedAt: null })
+  })
+
+  it('stores a manual OAuth client encrypted', async () => {
+    const res = await post({ name: 'docs', url: 'https://a.example/mcp', auth: 'oauth', oauthClient: { id: 'knecht', secret: 'client-s3cret' } })
+    expect(res.json).toMatchObject({ oauth: { manualClient: true, connected: false } })
+    expect(res.text).not.toContain('client-s3cret')
+    const row = getMcpServer((res.json as View).id)!
+    expect(readOAuthState(row).client).toEqual({ client_id: 'knecht', client_secret: 'client-s3cret' })
+
+    await update(row.id, { name: 'docs', url: 'https://a.example/mcp', auth: 'oauth', oauthClient: null })
+    expect(getMcpServer(row.id)!.oauthEnc).toBeNull()
   })
 
   it('lists the tools of a reachable server and explains an unreachable one', async () => {
