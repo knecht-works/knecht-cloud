@@ -39,9 +39,9 @@ describe('effectiveMcpServers', () => {
 })
 
 describe('mcpHeaders', () => {
-  it('sends a catalog token with the entry\'s own prefix', () => {
+  it('sends a catalog token with the entry\'s own prefix', async () => {
     const row = insertMcpServer({ projectId: makeProject().id, name: 'sentry', catalogId: 'sentry', auth: 'token', secretsEnc: { token: encrypt('sntryu_abc') } })
-    expect(mcpHeaders(row)).toEqual([{ name: 'Authorization', value: 'Sentry-Bearer sntryu_abc', secret: true }])
+    expect(await mcpHeaders(row)).toEqual([{ name: 'Authorization', value: 'Sentry-Bearer sntryu_abc', secret: true }])
   })
 })
 
