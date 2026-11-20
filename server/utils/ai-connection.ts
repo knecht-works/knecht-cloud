@@ -1,6 +1,6 @@
 import { createError } from 'h3'
 import type { ProjectAiSettings, Settings } from '#server/db/schema'
-import { stripLegacyModelPrefix } from '#shared/utils/ai'
+import { SUBTASK_MODEL_REF, stripLegacyModelPrefix } from '#shared/utils/ai'
 import { getProjectAiSettings, type ProjectAiValues } from '#server/stores/project-ai-settings'
 import { loadModelCatalog } from '#server/utils/ai-catalog'
 import { encKeyPreview, getSettings } from '#server/utils/settings'
@@ -39,6 +39,7 @@ export async function resolveAiConnection(
   const own = projectId == null ? undefined : getProjectAiSettings(projectId)
   const connection = mergeAiConnection(global, own)
   if (!preferred) return { connection, model: connection.aiModel }
+  if (preferred === SUBTASK_MODEL_REF) return { connection, model: connection.aiSubtaskModel ?? connection.aiModel }
   if (connection.aiProvider === global.aiProvider || await offersModel(connection, preferred)) {
     return { connection, model: preferred }
   }
