@@ -6,6 +6,7 @@ import { getMcpServer, mcpNameTaken } from '#server/stores/mcp-servers'
 import { encrypt } from '#server/utils/crypto'
 import { encKeyPreview } from '#server/utils/settings'
 import { mcpServerUrl, SAFE_HEADER_VALUE_RE } from '#server/utils/mcp'
+import { encryptOAuthState, readOAuthState } from '#server/utils/mcp-oauth'
 
 const headerValue = z.string().max(4096).regex(SAFE_HEADER_VALUE_RE, 'may not contain quotes, backslashes or control characters')
 
@@ -24,6 +25,8 @@ export const mcpServerInput = z.object({
   // Left out keeps the stored token, null removes it.
   token: headerValue.trim().nullable().optional(),
   headers: z.array(mcpHeaderInput).max(MCP_MAX_HEADERS),
+  // For a server without dynamic client registration. Left out keeps the stored client, null removes it.
+  oauthClient: z.object({ id: z.string().trim().min(1).max(500), secret: z.string().trim().max(500).optional() }).nullable().optional(),
   enabled: z.boolean(),
 })
 
@@ -85,15 +88,30 @@ export function mcpServerValues(projectId: number | null, input: McpServerInput,
     secretsEnc[h.name] = value
   }
 
+  const catalogId = entry?.id ?? null
+  const url = entry ? null : assertHttpUrl(input.url)
   return {
     name: input.name,
-    catalogId: entry?.id ?? null,
-    url: entry ? null : assertHttpUrl(input.url),
+    catalogId,
+    url,
     auth: input.auth,
     headers,
     secretsEnc,
     enabled: input.enabled,
+    ...oauthValues(input, existing?.auth === 'oauth' && existing.catalogId === catalogId && existing.url === url ? existing : undefined),
   }
+}
+
+// A connection only survives an edit that keeps the server and its client.
+function oauthValues(input: McpServerInput, sameServer: McpServer | undefined) {
+  const disconnected = { oauthEnc: null, connectedBy: null, connectedAt: null, authError: null }
+  if (input.auth !== 'oauth') return disconnected
+  if (input.oauthClient) {
+    const client = { client_id: input.oauthClient.id, ...(input.oauthClient.secret ? { client_secret: input.oauthClient.secret } : {}) }
+    return { ...disconnected, oauthEnc: encryptOAuthState({ client, manualClient: true }) }
+  }
+  if (!sameServer || (input.oauthClient === null && readOAuthState(sameServer).manualClient)) return disconnected
+  return {}
 }
 
 export function mcpServerView(row: McpServer): McpServerView {
@@ -113,8 +131,8 @@ export function mcpServerView(row: McpServer): McpServerView {
     })),
     tokenPreview: row.secretsEnc.token ? encKeyPreview(row.secretsEnc.token) ?? null : null,
     oauth: {
-      connected: !!row.connectedAt,
-      manualClient: false,
+      connected: row.auth === 'oauth' && !!row.connectedAt,
+      manualClient: !!readOAuthState(row).manualClient,
       connectedBy: row.connectedBy,
       connectedAt: row.connectedAt?.toISOString() ?? null,
       error: row.authError,
