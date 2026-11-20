@@ -70,7 +70,7 @@ function iconHref(html: string): string | null {
   return appleTouch
 }
 
-async function fetchFrom(
+export async function fetchFrom(
   addr: string,
   port: number,
   host: string,
