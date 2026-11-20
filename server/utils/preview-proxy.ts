@@ -1,8 +1,8 @@
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http'
 import type { H3Event } from 'h3'
-import { previewTargetPort, readDdevHosts, type DdevHosts } from '#server/daemon/ddev'
+import { devServerIsPreview, previewTargetPort, readDdevHosts, type DdevHosts } from '#server/daemon/ddev'
 import { resolvePreview, forgetPreview } from '#server/daemon/sandbox'
-import { credentialDevServerTags, devServerCorsOrigin, looksLikeDevServerLabel, verifyDevServerLabel } from '#server/utils/dev-origin'
+import { credentialDevServerTags, devServerCorsOrigin, devServerLabel, looksLikeDevServerLabel, pointTagsAtDevServer, verifyDevServerLabel } from '#server/utils/dev-origin'
 import { sessionMember } from '#server/utils/member-session'
 import { sessionCheckoutDir } from '#server/utils/storage'
 import { getSessionRow, touchSessionPreview } from '#server/stores/sessions'
@@ -193,6 +193,11 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
         up.on('data', (c: Buffer) => chunks.push(c))
         up.on('end', () => {
           let body = Buffer.concat(chunks).toString('utf8')
+          // Before rewriteUrls: it ignores ports and would turn host:3000 into the preview host on :3000.
+          if (isHtml && !devOrigin && env.previewPort != null) {
+            const devHost = previewHostname(sessionId, baseHost, devServerIsPreview(env) ? undefined : devServerLabel(sessionId))
+            body = pointTagsAtDevServer(body, { port: env.previewPort, hosts: hosts.all }, `${url.protocol}//${devHost}`)
+          }
           if (rewrite) body = rewriteUrls(body, mappings, url.protocol)
           if (isHtml && !devOrigin) body = credentialDevServerTags(body, sessionId, baseHost)
           if (isHtml) body = injectBridge(body)
