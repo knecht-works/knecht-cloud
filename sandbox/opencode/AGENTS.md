@@ -22,6 +22,11 @@ post, so those carry everything they need and nothing else.
   it, click through, read the console. Check visual changes this way before
   you report them done. For raw HTML or an API response, request
   `$KNECHT_INTERNAL_URL` instead.
+- Screenshots land in `.knecht/browser/`. Leave out `filename` and never
+  delete them: the user sees them in the chat. To show the user one in your
+  reply, embed the path the screenshot tool printed where it belongs:
+  `![What it shows](/var/www/html/.knecht/browser/page-<...>.png)`. Images on
+  consecutive lines show side by side, a blank line between them stacks them.
 
 ## Preview
 

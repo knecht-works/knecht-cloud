@@ -3,18 +3,21 @@ import { agentImageUrl } from '#shared/utils/agent-images'
 import { ref } from 'vue'
 import { UModal } from '#components'
 
-const props = defineProps<{ sessionId: number, files: string[] }>()
+const props = defineProps<{ sessionId: number, files: string[], large?: boolean }>()
 
 const expanded = ref<string | null>(null)
 </script>
 
 <template>
-  <div class="ml-6 flex flex-wrap gap-2">
+  <div
+    class="flex-wrap gap-2"
+    :class="props.large ? 'inline-flex align-top' : 'flex'"
+  >
     <button
       v-for="file in props.files"
       :key="file"
       type="button"
-      class="cursor-zoom-in overflow-hidden rounded-md border border-muted hover:border-accented"
+      class="group cursor-zoom-in"
       aria-label="Open screenshot"
       @click="expanded = file"
     >
@@ -22,7 +25,8 @@ const expanded = ref<string | null>(null)
         :src="agentImageUrl(props.sessionId, file)"
         alt="Screenshot"
         loading="lazy"
-        class="block max-h-48 w-auto max-w-80 object-contain"
+        class="block w-auto rounded-md border border-muted object-contain group-hover:border-accented"
+        :class="props.large ? 'h-64 max-w-full' : 'max-h-24 max-w-48'"
       >
     </button>
     <UModal
