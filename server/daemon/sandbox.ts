@@ -128,17 +128,23 @@ export function ddevDefaultDatabase(): Promise<string> {
   return defaultDatabase
 }
 
+let packageCache: Promise<void> | undefined
+
 // Docker creates a volume root-owned, but the web and workspace containers run as the host uid.
-export async function ensurePackageCache(): Promise<void> {
-  const exists = await execa('docker', ['volume', 'inspect', PACKAGE_CACHE_VOLUME]).then(() => true, () => false)
-  if (exists) return
-  await execa('docker', ['volume', 'create', PACKAGE_CACHE_VOLUME])
-  await execa('docker', [
-    'run', '--rm', '--user', '0:0', '--entrypoint', 'chmod',
-    '-v', `${PACKAGE_CACHE_VOLUME}:/cache`,
-    await ddevWebImage(),
-    '1777', '/cache',
-  ])
+export function ensurePackageCache(): Promise<void> {
+  packageCache ??= (async () => {
+    await execa('docker', ['volume', 'create', PACKAGE_CACHE_VOLUME])
+    await execa('docker', [
+      'run', '--rm', '--user', '0:0', '--entrypoint', 'chmod',
+      '-v', `${PACKAGE_CACHE_VOLUME}:/cache`,
+      await ddevWebImage(),
+      '1777', '/cache',
+    ])
+  })().catch((e: unknown) => {
+    packageCache = undefined
+    throw e
+  })
+  return packageCache
 }
 
 export async function startEnvStack(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
