@@ -6,9 +6,11 @@ import ChatComark from '~/components/chat/Comark'
 import ChatDivider from '~/components/chat/Divider.vue'
 import ChatToolRow from '~/components/chat/ToolRow.vue'
 import ChatIndicator from '~/components/chat/Indicator.vue'
+import ChatAgentImages from '~/components/chat/AgentImages.vue'
+import { agentImageFiles } from '#shared/utils/agent-images'
 import { UIcon } from '#components'
 
-const props = defineProps<{ turns: ChatTurn[] }>()
+const props = defineProps<{ turns: ChatTurn[], sessionId: number }>()
 
 type Block = { kind: 'item', item: ChatItem } | { kind: 'tools', items: ChatItem[] }
 
@@ -37,6 +39,10 @@ function groupSummary(items: ChatItem[]): string {
   const files = new Set(items.map(i => i.diff?.path).filter(Boolean))
   const calls = `${items.length} tool calls`
   return files.size ? `${calls}, ${files.size} ${files.size === 1 ? 'file' : 'files'} changed` : calls
+}
+
+function screenshots(items: ChatItem[]): string[] {
+  return [...new Set(items.filter(i => i.status === 'completed').flatMap(i => agentImageFiles(i.output)))]
 }
 
 function groupStatus(items: ChatItem[]): ChatItem['status'] {
@@ -134,6 +140,11 @@ const activity = computed(() => replyActivity(props.turns))
           />
         </div>
       </div>
+      <ChatAgentImages
+        v-if="block.kind === 'tools' && screenshots(block.items).length"
+        :session-id="sessionId"
+        :files="screenshots(block.items)"
+      />
     </template>
     <div
       v-if="failure"
