@@ -18,8 +18,8 @@ describe('replyActivity', () => {
   })
 
   it('keeps saying the agent thinks between tool calls and while it writes', () => {
-    expect(replyActivity([turn('running', [tool(1, 'completed')])])).toBe('Thinking')
-    expect(replyActivity([turn('running', [tool(1, 'completed'), message(2)])])).toBe('Thinking')
+    expect(replyActivity([turn('running', [tool(1, 'completed')])])).toBe('Knechting')
+    expect(replyActivity([turn('running', [tool(1, 'completed'), message(2)])])).toBe('Knechting')
   })
 
   it('leaves the signal to a tool row while that tool runs', () => {

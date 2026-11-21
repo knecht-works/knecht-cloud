@@ -37,5 +37,5 @@ export function replyActivity(turns: ActivityTurn[]): string | null {
   if (current.prompt === COMPACT_COMMAND) return 'Compacting the conversation'
   if (current.origin === 'agent' && !current.items.length) return 'Booting the preview'
   if (current.status === 'queued') return 'Starting the agent'
-  return 'Thinking'
+  return 'Knechting'
 }
