@@ -402,7 +402,10 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
                 <span>· {{ RUN_STATUS_META[entry.run.status].label.toLowerCase() }}<template v-if="entry.run.freshContext"> · fresh context</template> · {{ timeAgo(entry.run.createdAt) }}</span>
               </ChatDivider>
               <template v-else-if="entry.turn.prompt === CLEAR_COMMAND || entry.turn.prompt === COMPACT_COMMAND">
-                <KChatTranscript :turns="[entry.turn]" />
+                <KChatTranscript
+                  :turns="[entry.turn]"
+                  :session-id="sessionId"
+                />
               </template>
               <template v-else>
                 <UChatMessage
@@ -492,7 +495,10 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
                   :actions="assistantActions(entry.continued.at(-1) ?? entry.turn)"
                 >
                   <template #content>
-                    <KChatTranscript :turns="[entry.turn, ...entry.continued]" />
+                    <KChatTranscript
+                      :turns="[entry.turn, ...entry.continued]"
+                      :session-id="sessionId"
+                    />
                   </template>
                 </UChatMessage>
               </template>

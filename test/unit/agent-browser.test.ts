@@ -18,7 +18,7 @@ afterEach(() => {
 
 describe('agent browser', () => {
   it('runs playwright-mcp inside the sandbox with the generated config', () => {
-    expect(agentBrowserMcp()).toEqual({ type: 'local', command: ['playwright-mcp', '--config', '/var/www/html/.knecht/opencode/browser.json'], enabled: true })
+    expect(agentBrowserMcp()).toEqual({ type: 'local', command: ['sh', '-c', 'mkdir -p /var/www/html/.knecht/browser && cd /var/www/html/.knecht/browser && exec playwright-mcp --config /var/www/html/.knecht/opencode/browser.json'], enabled: true })
     expect(config(7).outputDir).toBe('/var/www/html/.knecht/browser')
   })
 

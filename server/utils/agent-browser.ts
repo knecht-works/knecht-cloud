@@ -2,11 +2,12 @@ import { agentCookieName, previewAuthToken } from '#server/utils/preview-fetch'
 import { dashboardOrigin } from '#server/utils/origin'
 import { BRIDGE_HOST } from '#server/utils/agent-bridge'
 import type { OpencodeMcpServer } from '#server/utils/opencode-config'
+import { AGENT_IMAGE_DIR } from '#shared/utils/agent-images'
 
 export const AGENT_BROWSER_MCP = 'knecht-browser'
 export const AGENT_BROWSER_CONFIG_FILE = 'browser.json'
 const CONFIG_PATH = `/var/www/html/.knecht/opencode/${AGENT_BROWSER_CONFIG_FILE}`
-const OUTPUT_DIR = '/var/www/html/.knecht/browser'
+const OUTPUT_DIR = `/var/www/html/${AGENT_IMAGE_DIR}`
 
 export const AGENT_BROWSER_IMAGE_FILE = 'Dockerfile.knecht-browser'
 // Its own playwright-core installs the browser build it looks for. Its apt-get update sees only
@@ -19,8 +20,10 @@ RUN npm install -g @playwright/mcp@0.0.84 \\
  && rm -rf /tmp/knecht-apt /tmp/knecht-apt.conf /var/lib/apt/lists/* /root/.npm
 `
 
+// playwright-mcp writes a file the agent names relative to its working directory: started in the
+// output dir, every screenshot lands there and none clutters the checkout.
 export function agentBrowserMcp(): OpencodeMcpServer {
-  return { type: 'local', command: ['playwright-mcp', '--config', CONFIG_PATH], enabled: true }
+  return { type: 'local', command: ['sh', '-c', `mkdir -p ${OUTPUT_DIR} && cd ${OUTPUT_DIR} && exec playwright-mcp --config ${CONFIG_PATH}`], enabled: true }
 }
 
 // The browser logs in like a share guest, with a cookie that opens only this session's preview.
@@ -49,6 +52,8 @@ export function agentBrowserConfig(sessionId: number): string {
       },
     },
     outputDir: OUTPUT_DIR,
+    ignoreRoots: true,
+    filePaths: 'absolute',
     imageResponses: 'allow',
   }, null, 2)
 }
