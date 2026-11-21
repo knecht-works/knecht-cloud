@@ -4,7 +4,6 @@ import { BRIDGE_HOST } from '#server/utils/agent-bridge'
 import type { OpencodeMcpServer } from '#server/utils/opencode-config'
 import { AGENT_IMAGE_DIR } from '#shared/utils/agent-images'
 
-export const AGENT_BROWSER_MCP = 'knecht-browser'
 export const AGENT_BROWSER_CONFIG_FILE = 'browser.json'
 const CONFIG_PATH = `/var/www/html/.knecht/opencode/${AGENT_BROWSER_CONFIG_FILE}`
 const OUTPUT_DIR = `/var/www/html/${AGENT_IMAGE_DIR}`

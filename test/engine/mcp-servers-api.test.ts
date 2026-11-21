@@ -77,6 +77,8 @@ describe('MCP server API', () => {
 
   it('rejects what would break the server or the generated config', async () => {
     expect((await post({ name: 'Docs', url: 'https://docs.example/mcp' })).status).toBe(400)
+    expect((await post({ name: 'knecht-browser', url: 'https://docs.example/mcp' })).status).toBe(400)
+    expect((await post({ projectId: makeProject().id, name: 'knecht-browser', url: 'https://docs.example/mcp' })).status).toBe(400)
     expect((await post({ name: 'docs', url: 'ftp://docs.example' })).status).toBe(400)
     expect((await post({ name: 'docs', url: 'https://docs.example/mcp', headers: [{ name: 'X-Key', secret: true, value: 'a"b' }] })).status).toBe(400)
     expect((await post({ name: 'docs', url: 'https://docs.example/mcp', headers: [{ name: 'X-Key', secret: true }] })).status).toBe(400)

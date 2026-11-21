@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { createError } from 'h3'
-import { MCP_AUTH_MODES, MCP_HEADER_NAME_RE, MCP_MAX_HEADERS, MCP_NAME_RE, mcpCatalogEntry, type McpServerView } from '#shared/utils/mcp'
+import { MCP_AUTH_MODES, MCP_HEADER_NAME_RE, MCP_MAX_HEADERS, MCP_NAME_RE, MCP_RESERVED_NAMES, mcpCatalogEntry, type McpServerView } from '#shared/utils/mcp'
 import type { McpHeader, McpServer } from '#server/db/schema'
 import { getMcpServer, mcpNameTaken } from '#server/stores/mcp-servers'
 import { encrypt } from '#server/utils/crypto'
@@ -50,6 +50,7 @@ function assertHttpUrl(url: string | null): string {
 
 // Merges the input onto the stored row: a secret left out keeps its stored value.
 export function mcpServerValues(projectId: number | null, input: McpServerInput, existing?: McpServer) {
+  if (MCP_RESERVED_NAMES.includes(input.name)) badRequest(`name: ${input.name} is reserved for a server Knecht adds itself`)
   if (mcpNameTaken(projectId, input.name, existing?.id)) {
     badRequest(`name: ${projectId === null ? 'another global' : 'another'} MCP server is already called ${input.name}`)
   }

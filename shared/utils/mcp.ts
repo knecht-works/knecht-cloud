@@ -2,6 +2,8 @@ export const MCP_AUTH_MODES = ['none', 'token', 'oauth'] as const
 export type McpAuthMode = typeof MCP_AUTH_MODES[number]
 
 export const MCP_NAME_RE = /^[a-z][a-z0-9-]{0,31}$/
+export const AGENT_BROWSER_MCP = 'knecht-browser'
+export const MCP_RESERVED_NAMES: readonly string[] = [AGENT_BROWSER_MCP]
 export const MCP_HEADER_NAME_RE = /^[A-Za-z0-9-]{1,64}$/
 export const MCP_MAX_HEADERS = 10
 
