@@ -3,11 +3,13 @@ import { CHAT_COMMANDS, CLEAR_COMMAND, COMPACT_COMMAND } from '#shared/utils/fol
 import type { EnvState } from '#shared/utils/run'
 import type { RunStatus } from '~/utils/dashboard'
 import type { ChatRun, ChatTurn } from '~/composables/useSessionTranscript'
-import { chatTimestamp, copyToClipboard, displayPrompt, recallPrompt } from '~/utils/chat'
+import { CHAT_IMAGES, chatImages, chatTimestamp, copyToClipboard, displayPrompt, recallPrompt } from '~/utils/chat'
+import { AGENT_IMAGE_FILE } from '#shared/utils/agent-images'
+import { replyItems } from '~/utils/chat-activity'
 import { useToastError } from '~/composables/useToastError'
-import { useToast } from '#imports'
+import { useRoute, useRouter, useToast } from '#imports'
 import { useSessionTranscript, isTurnActive } from '~/composables/useSessionTranscript'
-import { watch, computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { watch, computed, ref, nextTick, onMounted, onUnmounted, provide } from 'vue'
 import { isLiveStatus, runStatusMeta, RUN_STATUS_META, timeAgo } from '~/utils/dashboard'
 import { useProjectAi } from '~/composables/useProjects'
 import { useMembers } from '~/composables/useMembers'
@@ -15,6 +17,7 @@ import { useResizableHeight } from '~/composables/useResizableHeight'
 import KStatusDot from '~/components/KStatusDot.vue'
 import ChatDivider from '~/components/chat/Divider.vue'
 import KChatTranscript from '~/components/KChatTranscript.vue'
+import ChatLightbox from '~/components/chat/Lightbox.vue'
 import ChatContextRing from '~/components/chat/ContextRing.vue'
 import ChatModelPicker from '~/components/chat/ModelPicker.vue'
 import KResizeHandle from '~/components/KResizeHandle.vue'
@@ -92,6 +95,22 @@ const entries = computed<Entry[]>(() => {
   const compacted = list.findLastIndex(e => e.kind === 'turn' && e.turn.prompt === COMPACT_COMMAND)
   // The compact turn itself stays: its divider marks the cut.
   return list.slice(Math.max(cleared + 1, compacted))
+})
+const gallery = computed(() => chatImages(entries.value.flatMap(e => e.kind === 'turn' ? replyItems([e.turn, ...e.continued]) : [])))
+
+// A screenshot linked from an issue comment arrives as ?image=.
+const route = useRoute()
+const router = useRouter()
+const linkedImage = route.query.image
+const expanded = ref(typeof linkedImage === 'string' && AGENT_IMAGE_FILE.test(linkedImage) ? linkedImage : null)
+watch(expanded, (file) => {
+  if (!file && route.query.image) router.replace({ query: { ...route.query, image: undefined } })
+})
+provide(CHAT_IMAGES, {
+  sessionId: props.sessionId,
+  open: (file) => {
+    expanded.value = file
+  },
 })
 const visibleTurns = computed(() => entries.value.filter(e => e.kind === 'turn').length)
 
@@ -402,10 +421,7 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
                 <span>· {{ RUN_STATUS_META[entry.run.status].label.toLowerCase() }}<template v-if="entry.run.freshContext"> · fresh context</template> · {{ timeAgo(entry.run.createdAt) }}</span>
               </ChatDivider>
               <template v-else-if="entry.turn.prompt === CLEAR_COMMAND || entry.turn.prompt === COMPACT_COMMAND">
-                <KChatTranscript
-                  :turns="[entry.turn]"
-                  :session-id="sessionId"
-                />
+                <KChatTranscript :turns="[entry.turn]" />
               </template>
               <template v-else>
                 <UChatMessage
@@ -495,10 +511,7 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
                   :actions="assistantActions(entry.continued.at(-1) ?? entry.turn)"
                 >
                   <template #content>
-                    <KChatTranscript
-                      :turns="[entry.turn, ...entry.continued]"
-                      :session-id="sessionId"
-                    />
+                    <KChatTranscript :turns="[entry.turn, ...entry.continued]" />
                   </template>
                 </UChatMessage>
               </template>
@@ -644,5 +657,10 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
       </div>
     </div>
     <KResizeHandle @start="startResize" />
+    <ChatLightbox
+      v-model="expanded"
+      :session-id="sessionId"
+      :files="gallery"
+    />
   </KPanel>
 </template>

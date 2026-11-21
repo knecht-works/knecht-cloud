@@ -6,6 +6,7 @@ export const AGENT_IMAGE_FILE = new RegExp(`^${FILE}$`)
 const IMAGE_PATH = String.raw`(?:\/var\/www\/html\/)?\.knecht\/browser\/(${FILE})`
 const SCREENSHOT_LINK = new RegExp(String.raw`\]\(${IMAGE_PATH}\)`, 'g')
 const IMAGE_SRC = new RegExp(`^${IMAGE_PATH}$`)
+const EMBEDDED_IMAGE = new RegExp(String.raw`!\[([^\]]*)\]\(${IMAGE_PATH}\)`, 'g')
 
 export function agentImageFiles(output: string | null): string[] {
   return [...new Set([...(output ?? '').matchAll(SCREENSHOT_LINK)].map(m => m[1]!))]
@@ -17,4 +18,9 @@ export function agentImageFile(src: string): string | null {
 
 export function agentImageUrl(sessionId: number, file: string): string {
   return `/api/sessions/${sessionId}/agent-images/${file}`
+}
+
+// Outside Knecht the path leads nowhere: the image turns into a link to where it can be seen.
+export function linkAgentImages(markdown: string, url: (file: string) => string): string {
+  return markdown.replace(EMBEDDED_IMAGE, (_, alt: string, file: string) => `[${alt.trim() ? `Screenshot: ${alt.trim()}` : 'Screenshot'}](${url(file)})`)
 }
