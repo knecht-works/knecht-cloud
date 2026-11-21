@@ -159,6 +159,14 @@ describe('withSessionLinks', () => {
     expect(withSessionLinks('done', run.sessionId, issue)).toContain('**PR:** https://x/pull/9')
   })
 
+  it('turns a screenshot the agent embeds into a link that opens it in the session', () => {
+    const project = makeProject()
+    const run = makeRun(project, [])
+    const text = withSessionLinks('Home:\n\n![Home page](.knecht/browser/page-1.png) ![](/var/www/html/.knecht/browser/b.png)', run.sessionId, issue)
+    const url = `http://lvh.me:3333/projects/${project.id}?session=${run.sessionId}`
+    expect(text).toBe(`Home:\n\n[Screenshot: Home page](${url}&image=page-1.png) [Screenshot](${url}&image=b.png)`)
+  })
+
   it('never links a PR thread to itself', () => {
     const project = makeProject()
     const run = makeRun(project, [], { prUrl: 'https://x/pull/9' })

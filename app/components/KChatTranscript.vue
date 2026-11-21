@@ -1,26 +1,16 @@
 <script setup lang="ts">
 import type { ChatItem, ChatTurn } from '~/composables/useSessionTranscript'
 import { replyActivity, replyItems } from '~/utils/chat-activity'
-import { computed, provide, ref } from 'vue'
-import { CHAT_IMAGES } from '~/utils/chat'
+import { computed, ref } from 'vue'
+import { toolImages } from '~/utils/chat'
 import ChatComark from '~/components/chat/Comark'
 import ChatDivider from '~/components/chat/Divider.vue'
 import ChatToolRow from '~/components/chat/ToolRow.vue'
 import ChatIndicator from '~/components/chat/Indicator.vue'
 import ChatAgentImages from '~/components/chat/AgentImages.vue'
-import ChatLightbox from '~/components/chat/Lightbox.vue'
-import { agentImageFile, agentImageFiles } from '#shared/utils/agent-images'
 import { UIcon } from '#components'
 
-const props = defineProps<{ turns: ChatTurn[], sessionId: number }>()
-
-const expanded = ref<string | null>(null)
-provide(CHAT_IMAGES, {
-  sessionId: props.sessionId,
-  open: (file) => {
-    expanded.value = file
-  },
-})
+const props = defineProps<{ turns: ChatTurn[] }>()
 
 type Block = { kind: 'item', item: ChatItem } | { kind: 'tools', items: ChatItem[], images: string[] }
 
@@ -36,27 +26,10 @@ const blocks = computed<Block[]>(() => {
     else out.push({ kind: 'item', item })
   }
   for (const block of out) {
-    if (block.kind === 'tools') block.images = [...new Set(block.items.flatMap(screenshots))]
+    if (block.kind === 'tools') block.images = [...new Set(block.items.flatMap(toolImages))]
   }
   return out
 })
-
-const gallery = computed(() => [...new Set(blocks.value.flatMap((b) => {
-  if (b.kind === 'tools') return b.images
-  return b.item.type === 'message' ? agentImageFiles(b.item.text) : []
-}))])
-
-// A completed tool's output never changes; the transcript re-renders on every streamed chunk.
-const screenshotCache = new Map<number, string[]>()
-function screenshots(item: ChatItem): string[] {
-  if (item.status !== 'completed') return []
-  let files = screenshotCache.get(item.id)
-  if (!files) {
-    const viewed = item.kind === 'read' ? (item.locations ?? []).map(agentImageFile).filter(f => f !== null) : []
-    screenshotCache.set(item.id, files = [...agentImageFiles(item.output), ...viewed])
-  }
-  return files
-}
 
 const openGroups = ref(new Set<number>())
 function toggleGroup(id: number) {
@@ -180,11 +153,6 @@ const activity = computed(() => replyActivity(props.turns))
     <ChatIndicator
       v-else-if="activity"
       :text="activity"
-    />
-    <ChatLightbox
-      v-model="expanded"
-      :session-id="sessionId"
-      :files="gallery"
     />
   </div>
 </template>

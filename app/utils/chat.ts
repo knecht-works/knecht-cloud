@@ -1,4 +1,6 @@
 import type { InjectionKey } from 'vue'
+import type { ChatItem } from '~/composables/useSessionTranscript'
+import { agentImageFile, agentImageFiles } from '#shared/utils/agent-images'
 import { CLEAR_COMMAND, COMPACT_COMMAND, PR_COMMAND, PUBLISH_FOLLOWUP_PROMPT } from '#shared/utils/followup'
 
 // The stored prompt of a command is the long instruction; the chat shows the short form the user typed.
@@ -43,3 +45,19 @@ export async function copyToClipboard(text: string): Promise<void> {
 }
 
 export const CHAT_IMAGES = Symbol('chat-images') as InjectionKey<{ sessionId: number, open: (file: string) => void }>
+
+// A completed tool's output never changes; the transcript re-renders on every streamed chunk.
+const toolImageCache = new Map<number, string[]>()
+export function toolImages(item: ChatItem): string[] {
+  if (item.type !== 'tool' || item.status !== 'completed') return []
+  let files = toolImageCache.get(item.id)
+  if (!files) {
+    const viewed = item.kind === 'read' ? (item.locations ?? []).map(agentImageFile).filter(f => f !== null) : []
+    toolImageCache.set(item.id, files = [...new Set([...agentImageFiles(item.output), ...viewed])])
+  }
+  return files
+}
+
+export function chatImages(items: ChatItem[]): string[] {
+  return [...new Set(items.flatMap(i => i.type === 'message' ? agentImageFiles(i.text) : toolImages(i)))]
+}
