@@ -17,8 +17,11 @@ post, so those carry everything they need and nothing else.
 - Run project tooling through ddev like a developer would: `ddev composer`,
   `ddev npm`, `ddev craft`, `ddev artisan`, `ddev drush` and the commands in
   `.ddev/commands/web`. Knecht starts, stops and imports databases, never you.
-- To look at the running site yourself, request `$KNECHT_INTERNAL_URL`.
-  `KNECHT_PREVIEW_URL` is for people and is not reachable from here.
+- To see the running site the way a person does, open `$KNECHT_PREVIEW_URL`
+  with the `knecht-browser` tools: navigate, take a screenshot and look at
+  it, click through, read the console. Check visual changes this way before
+  you report them done. For raw HTML or an API response, request
+  `$KNECHT_INTERNAL_URL` instead.
 
 ## Preview
 
