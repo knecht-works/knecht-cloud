@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createSSRApp, h, Suspense } from 'vue'
 import { renderToString } from 'vue/server-renderer'
+
+vi.mock('~/components/chat/Image.vue', () => ({ default: { render: () => null } }))
 
 const ChatComark = (await import('~/components/chat/Comark')).default
 

@@ -1,3 +1,4 @@
+import type { InjectionKey } from 'vue'
 import { CLEAR_COMMAND, COMPACT_COMMAND, PR_COMMAND, PUBLISH_FOLLOWUP_PROMPT } from '#shared/utils/followup'
 
 // The stored prompt of a command is the long instruction; the chat shows the short form the user typed.
@@ -40,3 +41,5 @@ export async function copyToClipboard(text: string): Promise<void> {
   area.remove()
   if (!ok) throw new Error('Clipboard unavailable')
 }
+
+export const CHAT_SESSION_ID = Symbol('chat-session-id') as InjectionKey<number>

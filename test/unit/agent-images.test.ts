@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { agentImageFiles } from '#shared/utils/agent-images'
+import { agentImageFile, agentImageFiles } from '#shared/utils/agent-images'
 import { readAgentImage } from '#server/utils/agent-images'
 
 const SCREENSHOT_OUTPUT = `### Result
@@ -16,11 +16,21 @@ describe('agentImageFiles', () => {
   it('finds the screenshot playwright-mcp reports, once', () => {
     expect(agentImageFiles(SCREENSHOT_OUTPUT)).toEqual(['page-2026-11-21T12-46-23-813Z.png'])
     expect(agentImageFiles('- [Screenshot of full page](.knecht/browser/page-2.png)')).toEqual(['page-2.png'])
+    expect(agentImageFiles('- [Screenshot of full page](.knecht/browser/mobile-home.png)')).toEqual(['mobile-home.png'])
   })
 
   it('ignores links outside the browser output dir and other file types', () => {
     expect(agentImageFiles('[x](/var/www/html/web/page-1.png) [y](/var/www/html/.knecht/browser/page-1.yml) [z](/var/www/html/.knecht/browser/../page-1.png)')).toEqual([])
     expect(agentImageFiles(null)).toEqual([])
+  })
+})
+
+describe('agentImageFile', () => {
+  it('maps an image the agent embeds in its reply to the screenshot it took', () => {
+    expect(agentImageFile('.knecht/browser/page-1.png')).toBe('page-1.png')
+    expect(agentImageFile('/var/www/html/.knecht/browser/page-1.jpeg')).toBe('page-1.jpeg')
+    expect(agentImageFile('https://example.com/.knecht/browser/page-1.png')).toBeNull()
+    expect(agentImageFile('.knecht/browser/../page-1.png')).toBeNull()
   })
 })
 
@@ -59,7 +69,7 @@ describe('readAgentImage', () => {
     expect(await readAgentImage(7, 'page-2.png')).toBeNull()
   })
 
-  it('serves only screenshot names', async () => {
+  it('serves only image names', async () => {
     writeFileSync(join(browser, 'console-1.log'), 'log')
     expect(await readAgentImage(7, 'console-1.log')).toBeNull()
     expect(await readAgentImage(7, '../page-1.png')).toBeNull()
