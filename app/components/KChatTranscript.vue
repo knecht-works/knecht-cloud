@@ -1,18 +1,21 @@
 <script setup lang="ts">
 import type { ChatItem, ChatTurn } from '~/composables/useSessionTranscript'
 import { replyActivity, replyItems } from '~/utils/chat-activity'
-import { computed, ref } from 'vue'
+import { computed, provide, ref } from 'vue'
+import { CHAT_SESSION_ID } from '~/utils/chat'
 import ChatComark from '~/components/chat/Comark'
 import ChatDivider from '~/components/chat/Divider.vue'
 import ChatToolRow from '~/components/chat/ToolRow.vue'
 import ChatIndicator from '~/components/chat/Indicator.vue'
 import ChatAgentImages from '~/components/chat/AgentImages.vue'
-import { agentImageFiles } from '#shared/utils/agent-images'
+import { agentImageFile, agentImageFiles } from '#shared/utils/agent-images'
 import { UIcon } from '#components'
 
 const props = defineProps<{ turns: ChatTurn[], sessionId: number }>()
 
-type Block = { kind: 'item', item: ChatItem } | { kind: 'tools', items: ChatItem[] }
+provide(CHAT_SESSION_ID, props.sessionId)
+
+type Block = { kind: 'item', item: ChatItem } | { kind: 'tools', items: ChatItem[], images: string[] }
 
 // Consecutive tool calls fold into one line; a message or divider between them starts a new group.
 const blocks = computed<Block[]>(() => {
@@ -22,11 +25,26 @@ const blocks = computed<Block[]>(() => {
     const last = out.at(-1)
     const groups = item.type === 'tool' && item.kind !== 'preview'
     if (groups && last?.kind === 'tools' && last.items[0]!.kind !== 'preview') last.items.push(item)
-    else if (item.type === 'tool') out.push({ kind: 'tools', items: [item] })
+    else if (item.type === 'tool') out.push({ kind: 'tools', items: [item], images: [] })
     else out.push({ kind: 'item', item })
+  }
+  for (const block of out) {
+    if (block.kind === 'tools') block.images = [...new Set(block.items.flatMap(screenshots))]
   }
   return out
 })
+
+// A completed tool's output never changes; the transcript re-renders on every streamed chunk.
+const screenshotCache = new Map<number, string[]>()
+function screenshots(item: ChatItem): string[] {
+  if (item.status !== 'completed') return []
+  let files = screenshotCache.get(item.id)
+  if (!files) {
+    const viewed = item.kind === 'read' ? (item.locations ?? []).map(agentImageFile).filter(f => f !== null) : []
+    screenshotCache.set(item.id, files = [...agentImageFiles(item.output), ...viewed])
+  }
+  return files
+}
 
 const openGroups = ref(new Set<number>())
 function toggleGroup(id: number) {
@@ -39,10 +57,6 @@ function groupSummary(items: ChatItem[]): string {
   const files = new Set(items.map(i => i.diff?.path).filter(Boolean))
   const calls = `${items.length} tool calls`
   return files.size ? `${calls}, ${files.size} ${files.size === 1 ? 'file' : 'files'} changed` : calls
-}
-
-function screenshots(items: ChatItem[]): string[] {
-  return [...new Set(items.filter(i => i.status === 'completed').flatMap(i => agentImageFiles(i.output)))]
 }
 
 function groupStatus(items: ChatItem[]): ChatItem['status'] {
@@ -141,9 +155,9 @@ const activity = computed(() => replyActivity(props.turns))
         </div>
       </div>
       <ChatAgentImages
-        v-if="block.kind === 'tools' && screenshots(block.items).length"
+        v-if="block.kind === 'tools' && block.images.length"
         :session-id="sessionId"
-        :files="screenshots(block.items)"
+        :files="block.images"
       />
     </template>
     <div
