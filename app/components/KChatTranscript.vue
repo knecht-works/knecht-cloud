@@ -2,18 +2,25 @@
 import type { ChatItem, ChatTurn } from '~/composables/useSessionTranscript'
 import { replyActivity, replyItems } from '~/utils/chat-activity'
 import { computed, provide, ref } from 'vue'
-import { CHAT_SESSION_ID } from '~/utils/chat'
+import { CHAT_IMAGES } from '~/utils/chat'
 import ChatComark from '~/components/chat/Comark'
 import ChatDivider from '~/components/chat/Divider.vue'
 import ChatToolRow from '~/components/chat/ToolRow.vue'
 import ChatIndicator from '~/components/chat/Indicator.vue'
 import ChatAgentImages from '~/components/chat/AgentImages.vue'
+import ChatLightbox from '~/components/chat/Lightbox.vue'
 import { agentImageFile, agentImageFiles } from '#shared/utils/agent-images'
 import { UIcon } from '#components'
 
 const props = defineProps<{ turns: ChatTurn[], sessionId: number }>()
 
-provide(CHAT_SESSION_ID, props.sessionId)
+const expanded = ref<string | null>(null)
+provide(CHAT_IMAGES, {
+  sessionId: props.sessionId,
+  open: (file) => {
+    expanded.value = file
+  },
+})
 
 type Block = { kind: 'item', item: ChatItem } | { kind: 'tools', items: ChatItem[], images: string[] }
 
@@ -33,6 +40,11 @@ const blocks = computed<Block[]>(() => {
   }
   return out
 })
+
+const gallery = computed(() => [...new Set(blocks.value.flatMap((b) => {
+  if (b.kind === 'tools') return b.images
+  return b.item.type === 'message' ? agentImageFiles(b.item.text) : []
+}))])
 
 // A completed tool's output never changes; the transcript re-renders on every streamed chunk.
 const screenshotCache = new Map<number, string[]>()
@@ -156,7 +168,6 @@ const activity = computed(() => replyActivity(props.turns))
       </div>
       <ChatAgentImages
         v-if="block.kind === 'tools' && block.images.length"
-        :session-id="sessionId"
         :files="block.images"
       />
     </template>
@@ -169,6 +180,11 @@ const activity = computed(() => replyActivity(props.turns))
     <ChatIndicator
       v-else-if="activity"
       :text="activity"
+    />
+    <ChatLightbox
+      v-model="expanded"
+      :session-id="sessionId"
+      :files="gallery"
     />
   </div>
 </template>
