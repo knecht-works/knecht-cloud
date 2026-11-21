@@ -63,17 +63,17 @@ grep -q '"configured": *false' /tmp/status.json
 echo "app ok:" && head -c 200 /tmp/status.json && echo
 
 echo "▶ Waiting for the ddev warm-up"
+# The first install's image may have warmed an older ddev: wait for this one's.
+want=$(sed -n 's/^ARG DDEV_VERSION=//p' /opt/knecht/Dockerfile)
 for i in $(seq 1 300); do
-  [ -f /data/knecht/data/ddev-warmed ] && break
+  grep -qF "v$want" /data/knecht/data/ddev-warmed 2>/dev/null && break
   sleep 2
 done
-if [ ! -f /data/knecht/data/ddev-warmed ]; then
-  echo "::error::No ddev warm-up"
+if ! grep -qF "v$want" /data/knecht/data/ddev-warmed 2>/dev/null; then
+  echo "::error::No ddev warm-up for v$want (marker: $(cat /data/knecht/data/ddev-warmed 2>/dev/null || echo none))"
   logs
   exit 1
 fi
-want=$(sed -n 's/^ARG DDEV_VERSION=//p' /opt/knecht/Dockerfile)
-grep -F "v$want" /data/knecht/data/ddev-warmed
 
 echo "▶ Booting a routerless ddev project"
 mkdir -p /data/knecht/projects/spike/public
