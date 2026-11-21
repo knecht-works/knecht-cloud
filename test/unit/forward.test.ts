@@ -41,6 +41,7 @@ async function fetchThrough(): Promise<Response> {
   throw new Error('forwarder never answered')
 }
 
+// A cold `go build` in CI compiles the standard library first.
 beforeAll(async () => {
   binary = join(mkdtempSync(join(tmpdir(), 'knecht-forward-')), 'knecht-forward')
   execFileSync('go', ['build', '-o', binary, '.'], { cwd: join(__dirname, '..', '..', 'cmd', 'knecht-forward'), stdio: 'inherit' })
@@ -49,7 +50,7 @@ beforeAll(async () => {
     '-keyout', join(tlsDir, 'key.pem'), '-out', join(tlsDir, 'cert.pem')], { stdio: 'ignore' })
   forwarder = spawn(binary, [String(listenPort), String(targetPort)], { stdio: 'inherit' })
   await startApp()
-})
+}, 120_000)
 
 afterAll(() => {
   forwarder.kill()
