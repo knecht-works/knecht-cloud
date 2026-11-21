@@ -166,7 +166,7 @@ async function remove() {
     accent="var(--accent-orange)"
   >
     <div class="mb-2 flex items-center justify-between gap-6">
-      <p class="max-w-2xl text-2sm leading-relaxed text-balance text-muted">
+      <p class="max-w-2xl text-xs leading-relaxed text-balance text-muted">
         <template v-if="projectId">
           Tools the agent gets in this project, on top of the servers from the global
           <NuxtLink
