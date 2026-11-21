@@ -15,12 +15,16 @@ export interface OpencodeConfigInput {
   mcp?: Record<string, OpencodeMcpServer>
 }
 
-export interface OpencodeMcpServer {
+export type OpencodeMcpServer = {
   type: 'remote'
   url: string
   headers: Record<string, string>
   // Knecht does the OAuth flow itself; opencode's own would wait for a browser in the sandbox.
   oauth: false
+  enabled: true
+} | {
+  type: 'local'
+  command: string[]
   enabled: true
 }
 

@@ -11,6 +11,8 @@ import { agentMemoryFiles, installAgentFiles, persistAgentMemory } from '#server
 import { AGENT_KEY_ENV, agentModelRef, buildAgentRules, buildOpencodeConfig } from '#server/utils/opencode-config'
 import { readSandboxAsset } from '#server/utils/sandbox-assets'
 import { prepareMcp } from '#server/utils/mcp'
+import { AGENT_BROWSER_CONFIG_FILE, AGENT_BROWSER_MCP, agentBrowserConfig, agentBrowserMcp } from '#server/utils/agent-browser'
+import { sessionPreviewUrl } from '#server/utils/preview-target'
 import { defineAction, ActionError } from '#server/workflows/actions/types'
 import type { ActionRuntime } from '#server/workflows/actions/types'
 import { getSessionRow, updateSession } from '#server/stores/sessions'
@@ -257,6 +259,11 @@ async function writeAgentConfig(rt: ActionRuntime, bareModel: string, connection
   const mcp = await prepareMcp(rt.project.id)
   for (const text of mcp.notices) sink.item(notice(text))
   const files: Record<string, string | Uint8Array> = {}
+  const session = getSessionRow(rt.sessionId)
+  if (session && sessionPreviewUrl(session)) {
+    mcp.servers[AGENT_BROWSER_MCP] = agentBrowserMcp()
+    files[AGENT_BROWSER_CONFIG_FILE] = agentBrowserConfig(rt.sessionId)
+  }
   const agents = await readSandboxAsset('opencode/AGENTS.md')
   if (agents) files['AGENTS.md'] = agents
   // Always written, empty when unset, so the static path in the generated config resolves.
