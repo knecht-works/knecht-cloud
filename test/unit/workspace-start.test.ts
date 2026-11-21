@@ -21,6 +21,7 @@ vi.mock('#server/daemon/sandbox', () => ({
   WEB_PROJECT_DIR: '/var/www/html',
   attachKnecht: async () => {},
   ddevWebImage: async () => 'ddev/ddev-webserver:v1',
+  ensurePackageCache: async () => {},
   forgetPreview: () => {},
   knechtContainer: async () => null,
 }))
@@ -47,5 +48,6 @@ describe('startWorkspace', () => {
     expect(argv).not.toContain('/data/knecht/data')
     expect(argv).toContain('--memory 2g')
     expect(argv).toContain('--pids-limit 2048')
+    expect(argv).toContain('-v knecht-package-cache:/mnt/knecht-package-cache')
   })
 })
