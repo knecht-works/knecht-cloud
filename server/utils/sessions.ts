@@ -2,6 +2,9 @@ import type { Project, Session, SessionObjectRow } from '#server/db/schema'
 import type { IntegrationId, ObjectKind } from '#shared/utils/integrations'
 import { getIntegration } from '#server/integrations'
 import { sessionPreviewUrl } from '#server/utils/preview-target'
+import { dashboardOrigin } from '#server/utils/origin'
+import { linkAgentImages } from '#shared/utils/agent-images'
+import { sessionWorkspacePath } from '#shared/utils/routes'
 import { getSessionRow, findBranchSession, createSession, requireSession, sessionChanged, updateSession } from '#server/stores/sessions'
 import { findObjectRow, getObjectRow, insertObjectRow, listSessionObjectRows, updateObjectRow } from '#server/stores/session-objects'
 import { latestSessionPrUrl, sessionHasActiveRun } from '#server/stores/runs'
@@ -125,6 +128,7 @@ export function sessionHasActiveWork(sessionId: number): boolean {
 export function withSessionLinks(text: string, sessionId: number, target: SessionObject): string {
   const session = getSessionRow(sessionId)
   if (!session) return text
+  text = linkAgentImages(text, file => `${dashboardOrigin()}${sessionWorkspacePath(session.projectId, session.id)}&image=${file}`)
   const links: string[] = []
   const preview = sessionPreviewUrl(session)
   if (preview) links.push(`**Preview:** ${preview}`)
