@@ -3,6 +3,7 @@
 # ─── Knecht image (the control plane) ─────────────────────────────────────────
 # Stages:
 #   build    compiles the Nuxt app → .output (devDeps stay here, never shipped)
+#   forward  compiles knecht-forward, the static port forwarder of the sandboxes
 #   tooling  shared runtime base: git, docker CLI, ddev CLI, the node user
 #   prod     tooling + built app; runs Nitro. The default/shipped image.
 # (Local dev doesn't use this image: it runs `npm run dev:vm` in the dev VM.)
@@ -26,6 +27,15 @@ WORKDIR /app
 COPY . .
 RUN npm i -g npm@${NPM_VERSION} && npm ci && npm run build
 # Result: /app/.output (a self-contained Nitro node server)
+
+
+# ═══ forward: the sandbox port forwarder ══════════════════════════════════════
+# Static, so it runs in any project's web image. The image's own arch is the
+# sandboxes' arch: they run on the same daemon.
+FROM golang:1.25-bookworm AS forward
+WORKDIR /src
+COPY cmd/knecht-forward/ .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /knecht-forward .
 
 
 # ═══ tooling: shared runtime base ═════════════════════════════════════════════
@@ -63,6 +73,9 @@ RUN curl -fsSL https://pkg.ddev.com/apt/gpg.key | gpg --dearmor -o /etc/apt/keyr
 # 3) Pin npm (as root, before dropping privileges) so both dev and prod resolve
 #    the lockfile the same way the dev machine does. See the build stage note.
 RUN npm i -g npm@${NPM_VERSION}
+
+# 3b) Staged into the tools dir at boot (server/plugins/agent-tools.ts).
+COPY --from=forward /knecht-forward /usr/local/lib/knecht/knecht-forward
 
 # 4) Run as non-root: node's built-in `node` user, whose uid compose replaces
 #    with KNECHT_UID (the sandbox image bakes its inner user to the same uid so
