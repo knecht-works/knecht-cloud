@@ -3,7 +3,7 @@ import { defineEventHandler, removeResponseHeader, getCookie, getRequestHeader }
 import { parsePreviewHost } from '#shared/utils/preview-host'
 import { getUserSession } from '#imports'
 import { shareCookieName } from '#server/utils/preview-share'
-import { isPreviewAuthToken, PREVIEW_AUTH_HEADER } from '#server/utils/preview-fetch'
+import { agentCookieName, isPreviewAuthToken, PREVIEW_AUTH_HEADER } from '#server/utils/preview-fetch'
 import { withoutKnechtCookies, proxyRunPreview } from '#server/utils/preview-proxy'
 import { isIdeLabel, proxyRunIde, proxyRunService } from '#server/utils/ide-proxy'
 import { findSessionService } from '#server/utils/session-services'
@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
   const shareCookie = getCookie(event, shareCookieName(ref.sessionId))
   // Read, then dropped: no proxy may hand the token to session code.
   const internal = isPreviewAuthToken(getRequestHeader(event, PREVIEW_AUTH_HEADER), ref.sessionId)
+    || isPreviewAuthToken(getCookie(event, agentCookieName(ref.sessionId)), ref.sessionId)
   delete headers['x-knecht-preview-auth']
   const original = headers.cookie
   const cookie = withoutKnechtCookies(original)

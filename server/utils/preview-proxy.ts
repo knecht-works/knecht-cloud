@@ -41,7 +41,7 @@ function injectBridge(html: string): string {
   return html + BRIDGE_SCRIPT
 }
 
-const KNECHT_COOKIE = /^(?:nuxt-session|knecht-share-\d+)=/
+const KNECHT_COOKIE = /^(?:nuxt-session|knecht-share-\d+|knecht-agent-\d+)=/
 
 export function withoutKnechtCookies(header: string | undefined): string | undefined {
   return header?.split(';').map(c => c.trim()).filter(c => c && !KNECHT_COOKIE.test(c)).join('; ') || undefined
