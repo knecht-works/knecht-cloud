@@ -9,7 +9,7 @@ import { PREVIEW_FORWARD_PORT, previewHostname, previewLabel } from '#shared/uti
 import { checkoutReader, detectEnv, GENERATED_MARKER, parseDdevConfig, type DdevConfigFile } from '#server/utils/env-detect'
 import { sessionEnv } from '#server/utils/knecht-env'
 import { dashboardOrigin } from '#server/utils/origin'
-import { normalizeSharedFolder, projectSharedDir, sessionSandboxName, toolsDir } from '#server/utils/storage'
+import { normalizeSharedFolder, PACKAGE_CACHE_VOLUME, projectSharedDir, sessionSandboxName, toolsDir } from '#server/utils/storage'
 import { WEB_PROJECT_DIR } from '#server/daemon/sandbox'
 import { AGENT_BROWSER_DOCKERFILE, AGENT_BROWSER_IMAGE_FILE } from '#server/utils/agent-browser'
 
@@ -35,16 +35,22 @@ export function previewTargetPort(session: PreviewSession, devLabel = false): nu
   return devLabel || devServerIsPreview(session) ? PREVIEW_FORWARD_PORT : 80
 }
 
+// ddev keeps web's caches in a per-project volume, which a session's `ddev delete`
+// removes, so sessions share Knecht's own volume instead.
 // pnpm 9 and 10 only read the npm-style cache name, and that name makes npm
 // warn on every call, so it is only set for pnpm repos.
-const DDEV_GLOBAL_CACHE = '/mnt/ddev-global-cache'
+const PACKAGE_CACHE = '/mnt/knecht-package-cache'
+export const PACKAGE_CACHE_MOUNT = `${PACKAGE_CACHE_VOLUME}:${PACKAGE_CACHE}`
 const PACKAGE_CACHE_ENV = [
-  `pnpm_config_store_dir=${DDEV_GLOBAL_CACHE}/pnpm-store`,
-  `YARN_CACHE_FOLDER=${DDEV_GLOBAL_CACHE}/yarn`,
-  `YARN_GLOBAL_FOLDER=${DDEV_GLOBAL_CACHE}/yarn-berry`,
-  `BUN_INSTALL_CACHE_DIR=${DDEV_GLOBAL_CACHE}/bun`,
+  `COMPOSER_CACHE_DIR=${PACKAGE_CACHE}/composer`,
+  `npm_config_cache=${PACKAGE_CACHE}/npm`,
+  `COREPACK_HOME=${PACKAGE_CACHE}/corepack`,
+  `pnpm_config_store_dir=${PACKAGE_CACHE}/pnpm-store`,
+  `YARN_CACHE_FOLDER=${PACKAGE_CACHE}/yarn`,
+  `YARN_GLOBAL_FOLDER=${PACKAGE_CACHE}/yarn-berry`,
+  `BUN_INSTALL_CACHE_DIR=${PACKAGE_CACHE}/bun`,
 ]
-const PNPM_LEGACY_STORE_ENV = `npm_config_store_dir=${DDEV_GLOBAL_CACHE}/pnpm-store`
+const PNPM_LEGACY_STORE_ENV = `npm_config_store_dir=${PACKAGE_CACHE}/pnpm-store`
 
 export interface SessionEnvProject extends EnvOverrides {
   id: number
@@ -382,11 +388,12 @@ function composeOverride({ hasDb, volumes, extraHosts }: { hasDb: boolean, volum
       web: {
         mem_limit: WEB_MEM_LIMIT,
         pids_limit: WEB_PIDS_LIMIT,
-        ...(volumes.length ? { volumes } : {}),
+        volumes: [PACKAGE_CACHE_MOUNT, ...volumes],
         ...(extraHosts.length ? { extra_hosts: extraHosts } : {}),
       },
       ...(hasDb ? { db: { mem_limit: DB_MEM_LIMIT } } : {}),
     },
+    volumes: { [PACKAGE_CACHE_VOLUME]: { name: PACKAGE_CACHE_VOLUME, external: true } },
   }
 }
 

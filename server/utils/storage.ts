@@ -20,6 +20,8 @@ export function sessionSandboxName(sessionId: number): string {
   return `knecht-run-${sessionId}`
 }
 
+export const PACKAGE_CACHE_VOLUME = 'knecht-package-cache'
+
 export function toolsDir(): string {
   return join(dataDir(), 'tools')
 }

@@ -8,8 +8,8 @@ import { writeBridgeCredentialHelper } from '#server/utils/agent-bridge'
 import { sessionCheckoutDir, sessionSandboxName } from '#server/utils/storage'
 import { getProject } from '#server/stores/projects'
 import { getSessionRow } from '#server/stores/sessions'
-import { KNECHT_CONFIG_FILE, WEB_MEM_LIMIT, WEB_PIDS_LIMIT, webVolumes } from '#server/daemon/ddev'
-import { attachKnecht, ddevWebImage, forgetPreview, knechtContainer, WEB_PROJECT_DIR } from '#server/daemon/sandbox'
+import { KNECHT_CONFIG_FILE, PACKAGE_CACHE_MOUNT, WEB_MEM_LIMIT, WEB_PIDS_LIMIT, webVolumes } from '#server/daemon/ddev'
+import { attachKnecht, ddevWebImage, ensurePackageCache, forgetPreview, knechtContainer, WEB_PROJECT_DIR } from '#server/daemon/sandbox'
 
 export const WORKSPACE_LABEL = 'works.knecht.workspace'
 
@@ -50,6 +50,7 @@ async function startWorkspace(sessionId: number): Promise<void> {
   const environment = readWebEnvironment(dir, new Set(project?.envVars.map(e => e.key)))
   const volumes = webVolumes(project ? { projectId: project.id, folders: project.sharedFolders } : undefined)
   await execa('docker', ['rm', '-f', name]).catch(() => {})
+  await ensurePackageCache()
   await createNetwork(sessionId, name)
   const envDir = await mkdtemp(join(tmpdir(), 'knecht-workspace-'))
   try {
@@ -69,7 +70,7 @@ async function startWorkspace(sessionId: number): Promise<void> {
       '-v', `${dir}:${WEB_PROJECT_DIR}`,
       // Where the ddev shim looks up the project's own web commands.
       '-v', `${join(dir, '.ddev')}:/mnt/ddev_config:ro`,
-      '-v', 'ddev-global-cache:/mnt/ddev-global-cache',
+      '-v', PACKAGE_CACHE_MOUNT,
       ...volumes.flatMap(v => ['-v', v]),
       '--entrypoint', 'sleep',
       await workspaceImage(),

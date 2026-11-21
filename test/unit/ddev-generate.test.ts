@@ -140,11 +140,11 @@ describe('configureSessionEnv', () => {
     const readEnv = (dir: string) => parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8')).web_environment as string[]
     const pnpm = repo({ 'pnpm-lock.yaml': '' })
     await configureSessionEnv(pnpm, project(), 42, 'env')
-    expect(readEnv(pnpm)).toContain('npm_config_store_dir=/mnt/ddev-global-cache/pnpm-store')
+    expect(readEnv(pnpm)).toContain('npm_config_store_dir=/mnt/knecht-package-cache/pnpm-store')
     const npm = repo({ 'package-lock.json': '{}' })
     await configureSessionEnv(npm, project(), 42, 'env')
-    expect(readEnv(npm)).not.toContain('npm_config_store_dir=/mnt/ddev-global-cache/pnpm-store')
-    expect(readEnv(npm)).toContain('pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store')
+    expect(readEnv(npm)).not.toContain('npm_config_store_dir=/mnt/knecht-package-cache/pnpm-store')
+    expect(readEnv(npm)).toContain('pnpm_config_store_dir=/mnt/knecht-package-cache/pnpm-store')
   })
 
   it('a dev server without a port, or a port without a command: no daemon, no port', async () => {

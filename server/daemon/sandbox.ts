@@ -6,7 +6,7 @@ import { execa, type Options } from 'execa'
 import { toSandboxProcess, type SandboxProcess } from '#server/daemon/sandbox-process'
 import { BRIDGE_HOST, writeBridgeCredentialHelper } from '#server/utils/agent-bridge'
 import { ddevErrorLine } from '#server/utils/ddev-error'
-import { dataDir, sessionSandboxName, sessionCheckoutDir } from '#server/utils/storage'
+import { dataDir, PACKAGE_CACHE_VOLUME, sessionSandboxName, sessionCheckoutDir } from '#server/utils/storage'
 
 export const WEB_PROJECT_DIR = '/var/www/html'
 
@@ -128,8 +128,22 @@ export function ddevDefaultDatabase(): Promise<string> {
   return defaultDatabase
 }
 
+// Docker creates a volume root-owned, but the web and workspace containers run as the host uid.
+export async function ensurePackageCache(): Promise<void> {
+  const exists = await execa('docker', ['volume', 'inspect', PACKAGE_CACHE_VOLUME]).then(() => true, () => false)
+  if (exists) return
+  await execa('docker', ['volume', 'create', PACKAGE_CACHE_VOLUME])
+  await execa('docker', [
+    'run', '--rm', '--user', '0:0', '--entrypoint', 'chmod',
+    '-v', `${PACKAGE_CACHE_VOLUME}:/cache`,
+    await ddevWebImage(),
+    '1777', '/cache',
+  ])
+}
+
 export async function startEnvStack(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
   await ddevWarm
+  await ensurePackageCache()
   forgetPreview(sessionId)
   const child = execDdev(sessionId, ['start', '-y'], { reject: false })
   child.stdout?.on('data', (d: Buffer) => log(d.toString()))

@@ -4,8 +4,8 @@ import { execa } from 'execa'
 import { listProjects } from '#server/stores/projects'
 import type { DbBase } from '#server/db/schema'
 import { GC_AUTO_CATEGORIES, type GcCategory } from '#shared/utils/gc'
-import { dataDir, projectsDir } from '#server/utils/storage'
-import { DDEV_ENV, ddevWebImage, removeEnvStack } from '#server/daemon/sandbox'
+import { dataDir, PACKAGE_CACHE_VOLUME, projectsDir } from '#server/utils/storage'
+import { DDEV_ENV, ddevWebImage, ensurePackageCache, removeEnvStack } from '#server/daemon/sandbox'
 import { DB_BASE_PREFIX, dbBaseBuilding } from '#server/daemon/db-base'
 import { envTransition } from '#server/daemon/envs'
 import { removeWorkspace, WORKSPACE_LABEL, workspaceContainerName } from '#server/daemon/workspace'
@@ -265,9 +265,10 @@ async function reapStaleImages(): Promise<string[]> {
 async function reapOldPackageCache(): Promise<string[]> {
   try {
     const dirs = PACKAGE_CACHE_DIRS.map(dir => `/cache/${dir}`).join(' ')
+    await ensurePackageCache()
     const { stdout } = await execa('docker', [
       'run', '--rm', '--user', '0:0', '--entrypoint', 'sh',
-      '-v', 'ddev-global-cache:/cache',
+      '-v', `${PACKAGE_CACHE_VOLUME}:/cache`,
       await ddevWebImage(),
       '-c', `find ${dirs} -type f -atime +${PACKAGE_CACHE_MAX_AGE_DAYS} -print -delete 2>/dev/null | wc -l`,
     ])
