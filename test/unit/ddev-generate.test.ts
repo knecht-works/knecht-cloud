@@ -105,6 +105,16 @@ describe('configureSessionEnv', () => {
     expect(ddevTree(dir)).toMatchSnapshot()
   })
 
+  it('the agent browser goes into the web image only while the session has a preview', async () => {
+    const dir = repo()
+    const browser = join(dir, '.ddev', 'web-build', 'Dockerfile.knecht-browser')
+    await configureSessionEnv(dir, project({ devServer: 'npm run dev', previewPort: 3000 }), 42, 'env')
+    expect(existsSync(browser)).toBe(true)
+    const { changed } = await configureSessionEnv(dir, project(), 42, 'env')
+    expect(changed).toBe(true)
+    expect(existsSync(browser)).toBe(false)
+  })
+
   it('generated-with-bun: the repo\'s bun goes into the web image at the pinned version', async () => {
     const dir = repo({ 'package.json': '{ "packageManager": "bun@1.2.3" }', 'bun.lock': '{}' })
     const { env } = await configureSessionEnv(dir, project(), 42, 'env')

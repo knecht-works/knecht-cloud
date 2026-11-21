@@ -11,6 +11,7 @@ import { sessionEnv } from '#server/utils/knecht-env'
 import { dashboardOrigin } from '#server/utils/origin'
 import { normalizeSharedFolder, projectSharedDir, sessionSandboxName, toolsDir } from '#server/utils/storage'
 import { WEB_PROJECT_DIR } from '#server/daemon/sandbox'
+import { AGENT_BROWSER_DOCKERFILE, AGENT_BROWSER_IMAGE_FILE } from '#server/utils/agent-browser'
 
 export type UrlMode = 'env' | 'rewrite'
 
@@ -174,6 +175,7 @@ export async function writeDdevConfig(checkoutDir: string, { sessionId, env, env
   }))) || changed
   for (const legacy of LEGACY_OVERRIDE_FILES) changed = removeFile(join(ddevDir, legacy)) || changed
   if (env.hasDb.value && !env.database.value?.startsWith('postgres:')) changed = writeLowmemDbConfig(checkoutDir, marker) || changed
+  changed = writeBrowserImageFile(ddevDir, hasPreview) || changed
   return { injected: envVars.length, devServerPort: devServer?.port ?? null, changed }
 }
 
@@ -306,6 +308,13 @@ function writeBunImageFile(ddevDir: string, env: ResolvedEnv): boolean {
   if (name !== 'bun') return removeFile(dockerfile)
   mkdirSync(join(ddevDir, 'web-build'), { recursive: true })
   return syncFile(dockerfile, `RUN npm install -g bun@${version ?? 'latest'}\n`)
+}
+
+function writeBrowserImageFile(ddevDir: string, hasPreview: boolean): boolean {
+  const dockerfile = join(ddevDir, 'web-build', AGENT_BROWSER_IMAGE_FILE)
+  if (!hasPreview) return removeFile(dockerfile)
+  mkdirSync(join(ddevDir, 'web-build'), { recursive: true })
+  return syncFile(dockerfile, AGENT_BROWSER_DOCKERFILE)
 }
 
 // `00-` loads first, so a repo's own `.ddev/mysql` tuning overrides this.
