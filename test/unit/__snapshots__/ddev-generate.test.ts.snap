@@ -52,6 +52,14 @@ max-connections = 30
 tmp-table-size = 16M
 max-heap-table-size = 16M
 key-buffer-size = 8M
+
+=== .ddev/web-build/Dockerfile.knecht-browser ===
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN npm install -g @playwright/mcp@0.0.84 \\
+ && mkdir /tmp/knecht-apt && cp /etc/apt/sources.list.d/debian.sources /tmp/knecht-apt/ \\
+ && echo 'Dir::Etc::sourceparts "/tmp/knecht-apt";' > /tmp/knecht-apt.conf \\
+ && APT_CONFIG=/tmp/knecht-apt.conf "$(npm root -g)/@playwright/mcp/node_modules/.bin/playwright-core" install --with-deps --only-shell chromium \\
+ && rm -rf /tmp/knecht-apt /tmp/knecht-apt.conf /var/lib/apt/lists/* /root/.npm
 "
 `;
 
@@ -188,6 +196,14 @@ services:
     pids_limit: 2048
     extra_hosts:
       - 42.preview.knecht.test:127.0.0.1
+
+=== .ddev/web-build/Dockerfile.knecht-browser ===
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN npm install -g @playwright/mcp@0.0.84 \\
+ && mkdir /tmp/knecht-apt && cp /etc/apt/sources.list.d/debian.sources /tmp/knecht-apt/ \\
+ && echo 'Dir::Etc::sourceparts "/tmp/knecht-apt";' > /tmp/knecht-apt.conf \\
+ && APT_CONFIG=/tmp/knecht-apt.conf "$(npm root -g)/@playwright/mcp/node_modules/.bin/playwright-core" install --with-deps --only-shell chromium \\
+ && rm -rf /tmp/knecht-apt /tmp/knecht-apt.conf /var/lib/apt/lists/* /root/.npm
 "
 `;
 
