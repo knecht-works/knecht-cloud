@@ -53,7 +53,7 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings
 # 2b) ddev CLI, PINNED (runs are only as reproducible as this version; the
 #     app warms up its images on the first boot after a bump). It drives the
 #     host daemon through the same mounted socket.
-ARG DDEV_VERSION=1.25.5
+ARG DDEV_VERSION=1.25.6
 RUN curl -fsSL https://pkg.ddev.com/apt/gpg.key | gpg --dearmor -o /etc/apt/keyrings/ddev.gpg \
  && echo "deb [signed-by=/etc/apt/keyrings/ddev.gpg] https://pkg.ddev.com/apt/ * *" \
       > /etc/apt/sources.list.d/ddev.list \

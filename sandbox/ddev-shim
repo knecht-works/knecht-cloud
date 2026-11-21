@@ -15,7 +15,7 @@ set -euo pipefail
 
 PROJECT_DIR=/var/www/html
 PROJECT_COMMANDS=/mnt/ddev_config/commands
-GLOBAL_COMMANDS=/mnt/ddev-global-cache/global-commands
+GLOBAL_COMMANDS=/usr/local/lib/ddev/global-commands
 
 # ddev commands that only exist host-side. Listed so they never fall through
 # to a same-named binary (`hostname`) or to a confusing "not found".

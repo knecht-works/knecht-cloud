@@ -1,6 +1,6 @@
-import { lstatSync, readFileSync } from 'node:fs'
+import { existsSync, lstatSync, readFileSync } from 'node:fs'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execa } from 'execa'
 import { parse } from 'yaml'
@@ -80,6 +80,9 @@ async function startWorkspace(sessionId: number): Promise<void> {
   finally {
     await rm(envDir, { recursive: true, force: true })
   }
+  // ddev copies its bundled web commands (craft, drush, ...) only into the containers it starts.
+  const globalCommands = join(homedir(), '.ddev', 'commands')
+  if (existsSync(globalCommands)) await execa('docker', ['cp', globalCommands, `${name}:/usr/local/lib/ddev/global-commands`])
   await attachKnecht(name)
   await writeBridgeCredentialHelper(dir, sessionId).catch(() => {})
 }
