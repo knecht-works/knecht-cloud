@@ -116,6 +116,8 @@ COPY --from=build --chown=node:node /app/scripts/reset-password.mjs ./scripts/re
 # (mounted) and boots one sandbox per run off them.
 ENV NITRO_HOST=0.0.0.0 \
     NITRO_PORT=3000
+# Externalized packages such as vue pick their build from it at runtime.
+ENV NODE_ENV=production
 EXPOSE 3000
 
 CMD ["node", ".output/server/index.mjs"]
