@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process'
-import { copyFileSync, mkdtempSync, readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { createServer as createTlsServer } from 'node:https'
 import { tmpdir } from 'node:os'
@@ -7,11 +7,10 @@ import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-// Run as a plain CommonJS script outside the repo, whose package.json says "type: module".
-
 const listenPort = 41500 + Math.floor(Math.random() * 400)
 const targetPort = listenPort + 1
 let forwarder: ChildProcess
+let binary: string
 let app: Server | null = null
 let tlsDir: string
 
@@ -42,16 +41,16 @@ async function fetchThrough(): Promise<Response> {
   throw new Error('forwarder never answered')
 }
 
+// A cold `go build` in CI compiles the standard library first.
 beforeAll(async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'knecht-forward-'))
-  const script = join(dir, 'knecht-forward')
-  copyFileSync(join(__dirname, '..', '..', 'sandbox', 'knecht-forward'), script)
+  binary = join(mkdtempSync(join(tmpdir(), 'knecht-forward-')), 'knecht-forward')
+  execFileSync('go', ['build', '-o', binary, '.'], { cwd: join(__dirname, '..', '..', 'cmd', 'knecht-forward'), stdio: 'inherit' })
   tlsDir = mkdtempSync(join(tmpdir(), 'knecht-forward-tls-'))
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=localhost',
     '-keyout', join(tlsDir, 'key.pem'), '-out', join(tlsDir, 'cert.pem')], { stdio: 'ignore' })
-  forwarder = spawn(process.execPath, [script, String(listenPort), String(targetPort)], { stdio: 'inherit' })
+  forwarder = spawn(binary, [String(listenPort), String(targetPort)], { stdio: 'inherit' })
   await startApp()
-})
+}, 120_000)
 
 afterAll(() => {
   forwarder.kill()
@@ -87,10 +86,7 @@ describe('knecht-forward', () => {
   })
 
   it('refuses to start without both ports', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'knecht-forward-'))
-    const script = join(dir, 'knecht-forward')
-    copyFileSync(join(__dirname, '..', '..', 'sandbox', 'knecht-forward'), script)
-    const code = await new Promise<number | null>(resolve => spawn(process.execPath, [script, '41000']).on('exit', resolve))
+    const code = await new Promise<number | null>(resolve => spawn(binary, ['41000']).on('exit', resolve))
     expect(code).toBe(2)
   })
 })

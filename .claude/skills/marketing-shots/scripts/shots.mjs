@@ -122,4 +122,6 @@ export default {
   'knecht-trigger-schedule': { ...TRIG, act: async (p) => {
     await t.open(p, 'Schedule', ['knecht-works/test-laravel', 'knecht-works/test-drupal11', 'knecht-works/test-craftcms'])
   } },
+  // Needs a project server on test-craftcms and a global one (dev DB: sentry with a placeholder token, context7).
+  'knecht-mcp-servers': { url: '/projects/2/settings/agent' },
 }

@@ -19,6 +19,8 @@
 }
 
 {$KNECHT_BASE_DOMAIN} {
+	# Dashboard only: a preview is served the way its own app sends it.
+	encode zstd gzip
 	reverse_proxy knecht:3000
 }
 

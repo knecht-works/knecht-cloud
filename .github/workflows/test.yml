@@ -26,6 +26,11 @@ jobs:
           node-version: 24
           cache: npm
 
+      # test/unit/forward.test.ts builds knecht-forward.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cmd/knecht-forward/go.mod
+
       - run: npm install -g npm@11.9.0
       - run: npm ci
       - run: npm run lint
