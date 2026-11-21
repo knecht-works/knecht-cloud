@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { isOwnPreviewUrl, isPreviewAuthToken, PREVIEW_AUTH_HEADER, previewAwareFetch } from '#server/utils/preview-fetch'
+import { isOwnPreviewUrl, isPreviewAuthToken, PREVIEW_AUTH_HEADER, previewAuthToken, previewAwareFetch } from '#server/utils/preview-fetch'
 import { withServer } from '../helpers/http-server'
 
 describe('isOwnPreviewUrl', () => {
@@ -22,6 +22,14 @@ describe('isPreviewAuthToken', () => {
     expect(isPreviewAuthToken(undefined, 5)).toBe(false)
     expect(isPreviewAuthToken('', 5)).toBe(false)
     expect(isPreviewAuthToken('a'.repeat(64), 5)).toBe(false)
+  })
+
+  it('stops opening the preview once it expires, and its expiry cannot be extended', () => {
+    const now = Math.floor(Date.now() / 1000)
+    const token = previewAuthToken(5, now + 60)
+    expect(isPreviewAuthToken(token, 5)).toBe(true)
+    expect(isPreviewAuthToken(previewAuthToken(5, now - 1), 5)).toBe(false)
+    expect(isPreviewAuthToken(token.replace(/^\d+/, String(now + 3600)), 5)).toBe(false)
   })
 })
 
@@ -81,8 +89,8 @@ describe('preview auth token', () => {
     const [own] = await sentHeaders('http://5.preview.knecht.test/', 5)
     const [label] = await sentHeaders('http://api--5.preview.knecht.test/', 5)
     const [other] = await sentHeaders('http://6.preview.knecht.test/', 5)
-    expect(own).toHaveLength(64)
-    expect(label).toBe(own)
+    expect(isPreviewAuthToken(own!, 5)).toBe(true)
+    expect(isPreviewAuthToken(label!, 5)).toBe(true)
     expect(other).toBeNull()
   })
 

@@ -2,7 +2,7 @@ import { createServer, request, type IncomingHttpHeaders } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, toNodeListener, type H3Event } from 'h3'
-import { PREVIEW_AUTH_HEADER, previewAwareFetch } from '#server/utils/preview-fetch'
+import { agentCookieName, PREVIEW_AUTH_HEADER, previewAuthToken, previewAwareFetch } from '#server/utils/preview-fetch'
 
 const { seen, recorder } = vi.hoisted(() => {
   const seen: { proxy: string, headers: IncomingHttpHeaders, internal?: boolean }[] = []
@@ -69,7 +69,7 @@ describe('preview middleware', () => {
     ['service', 'mailpit--5.preview.knecht.test'],
   ])('never forwards the internal preview token to the %s upstream', async (proxy, host) => {
     const token = await liveToken()
-    expect(token).toHaveLength(64)
+    expect(token).toMatch(/^\d+\.[\da-f]{64}$/)
     await send(host, { [PREVIEW_AUTH_HEADER]: token })
     expect(seen).toHaveLength(1)
     expect(seen[0]!.proxy).toBe(proxy)
@@ -88,6 +88,17 @@ describe('preview middleware', () => {
 
   it('treats a wrong token as an anonymous request', async () => {
     await send('5.preview.knecht.test', { [PREVIEW_AUTH_HEADER]: 'f'.repeat(64) })
+    expect(seen[0]!.internal).toBe(false)
+  })
+
+  it('lets the agent browser in with its cookie and strips it before the app sees it', async () => {
+    await send('5.preview.knecht.test', { cookie: `${agentCookieName(5)}=${previewAuthToken(5)}; theme=dark` })
+    expect(seen[0]!.internal).toBe(true)
+    expect(seen[0]!.headers.cookie).toBe('theme=dark')
+  })
+
+  it('does not accept one session\'s agent cookie in another session\'s preview', async () => {
+    await send('6.preview.knecht.test', { cookie: `${agentCookieName(6)}=${previewAuthToken(5)}` })
     expect(seen[0]!.internal).toBe(false)
   })
 })
