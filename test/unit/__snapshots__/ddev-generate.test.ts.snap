@@ -24,10 +24,13 @@ web_environment:
   - DDEV_SCHEME=http
   - DDEV_HOSTNAME=7.preview.knecht.test,alpha--7.preview.knecht.test
   - XDEBUG_MODE=off
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+  - COMPOSER_CACHE_DIR=/mnt/knecht-package-cache/composer
+  - npm_config_cache=/mnt/knecht-package-cache/npm
+  - COREPACK_HOME=/mnt/knecht-package-cache/corepack
+  - pnpm_config_store_dir=/mnt/knecht-package-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/knecht-package-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/knecht-package-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/knecht-package-cache/bun
   - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=7.preview.knecht.test
   - VIRTUAL_HOST=knecht-run-7.ddev.site,7.preview.knecht.test,alpha--7.preview.knecht.test
 
@@ -37,11 +40,17 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    volumes:
+      - knecht-package-cache:/mnt/knecht-package-cache
     extra_hosts:
       - 7.preview.knecht.test:127.0.0.1
       - alpha--7.preview.knecht.test:127.0.0.1
   db:
     mem_limit: 1g
+volumes:
+  knecht-package-cache:
+    name: knecht-package-cache
+    external: true
 
 === .ddev/mysql/00-knecht-lowmem.cnf ===
 #ddev-silent-no-warn
@@ -86,10 +95,13 @@ host_https_port: "<port>"
 host_mailpit_port: "<port>"
 web_environment:
   - XDEBUG_MODE=off
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+  - COMPOSER_CACHE_DIR=/mnt/knecht-package-cache/composer
+  - npm_config_cache=/mnt/knecht-package-cache/npm
+  - COREPACK_HOME=/mnt/knecht-package-cache/corepack
+  - pnpm_config_store_dir=/mnt/knecht-package-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/knecht-package-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/knecht-package-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/knecht-package-cache/bun
 
 === .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
@@ -97,6 +109,12 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    volumes:
+      - knecht-package-cache:/mnt/knecht-package-cache
+volumes:
+  knecht-package-cache:
+    name: knecht-package-cache
+    external: true
 "
 `;
 
@@ -123,10 +141,13 @@ host_https_port: "<port>"
 host_mailpit_port: "<port>"
 web_environment:
   - XDEBUG_MODE=off
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+  - COMPOSER_CACHE_DIR=/mnt/knecht-package-cache/composer
+  - npm_config_cache=/mnt/knecht-package-cache/npm
+  - COREPACK_HOME=/mnt/knecht-package-cache/corepack
+  - pnpm_config_store_dir=/mnt/knecht-package-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/knecht-package-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/knecht-package-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/knecht-package-cache/bun
 
 === .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
@@ -134,6 +155,12 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    volumes:
+      - knecht-package-cache:/mnt/knecht-package-cache
+volumes:
+  knecht-package-cache:
+    name: knecht-package-cache
+    external: true
 
 === .ddev/web-build/Dockerfile.knecht ===
 RUN npm install -g bun@1.2.3
@@ -181,10 +208,13 @@ web_environment:
   - DDEV_SCHEME=http
   - DDEV_HOSTNAME=42.preview.knecht.test
   - XDEBUG_MODE=off
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+  - COMPOSER_CACHE_DIR=/mnt/knecht-package-cache/composer
+  - npm_config_cache=/mnt/knecht-package-cache/npm
+  - COREPACK_HOME=/mnt/knecht-package-cache/corepack
+  - pnpm_config_store_dir=/mnt/knecht-package-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/knecht-package-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/knecht-package-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/knecht-package-cache/bun
   - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS=42.preview.knecht.test
   - VIRTUAL_HOST=knecht-run-42.ddev.site,42.preview.knecht.test
 
@@ -194,8 +224,14 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    volumes:
+      - knecht-package-cache:/mnt/knecht-package-cache
     extra_hosts:
       - 42.preview.knecht.test:127.0.0.1
+volumes:
+  knecht-package-cache:
+    name: knecht-package-cache
+    external: true
 
 === .ddev/web-build/Dockerfile.knecht-browser ===
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
@@ -231,10 +267,13 @@ host_mailpit_port: "<port>"
 web_environment:
   - APP_ENV=dev
   - XDEBUG_MODE=off
-  - pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store
-  - YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn
-  - YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry
-  - BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun
+  - COMPOSER_CACHE_DIR=/mnt/knecht-package-cache/composer
+  - npm_config_cache=/mnt/knecht-package-cache/npm
+  - COREPACK_HOME=/mnt/knecht-package-cache/corepack
+  - pnpm_config_store_dir=/mnt/knecht-package-cache/pnpm-store
+  - YARN_CACHE_FOLDER=/mnt/knecht-package-cache/yarn
+  - YARN_GLOBAL_FOLDER=/mnt/knecht-package-cache/yarn-berry
+  - BUN_INSTALL_CACHE_DIR=/mnt/knecht-package-cache/bun
 
 === .ddev/docker-compose.zzz-knecht.yaml ===
 #ddev-silent-no-warn
@@ -242,5 +281,11 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    volumes:
+      - knecht-package-cache:/mnt/knecht-package-cache
+volumes:
+  knecht-package-cache:
+    name: knecht-package-cache
+    external: true
 "
 `;

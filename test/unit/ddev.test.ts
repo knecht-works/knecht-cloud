@@ -26,10 +26,13 @@ function checkout(configYaml?: string): string {
 }
 
 const cacheEnv = [
-  'pnpm_config_store_dir=/mnt/ddev-global-cache/pnpm-store',
-  'YARN_CACHE_FOLDER=/mnt/ddev-global-cache/yarn',
-  'YARN_GLOBAL_FOLDER=/mnt/ddev-global-cache/yarn-berry',
-  'BUN_INSTALL_CACHE_DIR=/mnt/ddev-global-cache/bun',
+  'COMPOSER_CACHE_DIR=/mnt/knecht-package-cache/composer',
+  'npm_config_cache=/mnt/knecht-package-cache/npm',
+  'COREPACK_HOME=/mnt/knecht-package-cache/corepack',
+  'pnpm_config_store_dir=/mnt/knecht-package-cache/pnpm-store',
+  'YARN_CACHE_FOLDER=/mnt/knecht-package-cache/yarn',
+  'YARN_GLOBAL_FOLDER=/mnt/knecht-package-cache/yarn-berry',
+  'BUN_INSTALL_CACHE_DIR=/mnt/knecht-package-cache/bun',
 ]
 
 const previewDdevEnv = [
@@ -144,10 +147,12 @@ describe('writeDdevConfig', () => {
     expect((await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).changed).toBe(true)
   })
 
-  it('writes the compose override: no shared network, resource caps', async () => {
+  it('writes the compose override: no shared network, resource caps, the shared package cache', async () => {
     const dir = checkout()
     await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })
     const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
+    expect(compose.services.web.volumes).toContain('knecht-package-cache:/mnt/knecht-package-cache')
+    expect(compose.volumes['knecht-package-cache']).toEqual({ name: 'knecht-package-cache', external: true })
     expect(compose.services.web.networks).toBeUndefined()
     expect(compose.networks).toBeUndefined()
     expect(compose.services.web.mem_limit).toBeDefined()
@@ -172,7 +177,7 @@ describe('writeDdevConfig', () => {
       const compose = parse(readFileSync(join(dir, '.ddev', 'docker-compose.zzz-knecht.yaml'), 'utf8'))
       const host = join(data, 'shared', '5', 'web/uploads')
       expect(compose.services.web.volumes).toContain(`${host}:/var/www/html/web/uploads`)
-      expect(compose.services.web.volumes.filter((v: string) => !v.endsWith(':ro'))).toHaveLength(1)
+      expect(compose.services.web.volumes.filter((v: string) => !v.endsWith(':ro') && !v.startsWith('knecht-package-cache:'))).toHaveLength(1)
       // The host dir exists (docker would create a root-owned one otherwise).
       expect(existsSync(host)).toBe(true)
     }
