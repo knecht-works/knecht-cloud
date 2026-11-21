@@ -7,6 +7,7 @@ import type { ActionRuntime } from '#server/workflows/actions/types'
 import { KNECHT_COMPOSE_FILE, KNECHT_CONFIG_FILE } from '#server/daemon/ddev'
 import { writeBridgeCredentialHelper } from '#server/utils/agent-bridge'
 import { checkoutReader, repoShipsDdevConfig } from '#server/utils/env-detect'
+import { AGENT_BROWSER_IMAGE_FILE } from '#server/utils/agent-browser'
 import { getBotIdentity } from '#server/utils/github-app'
 import { normalizeSharedFolder, sessionCheckoutDir } from '#server/utils/storage'
 
@@ -127,7 +128,7 @@ function shieldGeneratedFiles(dir: string, sharedFolders: string[]): void {
   const exclude = join(dir, '.git', 'info', 'exclude')
   const patterns = [
     ...(repoShipsDdevConfig(checkoutReader(dir)('.ddev/config.yaml'))
-      ? [`/.ddev/${KNECHT_CONFIG_FILE}`, `/.ddev/${KNECHT_COMPOSE_FILE}`, '/.ddev/mysql/00-knecht-lowmem.cnf']
+      ? [`/.ddev/${KNECHT_CONFIG_FILE}`, `/.ddev/${KNECHT_COMPOSE_FILE}`, '/.ddev/mysql/00-knecht-lowmem.cnf', `/.ddev/web-build/${AGENT_BROWSER_IMAGE_FILE}`]
       : ['/.ddev/']),
     '/.knecht/',
     ...sharedFolders.map(normalizeSharedFolder).filter(p => p !== null).map(p => `/${p}/`),
