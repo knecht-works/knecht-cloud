@@ -1,0 +1,67 @@
+name: Claude Simplify Review
+
+on:
+  pull_request:
+    types: [labeled]
+
+jobs:
+  simplify-review:
+    if: github.event.label.name == 'simplify-review'
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Claude Simplify Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            PR ${{ github.repository }}/pull/${{ github.event.pull_request.number }} implements a new feature.
+            The diff is `git diff origin/${{ github.base_ref }}...HEAD`. Read all of it (skip lockfiles and
+            drizzle `meta/*_snapshot.json`) and the code it plugs into, until you understand what the feature does.
+
+            Then forget how it was built. Find unconventional, elegant ways to deliver the same feature with
+            far less code and far fewer edge cases. Losing a capability is acceptable only if it affects around
+            1% of users or less. Ideas that just shorten lines do not count.
+
+            Judge each idea honestly: what it saves, what it loses and for whom, what it costs. If the current
+            design is already close to minimal, say so. That is a good result, do not invent ideas to fill space.
+
+            Write the result in Markdown to `simplify-summary.md`, without a title or `#`/`##` headings (the
+            posting step adds `## Simplify review`). Keep it short enough to read in two minutes and end with a
+            clear verdict. Do not post comments yourself.
+
+            CI note: this is a non-interactive run that terminates the moment your turn ends. Do the review
+            yourself and do not launch subagents. Finish everything, including the summary file, before ending your turn.
+          claude_args: '--model claude-fable-5-2 --allowedTools "Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(git show:*)"'
+          show_full_output: true
+
+      - name: Post or update summary comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          MARKER: '<!-- claude-simplify-review -->'
+        run: |
+          if [ ! -s simplify-summary.md ]; then
+            echo "::error::Claude did not write simplify-summary.md, the review did not finish"
+            exit 1
+          fi
+          body="$(printf '%s\n## Simplify review\n\n' "$MARKER"; cat simplify-summary.md)"
+          id=$(gh api "repos/$REPO/issues/$PR/comments" --paginate --jq ".[] | select(.body | startswith(\"$MARKER\")) | .id" | head -n1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body"
+          else
+            gh pr comment "$PR" -R "$REPO" --body "$body"
+          fi
