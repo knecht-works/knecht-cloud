@@ -42,4 +42,4 @@ export async function copyToClipboard(text: string): Promise<void> {
   if (!ok) throw new Error('Clipboard unavailable')
 }
 
-export const CHAT_SESSION_ID = Symbol('chat-session-id') as InjectionKey<number>
+export const CHAT_IMAGES = Symbol('chat-images') as InjectionKey<{ sessionId: number, open: (file: string) => void }>
