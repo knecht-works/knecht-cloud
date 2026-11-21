@@ -22,12 +22,16 @@ export default defineNitroPlugin(() => {
   void warmUpDdev()
   void stageAgentTools().catch(e =>
     console.error('agent tools staging failed:', (e as Error).message))
+  void stageForwarder().catch(e =>
+    console.error('knecht-forward staging failed:', (e as Error).message))
   void stageIde().catch(e =>
     console.error('openvscode-server staging failed:', (e as Error).message))
 })
 
 // v2 changes the config format and the ACP behaviour; bump only after testing against it.
 const OPENCODE_VERSION = '1.18.32'
+
+const FORWARD_BINARY = '/usr/local/lib/knecht/knecht-forward'
 
 const GLOBAL_CONFIG: Record<string, unknown> = {
   omit_containers: ['ddev-router', 'ddev-ssh-agent'],
@@ -53,7 +57,7 @@ async function stageAgentTools(): Promise<void> {
   const tools = toolsDir()
   await mkdir(tools, { recursive: true })
 
-  for (const name of ['knecht-git', 'knecht-reply', 'knecht-label', 'knecht-status', 'knecht-object', 'knecht-preview', 'knecht-bridge-lib', 'ddev-shim', 'knecht-forward']) {
+  for (const name of ['knecht-git', 'knecht-reply', 'knecht-label', 'knecht-status', 'knecht-object', 'knecht-preview', 'knecht-bridge-lib', 'ddev-shim']) {
     const content = await readSandboxAsset(name)
     if (!content) continue
     if (content.subarray(0, 2).toString() !== '#!') {
@@ -76,4 +80,14 @@ async function stageAgentTools(): Promise<void> {
     writeFileSync(versionFile, OPENCODE_VERSION)
     console.log(`opencode ${OPENCODE_VERSION} staged into`, opencode)
   }
+}
+
+async function stageForwarder(): Promise<void> {
+  const tools = toolsDir()
+  await mkdir(tools, { recursive: true })
+  // Writing into a binary a sandbox is running fails with ETXTBSY; a new inode leaves it alone.
+  const forward = join(tools, 'knecht-forward')
+  await copyFile(FORWARD_BINARY, `${forward}.tmp`)
+  chmodSync(`${forward}.tmp`, 0o755)
+  await rename(`${forward}.tmp`, forward)
 }
