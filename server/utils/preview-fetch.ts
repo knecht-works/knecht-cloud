@@ -1,21 +1,33 @@
 import { Buffer } from 'node:buffer'
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 import { isPreviewHost, parsePreviewHost, stripPreviewPrefix } from '#shared/utils/preview-host'
 import { dashboardOrigin } from '#server/utils/origin'
-
-const SECRET = randomBytes(32)
+import { deriveKey } from '#server/utils/crypto'
 
 export const PREVIEW_AUTH_HEADER = 'x-knecht-preview-auth'
 
-// One token per session: a copy that reaches session code opens only that session's own preview.
-function previewAuthToken(sessionId: number): string {
-  return createHmac('sha256', SECRET).update(String(sessionId)).digest('hex')
+export function agentCookieName(sessionId: number): string {
+  return `knecht-agent-${sessionId}`
+}
+
+// Long enough for one agent turn, which writes a fresh token into the sandbox when it starts.
+export const PREVIEW_AUTH_TTL_S = 12 * 60 * 60
+
+// A copy that reaches session code opens only that session's own preview, and only until it expires.
+export function previewAuthToken(sessionId: number, expiresAt = Math.floor(Date.now() / 1000) + PREVIEW_AUTH_TTL_S): string {
+  return `${expiresAt}.${tokenMac(sessionId, expiresAt)}`
 }
 
 export function isPreviewAuthToken(value: string | undefined, sessionId: number): boolean {
-  const expected = previewAuthToken(sessionId)
-  if (!value || value.length !== expected.length) return false
-  return timingSafeEqual(Buffer.from(value), Buffer.from(expected))
+  const [expires = '', mac = ''] = value?.split('.') ?? []
+  const expiresAt = Number(expires)
+  if (!/^\d+$/.test(expires) || expiresAt <= Date.now() / 1000) return false
+  const expected = tokenMac(sessionId, expiresAt)
+  return mac.length === expected.length && timingSafeEqual(Buffer.from(mac), Buffer.from(expected))
+}
+
+function tokenMac(sessionId: number, expiresAt: number): string {
+  return createHmac('sha256', deriveKey('knecht-preview-auth', 'hmac-token')).update(`${sessionId}.${expiresAt}`).digest('hex')
 }
 
 // The base host behind the preview prefix must be ours, so `1.preview.evil.com` never receives the token.

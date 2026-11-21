@@ -11,6 +11,7 @@ import { isForeignOrigin } from '#server/utils/origin'
 import { knownSessionService, type SessionService } from '#server/utils/session-services'
 import { getSessionRow, touchSessionPreview } from '#server/stores/sessions'
 import { cookieValue, guestAllowed, shareCookieName } from '#server/utils/preview-share'
+import { agentCookieName, isPreviewAuthToken } from '#server/utils/preview-fetch'
 import { getUserSession, clearUserSession } from '#imports'
 import { removeResponseHeader, getRequestURL, getRequestHeader, createError, setCookie, sendRedirect } from 'h3'
 
@@ -221,7 +222,9 @@ const pipeWsHooks = {
       ? null
       : getSessionRow(target.sessionId)
     const cookies = upgradeHeader(request, 'cookie')
-    if (!(target?.app && env && guestAllowed(env, cookieValue(cookies, shareCookieName(env.id))))) {
+    const appGuest = target?.app && env
+      && (guestAllowed(env, cookieValue(cookies, shareCookieName(env.id))) || isPreviewAuthToken(cookieValue(cookies, agentCookieName(env.id)), env.id))
+    if (!appGuest) {
       // Without a session cookie getUserSession tries to create one, which an upgrade cannot.
       const session = cookieValue(cookies, 'nuxt-session') === undefined
         ? null
