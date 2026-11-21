@@ -110,6 +110,7 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
       title="Mentions"
       icon="i-lucide-at-sign"
       accent="var(--accent-orange)"
+      class="lg:row-span-2"
     >
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
