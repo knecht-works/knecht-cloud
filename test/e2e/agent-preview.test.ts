@@ -31,6 +31,7 @@ steps:
 
 interface RunRow {
   id: number
+  sessionId: number
   status: string
 }
 
@@ -122,4 +123,27 @@ describe.runIf(process.env.KNECHT_E2E_AGENT === '1')(`agent browser on ${FIXTURE
     // Craft's webmcp.js is CORS-blocked for every visitor, not only the agent.
     expect(output?.failed_assets.filter(a => /\.css|app\.js/.test(a))).toEqual([])
   })
+
+  it('shows a screenshot the agent takes in the chat', async () => {
+    const run = await expectJson<RunRow>(await client.fetch(`/api/runs/${runId}`))
+    const followup = await expectJson<{ id: number }>(await client.fetch(`/api/runs/${runId}/followups`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Take a screenshot of the start page of the preview and describe it in one sentence. Do not change anything.' }),
+    }))
+    const deadline = Date.now() + DEADLINE_MS
+    let transcript: { followups: { id: number, status: string }[] }
+    while (true) {
+      transcript = await expectJson(await client.fetch(`/api/sessions/${run.sessionId}/transcript`))
+      const state = transcript.followups.find(f => f.id === followup.id)?.status
+      if (state === 'success' || state === 'failed') break
+      if (Date.now() > deadline) throw new Error(`Follow-up ${followup.id} still ${state}`)
+      await new Promise(r => setTimeout(r, 5000))
+    }
+    const file = JSON.stringify(transcript).match(/page-[\w-]+\.png/g)?.at(-1)
+    expect(file).toBeDefined()
+    const image = await client.fetch(`/api/sessions/${run.sessionId}/agent-images/${file}`)
+    expect(image.status).toBe(200)
+    expect(image.headers.get('content-type')).toBe('image/png')
+  }, DEADLINE_MS)
 })
