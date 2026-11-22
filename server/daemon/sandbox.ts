@@ -204,8 +204,10 @@ export async function removeEnvStack(sessionId: number): Promise<void> {
   }
   await removeLabelledContainers(sessionId)
   try {
-    const { stdout } = await execa('docker', ['volume', 'ls', '-q', '--filter', `label=com.ddev.site-name=${sessionSandboxName(sessionId)}`])
-    const volumes = stdout.split('\n').map(v => v.trim()).filter(Boolean)
+    // The database and cache volumes carry only the compose label.
+    const lists = await Promise.all([`com.ddev.site-name=${sessionSandboxName(sessionId)}`, `com.docker.compose.project=ddev-${sessionSandboxName(sessionId)}`]
+      .map(label => execa('docker', ['volume', 'ls', '-q', '--filter', `label=${label}`])))
+    const volumes = [...new Set(lists.flatMap(l => l.stdout.split('\n')).map(v => v.trim()).filter(Boolean))]
     if (volumes.length) await execa('docker', ['volume', 'rm', '-f', ...volumes])
   }
   catch {
