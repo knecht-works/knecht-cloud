@@ -10,6 +10,8 @@ mkdirSync(dirname(dbPath), { recursive: true })
 
 const sqlite = new Database(dbPath)
 sqlite.pragma('journal_mode = WAL')
+// No fsync per commit: every log chunk is one. A power loss can drop the last commits, never corrupt the file.
+sqlite.pragma('synchronous = NORMAL')
 
 export const db = drizzle(sqlite, { schema })
 export type Executor = BaseSQLiteDatabase<'sync', RunResult, typeof schema>
