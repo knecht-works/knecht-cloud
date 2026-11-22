@@ -40,6 +40,11 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     volumes:
       - knecht-package-cache:/mnt/knecht-package-cache
     extra_hosts:
@@ -47,6 +52,11 @@ services:
       - alpha--7.preview.knecht.test:127.0.0.1
   db:
     mem_limit: 1g
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
 volumes:
   knecht-package-cache:
     name: knecht-package-cache
@@ -109,6 +119,11 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     volumes:
       - knecht-package-cache:/mnt/knecht-package-cache
 volumes:
@@ -155,6 +170,11 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     volumes:
       - knecht-package-cache:/mnt/knecht-package-cache
 volumes:
@@ -224,6 +244,11 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     volumes:
       - knecht-package-cache:/mnt/knecht-package-cache
     extra_hosts:
@@ -281,6 +306,11 @@ services:
   web:
     mem_limit: 2g
     pids_limit: 2048
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
     volumes:
       - knecht-package-cache:/mnt/knecht-package-cache
 volumes:
