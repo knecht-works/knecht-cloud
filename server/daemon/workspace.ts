@@ -8,7 +8,7 @@ import { writeBridgeCredentialHelper } from '#server/utils/agent-bridge'
 import { sessionCheckoutDir, sessionSandboxName } from '#server/utils/storage'
 import { getProject } from '#server/stores/projects'
 import { getSessionRow } from '#server/stores/sessions'
-import { KNECHT_CONFIG_FILE, PACKAGE_CACHE_MOUNT, WEB_MEM_LIMIT, WEB_PIDS_LIMIT, webVolumes } from '#server/daemon/ddev'
+import { KNECHT_CONFIG_FILE, LOG_DRIVER, LOG_OPTIONS, PACKAGE_CACHE_MOUNT, WEB_MEM_LIMIT, WEB_PIDS_LIMIT, webVolumes } from '#server/daemon/ddev'
 import { attachKnecht, ddevWebImage, ensurePackageCache, forgetPreview, knechtContainer, WEB_PROJECT_DIR } from '#server/daemon/sandbox'
 
 export const WORKSPACE_LABEL = 'works.knecht.workspace'
@@ -67,6 +67,8 @@ async function startWorkspace(sessionId: number): Promise<void> {
       '--env-file', envFile,
       '--memory', WEB_MEM_LIMIT,
       '--pids-limit', String(WEB_PIDS_LIMIT),
+      '--log-driver', LOG_DRIVER,
+      ...Object.entries(LOG_OPTIONS).flatMap(([key, value]) => ['--log-opt', `${key}=${value}`]),
       '-v', `${dir}:${WEB_PROJECT_DIR}`,
       // Where the ddev shim looks up the project's own web commands.
       '-v', `${join(dir, '.ddev')}:/mnt/ddev_config:ro`,
