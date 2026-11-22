@@ -374,7 +374,7 @@ export type NewWorkflowRow = typeof workflows.$inferInsert
 export const settings = sqliteTable('settings', {
   id: integer('id').primaryKey(),
 
-  idleStopMinutes: integer('idle_stop_minutes').notNull().default(1440),
+  idleStopMinutes: integer('idle_stop_minutes').notNull().default(120),
   previewRetentionDays: integer('preview_retention_days').notNull().default(7),
   archiveRetentionDays: integer('archive_retention_days').notNull().default(30),
   maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
