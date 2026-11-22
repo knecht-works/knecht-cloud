@@ -18,6 +18,9 @@ export type UrlMode = 'env' | 'rewrite'
 export const WEB_MEM_LIMIT = '2g'
 const DB_MEM_LIMIT = '1g'
 export const WEB_PIDS_LIMIT = 2048
+// The daemon's default json-file log never rotates. Named explicitly, since these options fail under another driver.
+export const LOG_DRIVER = 'json-file'
+export const LOG_OPTIONS = { 'max-size': '10m', 'max-file': '3' }
 
 export const DEV_DAEMON_GROUP = 'webextradaemons'
 
@@ -383,15 +386,18 @@ export function webVolumes(shared?: SharedFolderConfig): string[] {
 
 // A db entry without an image is a compose error when ddev omits the db.
 function composeOverride({ hasDb, volumes, extraHosts }: { hasDb: boolean, volumes: string[], extraHosts: string[] }): Record<string, unknown> {
+  // Two copies: one shared object would be written as a YAML alias.
+  const logging = () => ({ driver: LOG_DRIVER, options: { ...LOG_OPTIONS } })
   return {
     services: {
       web: {
         mem_limit: WEB_MEM_LIMIT,
         pids_limit: WEB_PIDS_LIMIT,
+        logging: logging(),
         volumes: [PACKAGE_CACHE_MOUNT, ...volumes],
         ...(extraHosts.length ? { extra_hosts: extraHosts } : {}),
       },
-      ...(hasDb ? { db: { mem_limit: DB_MEM_LIMIT } } : {}),
+      ...(hasDb ? { db: { mem_limit: DB_MEM_LIMIT, logging: logging() } } : {}),
     },
     volumes: { [PACKAGE_CACHE_VOLUME]: { name: PACKAGE_CACHE_VOLUME, external: true } },
   }

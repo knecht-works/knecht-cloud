@@ -4,8 +4,16 @@
 # ddev CLI inside this container through the mounted socket
 # (server/daemon/sandbox.ts). No Docker-in-Docker, no special runtime.
 
+# The daemon's default json-file log never rotates.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   knecht:
+    logging: *logging
     # Production pulls the CI-built release image, pinned via KNECHT_VERSION in
     # .env (written by scripts/install.sh, advanced by the in-app updater).
     # Local dev ignores the registry and builds from source instead:
@@ -74,6 +82,7 @@ services:
   # preview subdomains, gated by Knecht's /tls-ask endpoint (see Caddyfile).
   caddy:
     image: caddy:2-alpine
+    logging: *logging
     profiles: ["prod"]
     ports:
       - "80:80"
