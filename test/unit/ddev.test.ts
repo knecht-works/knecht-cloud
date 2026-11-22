@@ -157,6 +157,8 @@ describe('writeDdevConfig', () => {
     expect(compose.networks).toBeUndefined()
     expect(compose.services.web.mem_limit).toBeDefined()
     expect(compose.services.db.mem_limit).toBeDefined()
+    expect(compose.services.web.logging.options['max-size']).toBeDefined()
+    expect(compose.services.db.logging.options['max-size']).toBeDefined()
   })
 
   it('writes the low-memory db config into the mysql includedir', async () => {
