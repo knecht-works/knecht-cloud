@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, rmSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
+import semver from 'semver'
 import { listProjects } from '#server/stores/projects'
 import type { DbBase } from '#server/db/schema'
 import { GC_AUTO_CATEGORIES, type GcCategory } from '#shared/utils/gc'
@@ -12,7 +13,8 @@ import { removeWorkspace, WORKSPACE_LABEL, workspaceContainerName } from '#serve
 import { listSessionIds, listSessionsInEnvState } from '#server/stores/sessions'
 import { deleteToolCallsBefore } from '#server/stores/tool-calls'
 import { clearModelCatalogCache } from '#server/utils/ai-catalog'
-import { clearVersionCache } from '#server/utils/version'
+import { clearVersionCache, currentVersion, RELEASE_TAG_RE } from '#server/utils/version'
+import { IMAGE as RELEASE_IMAGE } from '#server/daemon/update'
 import { useStorage } from 'nitropack/runtime'
 
 const TOOL_CALL_RETENTION_MS = 90 * 24 * 60 * 60_000
@@ -42,7 +44,7 @@ export async function collectGarbage(categories: readonly GcCategory[] = GC_AUTO
 
   const result: GcResult = { sandboxes: [], checkouts: [], archives: [], dumpDirs: [], dumpFiles: [], dbBases: [], sharedDirs: [], memoryDirs: [], images: [], packageCache: [], dockerPruned: [], appCache: [] }
   if (categories.includes('sessions')) {
-    result.sandboxes = [...await reapOrphanSandboxes(liveSessions), ...await reapOrphanWorkspaces(liveSessions)]
+    result.sandboxes = [...await reapOrphanSandboxes(liveSessions), ...await reapOrphanWorkspaces(liveSessions), ...await reapOrphanSessionVolumes()]
     result.checkouts = reapOrphanCheckouts(liveSessions)
     result.archives = reapOrphanArchives(liveSessions)
   }
@@ -106,6 +108,39 @@ async function reapOrphanWorkspaces(liveSessions: Set<number>): Promise<string[]
   for (const sessionId of orphans) {
     await removeWorkspace(sessionId)
     removed.push(workspaceContainerName(sessionId))
+  }
+  return removed
+}
+
+// A teardown whose `ddev delete` failed leaves them, and an archived session keeps its database as a file.
+export function staleSessionVolumes(volumes: string[], hasStack: (sessionId: number) => boolean): string[] {
+  return volumes.flatMap((line) => {
+    const [name = '', project = ''] = line.split('\t')
+    const sessionId = Number(/^ddev-knecht-run-(\d+)$/.exec(project.trim())?.[1])
+    return sessionId && !hasStack(sessionId) ? [name.trim()] : []
+  })
+}
+
+async function reapOrphanSessionVolumes(): Promise<string[]> {
+  let volumes: string[]
+  try {
+    const { stdout } = await execa('docker', ['volume', 'ls', '--filter', 'label=com.docker.compose.project', '--format', '{{.Name}}\t{{.Label "com.docker.compose.project"}}'])
+    volumes = stdout.split('\n').filter(Boolean)
+  }
+  catch {
+    return []
+  }
+  const withStack = new Set([...listSessionsInEnvState('up'), ...listSessionsInEnvState('stopped')].map(s => s.id))
+  const hasStack = (id: number) => withStack.has(id) || envTransition(id) !== null
+  const removed: string[] = []
+  for (const volume of staleSessionVolumes(volumes, hasStack)) {
+    try {
+      await execa('docker', ['volume', 'rm', volume])
+      removed.push(volume)
+    }
+    catch {
+      // In use.
+    }
   }
   return removed
 }
@@ -227,10 +262,20 @@ export function staleImages(images: string[], keep: ImageKeep): string[] {
     const [repo = '', tag = ''] = image.split(':')
     if (!repo.startsWith('ddev/') && repo !== 'knecht-workspace') return false
     const session = /-knecht-run-(\d+)-built$/.exec(tag)
-    if (session) return !keep.sessions.has(Number(session[1]))
+    // The next start builds the session's image for the current version anyway.
+    if (session) return !keep.sessions.has(Number(session[1])) || (!!keep.ddevTag && !tag.startsWith(`${keep.ddevTag}-`))
     if (/-knecht-base-.+-built$/.test(tag)) return !keep.building(tag)
     if (!keep.ddevTag || !/^v\d/.test(tag)) return false
     return tag !== keep.ddevTag && !tag.startsWith(`${keep.ddevTag}-`)
+  })
+}
+
+// Only older ones: an update pulls the new release before it switches to it.
+export function staleReleaseImages(images: string[], current: string): string[] {
+  if (!RELEASE_TAG_RE.test(current)) return []
+  return images.filter((image) => {
+    const [repo, tag = ''] = image.split(/:(?=[^:]+$)/)
+    return repo === RELEASE_IMAGE && RELEASE_TAG_RE.test(tag) && semver.lt(tag, current)
   })
 }
 
@@ -250,7 +295,7 @@ async function reapStaleImages(): Promise<string[]> {
   ])
   const ddevTag = await ddevWebImage().then(image => image.split(':').at(-1) ?? null, () => null)
   const removed: string[] = []
-  for (const image of staleImages(images, { ddevTag, sessions, building: dbBaseBuilding })) {
+  for (const image of [...staleImages(images, { ddevTag, sessions, building: dbBaseBuilding }), ...staleReleaseImages(images, currentVersion())]) {
     try {
       await execa('docker', ['rmi', image])
       removed.push(image)
