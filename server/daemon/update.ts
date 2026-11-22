@@ -1,7 +1,7 @@
 import { execa } from 'execa'
 import { RELEASE_TAG_RE } from '#server/utils/version'
 
-const IMAGE = 'ghcr.io/knecht-works/knecht-cloud'
+export const IMAGE = 'ghcr.io/knecht-works/knecht-cloud'
 
 // A container can't recreate itself, so a sibling container on the host daemon does it.
 export async function startUpdate(tag: string): Promise<void> {
