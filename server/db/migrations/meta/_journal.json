@@ -540,6 +540,13 @@
       "when": 1795205663514,
       "tag": "0076_mcp-server-project-off",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "6",
+      "when": 1795351403512,
+      "tag": "0077_idle-stop-two-hours",
+      "breakpoints": true
     }
   ]
 }
