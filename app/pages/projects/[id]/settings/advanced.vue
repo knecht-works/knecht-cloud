@@ -3,12 +3,15 @@ import { useToast, useRoute, navigateTo, $fetch } from '#imports'
 import { useToastError } from '~/composables/useToastError'
 import { useProject } from '~/composables/useProjects'
 import { useRuns } from '~/composables/useRuns'
-import { computed, ref } from 'vue'
+import { useBranchPicker } from '~/composables/useBranchPicker'
+import { useAutosave } from '~/composables/useAutosave'
+import { computed, ref, watch } from 'vue'
+import KSaveStatus from '~/components/KSaveStatus.vue'
 import KSettingsPreviews from '~/components/KSettingsPreviews.vue'
 import KSettingRow from '~/components/KSettingRow.vue'
 import KPanel from '~/components/KPanel.vue'
 import KConfirmModal from '~/components/KConfirmModal.vue'
-import { UButton } from '#components'
+import { UButton, USelectMenu } from '#components'
 
 const toast = useToast()
 const toastError = useToastError()
@@ -18,6 +21,21 @@ const { data: project } = await useProject(id)
 const { data: runs } = useRuns(id)
 const activeRunCount = computed(() =>
   (runs.value ?? []).filter(r => r.status === 'running' || r.status === 'queued').length)
+
+const defaultBranch = ref(project.value?.defaultBranch ?? '')
+const { items: branchItems } = useBranchPicker(
+  () => `/api/projects/${id}/branches`,
+  () => project.value?.defaultBranch,
+)
+const { state: branchState, error: branchError, schedule: scheduleBranch } = useAutosave(async () => {
+  const body = { defaultBranch: defaultBranch.value }
+  await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
+  if (project.value) project.value = { ...project.value, ...body }
+}, 0)
+watch(defaultBranch, (branch) => {
+  if (branch === project.value?.defaultBranch) return
+  scheduleBranch()
+})
 
 const confirmDisconnect = ref(false)
 const disconnectDetail = computed(() => {
@@ -53,6 +71,31 @@ async function removeProject() {
       :project="project"
       editable
     />
+    <KPanel
+      title="Repository"
+      icon="i-lucide-git-branch"
+      accent="var(--primary)"
+    >
+      <template #action>
+        <KSaveStatus
+          v-if="branchState !== 'idle'"
+          :state="branchState"
+          :error-text="branchError"
+        />
+      </template>
+      <KSettingRow
+        label="Default branch"
+        hint="New sessions start from this branch and their pull requests target it, unless a trigger picks another. Open sessions keep the branch they started from."
+      >
+        <USelectMenu
+          v-model="defaultBranch"
+          :items="branchItems"
+          icon="i-lucide-git-branch"
+          :search-input="{ placeholder: 'Filter branches…' }"
+          class="w-full"
+        />
+      </KSettingRow>
+    </KPanel>
     <KPanel
       title="Danger zone"
       icon="i-lucide-triangle-alert"
