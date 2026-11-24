@@ -29,7 +29,13 @@ const { items: branchItems } = useBranchPicker(
 )
 const { state: branchState, error: branchError, schedule: scheduleBranch } = useAutosave(async () => {
   const body = { defaultBranch: defaultBranch.value }
-  await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
+  try {
+    await $fetch(`/api/projects/${id}`, { method: 'PATCH', body })
+  }
+  catch (e) {
+    defaultBranch.value = project.value?.defaultBranch ?? ''
+    throw e
+  }
   if (project.value) project.value = { ...project.value, ...body }
 }, 0)
 watch(defaultBranch, (branch) => {
