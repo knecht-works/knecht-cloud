@@ -45,6 +45,6 @@ describe('prepareSessionCheckout', () => {
     await expect(prepareSessionCheckout(project, session.id, credentials, () => {}, 'develop', 'develop'))
       .rejects.toThrow('Branch develop does not exist in knecht-works/test-php')
     await expect(prepareSessionCheckout(project, makeSession(project).id, credentials, () => {}, 'never-pushed', 'develop'))
-      .rejects.toThrow('Branch develop does not exist')
+      .rejects.toThrow(/develop not found/)
   })
 })
