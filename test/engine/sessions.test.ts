@@ -163,7 +163,7 @@ describe('withSessionLinks', () => {
     const project = makeProject()
     const run = makeRun(project, [])
     const text = withSessionLinks('Home:\n\n![Home page](.knecht/browser/page-1.png) ![](/var/www/html/.knecht/browser/b.png)', run.sessionId, issue)
-    const url = `http://lvh.me:3333/projects/${project.id}?session=${run.sessionId}`
+    const url = `http://lvh.me:3333/projects/${project.id}/sessions?session=${run.sessionId}`
     expect(text).toBe(`Home:\n\n[Screenshot: Home page](${url}&image=page-1.png) [Screenshot](${url}&image=b.png)`)
   })
 

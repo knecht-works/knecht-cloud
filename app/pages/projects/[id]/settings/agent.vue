@@ -12,6 +12,8 @@ import KSaveStatus from '~/components/KSaveStatus.vue'
 import WorkflowCodeEditor from '~/components/workflow/CodeEditor.vue'
 import KPanel from '~/components/KPanel.vue'
 import KSettingsMcp from '~/components/KSettingsMcp.vue'
+import KSettingsAi from '~/components/KSettingsAi.vue'
+import KSettingRow from '~/components/KSettingRow.vue'
 import { USwitch, NuxtLink, USelectMenu, UIcon, UTooltip } from '#components'
 
 const toastError = useToastError()
@@ -74,8 +76,10 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
 <template>
   <div
     v-if="project"
-    class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]"
+    class="flex flex-col gap-4.5"
   >
+    <KSettingsAi :project-id="project.id" />
+    <KSettingsMcp :project-id="project.id" />
     <KPanel
       title="Agent instructions"
       icon="i-lucide-list-checks"
@@ -110,41 +114,30 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
       title="Mentions"
       icon="i-lucide-at-sign"
       accent="var(--accent-orange)"
-      class="lg:row-span-2"
     >
-      <div class="flex items-start justify-between gap-4">
-        <div class="min-w-0">
-          <div class="text-sm text-highlighted">
-            Start with a preview
-          </div>
-          <p class="mt-0.5 text-xs leading-relaxed text-muted">
-            Boots the app so Knecht can check its work. Off: code only, faster.
-          </p>
+      <KSettingRow label="Start with a preview">
+        <template #hint>
+          Boots the app so Knecht can check its work. Off: code only, faster.
+          <template v-if="mentionPreview && !hasBootCommands">
+            Needs boot commands. Until then, mentions work on the code only.
+            <NuxtLink
+              :to="`/projects/${id}/settings`"
+              class="text-toned underline underline-offset-2 hover:text-highlighted"
+            >Add them in Environment</NuxtLink>.
+          </template>
+        </template>
+        <div class="flex lg:justify-end">
+          <USwitch
+            :model-value="mentionPreview"
+            aria-label="Start with a preview"
+            @update:model-value="setMentionPreview"
+          />
         </div>
-        <USwitch
-          :model-value="mentionPreview"
-          aria-label="Start with a preview"
-          class="mt-0.5"
-          @update:model-value="setMentionPreview"
-        />
-      </div>
-      <p
-        v-if="mentionPreview && !hasBootCommands"
-        class="mt-2.5 text-xs leading-relaxed text-muted"
+      </KSettingRow>
+      <KSettingRow
+        label="Setup workflow"
+        hint="Runs once before the first mention in a thread, for example to seed test data."
       >
-        Needs boot commands. Until then, mentions work on the code only.
-        <NuxtLink
-          :to="`/projects/${id}/settings`"
-          class="text-toned underline underline-offset-2 hover:text-highlighted"
-        >Add them in Environment</NuxtLink>.
-      </p>
-      <div class="mt-5">
-        <div class="text-sm text-highlighted">
-          Setup workflow
-        </div>
-        <p class="mt-0.5 mb-2.5 text-xs leading-relaxed text-muted">
-          Runs once before the first mention in a thread, for example to seed test data.
-        </p>
         <USelectMenu
           :model-value="starterItems.find(i => i.value === starterWorkflowId)"
           :items="starterItems"
@@ -154,15 +147,12 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
           class="w-full"
           @update:model-value="(item: { value: number } | null | undefined) => setStarter(item?.value ?? null)"
         />
-      </div>
-      <div class="mt-5">
-        <div class="text-sm text-highlighted">
-          Works in
-        </div>
-        <p class="mt-0.5 mb-2.5 text-xs leading-relaxed text-muted">
-          Mention Knecht in a comment. It does what you ask and replies in the thread.
-        </p>
-        <div class="flex flex-wrap items-center gap-1.5">
+      </KSettingRow>
+      <KSettingRow
+        label="Works in"
+        hint="Mention Knecht in a comment. It does what you ask and replies in the thread."
+      >
+        <div class="flex flex-wrap items-center gap-1.5 lg:justify-end">
           <UTooltip
             v-for="i in configuredIntegrations"
             :key="i.id"
@@ -170,7 +160,7 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
           >
             <span
               tabindex="0"
-              class="k-mono flex items-center gap-1.5 rounded-full border border-default px-2.5 py-1 text-2xs text-muted outline-hidden"
+              class="flex items-center gap-1.5 rounded-full border border-default px-2.5 py-1 text-xs text-muted outline-hidden"
             >
               <UIcon
                 :name="integrationUi(i.id).icon"
@@ -181,8 +171,7 @@ function mentionHint(i: { id: IntegrationId, accountName: string | null }) {
             </span>
           </UTooltip>
         </div>
-      </div>
+      </KSettingRow>
     </KPanel>
-    <KSettingsMcp :project-id="project.id" />
   </div>
 </template>

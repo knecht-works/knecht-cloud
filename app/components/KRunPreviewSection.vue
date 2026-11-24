@@ -71,8 +71,10 @@ async function runAgain() {
     :hosts="previewHosts"
     :online="previewOnline"
     :busy="busy ?? (isLive && !previewOnline ? 'booting' : null)"
-    shareable
   >
+    <template #actions>
+      <slot name="actions" />
+    </template>
     <KEnvLifecycle
       :env-state="envState"
       :workflow-id="workflowId"

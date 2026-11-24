@@ -294,10 +294,10 @@ const status = computed(() => {
       <KSettingRow
         label="API key"
         :hint="!projectId
-          ? 'Stored encrypted. The model list loads once a key is saved.'
+          ? 'The model list loads once a key is saved.'
           : inheritsProvider
-            ? 'The global key until you enter one. An own key bills this project\'s usage separately. Stored encrypted.'
-            : 'Required for this provider. Stored encrypted. The model list loads once a key is saved.'"
+            ? 'Uses the global key unless you set one here.'
+            : 'Required for this provider. The model list loads once a key is saved.'"
         :preset="!projectId && isPreset(settings, 'aiKey')"
       >
         <form @submit.prevent="aiKeyChanged && saveAiKey(aiKey.trim())">
@@ -383,7 +383,7 @@ const status = computed(() => {
 
       <KSettingRow
         label="Subtask model"
-        hint="A faster model for the agent's small internal tasks and exploration subagents. The main model still does the actual work."
+        hint="A faster model for the agent's small internal tasks and exploration subagents."
         :preset="!projectId && isPreset(settings, 'aiSubtaskModel')"
       >
         <USelect

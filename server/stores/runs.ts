@@ -50,6 +50,8 @@ const runListColumns = {
   finishedAt: schema.runs.finishedAt,
   createdAt: schema.runs.createdAt,
   failureDiagnosis: schema.runs.failureDiagnosis,
+  branch: schema.runs.branch,
+  prUrl: schema.runs.prUrl,
 }
 
 export function getRun(id: number): Run | undefined {
@@ -64,11 +66,7 @@ export function requireRun(id: number): Run {
 
 export function getRunView(id: number) {
   return db
-    .select({
-      ...runListColumns,
-      branch: schema.runs.branch,
-      prUrl: schema.runs.prUrl,
-    })
+    .select(runListColumns)
     .from(schema.runs)
     .innerJoin(schema.projects, eq(schema.runs.projectId, schema.projects.id))
     .innerJoin(schema.sessions, eq(schema.runs.sessionId, schema.sessions.id))

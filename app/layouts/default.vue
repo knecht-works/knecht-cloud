@@ -2,6 +2,7 @@
 import type { DropdownMenuItem } from '@nuxt/ui'
 import { useUserSession, useRoute, useCookie, navigateTo } from '#imports'
 import { useMembers } from '~/composables/useMembers'
+import { useProjects } from '~/composables/useProjects'
 import { computed } from 'vue'
 import { useDbImportToasts } from '~/composables/useDbImportToasts'
 import { useSystemInfo } from '~/composables/useSystemInfo'
@@ -29,6 +30,21 @@ const NAV = [
 function isActive(item: typeof NAV[number]) {
   return item.match.some(m => m === '/' ? route.path === '/' : route.path.startsWith(m))
 }
+
+const { data: projects } = useProjects()
+const currentProject = computed(() => {
+  const id = Number(route.params.id)
+  return route.path.startsWith('/projects/') ? projects.value.find(p => p.id === id) ?? null : null
+})
+const projectNav = computed(() => {
+  const p = currentProject.value
+  if (!p) return []
+  const base = `/projects/${p.id}`
+  return [
+    { label: 'Sessions', icon: 'i-lucide-messages-square', to: `${base}/sessions`, active: route.path.startsWith(`${base}/sessions`) },
+    { label: 'Settings', icon: 'i-lucide-settings', to: `${base}/settings`, active: route.path.startsWith(`${base}/settings`) },
+  ]
+})
 
 const initials = computed(() => {
   const base = user.value?.name || user.value?.login || '?'
@@ -97,36 +113,94 @@ const updateTarget = computed(() =>
       </div>
 
       <nav class="flex flex-col gap-1 p-3">
-        <UTooltip
+        <template
           v-for="item in NAV"
           :key="item.to"
-          :text="item.label"
-          :disabled="!collapsed"
-          :content="{ side: 'right' }"
         >
-          <NuxtLink
-            :to="item.to"
-            class="group relative flex items-center gap-3 rounded-md border py-2 text-sm font-medium transition-colors"
-            :class="[
-              isActive(item)
-                ? 'border-default bg-(--surface-glass) text-highlighted'
-                : 'border-transparent text-muted hover:text-toned',
-              collapsed ? 'justify-center px-0' : 'px-3',
-            ]"
+          <UTooltip
+            :text="item.label"
+            :disabled="!collapsed"
+            :content="{ side: 'right' }"
           >
-            <span
-              v-if="isActive(item)"
-              class="absolute inset-y-2 -left-px w-0.5 rounded-sm bg-primary"
-              style="box-shadow: 0 0 8px var(--primary)"
-            />
-            <UIcon
-              :name="item.icon"
-              class="size-4 flex-none"
-              :class="isActive(item) ? 'text-primary' : 'text-dimmed'"
-            />
-            <span v-if="!collapsed">{{ item.label }}</span>
-          </NuxtLink>
-        </UTooltip>
+            <NuxtLink
+              :to="item.to"
+              class="group relative flex items-center gap-3 rounded-md border py-2 text-sm font-medium transition-colors"
+              :class="[
+                isActive(item) && !(item.to === '/projects' && currentProject)
+                  ? 'border-default bg-(--surface-glass) text-highlighted'
+                  : isActive(item) ? 'border-transparent text-highlighted' : 'border-transparent text-muted hover:text-toned',
+                collapsed ? 'justify-center px-0' : 'px-3',
+              ]"
+            >
+              <span
+                v-if="isActive(item) && !(item.to === '/projects' && currentProject)"
+                class="absolute inset-y-2 -left-px w-0.5 rounded-sm bg-primary"
+                style="box-shadow: 0 0 8px var(--primary)"
+              />
+              <UIcon
+                :name="item.icon"
+                class="size-4 flex-none"
+                :class="isActive(item) ? 'text-primary' : 'text-dimmed'"
+              />
+              <span v-if="!collapsed">{{ item.label }}</span>
+            </NuxtLink>
+          </UTooltip>
+
+          <div
+            v-if="item.to === '/projects' && currentProject"
+            class="flex flex-col gap-0.5"
+            :class="collapsed ? '' : 'ml-5 border-l border-default pl-2'"
+          >
+            <UTooltip
+              v-for="sub in [{ label: currentProject.name, icon: '', to: `/projects/${currentProject.id}`, active: route.path === `/projects/${currentProject.id}` }, ...projectNav]"
+              :key="sub.to"
+              :text="sub.label"
+              :disabled="!collapsed"
+              :content="{ side: 'right' }"
+            >
+              <NuxtLink
+                :to="sub.to"
+                class="relative flex items-center rounded-md border py-1.5 text-2sm font-medium transition-colors"
+                :class="[
+                  sub.active
+                    ? 'border-default bg-(--surface-glass) text-highlighted'
+                    : 'border-transparent text-muted hover:text-toned',
+                  collapsed ? 'justify-center px-0' : 'gap-2.5 px-2.5',
+                ]"
+                :aria-current="sub.active ? 'page' : undefined"
+              >
+                <span
+                  v-if="sub.active"
+                  class="absolute inset-y-1.5 w-0.5 rounded-sm bg-primary"
+                  :class="collapsed ? '-left-px' : '-left-2.5'"
+                  style="box-shadow: 0 0 8px var(--primary)"
+                />
+                <UIcon
+                  v-if="sub.icon"
+                  :name="sub.icon"
+                  class="size-4 flex-none"
+                  :class="sub.active ? 'text-primary' : 'text-dimmed'"
+                />
+                <img
+                  v-else-if="currentProject.favicon"
+                  :src="currentProject.favicon"
+                  alt=""
+                  class="size-4 flex-none rounded-sm object-contain"
+                >
+                <UIcon
+                  v-else
+                  name="i-lucide-box"
+                  class="size-4 flex-none"
+                  :class="sub.active ? 'text-primary' : 'text-dimmed'"
+                />
+                <span
+                  v-if="!collapsed"
+                  class="truncate"
+                >{{ sub.label }}</span>
+              </NuxtLink>
+            </UTooltip>
+          </div>
+        </template>
       </nav>
 
       <div class="mt-auto flex flex-col gap-2 p-3">
