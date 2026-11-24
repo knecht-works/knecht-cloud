@@ -31,10 +31,9 @@ export async function prepareSessionCheckout(
     else {
       const header = authHeader(credentials)
       const auth = `${header.key}=${header.value}`
-      const onOrigin = async (name: string) => name === project.defaultBranch || await remoteHasBranch(auth, credentials.cloneUrl, name)
       // Session branches stay local until a PR pushes them; a base branch must exist.
-      const branchOnOrigin = await onOrigin(branch)
-      if (!branchOnOrigin && (branch === base || !await onOrigin(base))) {
+      const branchOnOrigin = branch === project.defaultBranch || await remoteHasBranch(auth, credentials.cloneUrl, branch)
+      if (!branchOnOrigin && branch === base) {
         throw new Error(`Branch ${base} does not exist in ${project.fullName}`)
       }
       if (branchOnOrigin) {
