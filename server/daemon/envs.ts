@@ -14,7 +14,7 @@ import { ensureWorkspaceUp, removeWorkspace, runOnCheckout } from '#server/daemo
 import { envStackRunning, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from '#server/daemon/sandbox'
 import { warmPreviewCertificates } from '#server/utils/preview-certs'
 import { getProject } from '#server/stores/projects'
-import { getSessionRow, listSessionsInEnvState, moveSession, sessionChanged, updateSession, touchSessionPreview } from '#server/stores/sessions'
+import { getSessionRow, listSessionsInEnvState, moveSession, sessionBase, sessionChanged, updateSession, touchSessionPreview } from '#server/stores/sessions'
 import { listRunSessionIds, sessionHasActiveRun } from '#server/stores/runs'
 import { lastSuccessfulSessionStep, listRunIdsWithRunningSteps } from '#server/stores/run-steps'
 import { listRunningFollowupSessionIds, sessionHasActiveFollowup } from '#server/stores/followups'
@@ -196,7 +196,8 @@ async function restoreFromArchive(sessionId: number, log: (text: string) => void
   else {
     log(`The archived state of this session is gone, so its uncommitted and unpushed work could not be restored\n`)
     const credentials = await gitProvider(project).credentials(project)
-    await prepareSessionCheckout(project, sessionId, credentials, log, session.branch ?? project.defaultBranch)
+    const base = sessionBase(session, project)
+    await prepareSessionCheckout(project, sessionId, credentials, log, session.branch ?? base, base)
   }
 
   // Only when the checkout has none yet: a retry must keep the live state.

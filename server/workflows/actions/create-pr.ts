@@ -6,7 +6,7 @@ import type { PullRequest } from '#server/git/types'
 import { withPreviewFooter } from '#server/utils/origin'
 import { defineAction } from '#server/workflows/actions/types'
 import { updateRun } from '#server/stores/runs'
-import { requireSession } from '#server/stores/sessions'
+import { requireSession, sessionBase } from '#server/stores/sessions'
 import { attachPullRequest } from '#server/utils/sessions'
 
 export const createPrAction = defineAction({
@@ -33,7 +33,7 @@ export const createPrAction = defineAction({
         title: step.title,
         body: withPreviewFooter(step.body, rt.sessionId),
         head: branch,
-        base: rt.project.defaultBranch,
+        base: sessionBase(requireSession(rt.sessionId), rt.project),
       })
     }
     catch (e) {

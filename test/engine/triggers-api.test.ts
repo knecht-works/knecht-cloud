@@ -147,6 +147,17 @@ describe('POST /api/triggers', () => {
     expect(res.json).toMatchObject({ source: 'tracker', integration: 'jira', event: 'On label knecht', config: { kind: 'issue', event: { type: 'labeled', values: ['knecht'] }, conditions: allOf({ issueType: ['Bug'] }) } })
   })
 
+  it('stores the branch new sessions start from', async () => {
+    const res = await post({ source: 'schedule', workflowId: makeWorkflow().id, projectIds: [], cron: '0 9 * * *', branch: 'develop' })
+    expect(res.json).toMatchObject({ branch: 'develop' })
+  })
+
+  it('refuses a branch on a pull request trigger', async () => {
+    const res = await post({ source: 'git', workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'pull_request', event: { type: 'opened' } }, branch: 'develop' })
+    expect(res.status).toBe(400)
+    expect(res.json).toMatchObject({ statusMessage: 'A pull request trigger works on the pull request branch' })
+  })
+
   it('refuses an unknown workflow', async () => {
     const res = await post({ source: 'schedule', workflowId: 999_999, projectIds: [], cron: '0 9 * * *' })
     expect(res.status).toBe(404)
@@ -197,6 +208,14 @@ describe('PATCH /api/triggers/:id', () => {
     const id = (created.json as { id: number }).id
     const res = await update(id, { projectIds: [makeProject().id] })
     expect(res.json).toMatchObject({ event: 'On issue · label knecht' })
+  })
+
+  it('keeps the branch unless it is changed, and clears it with null', async () => {
+    const created = await post({ source: 'git', workflowId: makeWorkflow().id, projectIds: [], config: { kind: 'issue', event: { type: 'opened' } }, branch: 'develop' })
+    const id = (created.json as { id: number }).id
+    expect((await update(id, { active: false })).json).toMatchObject({ branch: 'develop' })
+    expect((await update(id, { config: { kind: 'pull_request', event: { type: 'opened' } } })).status).toBe(400)
+    expect((await update(id, { branch: null })).json).toMatchObject({ branch: null })
   })
 
   it('answers 404 for an unknown trigger', async () => {

@@ -39,6 +39,13 @@ describe('a session holds the objects of one piece of work', () => {
     expect(primaryObject(session.id)?.key).toBe('7')
   })
 
+  it('never matches a session still on its base branch', () => {
+    const project = makeProject()
+    const { session } = resolveObjectSession(project, null, null, 'develop')
+
+    expect(resolveSession(project, pr('11'), 'develop').id).not.toBe(session.id)
+  })
+
   it('never matches the default branch', () => {
     const project = makeProject()
     const session = resolveSession(project, null, null)

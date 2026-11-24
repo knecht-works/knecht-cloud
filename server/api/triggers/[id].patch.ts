@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { TRACKER_IDS, TRIGGER_SOURCES } from '#shared/utils/integrations'
 import { isValidCron, nextRun } from '#server/utils/cron'
-import { toSummaries } from '#server/utils/triggers'
+import { toSummaries, triggerTakesBranch } from '#server/utils/triggers'
 import { getTriggerSource } from '#server/utils/trigger-sources'
 import type { NewTrigger } from '#server/db/schema'
 import { requireWorkflowRow } from '#server/stores/workflows'
@@ -17,6 +17,7 @@ const bodySchema = z.object({
   projectIds: z.array(z.number().int()).optional(),
   cron: z.string().min(1).optional(),
   config: z.record(z.string(), z.unknown()).optional(),
+  branch: z.string().trim().min(1).nullable().optional(),
 })
 
 export default defineEventHandler(async (event) => {
@@ -57,6 +58,12 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: config.error.issues[0]?.message ?? 'Invalid trigger config' })
   }
   patch.config = config.data
+
+  const branch = data.branch !== undefined ? data.branch : row.branch
+  if (branch && !triggerTakesBranch(nextSource, config.data)) {
+    throw createError({ statusCode: 400, statusMessage: 'A pull request trigger works on the pull request branch' })
+  }
+  patch.branch = branch
 
   const projectError = def.validateProjects?.(patch.projectIds ?? row.projectIds)
   if (projectError) {

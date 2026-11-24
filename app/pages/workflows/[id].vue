@@ -872,6 +872,13 @@ const pr = computed(() => {
                           </template>
                         </span>
                       </span>
+                      <span
+                        v-if="t.branch"
+                        class="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted"
+                      >
+                        <span>from</span>
+                        <KTriggerSegments :segments="[{ kind: 'value', text: t.branch }]" />
+                      </span>
                     </span>
                   </button>
                   <div class="flex w-37.5 flex-none flex-wrap justify-end gap-1.5 pt-1.5">

@@ -20,6 +20,7 @@ export async function prepareSessionCheckout(
   credentials: GitCredentials,
   onLog: (line: string) => void,
   branch: string = project.defaultBranch,
+  base: string = project.defaultBranch,
 ): Promise<string> {
   const dir = sessionCheckoutDir(sessionId)
 
@@ -30,16 +31,20 @@ export async function prepareSessionCheckout(
     else {
       const header = authHeader(credentials)
       const auth = `${header.key}=${header.value}`
-      // Session branches stay local until a PR pushes them.
-      const onOrigin = branch === project.defaultBranch || await remoteHasBranch(auth, credentials.cloneUrl, branch)
-      if (onOrigin) {
+      const onOrigin = async (name: string) => name === project.defaultBranch || await remoteHasBranch(auth, credentials.cloneUrl, name)
+      // Session branches stay local until a PR pushes them; a base branch must exist.
+      const branchOnOrigin = await onOrigin(branch)
+      if (!branchOnOrigin && (branch === base || !await onOrigin(base))) {
+        throw new Error(`Branch ${base} does not exist in ${project.fullName}`)
+      }
+      if (branchOnOrigin) {
         onLog(`Cloning ${project.fullName} (${branch})…\n`)
       }
       else {
-        onLog(`${branch} is not on origin, starting it fresh from ${project.defaultBranch}\n`)
+        onLog(`${branch} is not on origin, starting it fresh from ${base}\n`)
       }
-      await git(['-c', auth, 'clone', '--depth', '1', '--branch', onOrigin ? branch : project.defaultBranch, credentials.cloneUrl, dir])
-      if (!onOrigin) await git(['-C', dir, 'checkout', '-q', '-b', branch])
+      await git(['-c', auth, 'clone', '--depth', '1', '--branch', branchOnOrigin ? branch : base, credentials.cloneUrl, dir])
+      if (!branchOnOrigin) await git(['-C', dir, 'checkout', '-q', '-b', branch])
     }
 
     shieldGeneratedFiles(dir, project.sharedFolders)
