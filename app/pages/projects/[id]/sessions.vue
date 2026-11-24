@@ -103,7 +103,7 @@ async function onRunDeleted() {
     <div class="flex-none border-b border-default lg:w-64 lg:border-b-0">
       <nav
         aria-label="Sessions"
-        class="k-scrollbar-none flex max-h-80 flex-col overflow-y-auto px-5 pb-2 lg:sticky lg:top-0 lg:max-h-dvh"
+        class="k-scrollbar-none flex max-h-80 flex-col overflow-y-auto px-5 pb-2 lg:sticky lg:top-5 lg:max-h-[calc(100dvh-2.5rem)]"
       >
         <button
           v-if="newRun"
