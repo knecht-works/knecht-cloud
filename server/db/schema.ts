@@ -118,6 +118,8 @@ export const sessions = sqliteTable('sessions', {
     .default('open'),
 
   branch: text('branch'),
+  // Pinned at creation: what a new work branch starts from and its PR targets, even after the project's default changes.
+  baseBranch: text('base_branch'),
   commitSha: text('commit_sha'),
 
   envState: text('env_state', { enum: ENV_STATES })
@@ -496,6 +498,8 @@ export const triggers = sqliteTable('triggers', {
     .$type<Record<string, unknown>>()
     .notNull()
     .default(sql`'{}'`),
+  // The base of the sessions it creates; null is the project's default branch.
+  branch: text('branch'),
 
   active: integer('active', { mode: 'boolean' }).notNull().default(true),
   lastFiredAt: integer('last_fired_at', { mode: 'timestamp' }),

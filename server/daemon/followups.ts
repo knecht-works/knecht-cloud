@@ -17,7 +17,7 @@ import { sessionSandbox } from '#server/daemon/session-sandbox'
 import { COMPACT_COMMAND } from '#shared/utils/followup'
 import { followupAttachmentsDir, SANDBOX_ATTACHMENTS_DIR, sandboxAttachmentPath } from '#server/utils/attachments'
 import { getProject } from '#server/stores/projects'
-import { getSessionRow, updateSession } from '#server/stores/sessions'
+import { getSessionRow, requireSession, sessionBase, updateSession } from '#server/stores/sessions'
 import { appendRunLog, getRun, latestWorkflowRun, runLogBytes, updateRun, startQueuedRun, finishActiveRun, cancelActiveMentionRuns } from '#server/stores/runs'
 import { createRunStep, updateRunStep } from '#server/stores/run-steps'
 import { getFollowup, updateFollowup, claimQueuedFollowup, cancelActiveFollowups, queuedAgentFollowup } from '#server/stores/followups'
@@ -191,7 +191,7 @@ async function syncSessionBranch(sessionId: number, runId: number, rt: ActionRun
   try {
     const branch = await currentBranch(rt.sandbox)
     // 'HEAD' is a detached checkout, not a branch name.
-    if (branch !== rt.project.defaultBranch && branch !== 'HEAD') {
+    if (branch !== sessionBase(requireSession(sessionId), rt.project) && branch !== 'HEAD') {
       updateSession(sessionId, { branch })
       updateRun(runId, { branch })
     }

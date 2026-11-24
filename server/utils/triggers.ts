@@ -28,6 +28,7 @@ export interface TriggerSummary {
   projectIds: number[]
   endpoint: string | null
   config: Record<string, unknown>
+  branch: string | null
   active: boolean
   lastFiredAt: number | null
   firedCount: number
@@ -53,6 +54,7 @@ export function toSummaries(rows: Trigger[]): TriggerSummary[] {
     projectIds: t.projectIds,
     endpoint: endpoint(t),
     config: t.config,
+    branch: t.branch,
     active: t.active,
     lastFiredAt: t.lastFiredAt ? Math.floor(t.lastFiredAt.getTime() / 1000) : null,
     firedCount: t.firedCount,
@@ -70,6 +72,11 @@ export interface FireOverrides {
   actor?: { id: string, name: string } | null
 }
 
+// A pull request run works on the pull request's head branch.
+export function triggerTakesBranch(source: Trigger['source'], config: Record<string, unknown>): boolean {
+  return !(source === 'git' && config.kind === 'pull_request')
+}
+
 export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
   const workflow = getWorkflowRow(t.workflowId)
   if (!workflow || !workflow.enabled || !workflow.publishedAt) return []
@@ -79,7 +86,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
 
   const runIds: number[] = []
   for (const project of projects) {
-    const { session, objectId } = resolveObjectSession(project, opts.object ?? null, opts.branch ?? null)
+    const { session, objectId } = resolveObjectSession(project, opts.object ?? null, opts.branch ?? null, t.branch)
     // One action reaches us as several deliveries of the same object version (see `objectVersion`),
     // and several triggers of one workflow can match the same version.
     if (opts.version && workflowRanOnVersion(workflow.id, session.id, objectId, opts.version)) continue

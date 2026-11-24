@@ -72,8 +72,8 @@ export interface ResolvedSession {
 }
 
 // An event finds its session through anything attached to it: the object itself, or for a pull
-// request the session working on its head branch. `branch` seeds the checkout on creation only.
-export function resolveObjectSession(project: Project, object: SessionObject | null, branch: string | null): ResolvedSession {
+// request the session working on its head branch. `branch` and `base` seed the checkout on creation only.
+export function resolveObjectSession(project: Project, object: SessionObject | null, branch: string | null, base: string | null = null): ResolvedSession {
   if (object) {
     const row = findObjectRow(project.id, object)
     if (row) {
@@ -86,7 +86,8 @@ export function resolveObjectSession(project: Project, object: SessionObject | n
     const working = object.kind === 'pull_request' && branch ? findBranchSession(project, branch) : undefined
     if (working) return { session: working, objectId: attachObject(working, object).id }
   }
-  const session = createSession({ projectId: project.id, branch: branch ?? project.defaultBranch })
+  const baseBranch = base ?? project.defaultBranch
+  const session = createSession({ projectId: project.id, branch: branch ?? baseBranch, baseBranch })
   return { session, objectId: object ? attachObject(session, object).id : null }
 }
 

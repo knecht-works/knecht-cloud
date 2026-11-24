@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { createBranch } from '#server/daemon/git'
 import { defineAction } from '#server/workflows/actions/types'
-import { requireSession, updateSession } from '#server/stores/sessions'
+import { requireSession, sessionBase, updateSession } from '#server/stores/sessions'
 import { updateRun } from '#server/stores/runs'
 
 export const createBranchAction = defineAction({
@@ -14,8 +14,9 @@ export const createBranchAction = defineAction({
     rt.log(`\n▶ create-branch: ${step.name}\n`)
     await rt.sandbox.ensureUp()
     // One session, one work branch: a later workflow (a review on its PR) must not re-point the shared checkout.
-    const current = requireSession(rt.sessionId).branch
-    const kept = !!current && current !== rt.project.defaultBranch
+    const session = requireSession(rt.sessionId)
+    const current = session.branch
+    const kept = !!current && current !== sessionBase(session, rt.project)
     const name = kept ? current : step.name
     if (!kept) await createBranch(rt.sandbox, name)
     else if (name !== step.name) rt.log(`The session already works on ${name}: keeping it\n`)
