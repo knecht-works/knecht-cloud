@@ -77,7 +77,7 @@ describe('runner', () => {
     const failed = ticket({ status: 'failed' })
     await startRun(failed.id, project)
     expect(getRun(failed.id).status).toBe('failed')
-    expect(jiraComments.at(-1)?.text).toContain(`I could not finish the run for this ticket: http://knecht.test/projects/${project.id}?run=${failed.id}`)
+    expect(jiraComments.at(-1)?.text).toContain(`I could not finish the run for this ticket: http://knecht.test/projects/${project.id}/sessions?run=${failed.id}`)
 
     const silent = db.insert(schema.workflows).values({ name: 'silent-jira', steps: [], repliesEnabled: false }).returning().get()
     jiraComments.length = 0

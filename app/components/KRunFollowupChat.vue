@@ -387,6 +387,12 @@ const { el: chatBox, height: chatHeight, startResize } = useResizableHeight(320)
     accent="var(--accent-orange)"
     :pad="0"
   >
+    <template
+      v-if="$slots.action"
+      #action
+    >
+      <slot name="action" />
+    </template>
     <div
       ref="chatBox"
       class="flex aspect-video min-h-80 flex-col"

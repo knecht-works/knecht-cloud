@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRoute } from '#imports'
+import { computed, ref } from 'vue'
+import { frameworkMeta } from '~/utils/dashboard'
 import KStartSessionModal from '~/components/KStartSessionModal.vue'
-import { UButton, UTooltip } from '#components'
+import KStepIcon from '~/components/KStepIcon.vue'
+import { UButton, UIcon, UTooltip } from '#components'
 
 const props = defineProps<{
   project: {
     id: number
     fullName: string
     defaultBranch: string
+    repoUrl: string
+    framework?: string | null
+    favicon?: string | null
   }
 }>()
 
@@ -16,37 +20,65 @@ const emit = defineEmits<{ runStarted: [runId: number] }>()
 
 const startOpen = ref(false)
 
-const route = useRoute()
-const onSettings = computed(() => route.path.startsWith(`/projects/${props.project.id}/settings`))
+const fw = computed(() => frameworkMeta(props.project.framework))
+const repoName = computed(() => props.project.fullName.split('/').pop() ?? 'Project')
 </script>
 
 <template>
-  <div class="flex min-h-10 items-center justify-between gap-4">
-    <slot name="breadcrumb" />
-    <div class="flex flex-none items-center gap-2.5">
-      <UTooltip text="Open a session on this project, with or without a workflow">
-        <UButton
-          size="lg"
-          color="primary"
-          label="Start session"
-          @click="startOpen = true"
+  <div>
+    <div class="flex min-h-10 items-center justify-between gap-4">
+      <div class="flex min-w-0 items-center gap-3">
+        <span
+          v-if="project.favicon"
+          class="grid size-9 flex-none place-items-center rounded-lg border border-default bg-(--surface-accented)"
+        >
+          <img
+            :src="project.favicon"
+            alt=""
+            class="size-5 object-contain"
+          >
+        </span>
+        <KStepIcon
+          v-else
+          icon="i-lucide-box"
+          :color="fw.color"
+          :size="36"
+          :radius="8"
         />
-      </UTooltip>
-      <KStartSessionModal
-        v-model:open="startOpen"
-        :project="project"
-        @run-started="runId => emit('runStarted', runId)"
-      />
-      <UTooltip :text="onSettings ? 'Project' : 'Settings'">
-        <UButton
-          size="lg"
-          :to="onSettings ? `/projects/${project.id}` : `/projects/${project.id}/settings`"
-          color="neutral"
-          variant="outline"
-          :icon="onSettings ? 'i-lucide-box' : 'i-lucide-settings'"
-          :aria-label="onSettings ? 'Back to project' : 'Project settings'"
+        <UTooltip :text="project.fullName">
+          <h1 class="truncate text-2xl font-semibold tracking-tight text-highlighted">
+            {{ repoName }}
+          </h1>
+        </UTooltip>
+        <a
+          :href="project.repoUrl"
+          target="_blank"
+          rel="noopener"
+          :aria-label="`${project.fullName} on GitHub`"
+          class="flex flex-none text-dimmed transition-colors hover:text-muted"
+        >
+          <UIcon
+            name="i-simple-icons-github"
+            class="size-4"
+          />
+        </a>
+      </div>
+
+      <div class="flex-none">
+        <UTooltip text="Open a session on this project, with or without a workflow">
+          <UButton
+            size="lg"
+            color="primary"
+            label="Start session"
+            @click="startOpen = true"
+          />
+        </UTooltip>
+        <KStartSessionModal
+          v-model:open="startOpen"
+          :project="project"
+          @run-started="runId => emit('runStarted', runId)"
         />
-      </UTooltip>
+      </div>
     </div>
   </div>
 </template>

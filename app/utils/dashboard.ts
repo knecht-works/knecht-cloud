@@ -1,5 +1,5 @@
 import type { Step } from '#shared/utils/workflow'
-import type { EnvState, EnvTransition } from '#shared/utils/run'
+import type { EnvState, EnvTransition, RunDiagnosis } from '#shared/utils/run'
 import { INTEGRATION_IDS, type IntegrationId, type ObjectKind } from '#shared/utils/integrations'
 import { FRAMEWORKS } from '#shared/utils/frameworks'
 import { INTEGRATION_UI, integrationUi, type SessionObjectMeta } from '~/utils/integrations'
@@ -189,6 +189,56 @@ export function groupRunsBySession<T extends SessionRunRow>(runs: T[]): SessionG
       runs: groupRuns,
     }
   })
+}
+
+// A later run of the session, such as a started preview, has no title of its own.
+export function sessionTitle(g: SessionGroup<{ title: string | null, workflow: string }>): string {
+  const o = g.objects[0]
+  if (o) return o.title ?? `${sessionObjectMeta(o.integration, o.kind).prefix}${o.key}`
+  return g.runs.find(r => r.title)?.title ?? g.runs[0]!.workflow
+}
+
+export function sessionTicket(g: SessionGroup<unknown>): SessionObject | undefined {
+  return g.objects.find(o => o.kind !== 'pull_request')
+}
+
+export function sessionBranch(g: SessionGroup<{ branch: string | null }>): string | null {
+  return g.runs.find(r => r.branch)?.branch ?? null
+}
+
+export function sessionPr(g: SessionGroup<{ prUrl: string | null }>): { label: string, url: string, closed: boolean } | null {
+  const o = g.objects.find(o => o.kind === 'pull_request' && o.url)
+  if (o) return { label: `PR ${sessionObjectMeta(o.integration, o.kind).prefix}${o.key}`, url: o.url!, closed: o.closed }
+  const url = g.runs.find(r => r.prUrl)?.prUrl
+  return url ? { label: 'PR', url, closed: false } : null
+}
+
+interface SessionStatusRun {
+  status: RunStatus
+  workflow: string
+  envState: EnvState
+  envTransition?: EnvTransition | null
+  hasEnv: boolean
+  hasPreviewTarget: boolean
+  failureDiagnosis: RunDiagnosis | null
+}
+
+export function sessionStatusLine(r: SessionStatusRun | null | undefined): string {
+  if (!r) return 'No runs yet. Start a workflow to boot this project.'
+  if (r.status === 'running' || r.status === 'queued') return `Working on ${r.workflow} right now.`
+  if (r.status === 'failed') {
+    if (r.failureDiagnosis?.state === 'pending') return 'Knecht is looking into why the last run failed.'
+    return r.failureDiagnosis?.summary ?? 'The last run failed. Open it to see why.'
+  }
+  if (!r.hasEnv) return 'This session has code only. Start a preview from the run menu to boot it.'
+  if (r.envTransition === 'stopping') return 'The environment is shutting down.'
+  if (r.envTransition === 'rebooting') return 'The environment is booting again. The preview is back in a moment.'
+  if (r.envTransition === 'restoring') return 'The environment is being restored from its archive. This takes a few minutes.'
+  if (r.envTransition === 'archiving') return 'The environment is being archived.'
+  if (r.envState === 'up') return r.hasPreviewTarget ? 'The preview is live and ready to inspect.' : 'The environment is up. Open the terminal or the IDE to work in it.'
+  if (r.envState === 'stopped') return 'The environment is stopped. Reboot it from the run menu or send a follow-up to wake it.'
+  if (r.envState === 'archived') return 'The environment is archived. Restore it from the run menu to work in it again.'
+  return 'The environment is gone. Run the workflow again for a fresh one.'
 }
 
 interface FrameworkMeta {

@@ -1,7 +1,7 @@
 export function runWorkspacePath(projectId: number, runId: number): string {
-  return `/projects/${projectId}?run=${runId}`
+  return `/projects/${projectId}/sessions?run=${runId}`
 }
 
 export function sessionWorkspacePath(projectId: number, sessionId: number): string {
-  return `/projects/${projectId}?session=${sessionId}`
+  return `/projects/${projectId}/sessions?session=${sessionId}`
 }

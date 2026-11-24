@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { EnvState, EnvTransition } from '#shared/utils/run'
-import type { RunStatus, RunStatusMeta } from '~/utils/dashboard'
+import type { RunStatus } from '~/utils/dashboard'
 import { useToastError } from '~/composables/useToastError'
 import { computed, ref } from 'vue'
 import { useRunServices } from '~/composables/useRuns'
 import { useRunRetry } from '~/composables/useRunRetry'
-import { $fetch } from '#imports'
-import KStatusDot from '~/components/KStatusDot.vue'
+import { $fetch, useRequestURL, useToast } from '#imports'
+import { SHARE_PARAM } from '#shared/utils/preview-access'
+import { previewHostname } from '#shared/utils/preview-host'
+import { copyText } from '~/utils/clipboard'
 import KConfirmModal from '~/components/KConfirmModal.vue'
-import { NuxtLink, UTooltip, UIcon, UButton, UDropdownMenu } from '#components'
-
-interface MetaChip { icon: string, text: string, href?: string }
+import { UTooltip, UButton, UDropdownMenu } from '#components'
 
 const props = defineProps<{
   runId: number
@@ -22,8 +22,7 @@ const props = defineProps<{
   busy: EnvTransition | null
   prs: { url: string, label: string }[]
   isLive: boolean
-  statusMeta: RunStatusMeta
-  meta: MetaChip[]
+  shareable?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -35,6 +34,31 @@ const emit = defineEmits<{
 }>()
 
 const toastError = useToastError()
+const toast = useToast()
+const reqUrl = useRequestURL()
+
+const sharing = ref(false)
+async function share() {
+  sharing.value = true
+  try {
+    const { token, expiresAt } = await $fetch(`/api/sessions/${props.sessionId}/share`, { method: 'POST' })
+    const url = `${reqUrl.protocol}//${previewHostname(props.sessionId, reqUrl.host)}/?${SHARE_PARAM}=${token}`
+    const until = new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    try {
+      await copyText(url)
+      toast.add({ title: 'Share link copied', description: `Anyone with it can open the preview until ${until}.`, color: 'success' })
+    }
+    catch {
+      toast.add({ title: `Share link, valid until ${until}`, description: url, color: 'warning' })
+    }
+  }
+  catch (e) {
+    toastError('Could not create the share link', e)
+  }
+  finally {
+    sharing.value = false
+  }
+}
 
 const canTerminal = computed(() => props.envState === 'up' && !props.busy)
 
@@ -133,7 +157,8 @@ const tools = computed(() => canTerminal.value
   ? services.value.map(s => ({
       label: KNOWN_SERVICES[s.label]?.label ?? s.label,
       icon: KNOWN_SERVICES[s.label]?.icon ?? 'i-lucide-app-window',
-      url: s.url,
+      to: s.url,
+      target: '_blank',
     }))
   : [])
 
@@ -158,153 +183,45 @@ const menuItems = computed(() => {
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
   }]
-  return [[...preview, ...lifecycle, ...remove]]
+  const run = [
+    ...(props.isLive
+      ? [{ label: 'Cancel run', icon: 'i-lucide-square', color: 'error' as const, disabled: cancelling.value, onSelect: cancel }]
+      : props.status === 'cancelled' && props.kind !== 'mention'
+        ? [{ label: 'Retry', icon: 'i-lucide-rotate-ccw', disabled: retrying.value, onSelect: retry }]
+        : []),
+    ...props.prs.map(pr => ({ label: `Open ${pr.label}`, icon: 'i-lucide-git-pull-request', to: pr.url, target: '_blank' })),
+  ]
+  const env = [
+    ...(!props.isLive && props.envState !== 'down'
+      ? [{ label: 'Open in IDE', icon: 'i-lucide-code-xml', disabled: !canTerminal.value, onSelect: openInVscode }]
+      : []),
+    ...(props.envState !== 'down'
+      ? [{ label: 'Terminal', icon: 'i-lucide-square-terminal', disabled: !canTerminal.value, onSelect: () => emit('openTerminal') }]
+      : []),
+    ...(props.shareable
+      ? [{ label: 'Copy share link', icon: 'i-lucide-share-2', disabled: sharing.value, onSelect: share }]
+      : []),
+  ]
+  return [run, env, tools.value, [...preview, ...lifecycle, ...remove]].filter(group => group.length)
 })
 </script>
 
 <template>
-  <div>
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-2">
-        <div class="flex items-center gap-2.5">
-          <UTooltip :text="statusMeta.label">
-            <span
-              role="img"
-              :aria-label="statusMeta.label"
-              class="flex"
-            >
-              <KStatusDot
-                :color="statusMeta.dot"
-                :pulse="statusMeta.pulse"
-                :size="8"
-              />
-            </span>
-          </UTooltip>
-          <h2 class="k-mono text-base/none font-semibold tracking-tight text-highlighted">
-            Run #{{ runId }}
-          </h2>
-        </div>
-        <div
-          v-if="meta.length"
-          class="flex flex-wrap items-center gap-x-4 gap-y-2"
-        >
-          <component
-            :is="m.href ? NuxtLink : 'span'"
-            v-for="m in meta"
-            :key="m.icon"
-            :href="m.href"
-            :target="m.href?.startsWith('http') ? '_blank' : undefined"
-            class="flex items-center gap-1.5 text-dimmed"
-            :class="m.href ? 'transition-colors hover:text-muted' : ''"
-          >
-            <UIcon
-              :name="m.icon"
-              class="size-3.5"
-            />
-            <span class="k-mono text-xs/none text-muted">{{ m.text }}</span>
-          </component>
-        </div>
-      </div>
-      <div class="flex flex-none items-center gap-2">
-        <UTooltip
-          v-if="isLive"
-          text="Cancel run"
-        >
-          <UButton
-            color="error"
-            icon="i-lucide-square"
-            aria-label="Cancel run"
-            size="sm"
-            :loading="cancelling"
-            @click="cancel"
-          />
-        </UTooltip>
-        <UTooltip
-          v-else-if="status === 'cancelled' && kind !== 'mention'"
-          text="Retry"
-        >
-          <UButton
-            color="primary"
-            icon="i-lucide-rotate-ccw"
-            aria-label="Retry"
-            size="sm"
-            :loading="retrying"
-            @click="retry"
-          />
-        </UTooltip>
-        <UTooltip
-          v-for="pr in prs"
-          :key="pr.url"
-          :text="`Open ${pr.label}`"
-        >
-          <UButton
-            color="primary"
-            icon="i-lucide-git-pull-request"
-            :aria-label="`Open ${pr.label}`"
-            size="sm"
-            :to="pr.url"
-            target="_blank"
-          />
-        </UTooltip>
-        <UTooltip
-          v-if="!isLive && envState !== 'down'"
-          text="Open in IDE"
-        >
-          <UButton
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-file-code"
-            aria-label="Open in IDE"
-            size="sm"
-            :disabled="!canTerminal"
-            @click="openInVscode"
-          />
-        </UTooltip>
-        <UTooltip
-          v-for="t in tools"
-          :key="t.url"
-          :text="t.label"
-        >
-          <UButton
-            color="neutral"
-            variant="outline"
-            :icon="t.icon"
-            :aria-label="t.label"
-            size="sm"
-            :to="t.url"
-            target="_blank"
-          />
-        </UTooltip>
-        <UTooltip
-          v-if="envState !== 'down'"
-          text="Terminal"
-        >
-          <UButton
-            color="neutral"
-            variant="outline"
-            icon="i-lucide-square-terminal"
-            aria-label="Terminal"
-            size="sm"
-            :disabled="!canTerminal"
-            @click="emit('openTerminal')"
-          />
-        </UTooltip>
-        <UDropdownMenu
-          :items="menuItems"
-          :content="{ align: 'end' }"
-        >
-          <UTooltip text="More actions">
-            <UButton
-              color="neutral"
-              variant="outline"
-              icon="i-lucide-ellipsis-vertical"
-              aria-label="More actions"
-              size="sm"
-            />
-          </UTooltip>
-        </UDropdownMenu>
-      </div>
-    </div>
+  <div class="flex">
+    <UDropdownMenu
+      :items="menuItems"
+      :content="{ align: 'end' }"
+    >
+      <UTooltip text="Session actions">
+        <UButton
+          color="neutral"
+          variant="ghost"
+          icon="i-lucide-ellipsis-vertical"
+          aria-label="Session actions"
+          size="xs"
+        />
+      </UTooltip>
+    </UDropdownMenu>
 
     <KConfirmModal
       v-model:open="confirmDelete"

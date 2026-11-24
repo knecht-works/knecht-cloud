@@ -1,49 +1,19 @@
 <script setup lang="ts">
-import { useRoute, navigateTo } from '#imports'
-import { useProject } from '~/composables/useProjects'
-import KProjectHeader from '~/components/KProjectHeader.vue'
-import KProjectHero from '~/components/KProjectHero.vue'
+import { useRoute } from '#imports'
 import KSettingsNav from '~/components/KSettingsNav.vue'
-import { UBreadcrumb, NuxtPage } from '#components'
+import { NuxtPage } from '#components'
 
-const id = Number(useRoute().params.id)
-
-const { data: project } = await useProject(id)
-
-const base = `/projects/${id}/settings`
+const base = `/projects/${Number(useRoute().params.id)}/settings`
 const SECTIONS = [
-  { label: 'Environment', icon: 'i-lucide-database', to: base },
-  { label: 'Agent', icon: 'i-lucide-sparkles', to: `${base}/agent` },
-  { label: 'Integrations', icon: 'i-lucide-plug', to: `${base}/integrations` },
-  { label: 'Advanced', icon: 'i-lucide-sliders-horizontal', to: `${base}/advanced` },
+  { label: 'Environment', to: base },
+  { label: 'Agent', to: `${base}/agent` },
+  { label: 'Integrations', to: `${base}/integrations` },
+  { label: 'Advanced', to: `${base}/advanced` },
 ]
 </script>
 
 <template>
-  <div v-if="project">
-    <KProjectHeader
-      class="mb-6"
-      :project="project"
-      @run-started="runId => navigateTo({ path: `/projects/${id}`, query: { run: String(runId) } })"
-    >
-      <template #breadcrumb>
-        <UBreadcrumb :items="[{ label: 'Projects', to: '/projects' }, { label: project.fullName, to: `/projects/${id}` }, { label: 'Settings' }]">
-          <template #separator>
-            <span class="k-mono text-xs text-dimmed">/</span>
-          </template>
-        </UBreadcrumb>
-      </template>
-    </KProjectHeader>
-    <KProjectHero
-      class="mb-5"
-      :project="project"
-    />
-
-    <KSettingsNav
-      :sections="SECTIONS"
-      tabs
-    >
-      <NuxtPage />
-    </KSettingsNav>
-  </div>
+  <KSettingsNav :sections="SECTIONS">
+    <NuxtPage />
+  </KSettingsNav>
 </template>

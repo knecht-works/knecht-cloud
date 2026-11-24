@@ -676,7 +676,7 @@ const pr = computed(() => {
     </div>
 
     <template v-else>
-      <!-- Sidebar sizing matches projects/[id].vue, keep them in sync. -->
+      <!-- Sidebar sizing matches projects/[id]/index.vue, keep them in sync. -->
       <div class="mt-6 grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]">
         <div class="min-w-0">
           <KPageHeader

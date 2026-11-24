@@ -5,7 +5,6 @@ import { useProject } from '~/composables/useProjects'
 import { useRuns } from '~/composables/useRuns'
 import { computed, ref } from 'vue'
 import KSettingsPreviews from '~/components/KSettingsPreviews.vue'
-import KSettingsAi from '~/components/KSettingsAi.vue'
 import KSettingRow from '~/components/KSettingRow.vue'
 import KPanel from '~/components/KPanel.vue'
 import KConfirmModal from '~/components/KConfirmModal.vue'
@@ -54,7 +53,6 @@ async function removeProject() {
       :project="project"
       editable
     />
-    <KSettingsAi :project-id="project.id" />
     <KPanel
       title="Danger zone"
       icon="i-lucide-triangle-alert"
