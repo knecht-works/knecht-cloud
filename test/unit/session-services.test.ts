@@ -26,6 +26,13 @@ describe('nameServices', () => {
     expect(services.map(s => s.label)).toEqual(['story-book', 'web-9000'])
   })
 
+  it('leaves out a repo\'s own dev server ports when Knecht runs the dev server', () => {
+    const extraPorts = [{ name: 'vite', port: 5173 }, { name: 'Nuxt', port: 4000 }, { name: 'storybook', port: 6006 }]
+    const exposed = [web(5173), web(4000), web(6006)]
+    expect(nameServices(exposed, { ...none, previewPort: 3000, extraPorts }).map(s => s.label)).toEqual(['storybook'])
+    expect(nameServices(exposed, { ...none, extraPorts }).map(s => s.label)).toEqual(['vite', 'nuxt', 'storybook'])
+  })
+
   it('names add-on containers after their service, and further ports of the same container by port', () => {
     const solr = { service: 'solr', container: 'ddev-knecht-run-7-solr' }
     expect(nameServices([{ ...solr, port: 8983 }, { ...solr, port: 9000 }], none).map(s => s.label)).toEqual(['solr', 'solr-9000'])
