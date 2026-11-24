@@ -35,6 +35,11 @@ describe('matchGithubEvent objects', () => {
     expect(matchGithubEvent(trigger({}), 'pull_request', deletedFork)!.branch).toBeNull()
   })
 
+  it('a pull request carries its base branch, a fork too', () => {
+    const fork = pr('opened', { base: { ref: 'develop' }, head: { ref: 'feat', repo: { full_name: 'mallory/site' } } }, { repository: { full_name: 'acme/site' } })
+    expect(matchGithubEvent(trigger({}), 'pull_request', fork)!.base).toBe('develop')
+  })
+
   it('an issues delivery carries the issue as object', () => {
     const match = matchGithubEvent(trigger({ kind: 'issue', event: { type: 'opened' } }), 'issues', {
       action: 'opened',

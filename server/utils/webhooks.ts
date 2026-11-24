@@ -62,6 +62,7 @@ export async function handleWebhook(integration: Integration, event: H3Event) {
         integration: integration.id,
         projectIds: [project.id],
         branch: match.branch,
+        base: match.base,
         inputs: match.inputs,
         object: match.object,
         version: match.version,
