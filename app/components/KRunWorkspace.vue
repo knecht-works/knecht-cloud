@@ -40,25 +40,6 @@ const statusMeta = computed(() => runStatusMeta(run.value))
 const previewOnline = computed(() =>
   run.value?.envState === 'up' && run.value.previewReady)
 
-const meta = computed(() => {
-  const r = run.value
-  if (!r) return []
-  // A branch is set locally by create-branch and pushed only by create-pr.
-  const branchPushed = !!r.prUrl || !!r.sessionPrUrl || r.objects.some(o => o.kind === 'pull_request')
-  return [
-    ...r.objects.map((o) => {
-      const object = sessionObjectMeta(o.integration, o.kind)
-      return { icon: object.icon, text: `${object.prefix}${o.key}`, href: o.url ?? undefined }
-    }),
-    { icon: 'i-lucide-workflow', text: r.workflow, href: r.workflowId ? `/workflows/${r.workflowId}` : undefined },
-    r.branch && {
-      icon: 'i-lucide-git-branch',
-      text: r.branch,
-      href: branchPushed ? r.branchUrl ?? undefined : undefined,
-    },
-  ].filter(Boolean) as { icon: string, text: string, href?: string }[]
-})
-
 // Pull requests opened in an earlier run of the session belong to it as much as the latest run's.
 const prs = computed(() => {
   const r = run.value
@@ -80,6 +61,32 @@ const busy = computed(() => run.value?.envTransition ?? pending.value)
 function refreshWorkspace() {
   return invalidate(liveTopics.run(id))
 }
+
+const showsPreview = computed(() => !!run.value && (run.value.hasEnv || run.value.previewLost) && run.value.hasPreviewTarget)
+const header = computed(() => {
+  const r = run.value!
+  return {
+    runId: r.id,
+    sessionId: r.sessionId,
+    hasEnv: r.hasEnv || r.previewLost,
+    status: r.status,
+    kind: r.kind,
+    envState: r.envState,
+    busy: busy.value,
+    prs: prs.value,
+    isLive: isLive.value,
+  }
+})
+const headerEvents = {
+  changed: () => {
+    refreshWorkspace()
+    emit('changed')
+  },
+  deleted: () => emit('deleted'),
+  started: (runId: number) => emit('started', runId),
+  openTerminal: () => { terminalOpen.value = true },
+  pending: (t: EnvTransition | null) => { pending.value = t },
+}
 </script>
 
 <template>
@@ -88,25 +95,6 @@ function refreshWorkspace() {
     v-if="run"
     class="flex min-w-0 flex-col gap-4.5"
   >
-    <KRunHeader
-      :run-id="run.id"
-      :session-id="run.sessionId"
-      :has-env="run.hasEnv || run.previewLost"
-      :status="run.status"
-      :kind="run.kind"
-      :env-state="run.envState"
-      :busy="busy"
-      :prs="prs"
-      :is-live="isLive"
-      :status-meta="statusMeta"
-      :meta="meta"
-      @changed="() => { refreshWorkspace(); emit('changed') }"
-      @deleted="emit('deleted')"
-      @started="(runId) => emit('started', runId)"
-      @open-terminal="terminalOpen = true"
-      @pending="(t) => { pending = t }"
-    />
-
     <KRunPreviewSection
       :run-id="run.id"
       :project-id="run.projectId"
@@ -123,7 +111,15 @@ function refreshWorkspace() {
       @changed="() => { refreshWorkspace(); emit('changed') }"
       @started="(runId) => emit('started', runId)"
       @pending="(t) => { pending = t }"
-    />
+    >
+      <template #actions>
+        <KRunHeader
+          v-bind="header"
+          shareable
+          v-on="headerEvents"
+        />
+      </template>
+    </KRunPreviewSection>
 
     <KRunFollowupChat
       v-model:active="followupActive"
@@ -134,7 +130,17 @@ function refreshWorkspace() {
       :kind="run.kind"
       :env-state="run.envState"
       @changed="() => { refreshWorkspace(); emit('changed') }"
-    />
+    >
+      <template
+        v-if="!showsPreview"
+        #action
+      >
+        <KRunHeader
+          v-bind="header"
+          v-on="headerEvents"
+        />
+      </template>
+    </KRunFollowupChat>
 
     <KPanel
       v-if="logRuns.length"

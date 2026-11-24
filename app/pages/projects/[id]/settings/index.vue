@@ -16,7 +16,8 @@ import KPanel from '~/components/KPanel.vue'
 import KDumpProgress from '~/components/KDumpProgress.vue'
 import KUploadButton from '~/components/KUploadButton.vue'
 import KConfirmModal from '~/components/KConfirmModal.vue'
-import { UIcon, UTooltip, UInput, UFormField, USelectMenu, UButton } from '#components'
+import KSettingRow from '~/components/KSettingRow.vue'
+import { UIcon, UTooltip, UInput, USelectMenu, UButton } from '#components'
 
 const toastError = useToastError()
 const id = Number(useRoute().params.id)
@@ -30,18 +31,6 @@ const fwLabel = computed(() => {
 
 const detectedEnv = computed(() => projectDetectedEnv(project.value?.ddevEnv))
 const envSource = computed(() => detectedEnv.value.source)
-const ddevSpec = computed(() => {
-  const e = project.value?.ddevEnv
-  if (!e) return []
-  return [
-    { label: 'Framework', value: fwLabel.value },
-    { label: 'Web', value: e.webserver?.replace(/-fpm$/, '') ?? null },
-    { label: 'PHP', value: e.phpVersion },
-    { label: 'Database', value: e.dbType ? `${e.dbType}${e.dbVersion ? ` ${e.dbVersion}` : ''}` : null },
-    { label: 'Node', value: e.nodeVersion },
-    { label: 'Package manager', value: resolvedEnv.value.packageManager.source === 'default' ? null : formatPackageManager(resolvedEnv.value.packageManager.value) },
-  ].filter(r => r.value)
-})
 
 const phpOverride = ref<string | null>(project.value?.phpVersion ?? null)
 const nodeOverride = ref<string | null>(project.value?.nodeVersion ?? null)
@@ -221,183 +210,37 @@ watch(bootCommands, () => {
 <template>
   <div
     v-if="project"
-    class="grid grid-cols-1 items-start gap-4.5 lg:grid-cols-[minmax(0,1fr)_clamp(340px,26vw,560px)]"
+    class="flex flex-col gap-4.5"
   >
-    <div class="flex flex-col gap-4.5">
-      <KPanel
-        title="Env variables"
-        icon="i-lucide-key-round"
-        accent="var(--text-primary)"
-      >
-        <template #action>
+    <KPanel
+      title="Environment"
+      icon="i-lucide-database"
+    >
+      <template #action>
+        <span class="flex items-center gap-3">
           <KSaveStatus
-            v-if="envVarsState !== 'idle'"
-            :state="envVarsState"
-            :error-text="envVarsError"
-          />
-        </template>
-
-        <div>
-          <p class="mb-2.5 text-xs leading-relaxed text-muted">
-            One <code class="k-code">KEY=value</code> per line, like a .env file. Values can use
-            <code class="k-code">$KNECHT_PREVIEW_URL</code> and <code class="k-code">$KNECHT_DEV_SERVER_URL</code>
-            to follow the run's URLs.
-          </p>
-          <div class="k-code-box">
-            <WorkflowCodeEditor
-              v-model="envText"
-              lang="bash"
-              :rows="10"
-              :max-height="350"
-              :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
-            />
-          </div>
-
-          <div
-            v-if="envSource === 'ddev'"
-            class="mt-4"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <UTooltip
-                text="Where the site's base URLs live. Applies to new runs."
-                :content="{ side: 'top', align: 'start' }"
-              >
-                <span class="text-xs font-medium flex items-center gap-1.5">
-                  Base URLs
-                  <UIcon
-                    name="i-lucide-info"
-                    class="size-3"
-                  />
-                </span>
-              </UTooltip>
-              <div class="flex rounded-md border border-default p-0.5">
-                <UTooltip
-                  v-for="option in urlModeOptions"
-                  :key="option.value"
-                  :text="option.description"
-                >
-                  <button
-                    type="button"
-                    class="cursor-pointer rounded px-2.5 py-1 text-2xs transition-colors"
-                    :class="urlMode === option.value ? 'bg-(--surface-accented) text-highlighted' : 'text-dimmed hover:text-muted'"
-                    :aria-pressed="urlMode === option.value"
-                    @click="setUrlMode(option.value)"
-                  >
-                    {{ option.title }}
-                  </button>
-                </UTooltip>
-              </div>
-            </div>
-          </div>
-        </div>
-      </KPanel>
-      <KPanel
-        title="Boot commands"
-        icon="i-lucide-terminal"
-      >
-        <template #action>
-          <KSaveStatus
-            v-if="bootState !== 'idle'"
-            :state="bootState"
-            :error-text="bootError"
-          />
-        </template>
-        <div>
-          <p class="mb-2.5 text-xs leading-relaxed text-muted">
-            What has to run after <code class="k-code">ddev start</code> and the
-            database import before the site works. One command per line, run
-            once per session, before any workflow-specific boot commands.
-          </p>
-          <div class="k-code-box">
-            <WorkflowCodeEditor
-              v-model="bootCommands"
-              lang="bash"
-              :rows="3"
-              placeholder="ddev composer install"
-            />
-          </div>
-        </div>
-      </KPanel>
-      <KPanel
-        title="Dev server"
-        icon="i-lucide-server"
-      >
-        <template #action>
-          <KSaveStatus
-            v-if="devState !== 'idle'"
-            :state="devState"
-            :error-text="devError"
-          />
-        </template>
-        <div>
-          <p class="mb-2.5 text-xs leading-relaxed text-muted">
-            The command that starts your dev server, for example
-            <code class="k-code">npm run dev</code> for Vite hot reloading, and
-            the port it listens on. Without a ddev config in the repo this is
-            what the preview shows.
-          </p>
-          <div class="grid grid-cols-[1fr_7rem] gap-2">
-            <div class="k-code-box">
-              <WorkflowCodeEditor
-                v-model="devServer"
-                lang="bash"
-                :rows="1"
-                placeholder="npm run dev"
-              />
-            </div>
-            <UInput
-              v-model="previewPort"
-              placeholder="Port"
-              aria-label="Port"
-              inputmode="numeric"
-            />
-          </div>
-        </div>
-      </KPanel>
-    </div>
-    <div class="flex flex-col gap-4.5">
-      <KPanel
-        title="Environment"
-        icon="i-lucide-database"
-      >
-        <template #action>
-          <KSaveStatus
-            v-if="envState !== 'idle'"
             :state="envState"
             :error-text="envError"
           />
-        </template>
-        <p
-          v-if="!project.ddevEnv"
-          class="k-mono text-2xs text-muted"
+          <KSaveStatus
+            :state="bootState"
+            :error-text="bootError"
+          />
+          <KSaveStatus
+            :state="devState"
+            :error-text="devError"
+          />
+        </span>
+      </template>
+      <div>
+        <KSettingRow
+          v-if="envSource !== 'ddev'"
+          label="Stack"
+          :hint="`${fwLabel}, detected from the repository. Override a version if it is wrong.`"
         >
-          Resolving environment…
-        </p>
-        <div
-          v-else
-          class="flex flex-col gap-3"
-        >
-          <div
-            v-if="envSource === 'ddev'"
-            class="flex flex-col gap-2"
-          >
-            <div
-              v-for="row in ddevSpec"
-              :key="row.label"
-              class="flex items-center justify-between gap-3"
-            >
-              <span class="text-xs text-muted">{{ row.label }}</span>
-              <span class="text-xs text-toned">{{ row.value }}</span>
-            </div>
-          </div>
-          <div
-            v-else
-            class="flex flex-col gap-3"
-          >
-            <UFormField label="Framework">
-              <span class="text-xs text-toned">{{ fwLabel }}</span>
-            </UFormField>
-            <UFormField label="PHP">
+          <div class="grid grid-cols-2 gap-x-2 gap-y-2.5">
+            <label class="flex flex-col gap-1 text-xs text-muted">
+              PHP
               <USelectMenu
                 :model-value="phpItems.find(i => i.value === phpOverride)"
                 :items="phpItems"
@@ -405,8 +248,9 @@ watch(bootCommands, () => {
                 class="w-full"
                 @update:model-value="(item: { value: string | null } | undefined) => phpOverride = item?.value ?? null"
               />
-            </UFormField>
-            <UFormField label="Node">
+            </label>
+            <label class="flex flex-col gap-1 text-xs text-muted">
+              Node
               <USelectMenu
                 :model-value="nodeItems.find(i => i.value === nodeOverride)"
                 :items="nodeItems"
@@ -414,8 +258,9 @@ watch(bootCommands, () => {
                 class="w-full"
                 @update:model-value="(item: { value: string | null } | undefined) => nodeOverride = item?.value ?? null"
               />
-            </UFormField>
-            <UFormField label="Package manager">
+            </label>
+            <label class="flex flex-col gap-1 text-xs text-muted">
+              Package manager
               <USelectMenu
                 :model-value="packageManagerItems.find(i => i.value === packageManagerOverride)"
                 :items="packageManagerItems"
@@ -423,32 +268,23 @@ watch(bootCommands, () => {
                 class="w-full"
                 @update:model-value="(item: { value: string | null } | undefined) => packageManagerOverride = (item?.value ?? null) as PackageManagerName | null"
               />
-            </UFormField>
-            <UFormField label="Database">
+            </label>
+            <label class="flex flex-col gap-1 text-xs text-muted">
+              Database
               <USelectMenu
                 :model-value="databaseItems.flat().find(i => i.value === databaseOverride)"
                 :items="databaseItems"
                 class="w-full"
                 @update:model-value="(item: { value: DdevDatabase | null } | undefined) => databaseOverride = item?.value ?? null"
               />
-            </UFormField>
+            </label>
           </div>
-          <p
-            v-for="warning in detectedEnv.warnings"
-            :key="warning"
-            class="k-mono text-2xs"
-            style="color: var(--status-warning, var(--accent-orange))"
-          >
-            {{ warning }}
-          </p>
-        </div>
-      </KPanel>
-      <KPanel
-        v-if="resolvedEnv.hasDb.value"
-        title="Database dump"
-        icon="i-lucide-hard-drive-download"
-      >
-        <div class="flex flex-col items-start">
+        </KSettingRow>
+        <KSettingRow
+          v-if="resolvedEnv.hasDb.value"
+          label="Database dump"
+          hint="Imported into every new environment."
+        >
           <div
             v-if="dumpProgress || dumpName"
             class="w-full"
@@ -467,10 +303,10 @@ watch(bootCommands, () => {
                 name="i-lucide-database"
                 class="size-4 flex-none text-dimmed"
               />
-              <span class="k-mono flex-1 truncate text-2xs text-muted">{{ dumpName }}</span>
+              <span class="flex-1 truncate text-xs text-muted">{{ dumpName }}</span>
               <span
                 v-if="project?.dbDumpSize"
-                class="k-mono flex-none text-2xs text-dimmed"
+                class="flex-none text-xs text-dimmed"
               >{{ formatBytes(project.dbDumpSize) }}</span>
               <KUploadButton
                 :upload-key="dumpUploadKey"
@@ -527,26 +363,21 @@ watch(bootCommands, () => {
             color="neutral"
             size="sm"
           />
-        </div>
-      </KPanel>
-      <KPanel
-        title="Persistent folders"
-        icon="i-lucide-folder-sync"
-      >
-        <div class="flex flex-col">
-          <p class="text-xs leading-relaxed text-muted">
-            Folders that keep their files across all runs and previews, like a CMS uploads folder that is not in git.
-          </p>
+        </KSettingRow>
+        <KSettingRow
+          label="Persistent folders"
+          hint="Folders that keep their files across all runs and previews, like a CMS uploads folder that is not in git."
+        >
           <div
             v-for="folder in sharedFolders"
             :key="folder"
-            class="mt-2.5 flex w-full items-center gap-2"
+            class="mb-2 flex w-full items-center gap-2"
           >
             <UIcon
               name="i-lucide-folder-sync"
               class="size-4 flex-none text-dimmed"
             />
-            <span class="k-mono flex-1 truncate text-2xs text-muted">{{ folder }}</span>
+            <span class="flex-1 truncate text-xs text-muted">{{ folder }}</span>
             <KUploadButton
               :upload-key="`shared:${id}:${folder}`"
               :url="seedUrl(folder)"
@@ -571,7 +402,7 @@ watch(bootCommands, () => {
             </UTooltip>
           </div>
           <form
-            class="mt-2.5 flex items-center gap-2"
+            class="flex items-center gap-2"
             @submit.prevent="addFolder"
           >
             <UInput
@@ -590,9 +421,101 @@ watch(bootCommands, () => {
               :disabled="!newFolder.trim()"
             />
           </form>
-        </div>
-      </KPanel>
-    </div>
+        </KSettingRow>
+        <KSettingRow
+          label="Boot commands"
+          hint="Runs once per session after the environment and database are up, before workflow boot commands. One command per line."
+        >
+          <div class="k-code-box">
+            <WorkflowCodeEditor
+              v-model="bootCommands"
+              lang="bash"
+              :rows="3"
+              placeholder="ddev composer install"
+            />
+          </div>
+        </KSettingRow>
+        <KSettingRow label="Dev server">
+          <template #hint>
+            Command and port, like <code class="k-code">npm run dev</code>. Previewed without a ddev config.
+          </template>
+          <div class="grid grid-cols-[1fr_5.5rem] items-start gap-2">
+            <div class="k-code-box">
+              <WorkflowCodeEditor
+                v-model="devServer"
+                lang="bash"
+                :rows="1"
+                placeholder="npm run dev"
+              />
+            </div>
+            <UInput
+              v-model="previewPort"
+              placeholder="Port"
+              aria-label="Port"
+              inputmode="numeric"
+            />
+          </div>
+        </KSettingRow>
+        <KSettingRow
+          v-if="envSource === 'ddev'"
+          label="Base URLs"
+          hint="Where the site's base URLs live. Applies to new runs."
+        >
+          <div class="flex h-9 rounded-md border border-default p-0.5">
+            <UTooltip
+              v-for="option in urlModeOptions"
+              :key="option.value"
+              :text="option.description"
+            >
+              <button
+                type="button"
+                class="flex-1 cursor-pointer rounded px-2.5 py-1 text-xs transition-colors"
+                :class="urlMode === option.value ? 'bg-(--surface-accented) text-highlighted' : 'text-dimmed hover:text-muted'"
+                :aria-pressed="urlMode === option.value"
+                @click="setUrlMode(option.value)"
+              >
+                {{ option.title }}
+              </button>
+            </UTooltip>
+          </div>
+        </KSettingRow>
+      </div>
+      <p
+        v-for="warning in detectedEnv.warnings"
+        :key="warning"
+        class="mt-3 text-xs"
+        style="color: var(--status-warning, var(--accent-orange))"
+      >
+        {{ warning }}
+      </p>
+    </KPanel>
+
+    <KPanel
+      title="Env variables"
+      icon="i-lucide-key-round"
+      accent="var(--text-primary)"
+    >
+      <template #action>
+        <KSaveStatus
+          :state="envVarsState"
+          :error-text="envVarsError"
+        />
+      </template>
+      <p class="mb-2.5 text-xs leading-relaxed text-muted">
+        One <code class="k-code">KEY=value</code> per line, like a .env file. Values can use
+        <code class="k-code">$KNECHT_PREVIEW_URL</code> and <code class="k-code">$KNECHT_DEV_SERVER_URL</code>
+        to follow the run's URLs.
+      </p>
+      <div class="k-code-box">
+        <WorkflowCodeEditor
+          v-model="envText"
+          lang="bash"
+          :rows="10"
+          :max-height="350"
+          :placeholder="'DATABASE_URL=mysql://db/app\nAPI_KEY=sk-abc123'"
+        />
+      </div>
+    </KPanel>
 
     <KConfirmModal
       v-model:open="confirmRemoveDump"

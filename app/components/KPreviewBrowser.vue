@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import type { EnvTransition } from '#shared/utils/run'
-import { SHARE_PARAM } from '#shared/utils/preview-access'
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
-import { useRequestURL, useToast, $fetch } from '#imports'
+import { useRequestURL } from '#imports'
 import { previewLabel, previewHostname, isWebUrl, parsePreviewHost } from '#shared/utils/preview-host'
-import { useToastError } from '~/composables/useToastError'
-import { copyText } from '~/utils/clipboard'
 import { useResizableHeight } from '~/composables/useResizableHeight'
-import KStatusDot from '~/components/KStatusDot.vue'
 import KResizeHandle from '~/components/KResizeHandle.vue'
 import { UButton, UIcon, UDropdownMenu, UTooltip } from '#components'
 
@@ -16,41 +12,34 @@ const props = withDefaults(defineProps<{
   hosts?: string[]
   online?: boolean
   busy?: EnvTransition | null
-  shareable?: boolean
 }>(), {
   hosts: () => [],
   online: false,
   busy: null,
 })
 
-const BUSY_COPY: Record<NonNullable<typeof props.busy>, { label: string, address: string, text: string }> = {
+const BUSY_COPY: Record<NonNullable<typeof props.busy>, { address: string, text: string }> = {
   booting: {
-    label: 'starting',
     address: 'Knecht is preparing the preview…',
     text: 'Knecht is booting the project. The preview appears here as soon as it\'s ready.',
   },
   stopping: {
-    label: 'stopping',
     address: 'Knecht is stopping the environment…',
     text: 'Knecht is stopping the environment. The database is exported on the way down.',
   },
   rebooting: {
-    label: 'rebooting',
     address: 'Knecht is rebooting the environment…',
     text: 'Knecht is rebooting the environment. The preview is back in a few seconds.',
   },
   restoring: {
-    label: 'restoring',
     address: 'Knecht is restoring the environment…',
     text: 'Knecht is restoring the environment from its archive. This takes a few minutes.',
   },
   archiving: {
-    label: 'archiving',
     address: 'Knecht is archiving the environment…',
     text: 'Knecht is archiving the environment. Its code state and database are kept.',
   },
   expiring: {
-    label: 'expiring',
     address: 'Knecht is deleting the archive…',
     text: 'The archive passed its retention period and is being deleted.',
   },
@@ -68,31 +57,6 @@ function originFor(host: string | null): string {
 }
 
 const homeUrl = `${originFor(null)}/`
-
-const toast = useToast()
-const toastError = useToastError()
-const sharing = ref(false)
-async function share() {
-  sharing.value = true
-  try {
-    const { token, expiresAt } = await $fetch(`/api/sessions/${props.sessionId}/share`, { method: 'POST' })
-    const url = `${homeUrl}?${SHARE_PARAM}=${token}`
-    const until = new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-    try {
-      await copyText(url)
-      toast.add({ title: 'Share link copied', description: `Anyone with it can open the preview until ${until}.`, color: 'success' })
-    }
-    catch {
-      toast.add({ title: `Share link, valid until ${until}`, description: url, color: 'warning' })
-    }
-  }
-  catch (e) {
-    toastError('Could not create the share link', e)
-  }
-  finally {
-    sharing.value = false
-  }
-}
 
 const frame = ref<HTMLIFrameElement>()
 const { el: viewport, height: viewportHeight, resizing, startResize } = useResizableHeight(240)
@@ -299,41 +263,21 @@ const hostItems = computed(() => props.hosts.map(host => ({
         </div>
       </div>
 
-      <span class="k-mono flex flex-none items-center gap-1.5 text-xs text-dimmed">
-        <KStatusDot
-          :color="live ? 'primary' : busyCopy ? 'orange' : 'neutral'"
-          :pulse="!live && !!busyCopy"
-          :glow="false"
-          :size="6"
-        />
-        {{ live ? 'live' : busyCopy?.label ?? 'offline' }}
-      </span>
-      <UTooltip
-        v-if="shareable"
-        text="Copy share link"
-      >
-        <UButton
-          icon="i-lucide-share-2"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          aria-label="Copy share link"
-          :loading="sharing"
-          @click="share"
-        />
-      </UTooltip>
-      <UTooltip text="Open in new tab">
-        <UButton
-          icon="i-lucide-external-link"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          aria-label="Open preview in a new tab"
-          :disabled="!live"
-          :to="live ? currentUrl : undefined"
-          target="_blank"
-        />
-      </UTooltip>
+      <div class="flex flex-none items-center gap-0.5">
+        <UTooltip text="Open in new tab">
+          <UButton
+            icon="i-lucide-external-link"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            aria-label="Open preview in a new tab"
+            :disabled="!live"
+            :to="live ? currentUrl : undefined"
+            target="_blank"
+          />
+        </UTooltip>
+        <slot name="actions" />
+      </div>
     </div>
 
     <div
