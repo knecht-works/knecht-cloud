@@ -3,7 +3,8 @@ import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { callRoute } from '../helpers/routes'
-import { attachTestObject, makeProject, makeRun } from '../helpers/db'
+import { execa } from 'execa'
+import { attachTestObject, makeProject, makeRun, makeSession } from '../helpers/db'
 
 const comments: { issue: number, body: string }[] = []
 const labels: { added: string[], removed: string[] } = { added: [], removed: [] }
@@ -183,6 +184,19 @@ describe('agent bridge', () => {
     const res = await call(run.sessionId, { op: 'comment', body: 'hi' })
     expect(res.status).toBe(409)
     expect(res.text).toContain('no checkout')
+  })
+
+  it('refuses to open a PR from the session base branch', async () => {
+    const project = makeProject()
+    const session = makeSession(project, { branch: 'develop', baseBranch: 'develop' })
+    const run = makeRun(project, [], { status: 'success', sessionId: session.id })
+    const dir = sessionCheckoutDir(run.sessionId)
+    mkdirSync(dir, { recursive: true })
+    await execa('git', ['init', '-q', '-b', 'develop'], { cwd: dir })
+    await execa('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: dir })
+    const res = await call(run.sessionId, { op: 'open-pr', title: 'Fix' })
+    expect(res.status).toBe(400)
+    expect(res.text).toContain('refusing to open a PR from the base branch \'develop\'')
   })
 
   it('rejects an unknown op', async () => {
