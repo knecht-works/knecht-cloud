@@ -6,6 +6,7 @@ import { useToastError } from '~/composables/useToastError'
 import { integrationUi } from '~/utils/integrations'
 import { useProjects } from '~/composables/useProjects'
 import { useIntegrations } from '~/composables/useIntegrations'
+import { useBranchPicker } from '~/composables/useBranchPicker'
 import KTriggerFormSchedule from '~/components/KTriggerFormSchedule.vue'
 import KTriggerForm from '~/components/KTriggerForm.vue'
 import { USelectMenu, UFormField, UIcon, NuxtLink, UButton, UModal } from '#components'
@@ -78,15 +79,13 @@ const optionTargets = computed(() => selectedProjects.value.flatMap((p) => {
 const takesBranch = computed(() => !(source.value === 'git' && config.value.kind === 'pull_request'))
 
 // Only branches every selected project has: a run fails on a project without it.
-const commonBranches = ref<string[]>([])
-watch(projectIds, async (ids) => {
-  const lists = await Promise.all(ids.map(id => $fetch<string[]>(`/api/projects/${id}/branches`).catch(() => [] as string[])))
-  if (ids !== projectIds.value) return
-  commonBranches.value = lists.length ? lists.reduce((common, list) => common.filter(b => list.includes(b))) : []
-}, { immediate: true })
+const { items: commonBranches } = useBranchPicker(
+  () => projectIds.value.map(id => `/api/projects/${id}/branches`),
+  () => branch.value ?? undefined,
+)
 const branchItems = computed(() => [
   { label: 'Default branch', value: null as string | null },
-  ...[...new Set([...(branch.value ? [branch.value] : []), ...commonBranches.value])].map(b => ({ label: b, value: b as string | null })),
+  ...commonBranches.value.map(b => ({ label: b, value: b as string | null })),
 ])
 
 // Sync: the edit preload sets the tile first and the config right after.
