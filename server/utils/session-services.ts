@@ -9,6 +9,8 @@ export interface SessionService { label: string, container: string, port: number
 
 const MAILPIT_PORT = 8025
 const RESERVED_LABELS = new Set(['ide'])
+// Repos expose their own dev server under these names; with a Knecht dev server it is a second, unused copy.
+const DEV_SERVER_NAMES = new Set(['vite', 'nuxt', 'next', 'node', 'nodejs'])
 
 export function nameServices(
   exposed: ExposedPort[],
@@ -21,7 +23,9 @@ export function nameServices(
     if (service === 'web') {
       // 80 is the preview, the dev server port is the dev origin.
       if (port === 80 || port === previewPort) continue
-      name = port === MAILPIT_PORT ? 'mailpit' : extraPorts.find(p => p.port === port)?.name ?? `web-${port}`
+      const extra = extraPorts.find(p => p.port === port)?.name
+      if (extra && previewPort !== null && DEV_SERVER_NAMES.has(extra.toLowerCase())) continue
+      name = port === MAILPIT_PORT ? 'mailpit' : extra ?? `web-${port}`
     }
     else {
       name = services.some(s => s.container === container) ? `${service}-${port}` : service
