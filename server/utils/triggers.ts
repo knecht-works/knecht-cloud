@@ -66,6 +66,7 @@ export interface FireOverrides {
   integration?: IntegrationId
   projectIds?: number[]
   branch?: string | null
+  base?: string | null
   inputs?: TriggerInputs
   object?: SessionObject | null
   version?: string | null
@@ -86,7 +87,7 @@ export function fireTrigger(t: Trigger, opts: FireOverrides = {}): number[] {
 
   const runIds: number[] = []
   for (const project of projects) {
-    const { session, objectId } = resolveObjectSession(project, opts.object ?? null, opts.branch ?? null, t.branch)
+    const { session, objectId } = resolveObjectSession(project, opts.object ?? null, opts.branch ?? null, opts.base ?? t.branch)
     // One action reaches us as several deliveries of the same object version (see `objectVersion`),
     // and several triggers of one workflow can match the same version.
     if (opts.version && workflowRanOnVersion(workflow.id, session.id, objectId, opts.version)) continue

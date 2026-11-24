@@ -111,4 +111,15 @@ describe('fireTrigger branch', () => {
     const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
     expect(session).toMatchObject({ branch: 'develop', baseBranch: 'develop' })
   })
+
+  it('pins the base of a pull request to the branch it targets', () => {
+    const project = makeProject()
+    const wf = makeWorkflow({ publishedAt: new Date() })
+    const trigger = makeTrigger(wf.id, [project.id])
+
+    const [runId] = fireTrigger(trigger, { branch: 'feature-x', base: 'develop' })
+    const run = runsOf(wf.id).find(r => r.id === runId)!
+    const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
+    expect(session).toMatchObject({ branch: 'feature-x', baseBranch: 'develop' })
+  })
 })
