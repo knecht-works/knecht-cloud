@@ -216,21 +216,11 @@ html {
   border-color: var(--border-accented);
 }
 
-/* border-dashed has no gap control, so the dashes are a mask; rx matches rounded-lg. */
 @utility k-dashed {
-  position: relative;
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: inherit;
-    pointer-events: none;
-    background: var(--border-default);
-    transition: background-color 0.2s;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100%25' height='100%25' rx='8' fill='none' stroke='white' stroke-width='2' stroke-dasharray='6 6'/%3E%3C/svg%3E");
-  }
-  &:hover::after {
-    background: var(--border-accented);
+  border: 1px dashed var(--border-default);
+  transition: border-color 0.2s;
+  &:hover {
+    border-color: var(--border-accented);
   }
 }
 
