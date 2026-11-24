@@ -97,6 +97,7 @@ export function matchGithubEvent(c: TriggerConfig, event: string, payload: Githu
       // The conditions are about the pull request; the run checks out its head. A fork's head ref
       // names no branch of ours, so it must not reach the session working on a branch of that name.
       branch: head && fromRepo(payload) ? head : null,
+      base: pr?.base?.ref || null,
       inputs: subjectInputs(event, pr),
       object: githubObject('pull_request', pr),
       version: objectVersion(pr?.updated_at),

@@ -51,6 +51,7 @@ export type DeliveryRecord
 
 export interface TriggerMatch {
   branch: string | null
+  base?: string | null
   inputs: TriggerInputs
   object: SessionObject | null
   actor?: CommentAuthor | null
