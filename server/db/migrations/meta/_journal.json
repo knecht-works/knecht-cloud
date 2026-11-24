@@ -547,6 +547,13 @@
       "when": 1795351403512,
       "tag": "0077_idle-stop-two-hours",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "6",
+      "when": 1795551048312,
+      "tag": "0078_session-base-branch",
+      "breakpoints": true
     }
   ]
 }

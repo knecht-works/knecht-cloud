@@ -98,3 +98,17 @@ describe('fireTrigger object version', () => {
     expect(fireTrigger(trigger, { object })).toHaveLength(1)
   })
 })
+
+describe('fireTrigger branch', () => {
+  it('starts new sessions on the trigger branch and pins it as their base', () => {
+    const project = makeProject()
+    const wf = makeWorkflow({ publishedAt: new Date() })
+    const trigger = db.insert(schema.triggers).values({ source: 'schedule', cron: '0 9 * * *', workflowId: wf.id, projectIds: [project.id], branch: 'develop' }).returning().get()
+
+    const [runId] = fireTrigger(trigger)
+    const run = runsOf(wf.id).find(r => r.id === runId)!
+    expect(run.branch).toBe('develop')
+    const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
+    expect(session).toMatchObject({ branch: 'develop', baseBranch: 'develop' })
+  })
+})

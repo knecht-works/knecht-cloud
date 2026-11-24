@@ -22,6 +22,7 @@ const props = defineProps<{
     projectIds: number[]
     endpoint: string | null
     config: Record<string, unknown>
+    branch: string | null
   } | null
 }>()
 const emit = defineEmits<{ created: [] }>()
@@ -45,6 +46,7 @@ const tile = ref<Tile>(TILES[0]!.key)
 const workflowId = ref<number>()
 const projectIds = ref<number[]>([])
 const config = ref<Record<string, unknown>>({})
+const branch = ref<string | null>(null)
 const valid = ref(false)
 const creating = ref(false)
 const attempted = ref(false)
@@ -73,6 +75,20 @@ const optionTargets = computed(() => selectedProjects.value.flatMap((p) => {
   return key ? [{ key, name: key }] : []
 }))
 
+const takesBranch = computed(() => !(source.value === 'git' && config.value.kind === 'pull_request'))
+
+// Only branches every selected project has: a run fails on a project without it.
+const commonBranches = ref<string[]>([])
+watch(projectIds, async (ids) => {
+  const lists = await Promise.all(ids.map(id => $fetch<string[]>(`/api/projects/${id}/branches`).catch(() => [] as string[])))
+  if (ids !== projectIds.value) return
+  commonBranches.value = lists.length ? lists.reduce((common, list) => common.filter(b => list.includes(b))) : []
+}, { immediate: true })
+const branchItems = computed(() => [
+  { label: 'Default branch', value: null as string | null },
+  ...[...new Set([...(branch.value ? [branch.value] : []), ...commonBranches.value])].map(b => ({ label: b, value: b as string | null })),
+])
+
 // Sync: the edit preload sets the tile first and the config right after.
 watch(tile, () => {
   config.value = {}
@@ -87,6 +103,7 @@ function body(): Record<string, unknown> {
   if (isTrackerId(tile.value)) base.integration = tile.value
   if (source.value === 'schedule') base.cron = config.value.cron
   else base.config = config.value
+  base.branch = takesBranch.value ? branch.value : null
   return base
 }
 
@@ -125,6 +142,7 @@ watch(open, (isOpen) => {
       config.value = props.trigger.source === 'schedule'
         ? { cron: props.trigger.endpoint ?? '0 9 * * *' }
         : { ...props.trigger.config }
+      branch.value = props.trigger.branch
       return
     }
     if (props.presetWorkflowId) workflowId.value = props.presetWorkflowId
@@ -135,6 +153,7 @@ watch(open, (isOpen) => {
   workflowId.value = undefined
   projectIds.value = []
   config.value = {}
+  branch.value = null
   attempted.value = false
 })
 </script>
@@ -149,7 +168,7 @@ watch(open, (isOpen) => {
     :ui="{ content: 'sm:max-w-2xl' }"
   >
     <template #body>
-      <div class="flex flex-col gap-4 min-h-130">
+      <div class="flex flex-col gap-4 min-h-150">
         <div class="space-y-4 h-full flex-1">
           <UFormField label="Projects">
             <USelectMenu
@@ -183,6 +202,26 @@ watch(open, (isOpen) => {
             :disabled="!projectIds.length"
             class="space-y-4 disabled:opacity-50"
           >
+            <UFormField label="Branch">
+              <USelectMenu
+                v-if="takesBranch"
+                v-model="branch"
+                value-key="value"
+                :items="branchItems"
+                icon="i-lucide-git-branch"
+                :search-input="{ placeholder: 'Filter branches…' }"
+                class="w-full"
+              />
+              <USelectMenu
+                v-else
+                :model-value="null"
+                value-key="value"
+                :items="[{ label: 'Pull request branch', value: null }]"
+                icon="i-lucide-git-pull-request"
+                disabled
+                class="w-full"
+              />
+            </UFormField>
             <div>
               <div
                 class="grid gap-2"

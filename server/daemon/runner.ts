@@ -21,7 +21,7 @@ import { removeWorkspace } from '#server/daemon/workspace'
 import { markCheckedOut, reviveEnv } from '#server/daemon/envs'
 import { sessionSandbox } from '#server/daemon/session-sandbox'
 import { getWorkflowRow } from '#server/stores/workflows'
-import { getSessionRow, updateSession, closeObjectlessSession } from '#server/stores/sessions'
+import { getSessionRow, updateSession, closeObjectlessSession, sessionBase } from '#server/stores/sessions'
 import { appendRunLog, claimQueuedRun, finishRun, getRun, runLogBytes, updateRun } from '#server/stores/runs'
 import { diagnoseRunFailure } from '#server/daemon/failure-diagnosis'
 import { listTopLevelWorkflowSteps, listWorkflowStepOutputs, createRunStep, updateRunStep, deleteWorkflowStepsFrom, type NewRunStep } from '#server/stores/run-steps'
@@ -99,8 +99,9 @@ async function execRun(runId: number, project: Project): Promise<void> {
     }
     log(`▶ Preparing isolated checkout\n`)
     const credentials = await gitProvider(project).credentials(project)
-    const branch = session.branch ?? run.branch ?? project.defaultBranch
-    const dir = await prepareSessionCheckout(project, sessionId, credentials, log, branch)
+    const base = sessionBase(session, project)
+    const branch = session.branch ?? run.branch ?? base
+    const dir = await prepareSessionCheckout(project, sessionId, credentials, log, branch, base)
     markCheckedOut(sessionId)
     if (branch === project.defaultBranch) {
       // The run does not depend on it; the next default-branch run retries.

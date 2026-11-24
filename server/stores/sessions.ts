@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, notExists, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, ne, notExists, or, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '#server/db'
 import type { NewSession, Project, Run, Session } from '#server/db/schema'
@@ -27,11 +27,19 @@ export function findObjectSession(projectId: number, object: SessionObject): Ses
   return row && getSessionRow(row.sessionId)
 }
 
-// The newest session working on `branch`; the default branch is nobody's work branch.
+export function sessionBase(session: Pick<Session, 'baseBranch'>, project: Pick<Project, 'defaultBranch'>): string {
+  return session.baseBranch ?? project.defaultBranch
+}
+
+// The newest session working on `branch`; a base branch is nobody's work branch.
 export function findBranchSession(project: Pick<Project, 'id' | 'defaultBranch'>, branch: string): Session | undefined {
   if (branch === project.defaultBranch) return undefined
   return db.select().from(schema.sessions)
-    .where(and(eq(schema.sessions.projectId, project.id), eq(schema.sessions.branch, branch)))
+    .where(and(
+      eq(schema.sessions.projectId, project.id),
+      eq(schema.sessions.branch, branch),
+      or(isNull(schema.sessions.baseBranch), ne(schema.sessions.baseBranch, branch)),
+    ))
     .orderBy(desc(schema.sessions.id))
     .get()
 }
