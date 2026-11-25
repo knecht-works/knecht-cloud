@@ -21,6 +21,7 @@ interface Run {
   branch: string | null
   prUrl: string | null
   createdAt: string | number | Date | null
+  lastActivityAt?: string | number | Date | null
 }
 
 const props = defineProps<{
@@ -40,6 +41,7 @@ const rows = computed(() => props.groups.map((g) => {
   const head = g.runs[0]!
   const ticket = sessionTicket(g)
   const status = projectStatusMeta(head)
+  const at = head.lastActivityAt ?? head.createdAt
   return {
     group: g,
     title: sessionTitle(g),
@@ -51,8 +53,8 @@ const rows = computed(() => props.groups.map((g) => {
     label: sessionLabel(g),
     branch: sessionBranch(g),
     pr: sessionPr(g),
-    at: head.createdAt,
-    atFull: head.createdAt ? new Date(head.createdAt).toLocaleString() : undefined,
+    at,
+    atFull: at ? new Date(at).toLocaleString() : undefined,
   }
 }))
 
