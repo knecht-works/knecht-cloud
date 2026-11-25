@@ -281,7 +281,7 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
           v-else
           class="@container"
         >
-          <div class="max-h-80 overflow-y-auto py-4.25">
+          <div class="k-scrollbar-slim max-h-80 overflow-y-auto py-4.25">
             <!-- Sized from the panel, not the scroll area: a scrollbar that takes up width must not shift the rows. -->
             <div class="ml-5 flex w-[calc(100cqw-2.5rem)] flex-col gap-3">
               <div

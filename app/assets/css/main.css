@@ -266,6 +266,22 @@ html {
   display: none;
 }
 
+/* A bar slimmer than `thin`. Only the pseudo-elements can size it, and
+   Chrome reads them only while the standard properties are back on auto;
+   Firefox has no narrower setting and keeps `thin`. */
+@supports selector(::-webkit-scrollbar) {
+  .k-scrollbar-slim {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+  .k-scrollbar-slim::-webkit-scrollbar {
+    width: 5px;
+  }
+  .k-scrollbar-slim::-webkit-scrollbar-thumb {
+    border-width: 1px;
+  }
+}
+
 /* ============================================================
    Background field: faint grid, fixed behind
    every dashboard screen. Drop <KBgField /> as the first child.
