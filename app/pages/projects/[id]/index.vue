@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
 import { previewHostname } from '#shared/utils/preview-host'
-import { formatDatabase, formatPackageManager, projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
+import { formatDatabase, projectDetectedEnv, resolveEnv } from '#shared/utils/env-spec'
 import { useRoute, useRequestURL, navigateTo } from '#imports'
 import { useProject } from '~/composables/useProjects'
 import { useRuns, useRunStatsBy } from '~/composables/useRuns'
 import { computed } from 'vue'
+import type { RouteLocationRaw } from 'vue-router'
 import { groupRunsBySession, projectStatusMeta, sessionObjectMeta, sessionTitle, sessionTicket, sessionBranch, sessionPr, sessionStatusLine, frameworkMeta, timeAgo, triggerMeta } from '~/utils/dashboard'
+import { integrationUi } from '~/utils/integrations'
 import { useWorkflows, useTriggers } from '~/composables/useWorkflows'
 import { workflowRunnable } from '~/utils/workflow-steps'
 import { useStartRun } from '~/composables/useStartRun'
 import { invalidate } from '~/composables/useLiveTopics'
 import KPanel from '~/components/KPanel.vue'
-import KSessionList from '~/components/KSessionList.vue'
 import KStatusBadge from '~/components/KStatusBadge.vue'
 import KRunSparkline from '~/components/KRunSparkline.vue'
 import KRunStatsText from '~/components/KRunStatsText.vue'
@@ -34,9 +35,30 @@ const { data: runs } = await useRuns(id)
 const sessionGroups = computed(() => groupRunsBySession(runs.value ?? []))
 const sessionTo = (g: { sessionId: number }) => ({ path: sessionsPath, query: { session: String(g.sessionId) } })
 
+const fullTime = (at: string | null | undefined) => (at ? new Date(at).toLocaleString() : undefined)
+
 const latestGroup = computed(() => sessionGroups.value[0] ?? null)
 const latest = computed(() => latestGroup.value?.runs[0] ?? null)
-const otherGroups = computed(() => sessionGroups.value.slice(1))
+// What started the session is its first run; later runs are follow-ups such as mentions.
+// A session started by hand has no workflow and is named "New Preview Session" or "New Code Session".
+function startedAs(g: (typeof sessionGroups.value)[number]) {
+  const first = g.runs.at(-1)!
+  if (first.workflowId === null) return first.workflow.replace(/^New /, '')
+  return first.workflow === sessionTitle(g) ? null : first.workflow
+}
+
+const OTHER_SESSIONS = 5
+const otherGroups = computed(() => sessionGroups.value.slice(1, 1 + OTHER_SESSIONS).map((g) => {
+  const ticket = sessionTicket(g)
+  const meta = ticket && sessionObjectMeta(ticket.integration, ticket.kind)
+  return {
+    group: g,
+    icon: meta?.icon ?? 'i-lucide-messages-square',
+    color: meta && !ticket!.closed ? meta.color : 'var(--text-dimmed)',
+    detail: [meta && `${meta.prefix}${ticket!.key}`, startedAs(g)].filter(Boolean).join(' · '),
+  }
+}))
+const moreSessions = computed(() => Math.max(0, sessionGroups.value.length - 1 - OTHER_SESSIONS))
 
 const latestDiagnosis = computed(() => latest.value?.status === 'failed' ? latest.value.failureDiagnosis : null)
 const latestTicket = computed(() => {
@@ -47,12 +69,15 @@ const latestFacts = computed(() => {
   const g = latestGroup.value
   if (!g) return []
   const pr = sessionPr(g)
-  return [
-    { label: 'Workflow', text: g.runs[0]!.workflow },
-    { label: 'Branch', text: sessionBranch(g) },
+  const run = g.runs[0]!
+  const ticket = latestTicket.value
+  const facts: { label: string, text?: string | null, to?: RouteLocationRaw, href?: string, tip?: string }[] = [
+    { label: ticket ? `${integrationUi(ticket.integration).label} ${ticket.meta.label}` : '', text: ticket && `${ticket.meta.prefix}${ticket.key}`, href: ticket?.url ?? undefined },
+    { label: 'Last run', text: timeAgo(run.createdAt), to: sessionTo(g), tip: fullTime(run.createdAt) },
+    { label: 'Branch', text: sessionBranch(g), to: sessionTo(g) },
     { label: 'Pull request', text: pr?.label, href: pr?.url },
-    { label: 'Last run', text: timeAgo(g.runs[0]!.createdAt) },
-  ].filter(f => f.text)
+  ]
+  return facts.filter(f => f.text)
 })
 
 const reqUrl = useRequestURL()
@@ -75,12 +100,9 @@ const environmentFacts = computed(() => {
   const ddev = env.source === 'ddev'
   return [
     { label: 'Framework', text: p.frameworkVersion ? `${fw} ${p.frameworkVersion}` : fw },
-    { label: 'Default branch', text: p.defaultBranch },
-    { label: 'Web', text: ddev ? e?.webserver?.replace(/-fpm$/, '') : null },
     { label: 'PHP', text: ddev ? e?.phpVersion : env.phpVersion.value },
     { label: 'Database', text: ddev ? e?.dbType && `${e.dbType}${e.dbVersion ? ` ${e.dbVersion}` : ''}` : env.database.value && formatDatabase(env.database.value) },
     { label: 'Node', text: ddev ? e?.nodeVersion : env.nodeVersion.value },
-    { label: 'Package manager', text: env.packageManager.source === 'default' ? null : formatPackageManager(env.packageManager.value) },
   ].filter(f => f.text)
 })
 
@@ -135,82 +157,115 @@ function startWorkflow(row: { id: number, trigger: { branch: string | null } }) 
         class="k-card overflow-hidden"
       >
         <div class="flex h-10 items-center gap-2.5 border-b border-muted px-4.5">
-          <span class="k-mono text-2xs uppercase tracking-widest text-toned">Latest session</span>
-          <KStatusBadge
-            class="ml-auto"
-            :meta="projectStatusMeta(latest)"
+          <UIcon
+            name="i-lucide-messages-square"
+            class="size-4 text-primary"
           />
+          <span class="k-mono text-2xs uppercase tracking-widest text-toned">Sessions</span>
+          <NuxtLink
+            :to="sessionsPath"
+            aria-label="All sessions"
+            class="ml-auto flex text-dimmed transition-[color,translate] hover:translate-x-0.5 hover:text-highlighted"
+          >
+            <UIcon
+              name="i-lucide-arrow-right"
+              class="size-4"
+            />
+          </NuxtLink>
         </div>
         <div class="grid grid-cols-1 gap-6 p-5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-          <NuxtLink
-            :to="sessionTo(latestGroup)"
-            :aria-label="`Open session ${sessionTitle(latestGroup)}`"
-            class="relative block aspect-3/2 overflow-hidden rounded-md border border-default bg-(--surface-base) transition-colors hover:border-accented"
-          >
-            <iframe
-              v-if="previewUrl"
-              :src="previewUrl"
-              title="Preview"
-              tabindex="-1"
-              loading="lazy"
-              class="pointer-events-none absolute left-0 top-0 h-[400%] w-[400%] origin-top-left scale-25"
-            />
-            <div
-              v-else
-              class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center"
+          <div class="min-w-0">
+            <NuxtLink
+              :to="sessionTo(latestGroup)"
+              :aria-label="`Open session ${sessionTitle(latestGroup)}`"
+              class="relative block aspect-3/2 sm:aspect-auto sm:h-full overflow-hidden rounded-md border border-default bg-(--surface-base) transition-colors hover:border-accented"
             >
-              <UIcon
-                name="i-lucide-monitor-off"
-                class="size-6 text-dimmed"
+              <iframe
+                v-if="previewUrl"
+                :src="previewUrl"
+                title="Preview"
+                tabindex="-1"
+                loading="lazy"
+                class="pointer-events-none absolute left-0 top-0 h-[400%] w-[400%] origin-top-left scale-25"
               />
-              <p class="text-xs text-dimmed">
-                No live preview
-              </p>
-            </div>
-          </NuxtLink>
+              <div
+                v-else
+                class="absolute inset-0 flex flex-col items-center justify-center gap-2 px-4 text-center"
+              >
+                <UIcon
+                  name="i-lucide-monitor-off"
+                  class="size-6 text-dimmed"
+                />
+                <p class="text-xs text-dimmed">
+                  No live preview
+                </p>
+              </div>
+            </NuxtLink>
+          </div>
 
           <div class="flex min-w-0 flex-col">
-            <span
-              v-if="latestTicket"
-              class="mb-1 flex min-w-0 items-center gap-1.5 text-xs text-muted"
-            >
-              <UIcon
-                :name="latestTicket.meta.icon"
-                class="size-3 flex-none"
-                :style="{ color: latestTicket.closed ? 'var(--text-dimmed)' : latestTicket.meta.color }"
+            <div class="mb-1 flex min-w-0 items-center gap-1.5 text-2sm text-muted">
+              <span class="flex-none text-dimmed">Latest session</span>
+              <KStatusBadge
+                class="ml-auto"
+                :meta="projectStatusMeta(latest)"
               />
-              <span class="truncate">{{ latestTicket.meta.prefix }}{{ latestTicket.key }}</span>
-            </span>
+            </div>
             <h2 class="truncate text-xl font-semibold tracking-tight text-highlighted">
-              {{ sessionTitle(latestGroup) }}
+              <NuxtLink :to="sessionTo(latestGroup)">
+                {{ sessionTitle(latestGroup) }}
+              </NuxtLink>
             </h2>
-            <p class="mt-1.5 text-2sm leading-snug text-muted">
+            <p class="mt-2 max-w-[60ch] text-sm leading-relaxed text-toned">
               <UIcon
                 v-if="latestDiagnosis?.state === 'pending'"
                 name="i-lucide-loader-circle"
                 class="mr-1 inline-block size-3 animate-spin motion-reduce:animate-none align-[-1px] text-dimmed"
               />{{ sessionStatusLine(latest) }}
             </p>
-            <dl class="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
+            <div
+              v-if="latestDiagnosis?.state === 'done' && latestDiagnosis.steps.length && latest.workflowId"
+              class="mt-3 flex flex-wrap gap-1.5"
+            >
+              <UButton
+                v-for="s in latestDiagnosis.steps"
+                :key="s.id"
+                :to="{ path: `/workflows/${latest.workflowId}`, query: { step: s.stepId } }"
+                :label="`Open step ${s.label}`"
+                color="neutral"
+                variant="outline"
+              />
+            </div>
+            <dl class="mt-8 grid grid-cols-2 gap-x-6 gap-y-4">
               <div
                 v-for="f in latestFacts"
                 :key="f.label"
                 class="min-w-0"
               >
-                <dt class="text-xs text-dimmed">
+                <dt class="text-xs text-muted">
                   {{ f.label }}
                 </dt>
-                <dd class="mt-0.5 truncate text-2sm text-default">
-                  <a
-                    v-if="f.href"
-                    :href="f.href"
-                    target="_blank"
-                    rel="noopener"
-                    class="transition-colors hover:text-highlighted"
-                  >{{ f.text }}</a>
-                  <template v-else>
-                    {{ f.text }}
-                  </template>
+                <dd class="mt-1 truncate text-sm text-highlighted">
+                  <UTooltip
+                    :text="f.tip"
+                    :disabled="!f.tip"
+                  >
+                    <a
+                      v-if="f.href"
+                      :href="f.href"
+                      target="_blank"
+                      rel="noopener"
+                      class="transition-colors hover:text-highlighted"
+                    >{{ f.text }}</a>
+                    <NuxtLink
+                      v-else-if="f.to"
+                      :to="f.to"
+                      class="transition-colors hover:text-highlighted"
+                    >
+                      {{ f.text }}
+                    </NuxtLink>
+                    <span v-else>{{ f.text }}</span>
+                  </UTooltip>
                 </dd>
               </div>
             </dl>
@@ -231,12 +286,36 @@ function startWorkflow(row: { id: number, trigger: { branch: string | null } }) 
           v-if="otherGroups.length"
           class="border-t border-muted"
         >
-          <div class="@container">
-            <KSessionList
-              :groups="otherGroups"
-              :session-to="sessionTo"
+          <NuxtLink
+            v-for="o in otherGroups"
+            :key="o.group.sessionId"
+            :to="sessionTo(o.group)"
+            class="flex items-center gap-3 border-b border-muted px-5 py-3 transition-colors last:border-b-0 hover:bg-elevated/30"
+          >
+            <UIcon
+              :name="o.icon"
+              class="size-4 flex-none"
+              :style="{ color: o.color }"
             />
-          </div>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-sm font-medium text-highlighted">{{ sessionTitle(o.group) }}</span>
+              <span class="block truncate text-xs text-dimmed">{{ o.detail }}</span>
+            </span>
+            <KStatusBadge :meta="projectStatusMeta(o.group.runs[0])" />
+            <UTooltip
+              :text="fullTime(o.group.runs[0]!.createdAt)"
+              :disabled="!o.group.runs[0]!.createdAt"
+            >
+              <span class="w-14 flex-none text-right text-xs tabular-nums text-dimmed">{{ timeAgo(o.group.runs[0]!.createdAt) }}</span>
+            </UTooltip>
+          </NuxtLink>
+          <NuxtLink
+            v-if="moreSessions"
+            :to="sessionsPath"
+            class="block border-t border-muted px-5 py-2.5 text-xs text-dimmed transition-colors hover:text-highlighted"
+          >
+            {{ moreSessions }} more {{ moreSessions === 1 ? 'session' : 'sessions' }}
+          </NuxtLink>
         </div>
       </div>
     </div>
@@ -246,17 +325,29 @@ function startWorkflow(row: { id: number, trigger: { branch: string | null } }) 
         title="Environment"
         icon="i-lucide-box"
       >
+        <template #action>
+          <NuxtLink
+            :to="`/projects/${id}/settings`"
+            aria-label="Environment settings"
+            class="flex text-dimmed transition-[color,translate] hover:translate-x-0.5 hover:text-highlighted"
+          >
+            <UIcon
+              name="i-lucide-arrow-right"
+              class="size-4"
+            />
+          </NuxtLink>
+        </template>
         <div class="flex items-end gap-3">
           <KRunSparkline
             :stats="stats"
-            class="h-9 flex-1"
+            class="h-20 flex-1"
           />
           <KRunStatsText
             :stats="stats"
             class="flex-none"
           />
         </div>
-        <dl class="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-1.5 border-t border-muted pt-4 text-xs">
+        <dl class="mt-4 grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-1 border-t border-muted pt-4 text-2sm">
           <template
             v-for="f in environmentFacts"
             :key="f.label"
@@ -277,6 +368,18 @@ function startWorkflow(row: { id: number, trigger: { branch: string | null } }) 
         accent="var(--accent-violet)"
         :pad="0"
       >
+        <template #action>
+          <NuxtLink
+            :to="'/workflows'"
+            aria-label="All workflows"
+            class="flex text-dimmed transition-[color,translate] hover:translate-x-0.5 hover:text-highlighted"
+          >
+            <UIcon
+              name="i-lucide-arrow-right"
+              class="size-4"
+            />
+          </NuxtLink>
+        </template>
         <p
           v-if="!workflowRows.length"
           class="px-5 py-4.25 text-2sm text-muted"
