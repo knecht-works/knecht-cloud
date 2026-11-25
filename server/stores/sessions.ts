@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, ne, notExists, or, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '#server/db'
 import type { NewSession, Project, Run, Session } from '#server/db/schema'
@@ -105,18 +105,6 @@ export function moveSession(id: number, from: Partial<Pick<Session, 'envState' |
 // Silent: it runs on every proxied preview request and changes nothing the dashboard shows.
 export function touchSessionPreview(id: number): void {
   db.update(schema.sessions).set({ previewLastSeen: new Date() }).where(eq(schema.sessions.id, id)).run()
-}
-
-// Closed is a display state, not a gate: dashboard follow-ups still land on it.
-export function closeObjectlessSession(id: number): void {
-  db.update(schema.sessions)
-    .set({ status: 'closed', closedAt: new Date() })
-    .where(and(
-      eq(schema.sessions.id, id),
-      notExists(db.select({ id: schema.sessionObjects.id }).from(schema.sessionObjects).where(eq(schema.sessionObjects.sessionId, id))),
-    ))
-    .run()
-  sessionChanged(id)
 }
 
 export function deleteSession(id: number, tx: Executor = db): void {

@@ -2,7 +2,7 @@
 import { liveTopics } from '#shared/utils/live-topics'
 import { useRoute, useState, navigateTo, $fetch } from '#imports'
 import { useRuns } from '~/composables/useRuns'
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { groupRunsBySession } from '~/utils/dashboard'
 import { invalidate } from '~/composables/useLiveTopics'
 import KRunWorkspace from '~/components/KRunWorkspace.vue'
@@ -63,6 +63,25 @@ function syncQuery() {
 
 onMounted(syncQuery)
 
+// The list starts below the project header and sticks once that scrolls away, so its height follows the scroll to keep the Settled bar on screen.
+const STICKY_TOP = 8
+const navColumn = ref<HTMLElement | null>(null)
+const navHeight = ref<number | null>(null)
+function fitNav() {
+  if (!navColumn.value) return
+  const top = Math.max(STICKY_TOP, navColumn.value.getBoundingClientRect().top)
+  navHeight.value = window.innerHeight - top
+}
+onMounted(() => {
+  fitNav()
+  document.addEventListener('scroll', fitNav, { capture: true, passive: true })
+  window.addEventListener('resize', fitNav)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('scroll', fitNav, { capture: true })
+  window.removeEventListener('resize', fitNav)
+})
+
 watch(() => [route.query.session, route.query.run], () => {
   const q = sessionFromQuery()
   if (q !== null) selectedSessionId.value = q
@@ -104,10 +123,14 @@ async function onRunDeleted() {
 <template>
   <div class="-mx-8 -mb-7 flex flex-col lg:flex-row">
     <!-- Bleeds out of the page padding so the list sits flush against the app sidebar. -->
-    <div class="flex-none border-b border-default lg:w-64 lg:border-b-0">
+    <div
+      ref="navColumn"
+      class="flex-none border-b border-default lg:w-64 lg:border-b-0"
+    >
       <nav
         aria-label="Sessions"
-        class="k-scrollbar-none flex max-h-80 flex-col overflow-y-auto px-5 pb-2 lg:sticky lg:top-5 lg:max-h-[calc(100dvh-2.5rem)]"
+        class="flex h-80 flex-col px-5 lg:sticky lg:top-2 lg:h-[var(--nav-h,calc(100dvh-0.5rem))]"
+        :style="navHeight ? { '--nav-h': `${navHeight}px` } : undefined"
       >
         <button
           v-if="newRun"

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { db, schema } from '#server/db'
 import { fireTrigger } from '#server/utils/triggers'
 import { findObjectSession } from '#server/stores/sessions'
-import { resolveSession, sessionHasActiveWork, syncObjectStatus, withSessionLinks } from '#server/utils/sessions'
+import { resolveSession, sessionHasActiveWork, setObjectlessSessionStatus, syncObjectStatus, withSessionLinks } from '#server/utils/sessions'
 import { attachTestObject, getSessionRow, makeProject, makeRun, sessionObjectOf } from '../helpers/db'
 
 let n = 0
@@ -106,6 +106,27 @@ describe('syncObjectStatus', () => {
   it('ignores objects Knecht never worked on', () => {
     const project = makeProject()
     expect(() => syncObjectStatus(project.id, { integration: 'github', kind: 'issue', key: '999' }, 'closed')).not.toThrow()
+  })
+})
+
+describe('setObjectlessSessionStatus', () => {
+  it('closes and reopens a session without objects', () => {
+    const session = resolveSession(makeProject(), null, null)
+    expect(session.status).toBe('open')
+
+    expect(setObjectlessSessionStatus(session, 'closed')).toBe(true)
+    expect(getSessionRow(session.id)).toMatchObject({ status: 'closed' })
+    expect(getSessionRow(session.id).closedAt).not.toBeNull()
+
+    expect(setObjectlessSessionStatus(getSessionRow(session.id), 'open')).toBe(true)
+    expect(getSessionRow(session.id)).toMatchObject({ status: 'open', closedAt: null })
+  })
+
+  it('leaves a session with an object to its object', () => {
+    const project = makeProject()
+    const session = resolveSession(project, { integration: 'github', kind: 'issue', key: '31' }, null)
+    expect(setObjectlessSessionStatus(session, 'closed')).toBe(false)
+    expect(getSessionRow(session.id).status).toBe('open')
   })
 })
 
