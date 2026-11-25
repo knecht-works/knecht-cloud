@@ -98,6 +98,10 @@ export interface ProjectRunSummary {
   createdAt: string | number | Date | null
 }
 
+export interface SessionHeaderRun extends ProjectRunSummary {
+  title: string | null
+}
+
 export interface ProjectActivity {
   open: number
   live: number
