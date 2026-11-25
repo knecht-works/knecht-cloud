@@ -8,6 +8,7 @@ import { useRuns, useRunStatsBy } from '~/composables/useRuns'
 import { computed } from 'vue'
 import type { RouteLocationRaw } from 'vue-router'
 import { groupRunsBySession, projectStatusMeta, sessionObjectMeta, sessionTitle, sessionTicket, sessionBranch, sessionPr, sessionStatusLine, frameworkMeta, timeAgo, triggerMeta } from '~/utils/dashboard'
+import { integrationUi } from '~/utils/integrations'
 import { useWorkflows, useTriggers } from '~/composables/useWorkflows'
 import { workflowRunnable } from '~/utils/workflow-steps'
 import { useStartRun } from '~/composables/useStartRun'
@@ -38,6 +39,14 @@ const fullTime = (at: string | null | undefined) => (at ? new Date(at).toLocaleS
 
 const latestGroup = computed(() => sessionGroups.value[0] ?? null)
 const latest = computed(() => latestGroup.value?.runs[0] ?? null)
+// What started the session is its first run; later runs are follow-ups such as mentions.
+// A session started by hand has no workflow and is named "New Preview Session" or "New Code Session".
+function startedAs(g: (typeof sessionGroups.value)[number]) {
+  const first = g.runs.at(-1)!
+  if (first.workflowId === null) return first.workflow.replace(/^New /, '')
+  return first.workflow === sessionTitle(g) ? null : first.workflow
+}
+
 const OTHER_SESSIONS = 5
 const otherGroups = computed(() => sessionGroups.value.slice(1, 1 + OTHER_SESSIONS).map((g) => {
   const ticket = sessionTicket(g)
@@ -46,7 +55,7 @@ const otherGroups = computed(() => sessionGroups.value.slice(1, 1 + OTHER_SESSIO
     group: g,
     icon: meta?.icon ?? 'i-lucide-messages-square',
     color: meta && !ticket!.closed ? meta.color : 'var(--text-dimmed)',
-    detail: [meta && `${meta.prefix}${ticket!.key}`, g.runs[0]!.workflow].filter(Boolean).join(' · '),
+    detail: [meta && `${meta.prefix}${ticket!.key}`, startedAs(g)].filter(Boolean).join(' · '),
   }
 }))
 const moreSessions = computed(() => Math.max(0, sessionGroups.value.length - 1 - OTHER_SESSIONS))
@@ -61,8 +70,9 @@ const latestFacts = computed(() => {
   if (!g) return []
   const pr = sessionPr(g)
   const run = g.runs[0]!
+  const ticket = latestTicket.value
   const facts: { label: string, text?: string | null, to?: RouteLocationRaw, href?: string, tip?: string }[] = [
-    { label: 'Workflow', text: run.workflow, to: run.workflowId ? `/workflows/${run.workflowId}` : sessionTo(g) },
+    { label: ticket ? `${integrationUi(ticket.integration).label} ${ticket.meta.label}` : '', text: ticket && `${ticket.meta.prefix}${ticket.key}`, href: ticket?.url ?? undefined },
     { label: 'Last run', text: timeAgo(run.createdAt), to: sessionTo(g), tip: fullTime(run.createdAt) },
     { label: 'Branch', text: sessionBranch(g), to: sessionTo(g) },
     { label: 'Pull request', text: pr?.label, href: pr?.url },
@@ -195,22 +205,6 @@ function startWorkflow(row: { id: number, trigger: { branch: string | null } }) 
 
           <div class="flex min-w-0 flex-col">
             <div class="mb-1 flex min-w-0 items-center gap-1.5 text-2sm text-muted">
-              <component
-                :is="latestTicket.url ? 'a' : 'span'"
-                v-if="latestTicket"
-                :href="latestTicket.url ?? undefined"
-                target="_blank"
-                rel="noopener"
-                class="flex min-w-0 items-center gap-1.5"
-                :class="latestTicket.url ? 'transition-colors hover:text-highlighted' : ''"
-              >
-                <UIcon
-                  :name="latestTicket.meta.icon"
-                  class="size-3.5 flex-none"
-                  :style="{ color: latestTicket.closed ? 'var(--text-dimmed)' : latestTicket.meta.color }"
-                />
-                <span class="truncate">{{ latestTicket.meta.prefix }}{{ latestTicket.key }}</span>
-              </component>
               <span class="flex-none text-dimmed">Latest session</span>
               <KStatusBadge
                 class="ml-auto"
@@ -270,6 +264,7 @@ function startWorkflow(row: { id: number, trigger: { branch: string | null } }) 
                     >
                       {{ f.text }}
                     </NuxtLink>
+                    <span v-else>{{ f.text }}</span>
                   </UTooltip>
                 </dd>
               </div>
