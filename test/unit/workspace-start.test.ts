@@ -55,6 +55,7 @@ describe('startWorkspace', () => {
     expect(argv).toContain('--memory 2g')
     expect(argv).toContain('--pids-limit 2048')
     expect(argv).toContain('-v knecht-package-cache:/mnt/knecht-package-cache')
+    expect(argv).toContain('--no-healthcheck')
     expect(dockerCps).toEqual([['cp', join(home, '.ddev', 'commands'), 'knecht-run-1001-workspace:/usr/local/lib/ddev/global-commands']])
     vi.unstubAllEnvs()
   })
