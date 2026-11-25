@@ -199,6 +199,19 @@ describe('agent bridge', () => {
     expect(res.text).toContain('refusing to open a PR from the base branch \'develop\'')
   })
 
+  it('refuses to open a PR from the default branch when the session base is another branch', async () => {
+    const project = makeProject()
+    const session = makeSession(project, { branch: 'main', baseBranch: 'release' })
+    const run = makeRun(project, [], { status: 'success', sessionId: session.id })
+    const dir = sessionCheckoutDir(run.sessionId)
+    mkdirSync(dir, { recursive: true })
+    await execa('git', ['init', '-q', '-b', 'main'], { cwd: dir })
+    await execa('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init'], { cwd: dir })
+    const res = await call(run.sessionId, { op: 'open-pr', title: 'Fix' })
+    expect(res.status).toBe(400)
+    expect(res.text).toContain('refusing to open a PR from the base branch \'main\'')
+  })
+
   it('rejects an unknown op', async () => {
     const { sessionId } = objectSession()
     const res = await call(sessionId, { op: 'assign', to: 'me' })

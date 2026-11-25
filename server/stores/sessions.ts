@@ -31,6 +31,11 @@ export function sessionBase(session: Pick<Session, 'baseBranch'>, project: Pick<
   return session.baseBranch ?? project.defaultBranch
 }
 
+// A PR from the default branch into another base (main into release) must still never push the default branch.
+export function isBaseBranch(branch: string, session: Pick<Session, 'baseBranch'>, project: Pick<Project, 'defaultBranch'>): boolean {
+  return branch === sessionBase(session, project) || branch === project.defaultBranch
+}
+
 // The newest session working on `branch`; a base branch is nobody's work branch.
 export function findBranchSession(project: Pick<Project, 'id' | 'defaultBranch'>, branch: string): Session | undefined {
   if (branch === project.defaultBranch) return undefined

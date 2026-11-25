@@ -450,4 +450,13 @@ describe('runner', () => {
     expect(getRun(queued.id).branch).toBe(`knecht/fix-${queued.id}`)
     expect(getSessionRow(session.id)).toMatchObject({ branch: `knecht/fix-${queued.id}`, baseBranch: 'develop' })
   })
+
+  it('branches off a session on the default branch even when its base is another branch', async () => {
+    const project = makeProject()
+    const session = makeSession(project, { branch: 'main', baseBranch: 'release' })
+    const queued = makeRun(project, [{ type: 'create-branch', id: 'branch', name: 'knecht/fix-{{ run.id }}' }], { sessionId: session.id })
+    await startRun(queued.id, project)
+    expect(getRun(queued.id).branch).toBe(`knecht/fix-${queued.id}`)
+    expect(getSessionRow(session.id).branch).toBe(`knecht/fix-${queued.id}`)
+  })
 })

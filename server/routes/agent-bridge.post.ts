@@ -17,7 +17,7 @@ import { writeObjectSnapshot } from '#server/utils/object-snapshot'
 import { sessionCheckoutDir } from '#server/utils/storage'
 import { getProject } from '#server/stores/projects'
 import { getWorkflowRow } from '#server/stores/workflows'
-import { getSessionRow, sessionBase, updateSession } from '#server/stores/sessions'
+import { getSessionRow, isBaseBranch, sessionBase, updateSession } from '#server/stores/sessions'
 import { createFollowup, getRunningFollowup, queuedAgentFollowup } from '#server/stores/followups'
 import { latestSessionRun, getRunningSessionRun, updateRun, appendRunLog } from '#server/stores/runs'
 import { setResponseStatus, setHeader, defineEventHandler, getHeader, readBody } from 'h3'
@@ -178,8 +178,8 @@ export default defineEventHandler(async (event) => {
           throw new BridgeError('refusing to open a PR from a detached HEAD: check out a work branch first (git checkout -b <name>)')
         }
         const base = sessionBase(session, project)
-        if (branch === base) {
-          throw new BridgeError(`refusing to open a PR from the base branch '${base}': create a work branch first (git checkout -b <name>)`)
+        if (isBaseBranch(branch, session, project)) {
+          throw new BridgeError(`refusing to open a PR from the base branch '${branch}': create a work branch first (git checkout -b <name>)`)
         }
         const git = gitProvider(project)
         await pushBranch(sandbox, branch, await git.credentials(project))
