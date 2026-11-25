@@ -9,7 +9,7 @@ export type TrackerId = typeof TRACKER_IDS[number]
 export const INTEGRATION_IDS = [...REPO_PROVIDERS, ...TRACKER_IDS] as const
 export type IntegrationId = typeof INTEGRATION_IDS[number]
 
-export const TRIGGER_SOURCES = ['git', 'tracker', 'schedule'] as const
+export const TRIGGER_SOURCES = ['git', 'tracker', 'schedule', 'manual'] as const
 export type TriggerSource = typeof TRIGGER_SOURCES[number]
 
 export function isTrackerId(id: string): id is TrackerId {

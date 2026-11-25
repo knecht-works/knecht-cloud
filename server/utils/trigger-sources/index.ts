@@ -45,6 +45,13 @@ const schedule: TriggerSourceDef = {
   },
 }
 
+const manual: TriggerSourceDef = {
+  source: 'manual',
+  integration: null,
+  configSchema: z.object({}),
+  describe: () => ({ kind: '', on: [{ kind: 'text', text: 'Run on demand' }], conditions: [], event: 'Run on demand' }),
+}
+
 function validateLinkedProjects(integration: Integration, projectIds: number[]): string | null {
   const link = integration.link
   if (!link) return null
@@ -76,6 +83,7 @@ const git: TriggerSourceDef = {
 
 export const TRIGGER_SOURCE_DEFS: readonly TriggerSourceDef[] = [
   schedule,
+  manual,
   git,
   ...INTEGRATIONS.flatMap((i): TriggerSourceDef[] => (i.trigger
     ? [{
