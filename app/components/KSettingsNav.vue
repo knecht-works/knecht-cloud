@@ -46,7 +46,7 @@ function isActive(to: string) {
     v-else
     class="-mx-8 -mb-7 flex flex-col lg:flex-row"
   >
-    <nav class="k-scrollbar-none flex flex-none gap-px overflow-x-auto px-5 pb-4 lg:sticky lg:top-7 lg:w-64 lg:flex-col lg:self-start lg:overflow-visible lg:pb-2">
+    <nav class="k-scrollbar-none flex flex-none gap-px overflow-x-auto px-5 pb-4 lg:sticky lg:top-2 lg:w-64 lg:flex-col lg:self-start lg:overflow-visible lg:pb-2">
       <NuxtLink
         v-for="s in sections"
         :key="s.to"
