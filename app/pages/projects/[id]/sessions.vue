@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
-import { useRoute, navigateTo, $fetch } from '#imports'
+import { useRoute, useState, navigateTo, $fetch } from '#imports'
 import { useRuns } from '~/composables/useRuns'
 import { computed, ref, onMounted, watch } from 'vue'
 import { groupRunsBySession } from '~/utils/dashboard'
@@ -71,8 +71,11 @@ watch(() => [route.query.session, route.query.run], () => {
 })
 
 const lastSeenLatestId = ref(latest.value?.id ?? null)
+// A run the user started is opened right away; announcing it first makes the list jump twice.
+const startedRunId = useState<number | null>('started-run', () => null)
 const newRun = computed(() =>
-  latest.value && latest.value.sessionId !== selectedSessionId.value && latest.value.id !== lastSeenLatestId.value
+  latest.value && latest.value.sessionId !== selectedSessionId.value
+  && latest.value.id !== lastSeenLatestId.value && latest.value.id !== startedRunId.value
     ? latest.value
     : null)
 
@@ -86,6 +89,7 @@ watch(runs, () => {
 })
 
 async function onRunStarted(runId: number) {
+  startedRunId.value = runId
   await invalidate(liveTopics.runs)
   lastSeenLatestId.value = runId
   await navigateTo({ query: { ...route.query, session: undefined, run: String(runId) } }, { replace: true })
