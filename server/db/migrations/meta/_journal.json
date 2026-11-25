@@ -554,6 +554,13 @@
       "when": 1795551048312,
       "tag": "0078_session-base-branch",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "6",
+      "when": 1795641362982,
+      "tag": "0079_run-reset-checkout",
+      "breakpoints": true
     }
   ]
 }

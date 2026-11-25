@@ -342,6 +342,23 @@ describe('runner', () => {
     expect(flaky[0]!.params?.command).toContain('echo replay=v1;')
   })
 
+  it('runs again on the session checkout without the uncommitted changes of the failed attempt', async () => {
+    const project = makeProject()
+    const failed = makeRun(project, [
+      { type: 'bash', id: 'work', command: 'echo kept > tracked && git add tracked && git -c user.name=t -c user.email=t@t commit -qm init && echo half > tracked && touch stray && exit 1' },
+    ])
+    await startRun(failed.id, project)
+    expect(getRun(failed.id).status).toBe('failed')
+
+    const again = makeRun(project, [
+      { type: 'bash', id: 'check', command: 'cat tracked && test ! -e stray' },
+    ], { sessionId: failed.sessionId, resetCheckout: true })
+    await startRun(again.id, project)
+
+    expect(getRun(again.id).status).toBe('success')
+    expect(getSteps(again.id)[0]!.outputs).toMatchObject({ stdout: 'kept' })
+  })
+
   it('takes the matching if branch and tags sub-steps with the parent step', async () => {
     const { run, steps } = await execute([
       {

@@ -8,7 +8,6 @@ import KPreviewBrowser from '~/components/KPreviewBrowser.vue'
 
 const props = defineProps<{
   runId: number
-  projectId: number
   workflowId: number | null
   sessionId: number
   previewHosts: string[]
@@ -45,16 +44,12 @@ async function reboot() {
   }
 }
 
-// Deliberately not the run's own branch: a create-branch step overwrote it with the work branch.
 const restarting = ref(false)
 async function runAgain() {
   if (!props.workflowId) return
   restarting.value = true
   try {
-    const created = await $fetch('/api/runs', {
-      method: 'POST',
-      body: { projectId: props.projectId, workflowId: props.workflowId },
-    })
+    const created = await $fetch(`/api/runs/${props.runId}/again`, { method: 'POST' })
     emit('started', created.id)
   }
   catch (e) {

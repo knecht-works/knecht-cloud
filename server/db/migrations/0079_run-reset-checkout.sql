@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `reset_checkout` integer DEFAULT false NOT NULL;

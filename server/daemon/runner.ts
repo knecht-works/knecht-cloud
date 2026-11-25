@@ -138,6 +138,12 @@ async function execRun(runId: number, project: Project): Promise<void> {
       signal: controller.signal,
       sandbox: sessionSandbox(sessionId, log, controller.signal),
     }
+    if (run.resetCheckout && resume.fromIndex === 0) {
+      log(`▶ Discarding the uncommitted changes of the previous attempt\n`)
+      await rt.sandbox.ensureUp()
+      await rt.sandbox.exec(['git', 'reset', '--hard'])
+      await rt.sandbox.exec(['git', 'clean', '-fdq'])
+    }
     await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
     finishRun(runId, 'success')
