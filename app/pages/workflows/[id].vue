@@ -182,6 +182,21 @@ async function toggleTrigger(t: { id: number, active: boolean }) {
   }
 }
 
+const firingTriggerId = ref<number | null>(null)
+async function fireTrigger(t: { id: number }) {
+  firingTriggerId.value = t.id
+  try {
+    const { runIds } = await $fetch<{ runIds: number[] }>(`/api/triggers/${t.id}/fire`, { method: 'POST' })
+    toast.add({ title: runIds.length === 1 ? 'Run started' : `${runIds.length} runs started`, color: 'success' })
+  }
+  catch (e) {
+    toastError('Failed to start runs', e)
+  }
+  finally {
+    firingTriggerId.value = null
+  }
+}
+
 async function removeTrigger(t: { id: number }) {
   try {
     await $fetch(`/api/triggers/${t.id}`, { method: 'DELETE' })
@@ -840,7 +855,7 @@ const pr = computed(() => {
                         </span>
                       </span>
                       <span
-                        v-if="t.source === 'schedule'"
+                        v-if="t.source === 'schedule' || t.source === 'manual'"
                         class="mt-1 block text-xs text-muted"
                       >{{ t.event }}</span>
                       <span
@@ -893,6 +908,16 @@ const pr = computed(() => {
                     >no projects</span>
                   </div>
                   <div class="flex h-8 items-center gap-1">
+                    <UButton
+                      v-if="t.source === 'manual'"
+                      color="neutral"
+                      variant="outline"
+                      size="xs"
+                      label="Run"
+                      :loading="firingTriggerId === t.id"
+                      :disabled="!t.active || !saved?.enabled || !saved?.publishedAt || !t.projects.length"
+                      @click="fireTrigger(t)"
+                    />
                     <KToggle
                       :active="t.active"
                       :disabled="!editable"
