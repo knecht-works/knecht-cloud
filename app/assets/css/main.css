@@ -267,7 +267,7 @@ html {
 }
 
 /* ============================================================
-   Background field: faint grid + two soft glows, fixed behind
+   Background field: faint grid, fixed behind
    every dashboard screen. Drop <KBgField /> as the first child.
    ============================================================ */
 .k-bg-grid {
@@ -279,26 +279,6 @@ html {
   background-size: 72px 72px;
   -webkit-mask-image: radial-gradient(ellipse 90% 60% at 70% 0%, #000 20%, transparent 75%);
   mask-image: radial-gradient(ellipse 90% 60% at 70% 0%, #000 20%, transparent 75%);
-}
-.k-glow {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-}
-.k-glow-mint {
-  width: 760px;
-  height: 520px;
-  top: -300px;
-  right: -120px;
-  background: radial-gradient(circle, color-mix(in oklab, var(--accent-mint) 22%, transparent), transparent 70%);
-  opacity: 0.32;
-}
-.k-glow-white {
-  width: 700px;
-  height: 480px;
-  top: -260px;
-  left: 120px;
-  background: radial-gradient(ellipse, oklch(1 0 0 / 0.05), transparent 70%);
 }
 
 /* ============================================================
