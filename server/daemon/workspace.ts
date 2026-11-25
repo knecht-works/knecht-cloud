@@ -69,6 +69,8 @@ async function startWorkspace(sessionId: number): Promise<void> {
       '--pids-limit', String(WEB_PIDS_LIMIT),
       '--log-driver', LOG_DRIVER,
       ...Object.entries(LOG_OPTIONS).flatMap(([key, value]) => ['--log-opt', `${key}=${value}`]),
+      // The image's healthcheck polls supervisord every second, which never runs here.
+      '--no-healthcheck',
       '-v', `${dir}:${WEB_PROJECT_DIR}`,
       // Where the ddev shim looks up the project's own web commands.
       '-v', `${join(dir, '.ddev')}:/mnt/ddev_config:ro`,
