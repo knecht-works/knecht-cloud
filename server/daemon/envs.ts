@@ -8,7 +8,7 @@ import { gitProvider } from '#server/git'
 import { projectDumpDir, sessionArchiveDir, sessionCheckoutDir } from '#server/utils/storage'
 import { configureSessionEnv } from '#server/daemon/ddev'
 import { archiveDbVolume, archivedDbVolume, cloneDbBase, readyDbBase, restoreDbVolume, type ReadyDbBase } from '#server/daemon/db-base'
-import { noteDevServerUse, restartDevServer, waitForDevServer } from '#server/daemon/dev-server'
+import { devServerOutput, noteDevServerUse, restartDevServer, waitForDevServer } from '#server/daemon/dev-server'
 import { prepareSessionCheckout } from '#server/daemon/git'
 import { ensureWorkspaceUp, removeWorkspace, runOnCheckout } from '#server/daemon/workspace'
 import { envStackRunning, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from '#server/daemon/sandbox'
@@ -110,8 +110,16 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
     const port = getSessionRow(sessionId)?.previewPort
     if (port != null) {
       log(`\n▶ Starting the dev server on port ${port}\n`)
-      await restartDevServer(exec)
-      await waitForDevServer(sessionId, port)
+      const since = new Date()
+      try {
+        await restartDevServer(exec)
+        await waitForDevServer(sessionId, port)
+      }
+      catch (e) {
+        const output = await devServerOutput(sessionId, since).catch(() => '')
+        if (output.trim()) log(`\n▶ Dev server output (last lines)\n${output.trimEnd()}\n`)
+        throw e
+      }
       await noteDevServerUse(sessionId, log)
     }
   }
