@@ -137,15 +137,16 @@ describe('database volume archive', () => {
 })
 
 describe('startDbBaseBuild', () => {
-  it('streams the unpacked dump into one import, shuts the db down cleanly and keeps its volume as the base', async () => {
+  it('streams the unpacked dump into one import, refreshes the table statistics, shuts the db down cleanly and keeps its volume as the base', async () => {
     const project = projectWithDump()
     const builder = (startDbBaseBuild(project.id)!.dbBase as { builder: string }).builder
     expect(await settled(project.id)).toMatchObject({ state: 'ready', volume: `${builder}-mariadb`, database: 'mariadb:11.8' })
     expect(imported.join('')).toBe('CREATE TABLE t;')
-    const ddev = commands.filter(c => c.startsWith('ddev ') || c.startsWith('docker stop'))
+    const ddev = commands.filter(c => c.startsWith('ddev ') || c.startsWith('docker stop') || c.includes('--analyze'))
     expect(ddev).toEqual([
       'ddev start -y',
       'ddev import-db',
+      `docker exec ddev-${builder}-db sh -c exec "$(command -v mariadb-check || command -v mysqlcheck)" -udb -pdb --analyze db`,
       `docker stop --time 3600 ddev-${builder}-db`,
       `ddev stop --unlist ${builder}`,
     ])
