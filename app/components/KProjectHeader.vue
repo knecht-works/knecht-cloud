@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { frameworkMeta } from '~/utils/dashboard'
 import KStartSessionModal from '~/components/KStartSessionModal.vue'
 import KStepIcon from '~/components/KStepIcon.vue'
-import { UButton, UIcon, UTooltip } from '#components'
+import { NuxtLink, UButton, UIcon, UTooltip } from '#components'
 
 const props = defineProps<{
   project: {
@@ -47,7 +47,9 @@ const repoName = computed(() => props.project.fullName.split('/').pop() ?? 'Proj
         />
         <UTooltip :text="project.fullName">
           <h1 class="truncate text-2xl font-semibold tracking-tight text-highlighted">
-            {{ repoName }}
+            <NuxtLink :to="`/projects/${project.id}`">
+              {{ repoName }}
+            </NuxtLink>
           </h1>
         </UTooltip>
         <a
