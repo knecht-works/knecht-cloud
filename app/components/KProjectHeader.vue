@@ -30,7 +30,7 @@ const repoName = computed(() => props.project.fullName.split('/').pop() ?? 'Proj
       <div class="flex min-w-0 items-center gap-3">
         <span
           v-if="project.favicon"
-          class="grid size-9 flex-none place-items-center rounded-lg border border-default bg-(--surface-accented)"
+          class="grid size-10 flex-none place-items-center rounded-lg border border-default bg-(--surface-accented)"
         >
           <img
             :src="project.favicon"
@@ -42,7 +42,7 @@ const repoName = computed(() => props.project.fullName.split('/').pop() ?? 'Proj
           v-else
           icon="i-lucide-box"
           :color="fw.color"
-          :size="36"
+          :size="40"
           :radius="8"
         />
         <UTooltip :text="project.fullName">
