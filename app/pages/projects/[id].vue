@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { liveTopics } from '#shared/utils/live-topics'
-import { useRoute, navigateTo } from '#imports'
+import { useRoute, useState, navigateTo } from '#imports'
 import { useProject } from '~/composables/useProjects'
 import { invalidate } from '~/composables/useLiveTopics'
 import KProjectHeader from '~/components/KProjectHeader.vue'
@@ -11,6 +11,7 @@ const id = Number(useRoute().params.id)
 const { data: project } = await useProject(id)
 
 async function onRunStarted(runId: number) {
+  useState<number | null>('started-run', () => null).value = runId
   await invalidate(liveTopics.runs)
   await navigateTo({ path: `/projects/${id}/sessions`, query: { run: String(runId) } })
 }
