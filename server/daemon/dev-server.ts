@@ -1,7 +1,8 @@
 import { setTimeout as sleep } from 'node:timers/promises'
+import { execa } from 'execa'
 import { PREVIEW_FORWARD_PORT } from '#shared/utils/preview-host'
 import { DEV_DAEMON_GROUP, previewTargetPort } from '#server/daemon/ddev'
-import { resolvePreview } from '#server/daemon/sandbox'
+import { resolvePreview, webContainerName } from '#server/daemon/sandbox'
 import { devServerOrigin, devServerUseNote } from '#server/utils/dev-origin'
 import { fetchFrom } from '#server/utils/favicon'
 import { getSessionRow } from '#server/stores/sessions'
@@ -11,10 +12,19 @@ import { getSessionRow } from '#server/stores/sessions'
 
 const DEV_SERVER_TIMEOUT_MS = 120_000
 const POLL_MS = 2_000
+const OUTPUT_TAIL_LINES = 40
 
 export async function restartDevServer(exec: (command: string[]) => Promise<number>): Promise<void> {
   const code = await exec(['supervisorctl', 'restart', `${DEV_DAEMON_GROUP}:*`])
   if (code !== 0) throw new Error(`Could not restart the dev server (supervisorctl exited with code ${code})`)
+}
+
+// supervisord writes the daemon's stdout to the web container's own, not to the exec stream.
+export async function devServerOutput(sessionId: number, since: Date): Promise<string> {
+  const { all } = await execa('docker', [
+    'logs', '--since', String(Math.floor(since.getTime() / 1000)), '--tail', String(OUTPUT_TAIL_LINES), webContainerName(sessionId),
+  ], { all: true, reject: false })
+  return all ?? ''
 }
 
 export async function waitForDevServer(sessionId: number, port: number): Promise<void> {

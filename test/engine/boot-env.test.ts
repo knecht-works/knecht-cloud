@@ -51,10 +51,12 @@ vi.mock('#server/daemon/db-base', () => ({
 }))
 const waitForDevServer = vi.fn(async (_sessionId: number, _port: number) => {})
 const noteDevServerUse = vi.fn(async (_sessionId: number, _log: (text: string) => void) => {})
+const devServerOutput = vi.fn(async (_sessionId: number, _since: Date) => '')
 vi.mock('#server/daemon/dev-server', () => ({
+  devServerOutput: (sessionId: number, since: Date) => devServerOutput(sessionId, since),
   noteDevServerUse: (sessionId: number, log: (text: string) => void) => noteDevServerUse(sessionId, log),
   restartDevServer: async (exec: (command: string[]) => Promise<number>) => {
-    await exec(['supervisorctl', 'restart', 'webextradaemons:*'])
+    if (await exec(['supervisorctl', 'restart', 'webextradaemons:*']) !== 0) throw new Error('Could not restart the dev server')
   },
   waitForDevServer: (sessionId: number, port: number) => waitForDevServer(sessionId, port),
 }))
@@ -83,6 +85,7 @@ beforeEach(() => {
   startEnvStack.mockClear()
   stopEnvStack.mockClear()
   waitForDevServer.mockReset()
+  devServerOutput.mockReset()
 })
 
 describe('bootEnv', () => {
@@ -134,6 +137,19 @@ describe('bootEnv', () => {
     await expect(bootEnv(session.id, { dbFile: null, projectCommands: '' })).rejects.toThrow('did not answer')
     expect(stopEnvStack).toHaveBeenCalledWith(session.id)
     expect(getSessionRow(session.id).envState).toBe('archived')
+  })
+
+  it.each([
+    ['exits right away', () => { failing.add('supervisorctl restart webextradaemons:*') }],
+    ['never answers', () => { waitForDevServer.mockRejectedValueOnce(new Error('did not answer')) }],
+  ])('logs the dev server\'s own output when it %s', async (_case, breakDevServer) => {
+    const session = freshSession(makeProject())
+    breakDevServer()
+    devServerOutput.mockResolvedValueOnce('Error: Request failed with status 403: rate limit exceeded\n')
+    const log: string[] = []
+    await expect(bootEnv(session.id, { dbFile: null, projectCommands: '', log: text => log.push(text) })).rejects.toThrow()
+    expect(devServerOutput).toHaveBeenCalledWith(session.id, expect.any(Date))
+    expect(log.join('')).toContain('rate limit exceeded')
   })
 })
 
