@@ -96,7 +96,7 @@
   --on-primary: #16220f;
 
   /* surfaces (dark theme) */
-  --surface-base: #09090b;
+  --surface-base: #000000;
   --surface-muted: oklch(0.142 0 0);
   --surface-elevated: #18181b;
   --surface-accented: #27272a;
@@ -274,8 +274,8 @@ html {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(to right, oklch(1 0 0 / 0.022) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(1 0 0 / 0.022) 1px, transparent 1px);
+    linear-gradient(to right, oklch(1 0 0 / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(1 0 0 / 0.05) 1px, transparent 1px);
   background-size: 72px 72px;
   -webkit-mask-image: radial-gradient(ellipse 90% 60% at 70% 0%, #000 20%, transparent 75%);
   mask-image: radial-gradient(ellipse 90% 60% at 70% 0%, #000 20%, transparent 75%);
