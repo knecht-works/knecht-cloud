@@ -67,6 +67,35 @@ const bridged = ref(false)
 const stack = ref<string[]>([])
 const pos = ref(-1)
 
+const SCREENS = [
+  { id: 'mobile', label: 'Mobile', icon: 'i-lucide-smartphone', width: 390, height: 844 },
+  { id: 'tablet', label: 'Tablet', icon: 'i-lucide-tablet', width: 768, height: 1024 },
+  { id: 'desktop', label: 'Desktop', icon: 'i-lucide-monitor', width: null, height: null },
+] as const
+const screen = ref<typeof SCREENS[number]>(SCREENS[2])
+
+const DEVICE_GAP = 16
+const viewportSize = ref({ width: 0, height: 0 })
+let viewportObserver: ResizeObserver | undefined
+onMounted(() => {
+  viewportObserver = new ResizeObserver(([entry]) => {
+    if (entry) viewportSize.value = { width: entry.contentRect.width, height: entry.contentRect.height }
+  })
+  viewportObserver.observe(viewport.value!)
+})
+onUnmounted(() => viewportObserver?.disconnect())
+
+const device = computed(() => {
+  const { width, height } = screen.value
+  if (!width) return null
+  const scale = Math.min(
+    1,
+    (viewportSize.value.width - DEVICE_GAP * 2) / width,
+    (viewportSize.value.height - DEVICE_GAP * 2) / height,
+  )
+  return { width, height, scale }
+})
+
 const canBack = computed(() => pos.value > 0)
 const canForward = computed(() => pos.value < stack.value.length - 1)
 
@@ -185,43 +214,45 @@ const hostItems = computed(() => props.hosts.map(host => ({
     class="overflow-hidden rounded-lg border border-default bg-(--surface-muted) shadow-browser"
   >
     <div class="flex items-center gap-3 border-b border-default bg-(--surface-elevated) px-4 py-2.5">
-      <div class="flex flex-none items-center gap-2">
-        <span class="size-3 rounded-full bg-error/80" />
-        <span class="size-3 rounded-full bg-accent-violet/85" />
-        <span class="size-3 rounded-full bg-accent-mint/85" />
+      <div class="flex flex-1 items-center gap-3">
+        <div class="flex flex-none items-center gap-2">
+          <span class="size-3 rounded-full bg-error/80" />
+          <span class="size-3 rounded-full bg-accent-violet/85" />
+          <span class="size-3 rounded-full bg-accent-mint/85" />
+        </div>
+
+        <div class="flex flex-none items-center gap-0.5">
+          <UButton
+            icon="i-lucide-arrow-left"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            aria-label="Back"
+            :disabled="!live || !canBack"
+            @click="post('back')"
+          />
+          <UButton
+            icon="i-lucide-arrow-right"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            aria-label="Forward"
+            :disabled="!live || !canForward"
+            @click="post('forward')"
+          />
+          <UButton
+            icon="i-lucide-rotate-cw"
+            color="neutral"
+            variant="ghost"
+            size="xs"
+            aria-label="Reload"
+            :disabled="!live"
+            @click="reload"
+          />
+        </div>
       </div>
 
-      <div class="flex flex-none items-center gap-0.5">
-        <UButton
-          icon="i-lucide-arrow-left"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          aria-label="Back"
-          :disabled="!live || !canBack"
-          @click="post('back')"
-        />
-        <UButton
-          icon="i-lucide-arrow-right"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          aria-label="Forward"
-          :disabled="!live || !canForward"
-          @click="post('forward')"
-        />
-        <UButton
-          icon="i-lucide-rotate-cw"
-          color="neutral"
-          variant="ghost"
-          size="xs"
-          aria-label="Reload"
-          :disabled="!live"
-          @click="reload"
-        />
-      </div>
-
-      <div class="flex min-w-0 flex-1 items-center">
+      <div class="flex min-w-0 flex-[0_1_36rem] items-center">
         <div class="flex min-w-0 flex-1 items-center gap-2 rounded-sm bg-(--surface-base) px-3 py-1">
           <UIcon
             name="i-lucide-lock"
@@ -263,20 +294,45 @@ const hostItems = computed(() => props.hosts.map(host => ({
         </div>
       </div>
 
-      <div class="flex flex-none items-center gap-0.5">
-        <UTooltip text="Open in new tab">
-          <UButton
-            icon="i-lucide-external-link"
-            color="neutral"
-            variant="ghost"
-            size="xs"
-            aria-label="Open preview in a new tab"
-            :disabled="!live"
-            :to="live ? currentUrl : undefined"
-            target="_blank"
-          />
-        </UTooltip>
-        <slot name="actions" />
+      <div class="flex flex-1 items-center justify-end gap-3">
+        <div class="flex flex-none items-center gap-0.5 rounded-md bg-(--surface-base) p-0.5">
+          <UTooltip
+            v-for="s in SCREENS"
+            :key="s.id"
+            :text="s.label"
+          >
+            <button
+              type="button"
+              :aria-label="`${s.label} screen`"
+              :aria-pressed="screen.id === s.id"
+              :disabled="!live"
+              class="flex cursor-pointer items-center rounded-sm px-2 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+              :class="screen.id === s.id ? 'bg-(--surface-accented) text-default' : 'text-dimmed hover:text-muted'"
+              @click="screen = s"
+            >
+              <UIcon
+                :name="s.icon"
+                class="size-3.5"
+              />
+            </button>
+          </UTooltip>
+        </div>
+
+        <div class="flex flex-none items-center gap-0.5">
+          <UTooltip text="Open in new tab">
+            <UButton
+              icon="i-lucide-external-link"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              aria-label="Open preview in a new tab"
+              :disabled="!live"
+              :to="live ? currentUrl : undefined"
+              target="_blank"
+            />
+          </UTooltip>
+          <slot name="actions" />
+        </div>
       </div>
     </div>
 
@@ -286,14 +342,24 @@ const hostItems = computed(() => props.hosts.map(host => ({
       :style="viewportHeight ? { height: `${viewportHeight}px`, aspectRatio: 'auto' } : undefined"
     >
       <!-- The iframe would swallow pointermove while the handle is dragged across it. -->
-      <iframe
+      <div
         v-if="live"
-        :key="frameKey"
-        ref="frame"
-        :src="frameSrc"
-        class="absolute inset-0 size-full"
-        :class="{ 'pointer-events-none': resizing }"
-      />
+        class="absolute inset-0 flex items-center justify-center overflow-hidden"
+      >
+        <div
+          :class="device ? 'flex-none overflow-hidden rounded-xl ring-1 ring-accented' : 'size-full'"
+          :style="device ? { width: `${device.width * device.scale}px`, height: `${device.height * device.scale}px` } : undefined"
+        >
+          <iframe
+            :key="frameKey"
+            ref="frame"
+            :src="frameSrc"
+            class="block origin-top-left"
+            :class="{ 'pointer-events-none': resizing, 'size-full': !device }"
+            :style="device ? { width: `${device.width}px`, height: `${device.height}px`, transform: `scale(${device.scale})` } : undefined"
+          />
+        </div>
+      </div>
       <div
         v-else-if="busyCopy"
         class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center"
