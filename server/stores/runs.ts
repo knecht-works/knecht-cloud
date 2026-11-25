@@ -49,6 +49,11 @@ const runListColumns = {
   startedAt: schema.runs.startedAt,
   finishedAt: schema.runs.finishedAt,
   createdAt: schema.runs.createdAt,
+  lastActivityAt: sql<Date>`(select max(t) from (
+    select max(coalesce(r.finished_at, r.started_at, r.created_at)) as t from runs r where r.session_id = ${schema.runs.sessionId}
+    union all
+    select max(coalesce(f.finished_at, f.started_at, f.created_at)) from followups f where f.session_id = ${schema.runs.sessionId}
+  ))`.mapWith(schema.runs.createdAt),
   failureDiagnosis: schema.runs.failureDiagnosis,
   branch: schema.runs.branch,
   prUrl: schema.runs.prUrl,
