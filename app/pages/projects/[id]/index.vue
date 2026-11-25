@@ -269,16 +269,17 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
         title="Automation"
         icon="i-lucide-zap"
         accent="var(--accent-violet)"
+        :pad="0"
       >
         <p
           v-if="!workflowRows.length"
-          class="text-2sm text-muted"
+          class="px-5 py-4.25 text-2sm text-muted"
         >
           No workflow is triggered by this project.
         </p>
         <div
           v-else
-          class="flex max-h-80 flex-col gap-3 overflow-y-auto"
+          class="flex max-h-80 flex-col gap-3 overflow-y-auto px-5 py-4.25"
         >
           <div
             v-for="row in workflowRows"
