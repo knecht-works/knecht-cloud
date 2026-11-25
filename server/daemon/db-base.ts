@@ -288,6 +288,7 @@ async function buildDbBase(projectId: number, builder: string): Promise<void> {
       }
     }
     report('finishing')
+    if (!database.startsWith('postgres:')) await analyzeTables(builder)
     // ddev stop gives the db 10s, too short to flush a large buffer pool: every clone would then start in crash recovery.
     await execa('docker', ['stop', '--time', '3600', `ddev-${builder}-db`])
     await ddev(['stop', '--unlist', builder])
@@ -304,6 +305,15 @@ async function buildDbBase(projectId: number, builder: string): Promise<void> {
     cancels.delete(builder)
   }
   if (!advanceProjectDbBase(projectId, builder, result) && result.state === 'ready') await removeVolumes([result.volume])
+}
+
+// InnoDB recomputes its statistics in the background after a bulk import. Stopped before
+// that, every clone inherits stale ones and joins on indexed columns by full scan.
+async function analyzeTables(builder: string): Promise<void> {
+  await execa('docker', [
+    'exec', `ddev-${builder}-db`, 'sh', '-c',
+    'exec "$(command -v mariadb-check || command -v mysqlcheck)" -udb -pdb --analyze db',
+  ])
 }
 
 async function writeBuilderConfig(dir: string, builder: string, database: string, repoConfig: Record<string, string>): Promise<void> {
