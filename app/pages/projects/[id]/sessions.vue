@@ -157,6 +157,7 @@ async function onRunDeleted() {
           :groups="sessionGroups"
           :session-to="g => ({ query: { session: String(g.sessionId) } })"
           :selected-session-id="selectedSessionId"
+          :show-done="route.query.done === '1'"
         />
       </nav>
     </div>
