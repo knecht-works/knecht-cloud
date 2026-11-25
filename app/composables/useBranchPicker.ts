@@ -11,6 +11,7 @@ export function useBranchPicker(
 
   watch(url, async (u, _, onCleanup) => {
     branches.value = []
+    loading.value = false
     const urls = !u ? [] : Array.isArray(u) ? u : [u]
     if (!urls.length || import.meta.server) return
     let stale = false
