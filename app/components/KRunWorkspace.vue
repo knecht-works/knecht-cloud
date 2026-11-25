@@ -71,7 +71,6 @@ const header = computed(() => {
   return {
     runId: r.id,
     sessionId: r.sessionId,
-    projectId: r.projectId,
     workflowId: r.workflowId,
     hasEnv: r.hasEnv || r.previewLost,
     status: r.status,
@@ -110,7 +109,6 @@ const headerEvents = {
 
     <KRunPreviewSection
       :run-id="run.id"
-      :project-id="run.projectId"
       :workflow-id="run.workflowId"
       :session-id="run.sessionId"
       :preview-hosts="run.previewHosts ?? []"

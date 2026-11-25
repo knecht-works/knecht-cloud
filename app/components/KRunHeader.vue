@@ -12,7 +12,6 @@ import { UTooltip, UButton, UDropdownMenu } from '#components'
 const props = defineProps<{
   runId: number
   sessionId: number
-  projectId: number
   workflowId: number | null
   hasEnv: boolean
   status: RunStatus
@@ -97,7 +96,7 @@ const restarting = ref(false)
 async function runAgain() {
   restarting.value = true
   try {
-    const created = await $fetch('/api/runs', { method: 'POST', body: { projectId: props.projectId, workflowId: props.workflowId } })
+    const created = await $fetch(`/api/runs/${props.runId}/again`, { method: 'POST' })
     emit('started', created.id)
   }
   catch (e) {

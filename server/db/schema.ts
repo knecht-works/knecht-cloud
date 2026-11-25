@@ -221,6 +221,7 @@ export const runs = sqliteTable('runs', {
   // Who handed the object to Knecht for this run, in the integration's ids: Knecht hands it back to them.
   actor: text('actor', { mode: 'json' }).$type<{ id: string, name: string }>(),
   steps: text('steps', { mode: 'json' }).$type<Step[]>(),
+  resetCheckout: integer('reset_checkout', { mode: 'boolean' }).notNull().default(false),
   log: text('log').notNull().default(''),
   startedAt: integer('started_at', { mode: 'timestamp' }),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
