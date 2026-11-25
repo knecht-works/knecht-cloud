@@ -91,7 +91,7 @@ const startsDirectly = (t: { source: string }) => t.source === 'schedule' || t.s
 const workflowRows = computed(() => (workflowList.value ?? []).filter(workflowRunnable).flatMap((w) => {
   const own = (triggers.value ?? []).filter(t => t.projectIds.includes(id) && t.workflowId === w.id)
   const trigger = own.find(startsDirectly) ?? own[0]
-  return trigger ? [{ id: w.id, name: w.name, trigger, more: own.length - 1, direct: startsDirectly(trigger) }] : []
+  return trigger ? [{ id: w.id, name: w.name, trigger, more: own.length - 1, direct: startsDirectly(trigger), paused: !w.enabled || !trigger.active }] : []
 }).sort((a, b) => Number(b.direct) - Number(a.direct)))
 
 const { starting, start: startRun } = useStartRun(id, async (runId) => {
@@ -284,7 +284,7 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
             v-for="row in workflowRows"
             :key="row.id"
             class="flex items-center gap-3"
-            :style="{ opacity: row.trigger.active ? 1 : 0.55 }"
+            :style="{ opacity: row.paused ? 0.55 : 1 }"
           >
             <NuxtLink
               :to="`/workflows/${row.id}`"
@@ -301,7 +301,7 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
                   {{ row.name }}
                 </span>
                 <span class="block truncate text-2xs text-dimmed">
-                  {{ row.trigger.event }} · {{ triggerMeta(row.trigger).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
+                  {{ row.paused ? 'Paused' : row.trigger.event }} · {{ triggerMeta(row.trigger).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
                 </span>
               </span>
             </NuxtLink>
