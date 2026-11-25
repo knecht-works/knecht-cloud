@@ -92,7 +92,7 @@ const workflowRows = computed(() => (workflowList.value ?? []).filter(workflowRu
   const own = (triggers.value ?? []).filter(t => t.projectIds.includes(id) && t.workflowId === w.id)
   const trigger = own.find(startsDirectly) ?? own[0]
   return trigger ? [{ id: w.id, name: w.name, trigger, more: own.length - 1, direct: startsDirectly(trigger), paused: !w.enabled || !trigger.active }] : []
-}).sort((a, b) => Number(b.direct) - Number(a.direct)))
+}).sort((a, b) => Number(b.direct) - Number(a.direct) || Number(a.paused) - Number(b.paused) || a.name.localeCompare(b.name)))
 
 const { starting, start: startRun } = useStartRun(id, async (runId) => {
   await invalidate(liveTopics.runs)
