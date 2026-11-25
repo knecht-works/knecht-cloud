@@ -100,7 +100,11 @@ const { starting, start: startRun } = useStartRun(id, async (runId) => {
   await invalidate(liveTopics.runs)
   await navigateTo({ path: sessionsPath, query: { run: String(runId) } })
 })
-const startWorkflow = (row: { id: number, trigger: { branch: string | null } }) => startRun(row.id, row.trigger.branch ?? project.value?.defaultBranch ?? 'main')
+// The trigger's branch is the base of its runs, as when the trigger fires on its own.
+function startWorkflow(row: { id: number, trigger: { branch: string | null } }) {
+  const base = row.trigger.branch ?? project.value?.defaultBranch ?? 'main'
+  return startRun(row.id, base, base)
+}
 </script>
 
 <template>

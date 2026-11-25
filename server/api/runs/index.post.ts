@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { publishStepsSchema } from '#server/workflows/schema'
 import { dispatchRuns } from '#server/daemon/dispatcher'
 import { emptyInputs } from '#server/utils/inputs'
-import { resolveSession } from '#server/utils/sessions'
+import { resolveObjectSession } from '#server/utils/sessions'
 import { requireProject } from '#server/stores/projects'
 import { requireWorkflowRow } from '#server/stores/workflows'
 import { createRun } from '#server/stores/runs'
@@ -13,6 +13,7 @@ const bodySchema = z.object({
   projectId: z.number().int(),
   workflowId: z.number().int(),
   branch: z.string().min(1).optional(),
+  base: z.string().min(1).optional(),
   inputs: z.record(z.string(), z.string()).optional(),
 })
 
@@ -31,7 +32,7 @@ export default defineEventHandler(async (event) => {
 
   const project = requireProject(result.data.projectId)
 
-  const session = resolveSession(project, null, result.data.branch ?? null)
+  const { session } = resolveObjectSession(project, null, result.data.branch ?? null, result.data.base ?? null)
   const run = createRun({
     projectId: project.id,
     sessionId: session.id,

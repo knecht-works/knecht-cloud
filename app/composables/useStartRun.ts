@@ -20,10 +20,10 @@ export function useStartRun(projectId: number, onStarted: (runId: number) => voi
     }
   }
 
-  function start(workflowId: number, branch: string) {
+  function start(workflowId: number, branch: string, base?: string) {
     return launch(() => $fetch('/api/runs', {
       method: 'POST',
-      body: { projectId, workflowId, branch },
+      body: { projectId, workflowId, branch, base },
     }), 'Failed to start run')
   }
 
