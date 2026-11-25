@@ -7,6 +7,8 @@ import {
   RULES_PATH,
 } from '#server/utils/opencode-config'
 
+const LIMITED = { limit: { context: 200_000, output: 32_000 } }
+
 describe('buildOpencodeConfig', () => {
   it('emits the static instructions array and points the registry provider at the shared key env', () => {
     const config = buildOpencodeConfig({ provider: 'anthropic', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: null })
@@ -38,7 +40,7 @@ describe('buildOpencodeConfig', () => {
         apiKey: '{env:KNECHT_AI_KEY}',
         setCacheKey: false,
       },
-      models: { 'gpt-5.1': {} },
+      models: { 'gpt-5.1': LIMITED },
     })
     expect(config.provider!['langdock-anthropic']).toBeUndefined()
   })
@@ -52,15 +54,15 @@ describe('buildOpencodeConfig', () => {
         baseURL: 'https://api.langdock.com/anthropic/eu/v1',
         apiKey: '{env:KNECHT_AI_KEY}',
       },
-      models: { 'claude-sonnet-4-5': {} },
+      models: { 'claude-sonnet-4-5': LIMITED },
     })
     expect(config.provider!.langdock).toBeUndefined()
   })
 
   it('splits mixed langdock models across both route blocks', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'gpt-5.1', subtaskModel: 'claude-haiku-4-5' })
-    expect(config.provider!.langdock.models).toEqual({ 'gpt-5.1': {} })
-    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-haiku-4-5': {} })
+    expect(config.provider!.langdock.models).toEqual({ 'gpt-5.1': LIMITED })
+    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-haiku-4-5': LIMITED })
     expect(config.small_model).toBe('langdock-anthropic/claude-haiku-4-5')
   })
 
@@ -72,13 +74,13 @@ describe('buildOpencodeConfig', () => {
 
   it('registers a legacy-prefixed model under its bare name', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'anthropic/claude-sonnet-4-5', subtaskModel: null })
-    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-sonnet-4-5': {} })
+    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-sonnet-4-5': LIMITED })
   })
 
   it('emits small_model prefixed with its route block and registers it at langdock', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'claude-sonnet-4-5', subtaskModel: 'claude-haiku-4-5' })
     expect(config.small_model).toBe('langdock-anthropic/claude-haiku-4-5')
-    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-sonnet-4-5': {}, 'claude-haiku-4-5': {} })
+    expect(config.provider!['langdock-anthropic']!.models).toEqual({ 'claude-sonnet-4-5': LIMITED, 'claude-haiku-4-5': LIMITED })
   })
 
   it('emits small_model for registry providers and strips a legacy prefix from it', () => {
@@ -88,7 +90,7 @@ describe('buildOpencodeConfig', () => {
 
   it('dedupes the langdock models map when main and subtask model match', () => {
     const config = buildOpencodeConfig({ provider: 'langdock', region: 'eu', model: 'gpt-4o', subtaskModel: 'gpt-4o' })
-    expect(config.provider!.langdock.models).toEqual({ 'gpt-4o': {} })
+    expect(config.provider!.langdock.models).toEqual({ 'gpt-4o': LIMITED })
   })
 })
 
