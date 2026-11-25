@@ -315,6 +315,7 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
                 color="neutral"
                 variant="ghost"
                 size="xs"
+                class="-mr-1"
                 :aria-label="`Run ${row.name} now`"
                 :disabled="starting"
                 @click="startWorkflow(row.id)"
@@ -327,6 +328,7 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
               color="neutral"
               variant="ghost"
               size="xs"
+              class="-mr-1"
               :aria-label="`Open ${row.name}`"
             />
           </div>
