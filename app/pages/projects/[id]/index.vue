@@ -269,65 +269,73 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
         title="Automation"
         icon="i-lucide-zap"
         accent="var(--accent-violet)"
+        :pad="0"
       >
         <p
           v-if="!workflowRows.length"
-          class="text-2sm text-muted"
+          class="px-5 py-4.25 text-2sm text-muted"
         >
           No workflow is triggered by this project.
         </p>
         <div
           v-else
-          class="flex flex-col gap-3"
+          class="@container"
         >
-          <div
-            v-for="row in workflowRows"
-            :key="row.id"
-            class="flex items-center gap-3"
-            :style="{ opacity: row.paused ? 0.55 : 1 }"
-          >
-            <NuxtLink
-              :to="`/workflows/${row.id}`"
-              class="group flex min-w-0 flex-1 items-center gap-3 text-left"
-            >
-              <KStepIcon
-                :icon="triggerMeta(row.trigger).icon"
-                :color="triggerMeta(row.trigger).color"
-                :size="28"
-                :radius="7"
-              />
-              <span class="min-w-0 flex-1">
-                <span class="block truncate text-xs text-default transition-colors group-hover:text-highlighted">
-                  {{ row.name }}
-                </span>
-                <span class="block truncate text-2xs text-dimmed">
-                  {{ row.paused ? 'Paused' : row.trigger.event }} · {{ triggerMeta(row.trigger).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
-                </span>
-              </span>
-            </NuxtLink>
-            <UTooltip
-              v-if="row.direct"
-              :text="`Run ${row.name} on this project now`"
-            >
-              <UButton
-                icon="i-lucide-play"
-                color="neutral"
-                variant="ghost"
-                size="xs"
-                :aria-label="`Run ${row.name} now`"
-                :disabled="starting"
-                @click="startWorkflow(row.id)"
-              />
-            </UTooltip>
-            <UButton
-              v-else
-              :to="`/workflows/${row.id}`"
-              icon="i-lucide-arrow-right"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              :aria-label="`Open ${row.name}`"
-            />
+          <div class="k-scrollbar-slim max-h-80 overflow-y-auto py-4.25">
+            <!-- Sized from the panel, not the scroll area: a scrollbar that takes up width must not shift the rows. -->
+            <div class="ml-5 flex w-[calc(100cqw-2.5rem)] flex-col gap-3">
+              <div
+                v-for="row in workflowRows"
+                :key="row.id"
+                class="flex items-center gap-3"
+                :style="{ opacity: row.paused ? 0.55 : 1 }"
+              >
+                <NuxtLink
+                  :to="`/workflows/${row.id}`"
+                  class="group flex min-w-0 flex-1 items-center gap-3 text-left"
+                >
+                  <KStepIcon
+                    :icon="triggerMeta(row.trigger).icon"
+                    :color="triggerMeta(row.trigger).color"
+                    :size="28"
+                    :radius="7"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-xs text-default transition-colors group-hover:text-highlighted">
+                      {{ row.name }}
+                    </span>
+                    <span class="block truncate text-2xs text-dimmed">
+                      {{ row.paused ? 'Paused' : row.trigger.event }} · {{ triggerMeta(row.trigger).label }}<template v-if="row.more > 0"> · +{{ row.more }}</template>
+                    </span>
+                  </span>
+                </NuxtLink>
+                <UTooltip
+                  v-if="row.direct"
+                  :text="`Run ${row.name} on this project now`"
+                >
+                  <UButton
+                    icon="i-lucide-play"
+                    color="neutral"
+                    variant="ghost"
+                    size="xs"
+                    class="-mr-1"
+                    :aria-label="`Run ${row.name} now`"
+                    :disabled="starting"
+                    @click="startWorkflow(row.id)"
+                  />
+                </UTooltip>
+                <UButton
+                  v-else
+                  :to="`/workflows/${row.id}`"
+                  icon="i-lucide-arrow-right"
+                  color="neutral"
+                  variant="ghost"
+                  size="xs"
+                  class="-mr-1"
+                  :aria-label="`Open ${row.name}`"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </KPanel>
