@@ -109,6 +109,7 @@ const headerEvents = {
 
     <KRunPreviewSection
       :run-id="run.id"
+      :project-id="run.projectId"
       :workflow-id="run.workflowId"
       :session-id="run.sessionId"
       :preview-hosts="run.previewHosts ?? []"
