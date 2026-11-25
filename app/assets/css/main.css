@@ -275,7 +275,7 @@ html {
     scrollbar-color: auto;
   }
   .k-scrollbar-slim::-webkit-scrollbar {
-    width: 5px;
+    width: 6px;
   }
   .k-scrollbar-slim::-webkit-scrollbar-thumb {
     border-width: 1px;
