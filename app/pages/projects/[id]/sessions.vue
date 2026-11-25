@@ -42,7 +42,9 @@ function sessionFromQuery(): number | null {
     ?? (offListRun.value && offListRun.value.id === r ? offListRun.value.sessionId : null)
 }
 
-const selectedSessionId = ref<number | null>(sessionFromQuery() ?? latest.value?.sessionId ?? null)
+const defaultSessionId = () => (projectRuns.value.find(r => r.sessionStatus !== 'closed') ?? latest.value)?.sessionId ?? null
+
+const selectedSessionId = ref<number | null>(sessionFromQuery() ?? defaultSessionId())
 const selectedGroup = computed(() =>
   sessionGroups.value.find(g => g.sessionId === selectedSessionId.value)
   ?? (offListRun.value?.sessionId === selectedSessionId.value
@@ -101,7 +103,7 @@ const newRun = computed(() =>
 watch(runs, () => {
   if (selectedSessionId.value === offListRun.value?.sessionId) return
   if (selectedSessionId.value !== null && !sessionGroups.value.some(g => g.sessionId === selectedSessionId.value)) {
-    selectedSessionId.value = latest.value?.sessionId ?? null
+    selectedSessionId.value = defaultSessionId()
     lastSeenLatestId.value = latest.value?.id ?? null
     navigateTo({ query: { ...route.query, run: undefined, session: undefined } }, { replace: true })
   }
