@@ -21,7 +21,7 @@ import { removeWorkspace } from '#server/daemon/workspace'
 import { markCheckedOut, reviveEnv } from '#server/daemon/envs'
 import { sessionSandbox } from '#server/daemon/session-sandbox'
 import { getWorkflowRow } from '#server/stores/workflows'
-import { getSessionRow, updateSession, closeObjectlessSession, sessionBase } from '#server/stores/sessions'
+import { getSessionRow, updateSession, sessionBase } from '#server/stores/sessions'
 import { appendRunLog, claimQueuedRun, finishRun, getRun, runLogBytes, updateRun } from '#server/stores/runs'
 import { diagnoseRunFailure } from '#server/daemon/failure-diagnosis'
 import { listTopLevelWorkflowSteps, listWorkflowStepOutputs, createRunStep, updateRunStep, deleteWorkflowStepsFrom, type NewRunStep } from '#server/stores/run-steps'
@@ -141,7 +141,6 @@ async function execRun(runId: number, project: Project): Promise<void> {
     await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
     finishRun(runId, 'success')
-    closeObjectlessSession(session.id)
     await notifyRunFinished(runId, project, session, 'success', log, await handBackObject(session, runId, project, log))
   }
   catch (e) {
@@ -149,7 +148,6 @@ async function execRun(runId: number, project: Project): Promise<void> {
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
     finishRun(runId, cancelled ? 'cancelled' : 'failed')
     if (!cancelled) void diagnoseRunFailure(runId)
-    closeObjectlessSession(session.id)
     const holder = await handBackObject(session, runId, project, log)
     if (!cancelled) await notifyRunFinished(runId, project, session, 'failed', log, holder)
   }

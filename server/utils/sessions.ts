@@ -122,6 +122,13 @@ export function syncObjectStatus(projectId: number, object: SessionObject, statu
   return requireSession(session.id)
 }
 
+// A session without objects has nothing to mirror, so it stays open until someone closes it by hand.
+export function setObjectlessSessionStatus(session: Session, status: 'open' | 'closed'): boolean {
+  if (listSessionObjectRows(session.id).length) return false
+  if (session.status !== status) updateSession(session.id, { status, closedAt: status === 'closed' ? new Date() : null })
+  return true
+}
+
 export function sessionHasActiveWork(sessionId: number): boolean {
   return sessionHasActiveRun(sessionId) || sessionHasActiveFollowup(sessionId)
 }

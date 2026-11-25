@@ -201,7 +201,7 @@ describe('runner', () => {
       { type: 'bash', id: 'use', command: 'echo got: {{ steps.greet.stdout }}' },
     ])
     expect(run.status).toBe('success')
-    expect(getSessionRow(run.sessionId).status).toBe('closed')
+    expect(getSessionRow(run.sessionId).status).toBe('open')
     expect(steps).toHaveLength(2)
     expect(steps.every(s => s.status === 'success')).toBe(true)
     expect(steps[1]!.params?.command).toBe('echo got: hello')
