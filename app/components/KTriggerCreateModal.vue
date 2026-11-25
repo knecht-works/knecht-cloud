@@ -33,9 +33,11 @@ const editing = computed(() => !!props.trigger)
 const toast = useToast()
 const toastError = useToastError()
 
-type Tile = IntegrationId | 'schedule'
+type Tile = IntegrationId | 'schedule' | 'manual'
+const isIntegrationTile = (key: Tile): key is IntegrationId => key !== 'schedule' && key !== 'manual'
 const TILES: { key: Tile, label: string, icon: string }[] = [
   { key: 'schedule', label: 'Schedule', icon: 'i-lucide-clock' },
+  { key: 'manual', label: 'Manual', icon: 'i-lucide-mouse-pointer-click' },
   ...INTEGRATION_IDS.map(id => ({ key: id, ...integrationUi(id) })),
 ]
 
@@ -52,7 +54,7 @@ const valid = ref(false)
 const creating = ref(false)
 const attempted = ref(false)
 
-const source = computed<TriggerSource>(() => (tile.value === 'schedule' ? 'schedule' : integrationRole(tile.value)))
+const source = computed<TriggerSource>(() => (isIntegrationTile(tile.value) ? integrationRole(tile.value) : tile.value))
 const integration = computed(() => integrations.value.find(i => i.id === tile.value) ?? null)
 const form = computed(() => (source.value === 'git' ? forms.value?.git : integration.value?.triggerForm) ?? null)
 
@@ -61,9 +63,9 @@ const selectedProjects = computed(() => (projects.value ?? []).filter(p => proje
 
 // Only what every selected project supports: its repository's provider, a tracker it is linked to.
 // A trigger being edited keeps its own tile, so a disconnected integration says so instead of vanishing.
-const tiles = computed(() => TILES.filter(t => t.key === 'schedule' || t.key === props.trigger?.via
+const tiles = computed(() => TILES.filter(t => !isIntegrationTile(t.key) || t.key === props.trigger?.via
   || integrations.value.some(i => i.id === t.key && i.configured)))
-const supported = (key: Tile) => selectedProjects.value.length > 0 && (key === 'schedule'
+const supported = (key: Tile) => selectedProjects.value.length > 0 && (!isIntegrationTile(key)
   || selectedProjects.value.every(p => (isTrackerId(key) ? !!p.links[key] : p.repoProvider === key)))
 watch(selectedProjects, () => {
   if (selectedProjects.value.length && !supported(tile.value)) tile.value = tiles.value.find(t => supported(t.key))!.key
@@ -91,7 +93,7 @@ const branchItems = computed(() => [
 // Sync: the edit preload sets the tile first and the config right after.
 watch(tile, () => {
   config.value = {}
-  valid.value = false
+  valid.value = tile.value === 'manual'
   attempted.value = false
 }, { flush: 'sync' })
 
@@ -135,7 +137,7 @@ async function create() {
 watch(open, (isOpen) => {
   if (isOpen) {
     if (props.trigger) {
-      tile.value = props.trigger.via ?? 'schedule'
+      tile.value = props.trigger.via ?? (props.trigger.source === 'manual' ? 'manual' : 'schedule')
       workflowId.value = props.trigger.workflowId
       projectIds.value = [...props.trigger.projectIds]
       config.value = props.trigger.source === 'schedule'
@@ -162,8 +164,8 @@ watch(open, (isOpen) => {
     v-model:open="open"
     :title="editing ? 'Edit trigger' : 'New trigger'"
     :description="editing
-      ? 'Change how and when this workflow runs automatically.'
-      : 'Fire this workflow automatically.'"
+      ? 'Change how and when this workflow runs.'
+      : 'Fire this workflow automatically or on demand.'"
     :ui="{ content: 'sm:max-w-2xl' }"
   >
     <template #body>
@@ -255,6 +257,12 @@ watch(open, (isOpen) => {
                 v-model:config="config"
                 v-model:valid="valid"
               />
+              <p
+                v-else-if="source === 'manual'"
+                class="rounded-md border border-muted bg-(--surface-muted) px-3 py-2.5 text-2xs leading-normal text-muted"
+              >
+                Runs only when you start it: the Run button in the workflow's trigger list starts one run in every selected project.
+              </p>
               <p
                 v-else-if="integration && !integration.configured"
                 class="rounded-md border border-muted bg-(--surface-muted) px-3 py-2.5 text-2xs leading-normal text-muted"

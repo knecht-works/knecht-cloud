@@ -11,6 +11,7 @@ const { db, schema } = await import('#server/db')
 const { setProjectLink } = await import('#server/stores/project-links')
 const create = (await import('#server/api/triggers/index.post')).default
 const patch = (await import('#server/api/triggers/[id].patch')).default
+const fireRoute = (await import('#server/api/triggers/[id]/fire.post')).default
 
 let n = 0
 function makeWorkflow() {
@@ -27,6 +28,10 @@ function post(body: object) {
 
 function update(id: number, body: object) {
   return callRoute(patch, { method: 'PATCH', route: '/triggers/:id', path: `/triggers/${id}`, body })
+}
+
+function fire(id: number) {
+  return callRoute(fireRoute, { route: '/triggers/:id/fire', path: `/triggers/${id}/fire` })
 }
 
 function row(id: number) {
@@ -110,9 +115,11 @@ describe('POST /api/triggers', () => {
     }
   })
 
-  it('refuses the removed manual source', async () => {
-    const res = await post({ source: 'manual', workflowId: makeWorkflow().id, projectIds: [] })
-    expect(res.status).toBe(400)
+  it('creates a manual trigger for several projects', async () => {
+    const projects = [makeProject(), makeProject()]
+    const res = await post({ source: 'manual', workflowId: makeWorkflow().id, projectIds: projects.map(p => p.id) })
+    expect(res.status).toBe(200)
+    expect(res.json).toMatchObject({ source: 'manual', via: null, event: 'Run on demand', projectIds: projects.map(p => p.id) })
   })
 
   it('creates a jira trigger only for projects linked to a Jira project', async () => {
@@ -221,5 +228,37 @@ describe('PATCH /api/triggers/:id', () => {
   it('answers 404 for an unknown trigger', async () => {
     const res = await update(999_999, { active: false })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('POST /api/triggers/:id/fire', () => {
+  it('starts one run in every project of a manual trigger', async () => {
+    const projects = [makeProject(), makeProject()]
+    const wf = makeWorkflow()
+    const { id } = (await post({ source: 'manual', workflowId: wf.id, projectIds: projects.map(p => p.id) })).json as { id: number }
+
+    const res = await fire(id)
+    expect(res.status).toBe(200)
+    const runs = db.select().from(schema.runs).where(eq(schema.runs.triggerId, id)).all()
+    expect((res.json as { runIds: number[] }).runIds).toEqual(runs.map(r => r.id))
+    expect(runs.map(r => r.projectId)).toEqual(projects.map(p => p.id))
+    expect(runs.every(r => r.trigger === 'manual' && r.workflowId === wf.id)).toBe(true)
+    expect(row(id).firedCount).toBe(1)
+  })
+
+  it('refuses a trigger of another source', async () => {
+    const { id } = (await post({ source: 'schedule', workflowId: makeWorkflow().id, projectIds: [makeProject().id], cron: '0 9 * * *' })).json as { id: number }
+    expect((await fire(id)).status).toBe(400)
+  })
+
+  it('refuses a paused trigger and an unpublished workflow', async () => {
+    const project = makeProject()
+    const paused = (await post({ source: 'manual', workflowId: makeWorkflow().id, projectIds: [project.id] })).json as { id: number }
+    await update(paused.id, { active: false })
+    expect((await fire(paused.id)).status).toBe(409)
+
+    const draft = db.insert(schema.workflows).values({ name: `triggers-api-${++n}`, steps: [] }).returning().get()
+    const unpublished = (await post({ source: 'manual', workflowId: draft.id, projectIds: [project.id] })).json as { id: number }
+    expect((await fire(unpublished.id)).status).toBe(409)
   })
 })
