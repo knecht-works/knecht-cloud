@@ -31,6 +31,7 @@ const props = defineProps<{
   groups: SessionGroup<Run>[]
   sessionTo: (group: SessionGroup<Run>) => RouteLocationRaw
   selectedSessionId?: number | null
+  showDone?: boolean
 }>()
 
 // Manual sessions are named "New Preview Session" or "New Code Session" after how they started.
@@ -69,7 +70,7 @@ const done = computed(() => rows.value.filter(r => r.closed))
 
 const DONE_STEP = 25
 const selectedDoneIndex = done.value.findIndex(r => r.group.sessionId === props.selectedSessionId)
-const doneOpen = ref(selectedDoneIndex >= 0)
+const doneOpen = ref(props.showDone || selectedDoneIndex >= 0)
 const doneLimit = ref(Math.max(10, selectedDoneIndex + 1))
 const doneMore = computed(() => Math.min(DONE_STEP, done.value.length - doneLimit.value))
 

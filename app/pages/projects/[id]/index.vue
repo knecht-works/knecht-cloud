@@ -37,7 +37,8 @@ const sessionTo = (g: { sessionId: number }) => ({ path: sessionsPath, query: { 
 
 const fullTime = (at: string | null | undefined) => (at ? new Date(at).toLocaleString() : undefined)
 
-const latestGroup = computed(() => sessionGroups.value[0] ?? null)
+const activeGroups = computed(() => sessionGroups.value.filter(g => g.runs[0]!.sessionStatus !== 'closed'))
+const latestGroup = computed(() => activeGroups.value[0] ?? sessionGroups.value[0] ?? null)
 const latest = computed(() => latestGroup.value?.runs[0] ?? null)
 // What started the session is its first run; later runs are follow-ups such as mentions.
 // A session started by hand has no workflow and is named "New Preview Session" or "New Code Session".
@@ -47,8 +48,7 @@ function startedAs(g: (typeof sessionGroups.value)[number]) {
   return first.workflow === sessionTitle(g) ? null : first.workflow
 }
 
-const OTHER_SESSIONS = 5
-const otherGroups = computed(() => sessionGroups.value.slice(1, 1 + OTHER_SESSIONS).map((g) => {
+const otherGroups = computed(() => activeGroups.value.filter(g => g !== latestGroup.value).map((g) => {
   const ticket = sessionTicket(g)
   const meta = ticket && sessionObjectMeta(ticket.integration, ticket.kind)
   return {
@@ -58,7 +58,7 @@ const otherGroups = computed(() => sessionGroups.value.slice(1, 1 + OTHER_SESSIO
     detail: [meta && `${meta.prefix}${ticket!.key}`, startedAs(g)].filter(Boolean).join(' · '),
   }
 }))
-const moreSessions = computed(() => Math.max(0, sessionGroups.value.length - 1 - OTHER_SESSIONS))
+const doneSessions = computed(() => sessionGroups.value.filter(g => g !== latestGroup.value).length - otherGroups.value.length)
 
 const latestDiagnosis = computed(() => latest.value?.status === 'failed' ? latest.value.failureDiagnosis : null)
 const latestTicket = computed(() => {
@@ -283,7 +283,7 @@ function startWorkflow(row: { id: number, trigger: { branch: string | null } }) 
         </div>
 
         <div
-          v-if="otherGroups.length"
+          v-if="otherGroups.length || doneSessions"
           class="border-t border-muted"
         >
           <NuxtLink
@@ -310,11 +310,11 @@ function startWorkflow(row: { id: number, trigger: { branch: string | null } }) 
             </UTooltip>
           </NuxtLink>
           <NuxtLink
-            v-if="moreSessions"
-            :to="sessionsPath"
-            class="block border-t border-muted px-5 py-2.5 text-xs text-dimmed transition-colors hover:text-highlighted"
+            v-if="doneSessions"
+            :to="{ path: sessionsPath, query: { done: '1' } }"
+            class="block border-t border-muted px-5 py-2.5 text-xs text-dimmed transition-colors first:border-t-0 hover:text-highlighted"
           >
-            {{ moreSessions }} more {{ moreSessions === 1 ? 'session' : 'sessions' }}
+            {{ doneSessions }} done {{ doneSessions === 1 ? 'session' : 'sessions' }}
           </NuxtLink>
         </div>
       </div>
