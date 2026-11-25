@@ -146,6 +146,12 @@ onMounted(placeBox)
         :class="boxSlides ? 'transition-[translate,height] duration-200' : ''"
         :style="{ translate: `0 ${box.top}px`, height: `${box.height}px` }"
       />
+      <p
+        v-if="!active.length && done.length"
+        class="px-3 py-2 text-2sm text-muted"
+      >
+        No active sessions.
+      </p>
       <div
         v-for="r in active"
         :key="r.group.sessionId"

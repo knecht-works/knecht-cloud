@@ -42,7 +42,7 @@ function sessionFromQuery(): number | null {
     ?? (offListRun.value && offListRun.value.id === r ? offListRun.value.sessionId : null)
 }
 
-const defaultSessionId = () => (projectRuns.value.find(r => r.sessionStatus !== 'closed') ?? latest.value)?.sessionId ?? null
+const defaultSessionId = () => projectRuns.value.find(r => r.sessionStatus !== 'closed')?.sessionId ?? null
 
 const selectedSessionId = ref<number | null>(sessionFromQuery() ?? defaultSessionId())
 const selectedGroup = computed(() =>
