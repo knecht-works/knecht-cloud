@@ -278,7 +278,7 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
         </p>
         <div
           v-else
-          class="flex flex-col gap-3"
+          class="flex max-h-80 flex-col gap-3 overflow-y-auto"
         >
           <div
             v-for="row in workflowRows"
