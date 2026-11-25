@@ -86,10 +86,13 @@ const environmentFacts = computed(() => {
 
 const { data: workflowList } = useWorkflows()
 const { data: triggers } = useTriggers()
+// A schedule or manual trigger needs no object, so its workflow can be started right here.
+const startsDirectly = (t: { source: string }) => t.source === 'schedule' || t.source === 'manual'
 const workflowRows = computed(() => (workflowList.value ?? []).filter(workflowRunnable).flatMap((w) => {
-  const [trigger, ...rest] = (triggers.value ?? []).filter(t => t.projectIds.includes(id) && t.workflowId === w.id)
-  return trigger ? [{ id: w.id, name: w.name, trigger, more: rest.length }] : []
-}))
+  const own = (triggers.value ?? []).filter(t => t.projectIds.includes(id) && t.workflowId === w.id)
+  const trigger = own.find(startsDirectly) ?? own[0]
+  return trigger ? [{ id: w.id, name: w.name, trigger, more: own.length - 1, direct: startsDirectly(trigger) }] : []
+}).sort((a, b) => Number(b.direct) - Number(a.direct)))
 
 const { starting, start: startRun } = useStartRun(id, async (runId) => {
   await invalidate(liveTopics.runs)
@@ -302,7 +305,10 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
                 </span>
               </span>
             </NuxtLink>
-            <UTooltip :text="`Run ${row.name} on this project now`">
+            <UTooltip
+              v-if="row.direct"
+              :text="`Run ${row.name} on this project now`"
+            >
               <UButton
                 icon="i-lucide-play"
                 color="neutral"
@@ -313,6 +319,15 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
                 @click="startWorkflow(row.id)"
               />
             </UTooltip>
+            <UButton
+              v-else
+              :to="`/workflows/${row.id}`"
+              icon="i-lucide-arrow-right"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              :aria-label="`Open ${row.name}`"
+            />
           </div>
         </div>
       </KPanel>
