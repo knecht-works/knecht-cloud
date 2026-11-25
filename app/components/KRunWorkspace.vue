@@ -2,12 +2,15 @@
 import type { EnvTransition } from '#shared/utils/run'
 import { liveTopics } from '#shared/utils/live-topics'
 import type { SessionRun } from '~/composables/useSessionLogs'
+import type { SessionGroup, SessionHeaderRun } from '~/utils/dashboard'
 import { useRun } from '~/composables/useRuns'
 import { computed, ref } from 'vue'
 import { isLiveStatus, runStatusMeta, sessionObjectMeta } from '~/utils/dashboard'
 import { useSessionLogs } from '~/composables/useSessionLogs'
 import { invalidate } from '~/composables/useLiveTopics'
 import KRunHeader from '~/components/KRunHeader.vue'
+import KPreviewShareButton from '~/components/KPreviewShareButton.vue'
+import KSessionHeader from '~/components/KSessionHeader.vue'
 import KRunPreviewSection from '~/components/KRunPreviewSection.vue'
 import KRunFollowupChat from '~/components/KRunFollowupChat.vue'
 import KStatusDot from '~/components/KStatusDot.vue'
@@ -20,6 +23,7 @@ const props = defineProps<{
   runId: number
   sessionId: number
   sessionRuns: SessionRun[]
+  group: SessionGroup<SessionHeaderRun>
 }>()
 
 const emit = defineEmits<{
@@ -62,12 +66,13 @@ function refreshWorkspace() {
   return invalidate(liveTopics.run(id))
 }
 
-const showsPreview = computed(() => !!run.value && (run.value.hasEnv || run.value.previewLost) && run.value.hasPreviewTarget)
 const header = computed(() => {
   const r = run.value!
   return {
     runId: r.id,
     sessionId: r.sessionId,
+    projectId: r.projectId,
+    workflowId: r.workflowId,
     hasEnv: r.hasEnv || r.previewLost,
     status: r.status,
     kind: r.kind,
@@ -95,6 +100,14 @@ const headerEvents = {
     v-if="run"
     class="flex min-w-0 flex-col gap-4.5"
   >
+    <KSessionHeader :group="group">
+      <KRunHeader
+        v-bind="header"
+        v-on="headerEvents"
+      />
+    </KSessionHeader>
+    <slot name="status" />
+
     <KRunPreviewSection
       :run-id="run.id"
       :project-id="run.projectId"
@@ -113,11 +126,7 @@ const headerEvents = {
       @pending="(t) => { pending = t }"
     >
       <template #actions>
-        <KRunHeader
-          v-bind="header"
-          shareable
-          v-on="headerEvents"
-        />
+        <KPreviewShareButton :session-id="run.sessionId" />
       </template>
     </KRunPreviewSection>
 
@@ -130,17 +139,7 @@ const headerEvents = {
       :kind="run.kind"
       :env-state="run.envState"
       @changed="() => { refreshWorkspace(); emit('changed') }"
-    >
-      <template
-        v-if="!showsPreview"
-        #action
-      >
-        <KRunHeader
-          v-bind="header"
-          v-on="headerEvents"
-        />
-      </template>
-    </KRunFollowupChat>
+    />
 
     <KPanel
       v-if="logRuns.length"

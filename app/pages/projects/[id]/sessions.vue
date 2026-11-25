@@ -160,20 +160,24 @@ async function onRunDeleted() {
     </div>
 
     <div class="flex min-w-0 flex-1 flex-col gap-4.5 px-8 pb-7 lg:pl-1">
-      <KSessionStatus
-        v-if="selectedRun?.status === 'failed'"
-        :run="selectedRun"
-      />
       <KRunWorkspace
         v-if="selectedRun"
         :key="selectedRun.id"
         :run-id="selectedRun.id"
         :session-id="selectedRun.sessionId"
         :session-runs="selectedGroup!.runs"
+        :group="selectedGroup!"
         @deleted="onRunDeleted"
         @started="onRunStarted"
         @changed="invalidate(liveTopics.runs)"
-      />
+      >
+        <template #status>
+          <KSessionStatus
+            v-if="selectedRun?.status === 'failed'"
+            :run="selectedRun"
+          />
+        </template>
+      </KRunWorkspace>
       <KPreviewBrowser
         v-else
         :session-id="0"

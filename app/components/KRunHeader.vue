@@ -5,16 +5,15 @@ import { useToastError } from '~/composables/useToastError'
 import { computed, ref } from 'vue'
 import { useRunServices } from '~/composables/useRuns'
 import { useRunRetry } from '~/composables/useRunRetry'
-import { $fetch, useRequestURL, useToast } from '#imports'
-import { SHARE_PARAM } from '#shared/utils/preview-access'
-import { previewHostname } from '#shared/utils/preview-host'
-import { copyText } from '~/utils/clipboard'
+import { $fetch } from '#imports'
 import KConfirmModal from '~/components/KConfirmModal.vue'
 import { UTooltip, UButton, UDropdownMenu } from '#components'
 
 const props = defineProps<{
   runId: number
   sessionId: number
+  projectId: number
+  workflowId: number | null
   hasEnv: boolean
   status: RunStatus
   kind: 'workflow' | 'mention'
@@ -22,7 +21,6 @@ const props = defineProps<{
   busy: EnvTransition | null
   prs: { url: string, label: string }[]
   isLive: boolean
-  shareable?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -34,31 +32,6 @@ const emit = defineEmits<{
 }>()
 
 const toastError = useToastError()
-const toast = useToast()
-const reqUrl = useRequestURL()
-
-const sharing = ref(false)
-async function share() {
-  sharing.value = true
-  try {
-    const { token, expiresAt } = await $fetch(`/api/sessions/${props.sessionId}/share`, { method: 'POST' })
-    const url = `${reqUrl.protocol}//${previewHostname(props.sessionId, reqUrl.host)}/?${SHARE_PARAM}=${token}`
-    const until = new Date(expiresAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-    try {
-      await copyText(url)
-      toast.add({ title: 'Share link copied', description: `Anyone with it can open the preview until ${until}.`, color: 'success' })
-    }
-    catch {
-      toast.add({ title: `Share link, valid until ${until}`, description: url, color: 'warning' })
-    }
-  }
-  catch (e) {
-    toastError('Could not create the share link', e)
-  }
-  finally {
-    sharing.value = false
-  }
-}
 
 const canTerminal = computed(() => props.envState === 'up' && !props.busy)
 
@@ -120,6 +93,21 @@ async function envAction(action: keyof typeof ENV_ACTIONS) {
   }
 }
 
+const restarting = ref(false)
+async function runAgain() {
+  restarting.value = true
+  try {
+    const created = await $fetch('/api/runs', { method: 'POST', body: { projectId: props.projectId, workflowId: props.workflowId } })
+    emit('started', created.id)
+  }
+  catch (e) {
+    toastError('Failed to start run', e)
+  }
+  finally {
+    restarting.value = false
+  }
+}
+
 const startingPreview = ref(false)
 async function startPreview() {
   startingPreview.value = true
@@ -158,9 +146,10 @@ const tools = computed(() => canTerminal.value
       label: KNOWN_SERVICES[s.label]?.label ?? s.label,
       icon: KNOWN_SERVICES[s.label]?.icon ?? 'i-lucide-app-window',
       to: s.url,
-      target: '_blank',
     }))
   : [])
+
+const retryable = computed(() => (props.status === 'failed' || props.status === 'cancelled') && props.kind !== 'mention')
 
 const menuItems = computed(() => {
   const lifecycle = (props.envState === 'up' && !props.isLive
@@ -183,31 +172,57 @@ const menuItems = computed(() => {
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
   }]
-  const run = [
-    ...(props.isLive
-      ? [{ label: 'Cancel run', icon: 'i-lucide-square', color: 'error' as const, disabled: cancelling.value, onSelect: cancel }]
-      : props.status === 'cancelled' && props.kind !== 'mention'
-        ? [{ label: 'Retry', icon: 'i-lucide-rotate-ccw', disabled: retrying.value, onSelect: retry }]
-        : []),
-    ...props.prs.map(pr => ({ label: `Open ${pr.label}`, icon: 'i-lucide-git-pull-request', to: pr.url, target: '_blank' })),
-  ]
-  const env = [
-    ...(!props.isLive && props.envState !== 'down'
-      ? [{ label: 'Open in IDE', icon: 'i-lucide-code-xml', disabled: !canTerminal.value, onSelect: openInVscode }]
-      : []),
-    ...(props.envState !== 'down'
-      ? [{ label: 'Terminal', icon: 'i-lucide-square-terminal', disabled: !canTerminal.value, onSelect: () => emit('openTerminal') }]
-      : []),
-    ...(props.shareable
-      ? [{ label: 'Copy share link', icon: 'i-lucide-share-2', disabled: sharing.value, onSelect: share }]
-      : []),
-  ]
-  return [run, env, tools.value, [...preview, ...lifecycle, ...remove]].filter(group => group.length)
+  const run = props.isLive
+    ? [{ label: 'Cancel run', icon: 'i-lucide-square', color: 'error' as const, disabled: cancelling.value, onSelect: cancel }]
+    : retryable.value
+      ? [{ label: 'Resume from the failed step', icon: 'i-lucide-step-forward', disabled: retrying.value, onSelect: retry }]
+      : []
+  return [run, [...preview, ...lifecycle, ...remove]].filter(group => group.length)
 })
+
+interface PinnedAction {
+  label: string
+  icon: string
+  disabled?: boolean
+  onSelect?: () => void
+  to?: string
+  primary?: boolean
+}
+
+const pinned = computed<PinnedAction[]>(() => [
+  ...(retryable.value && props.workflowId !== null
+    ? [{ label: 'Run workflow again', icon: 'i-lucide-rotate-ccw', disabled: restarting.value, onSelect: runAgain, primary: true }]
+    : []),
+  ...props.prs.map(pr => ({ label: `Open ${pr.label}`, icon: 'i-lucide-git-pull-request', to: pr.url, primary: true })),
+  ...(!props.isLive && props.envState !== 'down'
+    ? [{ label: 'Open in IDE', icon: 'i-lucide-code-xml', disabled: !canTerminal.value, onSelect: openInVscode }]
+    : []),
+  ...tools.value,
+  ...(props.envState !== 'down'
+    ? [{ label: 'Terminal', icon: 'i-lucide-square-terminal', disabled: !canTerminal.value, onSelect: () => emit('openTerminal') }]
+    : []),
+])
 </script>
 
 <template>
-  <div class="flex">
+  <div class="flex items-center gap-2">
+    <UTooltip
+      v-for="item in pinned"
+      :key="item.label"
+      :text="item.label"
+    >
+      <UButton
+        :color="item.primary ? 'primary' : 'neutral'"
+        :variant="item.primary ? 'solid' : 'subtle'"
+        :icon="item.icon"
+        :aria-label="item.label"
+        :to="item.to"
+        :target="item.to ? '_blank' : undefined"
+        :disabled="item.disabled"
+        size="sm"
+        @click="item.onSelect?.()"
+      />
+    </UTooltip>
     <UDropdownMenu
       :items="menuItems"
       :content="{ align: 'end' }"
@@ -215,10 +230,10 @@ const menuItems = computed(() => {
       <UTooltip text="Session actions">
         <UButton
           color="neutral"
-          variant="ghost"
+          variant="subtle"
           icon="i-lucide-ellipsis-vertical"
           aria-label="Session actions"
-          size="xs"
+          size="sm"
         />
       </UTooltip>
     </UDropdownMenu>
