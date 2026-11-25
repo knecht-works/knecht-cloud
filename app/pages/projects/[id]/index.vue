@@ -90,15 +90,17 @@ const { data: triggers } = useTriggers()
 const startsDirectly = (t: { source: string }) => t.source === 'schedule' || t.source === 'manual'
 const workflowRows = computed(() => (workflowList.value ?? []).filter(workflowRunnable).flatMap((w) => {
   const own = (triggers.value ?? []).filter(t => t.projectIds.includes(id) && t.workflowId === w.id)
-  const trigger = own.find(startsDirectly) ?? own[0]
-  return trigger ? [{ id: w.id, name: w.name, trigger, more: own.length - 1, direct: startsDirectly(trigger), paused: !w.enabled || !trigger.active }] : []
+  const active = own.filter(t => t.active)
+  const shown = active.length ? active : own
+  const trigger = shown.find(startsDirectly) ?? shown[0]
+  return trigger ? [{ id: w.id, name: w.name, trigger, more: own.length - 1, direct: startsDirectly(trigger), paused: !w.enabled || !active.length }] : []
 }).sort((a, b) => Number(b.direct) - Number(a.direct) || Number(a.paused) - Number(b.paused) || a.name.localeCompare(b.name)))
 
 const { starting, start: startRun } = useStartRun(id, async (runId) => {
   await invalidate(liveTopics.runs)
   await navigateTo({ path: sessionsPath, query: { run: String(runId) } })
 })
-const startWorkflow = (workflowId: number) => startRun(workflowId, project.value?.defaultBranch ?? 'main')
+const startWorkflow = (row: { id: number, trigger: { branch: string | null } }) => startRun(row.id, row.trigger.branch ?? project.value?.defaultBranch ?? 'main')
 </script>
 
 <template>
@@ -321,7 +323,7 @@ const startWorkflow = (workflowId: number) => startRun(workflowId, project.value
                     class="-mr-1"
                     :aria-label="`Run ${row.name} now`"
                     :disabled="starting"
-                    @click="startWorkflow(row.id)"
+                    @click="startWorkflow(row)"
                   />
                 </UTooltip>
                 <UButton
