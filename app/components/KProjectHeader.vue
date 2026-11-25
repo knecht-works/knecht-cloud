@@ -46,8 +46,11 @@ const repoName = computed(() => props.project.fullName.split('/').pop() ?? 'Proj
           :radius="8"
         />
         <UTooltip :text="project.fullName">
-          <h1 class="truncate text-2xl font-semibold tracking-tight text-highlighted">
-            <NuxtLink :to="`/projects/${project.id}`">
+          <h1 class="min-w-0 text-2xl font-semibold tracking-tight text-highlighted">
+            <NuxtLink
+              :to="`/projects/${project.id}`"
+              class="-mx-1.5 block truncate rounded-md px-1.5 ring-inset"
+            >
               {{ repoName }}
             </NuxtLink>
           </h1>

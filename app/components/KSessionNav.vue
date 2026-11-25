@@ -174,7 +174,7 @@ onMounted(placeBox)
           <NuxtLink
             :to="sessionTo(r.group)"
             replace
-            class="absolute inset-0 z-1"
+            class="absolute inset-0 z-1 rounded-md ring-inset"
             :aria-label="`Open session ${r.title}`"
             :aria-current="r.group.sessionId === selectedSessionId ? 'true' : undefined"
           />
@@ -327,7 +327,7 @@ onMounted(placeBox)
           <NuxtLink
             :to="sessionTo(r.group)"
             replace
-            class="absolute inset-0 z-1"
+            class="absolute inset-0 z-1 rounded-md ring-inset"
             :aria-label="`Open session ${r.title}`"
             :aria-current="r.group.sessionId === selectedSessionId ? 'true' : undefined"
           />
