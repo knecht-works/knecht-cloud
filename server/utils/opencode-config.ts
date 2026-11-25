@@ -7,6 +7,9 @@ export const MEMORY_INDEX_PATH = '/var/www/html/.knecht/opencode/memory/MEMORY.m
 export const AGENT_KEY_ENV = 'KNECHT_AI_KEY'
 const AGENT_KEY_REF = `{env:${AGENT_KEY_ENV}}`
 
+// opencode never compacts a model without a context limit. Well below Langdock's default quota of 1M tokens per minute.
+const LANGDOCK_MODEL = { limit: { context: 200_000, output: 32_000 } }
+
 export interface OpencodeConfigInput {
   provider: AiProviderId
   region: LangdockRegion
@@ -92,7 +95,7 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
           apiKey: AGENT_KEY_REF,
           setCacheKey: false,
         },
-        models: Object.fromEntries(openai.map(m => [m, {}])),
+        models: Object.fromEntries(openai.map(m => [m, LANGDOCK_MODEL])),
       }
     }
     if (anthropic.length) {
@@ -103,7 +106,7 @@ export function buildOpencodeConfig(input: OpencodeConfigInput): OpencodeConfig 
           baseURL: langdockAnthropicBaseUrl(input.region),
           apiKey: AGENT_KEY_REF,
         },
-        models: Object.fromEntries(anthropic.map(m => [m, {}])),
+        models: Object.fromEntries(anthropic.map(m => [m, LANGDOCK_MODEL])),
       }
     }
   }
