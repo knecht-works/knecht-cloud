@@ -318,7 +318,7 @@ const hostItems = computed(() => props.hosts.map(host => ({
           </UTooltip>
         </div>
 
-        <div class="flex flex-none items-center gap-0.5">
+        <div class="-mr-1 flex flex-none items-center gap-2">
           <UTooltip text="Open in new tab">
             <UButton
               icon="i-lucide-external-link"
