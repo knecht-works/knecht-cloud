@@ -17,7 +17,7 @@ import { prepareSessionCheckout } from '#server/daemon/git'
 import { refreshFramework } from '#server/utils/framework'
 import { configureSessionEnv } from '#server/daemon/ddev'
 import { applyEnvDefinition, markCheckedOut, reviveEnv } from '#server/daemon/envs'
-import { sessionSandbox } from '#server/daemon/session-sandbox'
+import { sessionSandbox, stopRunProcesses } from '#server/daemon/session-sandbox'
 import { getWorkflowRow } from '#server/stores/workflows'
 import { getSessionRow, updateSession, sessionBase } from '#server/stores/sessions'
 import { appendRunLog, claimQueuedRun, finishRun, getRun, runLogBytes, updateRun } from '#server/stores/runs'
@@ -133,7 +133,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
       ctx,
       log,
       signal: controller.signal,
-      sandbox: sessionSandbox(sessionId, log, controller.signal),
+      sandbox: sessionSandbox(sessionId, log, controller.signal, runId),
     }
     if (run.resetCheckout && resume.fromIndex === 0) {
       log(`▶ Discarding the uncommitted changes of the previous attempt\n`)
@@ -155,6 +155,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
   }
   catch (e) {
     const cancelled = controller.signal.aborted
+    if (cancelled) await stopRunProcesses(session.id, runId).catch(() => {})
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
     finishRun(runId, cancelled ? 'cancelled' : 'failed')
     if (!cancelled) void diagnoseRunFailure(runId)
@@ -311,7 +312,7 @@ function runActionTimed(
   const timedRt: ActionRuntime = {
     ...rt,
     signal,
-    sandbox: sessionSandbox(rt.sessionId, rt.log, signal),
+    sandbox: sessionSandbox(rt.sessionId, rt.log, signal, rt.runId),
   }
   return new Promise((resolve, reject) => {
     const onTimeout = () => reject(new Error(`Step timed out after ${timeoutSeconds}s`))

@@ -13,7 +13,7 @@ vi.mock('#server/daemon/git', async (importOriginal) => {
   return { ...actual, prepareSessionCheckout: fakeCheckout }
 })
 vi.mock('#server/daemon/sandbox', () => ({}))
-vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
+vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox, stopRunProcesses: async () => true }))
 const tornDown: number[] = []
 vi.mock('#server/daemon/envs', () => ({
   markCheckedOut: () => {},

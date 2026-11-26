@@ -254,9 +254,13 @@ export function execInContainer(container: string, command: string[], options?: 
   return execa('docker', dockerExecArgs(container, command, env, options?.input === undefined ? [] : ['-i']), options)
 }
 
+function execUser(): string {
+  return `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`
+}
+
 function dockerExecArgs(container: string, command: string[], env?: Record<string, string>, flags: string[] = []): string[] {
   return [
-    'exec', ...flags, '-u', `${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}`,
+    'exec', ...flags, '-u', execUser(),
     '-w', WEB_PROJECT_DIR,
     '-e', `XDG_CONFIG_HOME=${KNECHT_STATE_DIR}`,
     '-e', `XDG_DATA_HOME=${KNECHT_STATE_DIR}/data`,
@@ -272,6 +276,34 @@ export function spawnInContainer(container: string, command: string[], env?: Rec
   return toSandboxProcess(execa('docker', dockerExecArgs(container, command, env, ['-i']), {
     stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', buffer: false, reject: false,
   }))
+}
+
+// Not KNECHT_RUN_ID: the container env already carries that one, for every process.
+const RUN_TAG = 'KNECHT_RUN_TAG'
+
+export function runTag(runId: number): Record<string, string> {
+  return { [RUN_TAG]: String(runId) }
+}
+
+// Matched by environment, not process group: a killed `docker exec` client leaves its
+// process tree running, and a step can detach from the group. A zombie's environ reads empty.
+export const STOP_TAGGED_SCRIPT = [
+  'pids() { for d in /proc/[0-9]*; do tr \'\\0\' \'\\n\' 2>/dev/null < "$d/environ" | grep -qxF "$1" && echo "${d#/proc/}"; done; }',
+  'for sig in TERM KILL; do',
+  '  p=$(pids "$1"); [ -z "$p" ] && exit 0',
+  '  kill -$sig $p 2>/dev/null',
+  '  i=0; while [ $i -lt 25 ]; do sleep 0.2; [ -z "$(pids "$1")" ] && exit 0; i=$((i+1)); done',
+  'done',
+  'exit 3',
+].join('\n')
+
+// False only when a process survived SIGKILL; a container that is not running has none.
+// Not as root: Docker drops CAP_SYS_PTRACE, so root cannot read another user's environ.
+export async function stopTaggedProcesses(container: string, runId: number): Promise<boolean> {
+  const { exitCode } = await execa('docker', [
+    'exec', '-u', execUser(), container, '/bin/sh', '-c', STOP_TAGGED_SCRIPT, 'knecht-stop', `${RUN_TAG}=${runId}`,
+  ], { reject: false })
+  return exitCode !== 3
 }
 
 export async function copyIntoContainer(container: string, file: string, dest: string): Promise<void> {

@@ -15,7 +15,8 @@ const startEnvStack = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('#server/daemon/sandbox', () => ({ startEnvStack }))
 const removeWorkspace = vi.hoisted(() => vi.fn(async (_sessionId: number) => {}))
 vi.mock('#server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace }))
-vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox }))
+const stopRunProcesses = vi.hoisted(() => vi.fn(async (_sessionId: number, _runId: number) => true))
+vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox, stopRunProcesses }))
 vi.mock('#server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
@@ -323,6 +324,23 @@ describe('runner', () => {
     await done
     expect(getRun(run.id).status).toBe('cancelled')
     expect(getSteps(run.id)[0]!.status).toBe('cancelled')
+  })
+
+  it('stops what the cancelled run still runs in the session before it counts as cancelled', async () => {
+    const project = makeProject()
+    const run = makeRun(project, [{ type: 'bash', id: 'forever', command: 'sleep 30' }])
+    let statusWhileStopping: string | undefined
+    stopRunProcesses.mockImplementationOnce(async () => {
+      statusWhileStopping = getRun(run.id).status
+      return true
+    })
+    const done = startRun(run.id, project)
+    for (let i = 0; i < 100 && getSteps(run.id).length === 0; i++) await sleep(50)
+    cancelRun(run.id)
+    await done
+    expect(stopRunProcesses).toHaveBeenCalledWith(run.sessionId, run.id)
+    expect(statusWhileStopping).toBe('running')
+    expect(getRun(run.id).status).toBe('cancelled')
   })
 
   it('records each step row\'s byte offset into the run log', async () => {

@@ -9,6 +9,7 @@ import { getSessionRow, makeProject, makeRun, makeSession } from '../helpers/db'
 import { remoteWithMain } from '../helpers/git-remote'
 
 const calls: string[] = []
+const envs = new Map<string, Record<string, string> | undefined>()
 const failing = new Set<string>()
 let onStream = (_line: string) => {}
 const startEnvStack = vi.fn(async (_sessionId: number, _log?: (text: string) => void) => {
@@ -25,12 +26,14 @@ vi.mock('#server/daemon/sandbox', () => ({
   },
   forgetPreview: () => {},
   removeEnvStack: async () => {},
+  runTag: (runId: number) => ({ KNECHT_RUN_TAG: String(runId) }),
   startEnvStack: (sessionId: number, log?: (text: string) => void) => startEnvStack(sessionId, log),
   stopEnvStack: (sessionId: number) => stopEnvStack(sessionId),
-  streamInSandbox: async (_sessionId: number, command: string[], _log: unknown, _env: unknown, signal?: AbortSignal) => {
+  streamInSandbox: async (_sessionId: number, command: string[], _log: unknown, env?: Record<string, string>, signal?: AbortSignal) => {
     signal?.throwIfAborted()
     const line = command.join(' ')
     calls.push(line)
+    envs.set(line, env)
     onStream(line)
     return { code: failing.has(line) ? 1 : 0, tail: '' }
   },
@@ -84,6 +87,7 @@ function freshSession(project: Project) {
 
 beforeEach(() => {
   calls.length = 0
+  envs.clear()
   failing.clear()
   onStream = () => {}
   startEnvStack.mockClear()
@@ -106,6 +110,16 @@ describe('bootEnv', () => {
     ])
     expect(waitForDevServer).toHaveBeenCalledWith(session.id, 3000, undefined)
     expect(noteDevServerUse).toHaveBeenCalledWith(session.id, expect.any(Function))
+  })
+
+  it('tags the boot commands with the run, so a cancel finds them, but not the dev server', async () => {
+    const session = freshSession(makeProject())
+    await bootEnv(session.id, { dbFile: '/dumps/db.sql.gz', projectCommands: 'pnpm install', stepCommands: 'pnpm run build', runId: 42 })
+    const tag = { KNECHT_RUN_TAG: '42' }
+    expect(envs.get('ddev import-db --file=/dumps/db.sql.gz')).toEqual(tag)
+    expect(envs.get('bash -lc pnpm install')).toEqual(tag)
+    expect(envs.get('bash -lc pnpm run build')).toEqual(tag)
+    expect(envs.get('supervisorctl restart webextradaemons:*')).toBeUndefined()
   })
 
   it('copies the project\'s base database before ddev starts instead of importing', async () => {
