@@ -16,7 +16,7 @@ describe('POST /api/runs/:id/again', () => {
 
   it('starts a new run in the same session with the inputs and object of the failed one', async () => {
     const project = makeProject()
-    const failed = makeRun(project, [], { workflowId: workflow.id, status: 'failed', trigger: 'jira', inputs: { title: 'Fix it' }, actor: { id: 'u1', name: 'Ann' } })
+    const failed = makeRun(project, [], { workflowId: workflow.id, status: 'failed', trigger: 'jira', inputs: { title: 'Fix it' }, actor: { id: 'u1', name: 'Ann' }, startSha: 'a1b2c3', endSha: 'd4e5f6' })
     const object = attachTestObject(failed.sessionId, { integration: 'jira', kind: 'issue', key: 'PROJ-1' })
     db.update(schema.runs).set({ objectId: object.id }).where(eq(schema.runs.id, failed.id)).run()
 
@@ -32,6 +32,8 @@ describe('POST /api/runs/:id/again', () => {
       inputs: { title: 'Fix it' },
       actor: { id: 'u1', name: 'Ann' },
       resetCheckout: true,
+      startSha: 'a1b2c3',
+      endSha: 'd4e5f6',
       steps: [{ type: 'bash', command: 'true', id: 'run' }],
     })
     expect((res.json as { id: number }).id).not.toBe(failed.id)

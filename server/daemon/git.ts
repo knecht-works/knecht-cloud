@@ -75,6 +75,12 @@ function authHeader(credentials: GitCredentials): { key: string, value: string }
   }
 }
 
+// rev-parse runs no hooks, filters or fsmonitor, so reading HEAD on the host is safe.
+export async function checkoutHead(dir: string): Promise<string | null> {
+  const { stdout, exitCode } = await execa('git', ['-C', dir, 'rev-parse', '--verify', '-q', 'HEAD'], { reject: false })
+  return exitCode === 0 ? stdout.trim() : null
+}
+
 // Everything below runs inside the sandbox: the sandbox can write .git, and git
 // on the host would run its hooks, fsmonitor and filters with Knecht's privileges.
 type Sandbox = ActionRuntime['sandbox']
@@ -111,19 +117,61 @@ export async function commitAll(
   return (await sandbox.exec(['git', 'rev-parse', 'HEAD'])).trim()
 }
 
-export async function pushBranch(sandbox: Sandbox, branch: string, credentials: GitCredentials): Promise<void> {
+function authEnv(credentials: GitCredentials): Record<string, string> {
   const auth = authHeader(credentials)
-  const env = {
+  return {
     GIT_CONFIG_COUNT: '1',
     GIT_CONFIG_KEY_0: auth.key,
     GIT_CONFIG_VALUE_0: auth.value,
   }
+}
+
+export async function pushBranch(sandbox: Sandbox, branch: string, credentials: GitCredentials): Promise<void> {
   try {
-    await sandbox.exec(['git', 'push', 'origin', `HEAD:refs/heads/${branch}`], { env })
+    await sandbox.exec(['git', 'push', 'origin', `HEAD:refs/heads/${branch}`], { env: authEnv(credentials) })
   }
   catch (e) {
     throw new Error(redact(String((e as Error).message), credentials), { cause: e })
   }
+}
+
+// Returns the commit the checkout now starts from. Commits made after the attempt ended belong to later work and stay.
+export async function discardAttempt(sandbox: Sandbox, startSha: string | null, endSha: string | null, credentials: GitCredentials, log: (text: string) => void): Promise<string> {
+  const head = (await sandbox.exec(['git', 'rev-parse', 'HEAD'])).trim()
+  let target = head
+  if (startSha && startSha !== head) {
+    if (endSha === head) target = await attemptStart(sandbox, startSha, head, credentials, log)
+    else log(`The checkout changed after the previous attempt ended: keeping its commits\n`)
+  }
+  await sandbox.exec(['git', 'reset', '--hard', target])
+  await sandbox.exec(['git', 'clean', '-fdq'])
+  return target
+}
+
+// Never behind the remote branch: a pushed commit may already sit in a pull request.
+async function attemptStart(sandbox: Sandbox, start: string, head: string, credentials: GitCredentials, log: (text: string) => void): Promise<string> {
+  if (!await isAncestor(sandbox, start, head)) {
+    log(`The checkout moved off the commit the previous attempt started from: keeping its commits\n`)
+    return head
+  }
+  const branch = await currentBranch(sandbox)
+  let pushed: string
+  try {
+    pushed = (await sandbox.exec(['git', 'ls-remote', 'origin', `refs/heads/${branch}`], { env: authEnv(credentials) })).split(/\s/)[0] ?? ''
+  }
+  catch (e) {
+    log(`Could not check what the previous attempt pushed, keeping its commits: ${redact(String((e as Error).message), credentials)}\n`)
+    return head
+  }
+  if (pushed && pushed !== start && await isAncestor(sandbox, start, pushed) && await isAncestor(sandbox, pushed, head)) {
+    log(`The previous attempt already pushed to ${branch}: keeping the pushed commits\n`)
+    return pushed
+  }
+  return start
+}
+
+function isAncestor(sandbox: Sandbox, ancestor: string, commit: string): Promise<boolean> {
+  return sandbox.exec(['git', 'merge-base', '--is-ancestor', ancestor, commit]).then(() => true, () => false)
 }
 
 // The generated ddev config carries secrets and the git actions run `git add -A`,
