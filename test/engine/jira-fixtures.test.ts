@@ -53,12 +53,14 @@ const CONFIGS = {
 }
 
 const fired: Record<keyof typeof CONFIGS, string[]> = Object.fromEntries(Object.keys(CONFIGS).map(k => [k, []])) as never
+const triggerIds: Partial<Record<keyof typeof CONFIGS, number>> = {}
 
 beforeAll(async () => {
   jiraConnection.save({ siteUrl: 'https://acme.atlassian.net', email: 'knecht@acme.test', apiToken: 't' }, { webhookSecret: SECRET, accountName: 'Knecht', accountId: KNECHT_ACCOUNT })
   const project = makeProject()
   setProjectLink(project.id, 'jira', 'CC')
   const triggers = Object.entries(CONFIGS).map(([name, config]) => [name, makeTrigger('jira', [project.id], config).id] as const)
+  for (const [name, id] of triggers) triggerIds[name as keyof typeof CONFIGS] = id
   for (const { name, body } of fixtures) {
     const res = await callRoute(handler, { body, headers: { 'x-hub-signature': `sha256=${createHmac('sha256', SECRET).update(body).digest('hex')}` } })
     expect(res.status, name).toBe(200)
@@ -112,5 +114,13 @@ describe('jira deliveries', () => {
   it('conditions apply to the created and the entered event alike', () => {
     expect(fired.createdWhileEnhancement).toEqual(['issue_created-CC-18'])
     expect(fired.inProgressWhileEnhancement).toEqual(['issue_updated-CC-18-status-in-progress'])
+  })
+})
+
+describe('jira run inputs', () => {
+  const inputsOf = (config: keyof typeof CONFIGS) => runsOf(triggerIds[config]!).map(run => run.inputs)
+
+  it('hands the description over as the body', () => {
+    expect(inputsOf('created').map(inputs => inputs?.body)).toEqual(['Here is the fixute Description', 'Fixture Description', 'Description'])
   })
 })
