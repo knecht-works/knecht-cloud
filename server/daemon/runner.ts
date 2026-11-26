@@ -13,7 +13,7 @@ import { agentRepliedSince, describeObject, markSessionDone, workObject } from '
 import { getIntegration, type CommentAuthor } from '#server/integrations'
 import { handBackObject, takeObject } from '#server/integrations/assignee'
 import { addressee } from '#server/integrations/capabilities'
-import { prepareSessionCheckout } from '#server/daemon/git'
+import { checkoutHead, discardAttempt, prepareSessionCheckout } from '#server/daemon/git'
 import { refreshFramework } from '#server/utils/framework'
 import { configureSessionEnv } from '#server/daemon/ddev'
 import { applyEnvDefinition, markCheckedOut, reviveEnv } from '#server/daemon/envs'
@@ -27,6 +27,10 @@ import { listTopLevelWorkflowSteps, listWorkflowStepOutputs, createRunStep, upda
 const MAX_OUTPUT_BYTES = 64 * 1024
 
 const controllers = new Map<number, AbortController>()
+
+export function isRunExecuting(runId: number): boolean {
+  return controllers.has(runId)
+}
 
 export function cancelRun(runId: number): boolean {
   const controller = controllers.get(runId)
@@ -80,6 +84,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
   const log = (text: string) => appendRunLog(runId, text)
   await takeObject(session, runId, project, log)
 
+  let dir: string | undefined
   try {
     const resume = resumePoint(runId)
     if (resume.tailRowId !== null) {
@@ -99,8 +104,9 @@ async function execRun(runId: number, project: Project): Promise<void> {
     const credentials = await gitProvider(project).credentials(project)
     const base = sessionBase(session, project)
     const branch = session.branch ?? run.branch ?? base
-    const dir = await prepareSessionCheckout(project, sessionId, credentials, log, branch, base)
+    dir = await prepareSessionCheckout(project, sessionId, credentials, log, branch, base)
     markCheckedOut(sessionId)
+    if (!run.startSha) updateRun(runId, { startSha: await checkoutHead(dir) })
     if (branch === project.defaultBranch) {
       // The run does not depend on it; the next default-branch run retries.
       refreshFramework(project).catch(() => {})
@@ -136,15 +142,10 @@ async function execRun(runId: number, project: Project): Promise<void> {
       sandbox: sessionSandbox(sessionId, log, controller.signal, runId),
     }
     if (run.resetCheckout && resume.fromIndex === 0) {
-      log(`▶ Discarding the uncommitted changes of the previous attempt\n`)
+      log(`▶ Discarding the changes of the previous attempt\n`)
       const { exec, release } = await rt.sandbox.withoutPreview()
-      try {
-        await exec(['git', 'reset', '--hard'])
-        await exec(['git', 'clean', '-fdq'])
-      }
-      finally {
-        await release()
-      }
+      const startSha = await discardAttempt({ ...rt.sandbox, exec }, run.startSha, run.endSha, credentials, log).finally(release)
+      updateRun(runId, { startSha })
     }
     await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
@@ -156,6 +157,8 @@ async function execRun(runId: number, project: Project): Promise<void> {
   catch (e) {
     const cancelled = controller.signal.aborted
     if (cancelled) await stopRunProcesses(session.id, runId).catch(() => {})
+    // Run again discards the attempt's commits only while the checkout still ends where the attempt left it.
+    updateRun(runId, { endSha: dir ? await checkoutHead(dir) : null })
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
     finishRun(runId, cancelled ? 'cancelled' : 'failed')
     if (!cancelled) void diagnoseRunFailure(runId)

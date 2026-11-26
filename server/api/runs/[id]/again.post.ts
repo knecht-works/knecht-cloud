@@ -1,6 +1,7 @@
 import { publishStepsSchema } from '#server/workflows/schema'
 import { dispatchRuns } from '#server/daemon/dispatcher'
 import { stopRunProcesses } from '#server/daemon/session-sandbox'
+import { isRunExecuting } from '#server/daemon/runner'
 import { sessionHasActiveWork } from '#server/utils/sessions'
 import { requireProject } from '#server/stores/projects'
 import { requireSession } from '#server/stores/sessions'
@@ -38,6 +39,9 @@ export default defineEventHandler(async (event) => {
   if (!await stopRunProcesses(session.id, run.id)) {
     throw createError({ statusCode: 409, statusMessage: 'A command of the previous attempt is still stopping. Try again in a moment.' })
   }
+  if (isRunExecuting(run.id)) {
+    throw createError({ statusCode: 409, statusMessage: 'The previous attempt is still stopping. Try again in a moment.' })
+  }
   // Again after the await, so nothing can start between this check and createRun.
   refuseActiveWork()
 
@@ -54,6 +58,8 @@ export default defineEventHandler(async (event) => {
     inputs: run.inputs,
     steps: validated.data,
     resetCheckout: true,
+    startSha: run.startSha,
+    endSha: run.endSha,
   })
 
   dispatchRuns()

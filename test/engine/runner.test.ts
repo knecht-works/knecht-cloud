@@ -1,3 +1,7 @@
+import { execFileSync } from 'node:child_process'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, expect, it, vi } from 'vitest'
 import type { Step } from '#shared/utils/workflow'
@@ -398,6 +402,59 @@ describe('runner', () => {
 
     expect(getRun(again.id).status).toBe('success')
     expect(getSteps(again.id)[0]!.outputs).toMatchObject({ stdout: 'kept' })
+  })
+
+  describe('run again on a failed attempt that committed', () => {
+    const commit = (message: string) => `git -c user.name=t -c user.email=t@t commit -qam ${message}`
+
+    async function attempt(failing: string, between?: string) {
+      const project = makeProject()
+      const origin = mkdtempSync(join(tmpdir(), 'knecht-origin-'))
+      execFileSync('git', ['init', '-q', '--bare', origin])
+      const setup = makeRun(project, [{
+        type: 'bash',
+        id: 'setup',
+        command: `git remote add origin ${origin} && echo base > tracked && git add tracked && ${commit('base')} && git push -q origin HEAD:refs/heads/main`,
+      }])
+      await startRun(setup.id, project)
+      expect(getRun(setup.id).status).toBe('success')
+      const failed = makeRun(project, [{ type: 'bash', id: 'work', command: failing }], { sessionId: setup.sessionId })
+      await startRun(failed.id, project)
+      expect(getRun(failed.id).status).toBe('failed')
+      if (between) {
+        const later = makeRun(project, [{ type: 'bash', id: 'later', command: between }], { sessionId: setup.sessionId })
+        await startRun(later.id, project)
+        expect(getRun(later.id).status).toBe('success')
+      }
+      const { startSha, endSha } = getRun(failed.id)
+      const again = makeRun(project, [
+        { type: 'bash', id: 'check', command: 'test ! -e stray && cat tracked && git log --format=%s' },
+      ], { sessionId: setup.sessionId, resetCheckout: true, startSha, endSha })
+      await startRun(again.id, project)
+      expect(getRun(again.id).status).toBe('success')
+      return { origin, failed: getRun(failed.id), again: getRun(again.id), stdout: getSteps(again.id)[0]!.outputs?.stdout }
+    }
+
+    it('starts from the commit the failed attempt started on', async () => {
+      const { failed, again, stdout } = await attempt(`echo attempt > tracked && ${commit('attempt')} && echo half > tracked && touch stray && exit 1`)
+      expect(failed.startSha).toMatch(/^[0-9a-f]{40}$/)
+      expect(stdout).toBe('base\nbase')
+      expect(again.startSha).toBe(failed.startSha)
+    })
+
+    it('keeps the commits the failed attempt already pushed', async () => {
+      const { origin, again, stdout } = await attempt(`echo pushed > tracked && ${commit('pushed')} && git push -q origin HEAD:refs/heads/main && echo local > tracked && ${commit('local')} && exit 1`)
+      expect(stdout).toBe('pushed\npushed\nbase')
+      expect(again.startSha).toBe(execFileSync('git', ['rev-parse', 'main'], { cwd: origin, encoding: 'utf8' }).trim())
+    })
+
+    it('keeps the commits later work made after the failed attempt ended', async () => {
+      const { stdout } = await attempt(
+        `echo attempt > tracked && ${commit('attempt')} && exit 1`,
+        `echo later > tracked && ${commit('later')}`,
+      )
+      expect(stdout).toBe('later\nlater\nattempt\nbase')
+    })
   })
 
   it('takes the matching if branch and tags sub-steps with the parent step', async () => {
