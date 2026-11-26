@@ -159,7 +159,7 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
       trigger: 'plane',
       branch: 'main',
       inputs: {
-        event: 'issue',
+        event: 'created',
         identifier: `${project.identifier}-12`,
         title: 'Login broken',
         body: 'It fails on **submit**.',

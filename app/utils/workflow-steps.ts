@@ -72,7 +72,7 @@ export const TRIGGER_VARS: StepVar[] = [
   { path: 'inputs.body', hint: 'Issue/PR/ticket body' },
   { path: 'inputs.identifier', hint: 'Issue/PR number or ticket key' },
   { path: 'inputs.url', hint: 'Link to the issue, PR or ticket' },
-  { path: 'inputs.event', hint: 'e.g. pull_request, issues, issue' },
+  { path: 'inputs.event', hint: 'e.g. pull_request, issues, or a ticket\'s created, assigned, labeled, entered' },
   { path: 'inputs.status', hint: 'open/closed, or the ticket status' },
   { path: 'inputs.assignee', hint: 'Assignee as shown in the tool' },
   { path: 'inputs.labels', hint: 'Comma-separated labels' },
