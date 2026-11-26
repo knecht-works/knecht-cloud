@@ -95,7 +95,7 @@ export function useWorkflowTestRun<P extends TestProject>(
       rememberInputs()
       activeRun.value = await $fetch<TestRunRow>('/api/runs', {
         method: 'POST',
-        body: { projectId: project.value.id, workflowId: id, branch: testBranch.value, inputs: filledInputs() },
+        body: { projectId: project.value.id, workflowId: id, base: testBranch.value, inputs: filledInputs() },
       })
       activeRunSteps.value = []
       open.value = false

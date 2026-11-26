@@ -23,5 +23,8 @@ describe('POST /api/runs', () => {
 
     const based = await callRoute(start, { body: { projectId: project.id, workflowId: workflow.id, branch: 'develop', base: 'develop' } })
     expect(sessionOf(based.json)).toMatchObject({ branch: 'develop', baseBranch: 'develop' })
+
+    const baseOnly = await callRoute(start, { body: { projectId: project.id, workflowId: workflow.id, base: 'develop' } })
+    expect(sessionOf(baseOnly.json)).toMatchObject({ branch: 'develop', baseBranch: 'develop' })
   })
 })
