@@ -134,13 +134,14 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
   const corsOrigin = devOrigin ? devServerCorsOrigin(req.headers.origin, sessionId, baseHost) : null
 
   await new Promise<void>((resolve, reject) => {
-    const upstream = httpRequest(
+    const send = (fresh: boolean) => httpRequest(
       {
         host: sandboxAddr,
         port: previewTargetPort(env, devOrigin),
         method: req.method,
         path: `${url.pathname}${url.search}`,
         headers,
+        agent: fresh ? false : undefined,
       },
       (up) => {
         const type = String(up.headers['content-type'] ?? '')
@@ -209,9 +210,19 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
         up.on('error', reject)
       },
     )
-    upstream.on('error', (e) => {
+    const fail = (e: Error) => {
       forgetPreview(sessionId)
       reject(e)
+    }
+    const upstream = send(false)
+    upstream.on('error', (e: NodeJS.ErrnoException) => {
+      // A dev server whose event loop stalls past its keep-alive timeout (a lint plugin on
+      // the first load) closes idle sockets with the next request already sent on them.
+      if (upstream.reusedSocket && e.code === 'ECONNRESET' && (req.method === 'GET' || req.method === 'HEAD')) {
+        send(true).on('error', fail).end()
+        return
+      }
+      fail(e)
     })
     req.pipe(upstream)
   }).catch((e: NodeJS.ErrnoException) => {
