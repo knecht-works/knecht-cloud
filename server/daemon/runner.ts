@@ -16,9 +16,7 @@ import { addressee } from '#server/integrations/capabilities'
 import { prepareSessionCheckout } from '#server/daemon/git'
 import { refreshFramework } from '#server/utils/framework'
 import { configureSessionEnv } from '#server/daemon/ddev'
-import { startEnvStack } from '#server/daemon/sandbox'
-import { removeWorkspace } from '#server/daemon/workspace'
-import { markCheckedOut, reviveEnv } from '#server/daemon/envs'
+import { applyEnvDefinition, markCheckedOut, reviveEnv } from '#server/daemon/envs'
 import { sessionSandbox } from '#server/daemon/session-sandbox'
 import { getWorkflowRow } from '#server/stores/workflows'
 import { getSessionRow, updateSession, sessionBase } from '#server/stores/sessions'
@@ -122,8 +120,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     for (const warning of warnings) log(`Warning: ${warning}\n`)
     if (changed && session.envState === 'up') {
       log(`Environment definition changed: applying it\n`)
-      if (session.tier === 'preview') await startEnvStack(sessionId, log)
-      else await removeWorkspace(sessionId)
+      await applyEnvDefinition(sessionId, log)
     }
 
     const ctx = createContext(runId, project, run.inputs ?? {})
