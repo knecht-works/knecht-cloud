@@ -9,7 +9,7 @@ import { runWorkspacePath } from '#shared/utils/routes'
 import { sessionSandboxName } from '#server/utils/storage'
 import { gitProvider } from '#server/git'
 import { dashboardOrigin } from '#server/utils/origin'
-import { agentRepliedSince, describeObject, workObject } from '#server/utils/sessions'
+import { agentRepliedSince, describeObject, markSessionDone, workObject } from '#server/utils/sessions'
 import { getIntegration, type CommentAuthor } from '#server/integrations'
 import { handBackObject, takeObject } from '#server/integrations/assignee'
 import { addressee } from '#server/integrations/capabilities'
@@ -147,6 +147,8 @@ async function execRun(runId: number, project: Project): Promise<void> {
     await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)
     finishRun(runId, 'success')
+    // Nobody asked for an unattended run's session, so nobody would mark it done. A failure stays open to be seen.
+    if (run.triggerId && run.trigger !== 'manual') markSessionDone(session)
     await notifyRunFinished(runId, project, session, 'success', log, await handBackObject(session, runId, project, log))
   }
   catch (e) {

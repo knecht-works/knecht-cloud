@@ -208,6 +208,20 @@ describe('runner', () => {
     expect(steps[1]!.outputs?.stdout).toBe('got: hello')
   })
 
+  it('marks the session of a successful schedule run done and stops its environment', async () => {
+    const workflow = db.insert(schema.workflows).values({ name: 'nightly', steps: [] }).returning().get()
+    const schedule = db.insert(schema.triggers).values({ source: 'schedule', cron: '*/15 * * * *', workflowId: workflow.id, projectIds: [] }).returning().get()
+    const fired = { trigger: 'schedule', triggerId: schedule.id }
+
+    const { run } = await execute([{ type: 'bash', id: 'noop', command: 'true' }], fired)
+    expect(getSessionRow(run.sessionId).status).toBe('closed')
+    await vi.waitFor(() => expect(getSessionRow(run.sessionId).envState).toBe('stopped'))
+
+    const { run: failed } = await execute([{ type: 'bash', id: 'boom', command: 'exit 1' }], fired)
+    expect(failed.status).toBe('failed')
+    expect(getSessionRow(failed.sessionId).status).toBe('open')
+  })
+
   it('leaves a session without a boot step up as a code session', async () => {
     const { run } = await execute([{ type: 'bash', id: 'noop', command: 'true' }])
     const session = db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
