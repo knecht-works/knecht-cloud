@@ -76,7 +76,11 @@ export function sessionSandbox(runId: number, log: (text: string) => void, signa
   return {
     projectDir: '/var/www/html',
     ensureUp: async () => {},
-    withoutPreview: async () => ({ stream: (command, opts) => streamInSandbox(runId, command, log, opts?.env, signal), release: async () => {} }),
+    withoutPreview: async () => ({
+      stream: (command, opts) => streamInSandbox(runId, command, log, opts?.env, signal),
+      exec: async (command, opts) => String((await execInSandbox(runId, command, { cancelSignal: signal, input: opts?.input, stripFinalNewline: false }, opts?.env)).stdout),
+      release: async () => {},
+    }),
     stream: (command, opts) => streamInSandbox(runId, command, log, opts?.env, signal),
     exec: async (command, opts) => String((await execInSandbox(runId, command, { cancelSignal: signal, input: opts?.input, stripFinalNewline: false }, opts?.env)).stdout),
     spawn: (command, opts) => spawnInSandbox(runId, command, opts?.env),
