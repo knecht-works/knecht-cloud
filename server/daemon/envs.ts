@@ -105,6 +105,13 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
   const log = plan.log ?? (() => {})
   const exec = async (command: string[]) => (await streamInSandbox(sessionId, command, log, undefined, plan.signal)).code
   warmPreviewCertificates(sessionId)
+  // A running `ddev start` cannot be cut short without leaving a half-built stack, so the cancel shows while it winds down.
+  const showStopping = () => {
+    if (transitions.get(sessionId) !== 'booting') return
+    transitions.set(sessionId, 'stopping')
+    sessionChanged(sessionId)
+  }
+  plan.signal?.addEventListener('abort', showStopping, { once: true })
   try {
     await removeWorkspace(sessionId)
     if (plan.dbArchive) {
@@ -122,16 +129,16 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
       if (code !== 0) throw new Error(`ddev import-db exited with code ${code}`)
     }
     if (plan.projectCommands.trim()) log(`\nBoot commands (project settings):\n`)
-    await runSetupCommands(plan.projectCommands, c => exec(['bash', '-lc', c]), log)
+    await runSetupCommands(plan.projectCommands, c => exec(['bash', '-lc', c]), log, plan.signal)
     if (plan.stepCommands?.trim()) log(`\nAdditional setup commands (this workflow's boot step):\n`)
-    await runSetupCommands(plan.stepCommands, c => exec(['bash', '-lc', c]), log)
+    await runSetupCommands(plan.stepCommands, c => exec(['bash', '-lc', c]), log, plan.signal)
     const port = getSessionRow(sessionId)?.previewPort
     if (port != null) {
       log(`\n▶ Starting the dev server on port ${port}\n`)
       const since = new Date()
       try {
         await restartDevServer(exec)
-        await waitForDevServer(sessionId, port)
+        await waitForDevServer(sessionId, port, plan.signal)
       }
       catch (e) {
         const output = await devServerOutput(sessionId, since).catch(() => '')
@@ -147,15 +154,20 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
     if (stillIn(sessionId, 'up')) moveEnv(sessionId, 'up', 'stopped', { wakeOnVisit: false })
     throw e
   }
+  finally {
+    plan.signal?.removeEventListener('abort', showStopping)
+  }
 }
 
 async function runSetupCommands(
   commands: string | undefined,
   exec: (command: string) => Promise<number>,
   log: (text: string) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const lines = (commands ?? '').split('\n').map(l => l.trim()).filter(Boolean)
   for (const command of lines) {
+    signal?.throwIfAborted()
     log(`\n▶ ${command}\n`)
     const code = await exec(command)
     if (code !== 0) throw new Error(`'${command}' exited with code ${code}`)

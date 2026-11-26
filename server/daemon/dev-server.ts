@@ -27,9 +27,10 @@ export async function devServerOutput(sessionId: number, since: Date): Promise<s
   return all ?? ''
 }
 
-export async function waitForDevServer(sessionId: number, port: number): Promise<void> {
+export async function waitForDevServer(sessionId: number, port: number, signal?: AbortSignal): Promise<void> {
   const deadline = Date.now() + DEV_SERVER_TIMEOUT_MS
   while (Date.now() < deadline) {
+    signal?.throwIfAborted()
     const ip = await resolvePreview(sessionId)
     if (ip) {
       try {
@@ -40,7 +41,7 @@ export async function waitForDevServer(sessionId: number, port: number): Promise
         // Not listening yet.
       }
     }
-    await sleep(POLL_MS)
+    await sleep(POLL_MS, undefined, { signal })
   }
   throw new Error(`The dev server did not answer on port ${port} within ${DEV_SERVER_TIMEOUT_MS / 1000}s; check the boot log for its output.`)
 }
