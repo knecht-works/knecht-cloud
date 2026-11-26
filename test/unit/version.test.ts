@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { clearVersionCache, isNewerVersion, latestVersion, listReleases } from '#server/utils/version'
+import { availableUpdate, clearVersionCache, isNewerVersion, listReleases } from '#server/utils/version'
 
 describe('isNewerVersion', () => {
   it('compares stable tags numerically', () => {
@@ -9,22 +9,15 @@ describe('isNewerVersion', () => {
     expect(isNewerVersion('v0.2.0', 'v0.3.0')).toBe(false)
   })
 
-  it('never offers a pre-release as candidate', () => {
-    expect(isNewerVersion('v0.3.0-rc.1', 'v0.2.0')).toBe(false)
-  })
-
   it('supersedes a running pre-release with its stable release', () => {
     expect(isNewerVersion('v0.3.0', 'v0.3.0-rc.1')).toBe(true)
     expect(isNewerVersion('v0.4.0', 'v0.3.0-rc.1')).toBe(true)
     expect(isNewerVersion('v0.3.0', 'v0.4.0-rc.1')).toBe(false)
   })
 
-  it('offers pre-releases only when asked to', () => {
-    expect(isNewerVersion('v0.3.0-rc.2', 'v0.3.0-rc.1', true)).toBe(true)
-    expect(isNewerVersion('v0.3.0-rc.1', 'v0.2.0', true)).toBe(true)
-    expect(isNewerVersion('v0.3.0-rc.1', 'v0.3.0', true)).toBe(false)
-    expect(isNewerVersion('v0.3.0-rc.2', 'v0.3.0-rc.1')).toBe(false)
-    expect(isNewerVersion('v0.3.0-beta.1', 'v0.2.0', true)).toBe(false)
+  it('orders pre-releases', () => {
+    expect(isNewerVersion('v0.3.0-rc.2', 'v0.3.0-rc.1')).toBe(true)
+    expect(isNewerVersion('v0.3.0-rc.1', 'v0.3.0')).toBe(false)
   })
 
   it('never offers updates to non-release builds', () => {
@@ -36,11 +29,16 @@ describe('isNewerVersion', () => {
 describe('release list', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
+    vi.unstubAllEnvs()
     clearVersionCache()
   })
 
+  function stubReleases(releases: { tag_name: string, draft?: boolean }[]) {
+    vi.stubGlobal('$fetch', async () => releases)
+  }
+
   it('includes release candidates only when asked to', async () => {
-    vi.stubGlobal('$fetch', async () => [
+    stubReleases([
       { tag_name: 'v0.3.0-rc.2' },
       { tag_name: 'v0.2.1' },
       { tag_name: 'v0.3.0-rc.1' },
@@ -49,11 +47,25 @@ describe('release list', () => {
     ])
     expect((await listReleases()).map(r => r.tag)).toEqual(['v0.2.1'])
     expect((await listReleases(true)).map(r => r.tag)).toEqual(['v0.3.0-rc.2', 'v0.2.1', 'v0.3.0-rc.1'])
-    expect(await latestVersion(true)).toBe('v0.3.0-rc.2')
   })
 
-  it('picks the stable release over its own candidates', async () => {
-    vi.stubGlobal('$fetch', async () => [{ tag_name: 'v0.3.0-rc.2' }, { tag_name: 'v0.3.0' }])
-    expect(await latestVersion(true)).toBe('v0.3.0')
+  it('offers the semver-highest newer release', async () => {
+    vi.stubEnv('KNECHT_VERSION', 'v0.2.0')
+    stubReleases([{ tag_name: 'v0.2.1' }, { tag_name: 'v0.3.0-rc.2' }, { tag_name: 'v0.3.0-rc.1' }, { tag_name: 'v0.2.5' }])
+    expect(await availableUpdate()).toBe('v0.2.5')
+    expect(await availableUpdate(true)).toBe('v0.3.0-rc.2')
+  })
+
+  it('offers the stable release over its own candidates', async () => {
+    vi.stubEnv('KNECHT_VERSION', 'v0.3.0-rc.1')
+    stubReleases([{ tag_name: 'v0.3.0-rc.2' }, { tag_name: 'v0.3.0' }])
+    expect(await availableUpdate()).toBe('v0.3.0')
+    expect(await availableUpdate(true)).toBe('v0.3.0')
+  })
+
+  it('offers nothing when the running version is the newest', async () => {
+    vi.stubEnv('KNECHT_VERSION', 'v0.3.0')
+    stubReleases([{ tag_name: 'v0.3.0' }, { tag_name: 'v0.3.0-rc.2' }])
+    expect(await availableUpdate(true)).toBeNull()
   })
 })

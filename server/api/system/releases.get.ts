@@ -4,10 +4,9 @@ import { defineEventHandler } from 'h3'
 
 export default defineEventHandler(async () => {
   const current = currentVersion()
-  const { prereleaseUpdates } = getSettings()
-  const releases = await listReleases(prereleaseUpdates)
+  const releases = await listReleases(getSettings().prereleaseUpdates)
   return {
     current,
-    releases: releases.map(r => ({ ...r, isNew: isNewerVersion(r.tag, current, prereleaseUpdates) })),
+    releases: releases.map(r => ({ ...r, isNew: isNewerVersion(r.tag, current) })),
   }
 })

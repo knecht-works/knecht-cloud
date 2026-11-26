@@ -13,7 +13,7 @@
 # manifest on GHCR (the version tag + latest), and creates the GitHub Release.
 # The per-arch tags (vX.Y.Z-amd64/-arm64) stay behind on GHCR as build
 # artifacts; servers always pull the merged tag. The Release matters beyond
-# ceremony: the in-app updater polls releases/latest, which only sees actual
+# ceremony: the in-app updater polls the releases list, which only sees actual
 # Releases, not bare tags, and the dashboard renders each Release body as the
 # changelog (server/utils/version.ts listReleases). The body comes from
 # scripts/changelog-preview.sh: the body of the release PR (releases/<tag>)

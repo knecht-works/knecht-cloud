@@ -10,28 +10,6 @@ export function currentVersion(): string {
   return process.env.KNECHT_VERSION || 'dev'
 }
 
-let cache: { value: string | null, fetchedAt: number } | null = null
-
-export async function latestVersion(prereleases = false): Promise<string | null> {
-  if (prereleases) {
-    const tags = (await listReleases(true)).map(r => r.tag)
-    return semver.rsort(tags)[0] ?? null
-  }
-  if (cache && Date.now() - cache.fetchedAt < CACHE_MS) return cache.value
-  try {
-    const res = await $fetch<{ tag_name?: string }>(
-      `https://api.github.com/repos/${REPO}/releases/latest`,
-      { timeout: 5000 },
-    )
-    const tag = res.tag_name && RELEASE_TAG_RE.test(res.tag_name) ? res.tag_name : null
-    cache = { value: tag, fetchedAt: Date.now() }
-  }
-  catch {
-    cache = { value: cache?.value ?? null, fetchedAt: Date.now() }
-  }
-  return cache.value
-}
-
 export interface Release {
   tag: string
   notes: string
@@ -49,7 +27,7 @@ async function fetchReleases(): Promise<Release[]> {
   if (releasesCache && Date.now() - releasesCache.fetchedAt < CACHE_MS) return releasesCache.value
   try {
     const res = await $fetch<{ tag_name?: string, body?: string, published_at?: string, draft?: boolean }[]>(
-      `https://api.github.com/repos/${REPO}/releases?per_page=20`,
+      `https://api.github.com/repos/${REPO}/releases?per_page=100`,
       { timeout: 5000 },
     )
     const releases = res
@@ -63,13 +41,16 @@ async function fetchReleases(): Promise<Release[]> {
   return releasesCache.value
 }
 
-export function isNewerVersion(candidate: string, current: string, prereleases = false): boolean {
-  if (!(prereleases ? ANY_RELEASE_TAG_RE : RELEASE_TAG_RE).test(candidate)) return false
+export function isNewerVersion(candidate: string, current: string): boolean {
   const cur = semver.valid(current)
-  return cur !== null && semver.gt(candidate, cur)
+  return cur !== null && semver.valid(candidate) !== null && semver.gt(candidate, cur)
+}
+
+export async function availableUpdate(prereleases = false): Promise<string | null> {
+  const newest = semver.rsort((await listReleases(prereleases)).map(r => r.tag))[0]
+  return newest && isNewerVersion(newest, currentVersion()) ? newest : null
 }
 
 export function clearVersionCache(): void {
-  cache = null
   releasesCache = null
 }

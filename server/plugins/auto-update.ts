@@ -2,7 +2,7 @@ import { hasRunningWork } from '#server/daemon/dispatcher'
 import { startUpdate } from '#server/daemon/update'
 import { getSettings } from '#server/utils/settings'
 import { isValidCron, nextRun } from '#server/utils/cron'
-import { currentVersion, isNewerVersion, latestVersion } from '#server/utils/version'
+import { availableUpdate } from '#server/utils/version'
 import { defineNitroPlugin } from 'nitropack/runtime'
 
 let lastCron = ''
@@ -30,8 +30,8 @@ async function tick(): Promise<void> {
   }
   if (!due) return
 
-  const latest = await latestVersion()
-  if (!latest || !isNewerVersion(latest, currentVersion()) || attempted === latest) {
+  const latest = await availableUpdate()
+  if (!latest || attempted === latest) {
     due = false
     return
   }
