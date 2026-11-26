@@ -9,6 +9,7 @@ import { getSessionRow, findBranchSession, createSession, requireSession, sessio
 import { findObjectRow, getObjectRow, insertObjectRow, listSessionObjectRows, updateObjectRow } from '#server/stores/session-objects'
 import { latestSessionPrUrl, sessionHasActiveRun } from '#server/stores/runs'
 import { sessionHasActiveFollowup } from '#server/stores/followups'
+import { stopEnv } from '#server/daemon/envs'
 
 export interface SessionObject {
   integration: IntegrationId
@@ -126,6 +127,14 @@ export function syncObjectStatus(projectId: number, object: SessionObject, statu
 export function setObjectlessSessionStatus(session: Session, status: 'open' | 'closed'): boolean {
   if (listSessionObjectRows(session.id).length) return false
   if (session.status !== status) updateSession(session.id, { status, closedAt: status === 'closed' ? new Date() : null })
+  return true
+}
+
+export function markSessionDone(session: Session): boolean {
+  if (!setObjectlessSessionStatus(session, 'closed')) return false
+  if (requireSession(session.id).envState === 'up' && !sessionHasActiveWork(session.id)) {
+    void stopEnv(session.id).catch(e => console.error(`[envs] stopping the env of done session ${session.id} failed:`, e))
+  }
   return true
 }
 
