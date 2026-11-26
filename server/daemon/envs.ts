@@ -26,6 +26,8 @@ export function envTransition(sessionId: number): EnvTransition | null {
   return transitions.get(sessionId) ?? null
 }
 
+const starts = new Map<number, Set<Promise<void>>>()
+
 // One at a time: an archive under a running reboot would delete the checkout it boots from.
 export async function inTransition(sessionId: number, kind: EnvTransition, fn: () => Promise<void>): Promise<void> {
   const running = transitions.get(sessionId)
@@ -33,12 +35,28 @@ export async function inTransition(sessionId: number, kind: EnvTransition, fn: (
   transitions.set(sessionId, kind)
   sessionChanged(sessionId)
   try {
+    // A stop that inspected the stack while a start still created it would mark containers stopped that keep running.
+    await Promise.allSettled(starts.get(sessionId) ?? [])
     await fn()
   }
   finally {
     transitions.delete(sessionId)
     sessionChanged(sessionId)
   }
+}
+
+// Too frequent for a visible transition (every step starts its sandbox), so a transition only waits for it.
+function guardedStart(sessionId: number, fn: () => Promise<void>): Promise<void> {
+  const running = transitions.get(sessionId)
+  if (running) return Promise.reject(new Error(`The environment is ${running}`))
+  const pending = starts.get(sessionId) ?? new Set()
+  starts.set(sessionId, pending)
+  const start = fn().finally(() => {
+    pending.delete(start)
+    if (!pending.size && starts.get(sessionId) === pending) starts.delete(sessionId)
+  })
+  pending.add(start)
+  return start
 }
 
 const MOVES: Record<EnvState, EnvState[]> = {
@@ -253,8 +271,15 @@ export async function reviveEnv(sessionId: number, log?: (text: string) => void)
   if (session.envState === 'archived') return rehydrateEnv(sessionId, log)
   if (previewLost(sessionId)) return rebootLostPreview(sessionId, log)
   if (session.envState === 'stopped') return rebootEnv(sessionId)
-  await startSandbox(sessionId, session.tier, false, log)
+  await guardedStart(sessionId, () => startSandbox(sessionId, session.tier, false, log))
   touchSessionPreview(sessionId)
+}
+
+export function applyEnvDefinition(sessionId: number, log: (text: string) => void): Promise<void> {
+  const session = getSessionRow(sessionId)
+  // A transition under way boots from the regenerated definition or leaves the env down.
+  if (session?.envState !== 'up' || transitions.has(sessionId)) return Promise.resolve()
+  return guardedStart(sessionId, () => session.tier === 'preview' ? startEnvStack(sessionId, log) : removeWorkspace(sessionId))
 }
 
 // An expired archive resets the tier, so a later checkout comes back as a bare workspace.
@@ -313,15 +338,17 @@ export async function reconcileEnvStates(): Promise<void> {
 export async function stopEnv(sessionId: number, { byHand = false } = {}): Promise<void> {
   if (transitions.get(sessionId) === 'stopping') return
   await inTransition(sessionId, 'stopping', async () => {
-    if (!stillIn(sessionId, 'up')) return
-    if (getSessionRow(sessionId)?.tier === 'preview') {
+    const session = getSessionRow(sessionId)
+    if (!session) return
+    // Any state: containers a state no longer accounts for must stay stoppable.
+    if (session.tier === 'preview') {
       // `ddev stop` on an unregistered project fails and would wedge the env in 'up'.
       if (await envStackRunning(sessionId)) await stopEnvStack(sessionId)
     }
     else {
       await removeWorkspace(sessionId)
     }
-    moveEnv(sessionId, 'up', 'stopped', byHand ? { wakeOnVisit: false } : {})
+    if (session.envState === 'up') moveEnv(sessionId, 'up', 'stopped', byHand ? { wakeOnVisit: false } : {})
   })
 }
 

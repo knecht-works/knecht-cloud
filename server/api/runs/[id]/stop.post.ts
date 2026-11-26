@@ -13,9 +13,6 @@ export default defineEventHandler(async (event) => {
   if (sessionHasActiveWork(session.id)) {
     throw createError({ statusCode: 409, statusMessage: 'The session is still executing work; wait for it or cancel it first.' })
   }
-  if (session.envState !== 'up') {
-    throw createError({ statusCode: 409, statusMessage: 'Only a running environment can be stopped.' })
-  }
   await stopEnv(session.id, { byHand: true })
   return withRunSessionEnv(requireRun(id))
 })
