@@ -53,10 +53,38 @@ grep -rhoE "/assets/[a-zA-Z0-9_-]+\.png" content/*/updates | sort -u   # never t
 - Avoid private content in shots (for example the instance-wide agent
   instructions). If it is visible, tell the user before replacing the image.
 
+## Marketing DB
+
+Shots run against a seeded copy of the dev DB, so the data is the same every
+time: parody project names, curated sessions, a dashboard history and the dark
+mode follow-up conversation. `scripts/seed-marketing.mjs` builds it from the
+dev DB plus `scripts/seed-marketing.fixture.json` (workflows, triggers, the
+conversation). The dev DB is never written.
+
+1. Turn the tunnel off and stop the dev server:
+   `limactl shell knecht-dev -- bash -c 'cd <repo> && docker compose -f docker-compose.yml -f docker-compose.dev.yml stop knecht'`.
+2. `npm run db:seed:marketing`. It prints the dark mode session id (set
+   `DARK_MODE_SESSION` in `shots.mjs` to it) and the live session id (CC-128).
+3. `npm run dev:vm:marketing` (marketing DB, GC off so the dev environments
+   survive), then log in as below.
+4. Live boot: `POST /api/sessions/<live session id>/preview` boots the preview
+   inside the CC-128 session, so no extra session shows up. Wait until the run
+   is `success` with `envState: up`. The clone needs the real repo name, so boot
+   before the rename.
+5. `npm run db:seed:marketing -- --rename` applies the parody names.
+6. Shoot with `LIVE_SESSION=<live session id>`; `knecht-trigger-jira-status-error`
+   needs `KEEP=1` so its dropdown stays open.
+7. Close the live session (`POST /api/sessions/<id>/status {"status":"closed"}`),
+   then go back to the dev DB: stop the container again and run `npm run dev:vm`.
+
+GitHub label and branch lists load by repo name, which the parody names break;
+`withRealRepos` in `shots.mjs` swaps the real names in after the page loaded.
+
 ## Run it
 
-1. The dev server must run (`npm run dev:vm`, port 3333). Get a session cookie
-   with the `dashboard-auth` skill, written as a curl jar into the work dir:
+1. The dev server must run (`npm run dev:vm:marketing`, port 3333). Get a
+   session cookie with the `dashboard-auth` skill, written as a curl jar into
+   the work dir:
 
    ```bash
    WORK=<scratchpad>/shots && mkdir -p $WORK/new
@@ -78,12 +106,8 @@ grep -rhoE "/assets/[a-zA-Z0-9_-]+\.png" content/*/updates | sort -u   # never t
 
 ## Shots that need a live run
 
-- `project`, `knecht-run`: need a run with a live preview. Start one with
-  `POST /api/runs {"projectId": <test-no-ddev>, "workflowId": <Project Specific Boot>}`
-  and shoot once it is `success` with `envState: up`. `boot-and-preview` fails
-  on test-no-ddev (it runs npm, the project uses pnpm).
-- `running-workflow`: start the same run and shoot `/workflows/<id>` about 15s
-  later, while the boot step is still running.
+- `project`, `dashboard`, `sessions`, `knecht-session-page`: need the live
+  boot from step 4 above.
 - These are local ddev runs only. Never start workflows with AI steps or ones
   that push or open PRs without asking.
 
