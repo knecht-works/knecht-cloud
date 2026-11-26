@@ -10,6 +10,7 @@ import { remoteWithMain } from '../helpers/git-remote'
 
 const calls: string[] = []
 const failing = new Set<string>()
+let onStream = (_line: string) => {}
 const startEnvStack = vi.fn(async (_sessionId: number, _log?: (text: string) => void) => {
   calls.push('ddev start')
 })
@@ -30,6 +31,7 @@ vi.mock('#server/daemon/sandbox', () => ({
     signal?.throwIfAborted()
     const line = command.join(' ')
     calls.push(line)
+    onStream(line)
     return { code: failing.has(line) ? 1 : 0, tail: '' }
   },
 }))
@@ -50,7 +52,7 @@ vi.mock('#server/daemon/db-base', () => ({
   readyDbBase: async () => null,
   restoreDbVolume: async (_sessionId: number, archive: string) => { calls.push(`restore ${archive}`) },
 }))
-const waitForDevServer = vi.fn(async (_sessionId: number, _port: number) => {})
+const waitForDevServer = vi.fn(async (_sessionId: number, _port: number, _signal?: AbortSignal) => {})
 const noteDevServerUse = vi.fn(async (_sessionId: number, _log: (text: string) => void) => {})
 const devServerOutput = vi.fn(async (_sessionId: number, _since: Date) => '')
 vi.mock('#server/daemon/dev-server', () => ({
@@ -59,7 +61,7 @@ vi.mock('#server/daemon/dev-server', () => ({
   restartDevServer: async (exec: (command: string[]) => Promise<number>) => {
     if (await exec(['supervisorctl', 'restart', 'webextradaemons:*']) !== 0) throw new Error('Could not restart the dev server')
   },
-  waitForDevServer: (sessionId: number, port: number) => waitForDevServer(sessionId, port),
+  waitForDevServer: (sessionId: number, port: number, signal?: AbortSignal) => waitForDevServer(sessionId, port, signal),
 }))
 
 const origin = vi.hoisted(() => ({ url: '' }))
@@ -72,7 +74,7 @@ vi.mock('#server/utils/github-app', () => ({
 }))
 
 const { db, schema } = await import('#server/db')
-const { archiveEnv, bootEnv, rehydrateEnv, reviveEnv, stopEnv } = await import('#server/daemon/envs')
+const { archiveEnv, bootEnv, envTransition, inTransition, rehydrateEnv, reviveEnv, stopEnv } = await import('#server/daemon/envs')
 const { sessionArchiveDir, sessionCheckoutDir } = await import('#server/utils/storage')
 const { ddevStartAction } = await import('#server/workflows/actions/ddev-start')
 
@@ -83,6 +85,7 @@ function freshSession(project: Project) {
 beforeEach(() => {
   calls.length = 0
   failing.clear()
+  onStream = () => {}
   startEnvStack.mockClear()
   stopEnvStack.mockClear()
   waitForDevServer.mockReset()
@@ -101,7 +104,7 @@ describe('bootEnv', () => {
       'bash -lc pnpm run build',
       'supervisorctl restart webextradaemons:*',
     ])
-    expect(waitForDevServer).toHaveBeenCalledWith(session.id, 3000)
+    expect(waitForDevServer).toHaveBeenCalledWith(session.id, 3000, undefined)
     expect(noteDevServerUse).toHaveBeenCalledWith(session.id, expect.any(Function))
   })
 
@@ -129,6 +132,47 @@ describe('bootEnv', () => {
     await expect(bootEnv(session.id, { dbFile: null, projectCommands: 'pnpm install' })).rejects.toThrow('exited with code 1')
     expect(calls.at(-1)).toBe('ddev stop')
     expect(getSessionRow(session.id).tier).toBe('code')
+  })
+
+  it('starts no further boot command once the run is cancelled', async () => {
+    const session = freshSession(makeProject())
+    const cancel = new AbortController()
+    // A cancelled `docker exec` client can still report exit code 0.
+    onStream = (line) => {
+      if (line === 'bash -lc ddev npm install') cancel.abort()
+    }
+    const log: string[] = []
+    await expect(bootEnv(session.id, { dbFile: null, projectCommands: 'ddev npm install\nddev craft up', log: text => log.push(text), signal: cancel.signal })).rejects.toThrow()
+    expect(calls).not.toContain('bash -lc ddev craft up')
+    expect(log.join('')).not.toContain('ddev craft up')
+    expect(calls.at(-1)).toBe('ddev stop')
+  })
+
+  it('shows the environment as stopping as soon as the run is cancelled', async () => {
+    const session = freshSession(makeProject())
+    const cancel = new AbortController()
+    let seen: string | null = null
+    onStream = (line) => {
+      if (line !== 'bash -lc pnpm install') return
+      cancel.abort()
+      seen = envTransition(session.id)
+    }
+    await expect(inTransition(session.id, 'booting', () => bootEnv(session.id, { dbFile: null, projectCommands: 'pnpm install', signal: cancel.signal }))).rejects.toThrow()
+    expect(seen).toBe('stopping')
+    expect(envTransition(session.id)).toBeNull()
+  })
+
+  it('stops the stack when the run is cancelled while the dev server starts', async () => {
+    const session = freshSession(makeProject())
+    const cancel = new AbortController()
+    noteDevServerUse.mockClear()
+    waitForDevServer.mockImplementationOnce(async (_sessionId, _port, signal) => {
+      cancel.abort()
+      signal?.throwIfAborted()
+    })
+    await expect(bootEnv(session.id, { dbFile: null, projectCommands: '', signal: cancel.signal })).rejects.toThrow()
+    expect(stopEnvStack).toHaveBeenCalledWith(session.id)
+    expect(noteDevServerUse).not.toHaveBeenCalled()
   })
 
   it('stops the stack when the dev server never answers', async () => {
