@@ -109,7 +109,7 @@ export interface ProjectActivity {
 }
 
 export function projectStatusMeta(run: Omit<ProjectRunSummary, 'workflow' | 'createdAt'> | null | undefined): RunStatusMeta {
-  if (!run || run.envTransition || isLiveStatus(run.status) || run.status === 'failed') return runStatusMeta(run)
+  if (!run || run.envTransition || isLiveStatus(run.status) || run.status === 'failed' || run.status === 'cancelled') return runStatusMeta(run)
   if (run.envState === 'up' && run.previewReady) return { ...SESSION_ENV_META.up, label: 'Live' }
   if (run.envState === 'down' && run.sessionStatus === 'closed') return { ...SESSION_ENV_META.down, label: 'Closed' }
   return SESSION_ENV_META[run.envState]

@@ -173,7 +173,7 @@ const menuItems = computed(() => {
   }]
   const run = props.isLive
     ? [{ label: 'Cancel run', icon: 'i-lucide-square', color: 'error' as const, disabled: cancelling.value, onSelect: cancel }]
-    : retryable.value
+    : retryable.value && props.workflowId !== null
       ? [{ label: 'Resume from the failed step', icon: 'i-lucide-step-forward', disabled: retrying.value, onSelect: retry }]
       : []
   return [run, [...preview, ...lifecycle, ...remove]].filter(group => group.length)
@@ -189,9 +189,12 @@ interface PinnedAction {
 }
 
 const pinned = computed<PinnedAction[]>(() => [
-  ...(retryable.value && props.workflowId !== null
-    ? [{ label: 'Run workflow again', icon: 'i-lucide-rotate-ccw', disabled: restarting.value, onSelect: runAgain, primary: true }]
-    : []),
+  ...(!retryable.value
+    ? []
+    : props.workflowId !== null
+      ? [{ label: 'Run workflow again', icon: 'i-lucide-rotate-ccw', disabled: restarting.value, onSelect: runAgain, primary: true }]
+      // Run again would reset the checkout, and a session's boot runs on top of its work.
+      : [{ label: 'Retry', icon: 'i-lucide-rotate-ccw', disabled: retrying.value, onSelect: retry, primary: true }]),
   ...props.prs.map(pr => ({ label: `Open ${pr.label}`, icon: 'i-lucide-git-pull-request', to: pr.url, primary: true })),
   ...(!props.isLive && props.envState !== 'down'
     ? [{ label: 'Open in IDE', icon: 'i-lucide-code-xml', disabled: !canTerminal.value, onSelect: openInVscode }]
