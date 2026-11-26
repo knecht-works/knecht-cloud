@@ -37,7 +37,7 @@ export const ddevStartAction = defineAction({
       await rt.sandbox.ensureUp()
       rt.log(`Environment already booted in this session: nothing to do\n`)
       const port = getSessionRow(rt.sessionId)?.previewPort
-      if (port != null) await waitForDevServer(rt.sessionId, port)
+      if (port != null) await waitForDevServer(rt.sessionId, port, rt.signal)
       return previewOutputs(rt)
     }
     const hasDb = readDdevConfig(rt.checkoutDir)?.hasDb ?? true
