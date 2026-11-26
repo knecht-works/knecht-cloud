@@ -302,7 +302,7 @@ const updateTarget = computed(() =>
     </aside>
 
     <main class="relative z-10 min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
-      <div class="mx-auto max-w-480 px-8 py-7">
+      <div class="mx-auto max-w-480 px-8 pt-5 pb-7">
         <slot />
       </div>
     </main>

@@ -17,7 +17,7 @@ withDefaults(defineProps<{
       >
         <KStatusDot :size="6" /> {{ eyebrow }}
       </div>
-      <h1 class="text-xl font-semibold leading-tight tracking-tight text-highlighted">
+      <h1 class="text-2xl font-semibold leading-tight tracking-tight text-highlighted">
         {{ title }}
       </h1>
       <p
