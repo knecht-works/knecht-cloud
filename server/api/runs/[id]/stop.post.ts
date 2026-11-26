@@ -16,6 +16,6 @@ export default defineEventHandler(async (event) => {
   if (session.envState !== 'up') {
     throw createError({ statusCode: 409, statusMessage: 'Only a running environment can be stopped.' })
   }
-  await stopEnv(session.id)
+  await stopEnv(session.id, { byHand: true })
   return withRunSessionEnv(requireRun(id))
 })

@@ -16,7 +16,8 @@ vi.mock('#server/daemon/sandbox', () => ({
   forgetPreview: () => {},
 }))
 
-vi.mock('#imports', () => ({ getUserSession: async () => ({}), clearUserSession: async () => {} }))
+const userSession = vi.hoisted(() => ({ current: {} as { user?: { id: number }, sessionVersion?: number } }))
+vi.mock('#imports', () => ({ getUserSession: async () => userSession.current, clearUserSession: async () => {} }))
 
 const { proxyRunPreview } = await import('#server/utils/preview-proxy')
 const { cookieValue, shareSession, shareToken } = await import('#server/utils/preview-share')
@@ -26,13 +27,14 @@ const share = (await import('#server/api/sessions/[id]/share.post')).default
 afterEach(() => {
   updateSettings({ previewAccess: 'login', shareLinkHours: 24, idleStopMinutes: 1440, previewRetentionDays: 7 })
   reviveEnv.mockClear()
+  userSession.current = {}
 })
 
 function previewSession(project: Project = makeProject(), envState: 'up' | 'stopped' = 'up') {
   return makeSession(project, { envState, tier: 'preview', previewHosts: ['site.ddev.site'] })
 }
 
-async function visit(sessionId: number, opts: { path?: string, shareCookie?: string } = {}) {
+async function visit(sessionId: number, opts: { path?: string, shareCookie?: string, headers?: Record<string, string> } = {}) {
   const app = createApp().use(event => proxyRunPreview(event, sessionId, undefined, false, opts.shareCookie))
   const server = createServer(toNodeListener(app))
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -43,7 +45,7 @@ async function visit(sessionId: number, opts: { path?: string, shareCookie?: str
         host: '127.0.0.1',
         port,
         path: opts.path ?? '/',
-        headers: { host: `${sessionId}.preview.knecht.test`, accept: 'text/html' },
+        headers: { host: `${sessionId}.preview.knecht.test`, accept: 'text/html', ...opts.headers },
       }, (res) => {
         let body = ''
         res.on('data', c => body += c)
@@ -115,6 +117,48 @@ describe('preview access', () => {
     expect(res.status).toBe(503)
     expect(res.body).toContain('starting now')
     expect(reviveEnv).toHaveBeenCalledWith(session.id)
+  })
+
+  it('wakes a stopped preview only when someone opens the page, not for requests of a tab left open on it', async () => {
+    const session = previewSession(makeProject({ previewAccess: 'public' }), 'stopped')
+
+    for (const headers of [{ 'sec-fetch-dest': 'empty', 'accept': 'text/x-vite-ping' }, { 'sec-fetch-dest': 'iframe' }, { accept: 'application/json' }]) {
+      expect((await visit(session.id, { headers })).status).toBe(503)
+    }
+    expect(reviveEnv).not.toHaveBeenCalled()
+
+    await visit(session.id, { headers: { 'sec-fetch-dest': 'document' } })
+    expect(reviveEnv).toHaveBeenCalledWith(session.id)
+  })
+
+  it('wakes a preview stopped by hand only for a visitor from outside, not for a member', async () => {
+    const { db, schema } = await import('#server/db')
+    const { eq } = await import('drizzle-orm')
+    const stoppedByHand = () => {
+      const session = previewSession(makeProject(), 'stopped')
+      db.update(schema.sessions).set({ wakeOnVisit: false }).where(eq(schema.sessions.id, session.id)).run()
+      return session
+    }
+    const member = db.insert(schema.members).values({ login: `stopper-${Date.now()}` }).returning().get()
+    userSession.current = { user: { id: member.id }, sessionVersion: member.sessionVersion }
+    const opened = { headers: { 'sec-fetch-dest': 'document' } }
+
+    const own = stoppedByHand()
+    const res = await visit(own.id, opened)
+    expect(res.body).toContain('was stopped')
+    expect(reviveEnv).not.toHaveBeenCalled()
+
+    const linked = stoppedByHand()
+    const { token } = shareSession(linked.id, { shareLinkHours: null })
+    await visit(linked.id, { ...opened, path: `/?knecht-share=${token}` })
+    expect(getSessionRow(linked.id).wakeOnVisit).toBe(true)
+    expect((await visit(linked.id, opened)).body).toContain('starting now')
+
+    userSession.current = {}
+    const guested = stoppedByHand()
+    shareSession(guested.id, { shareLinkHours: null })
+    expect((await visit(guested.id, { ...opened, shareCookie: shareToken(guested.id) })).body).toContain('starting now')
+    expect(reviveEnv).toHaveBeenCalledWith(guested.id)
   })
 
   it('never wakes a stopped preview for a visitor who is not let in', async () => {

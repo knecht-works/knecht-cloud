@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `wake_on_visit` integer DEFAULT true NOT NULL;

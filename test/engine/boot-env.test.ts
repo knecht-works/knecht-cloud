@@ -351,6 +351,20 @@ describe('stopEnv', () => {
     expect(calls).toEqual(['ddev stop'])
     expect(getSessionRow(session.id).envState).toBe('stopped')
   })
+
+  it('keeps a preview stopped by hand from waking on a visit until it is up again', async () => {
+    const session = makeSession(makeProject())
+    db.update(schema.sessions).set({ envState: 'up', tier: 'preview' }).where(eq(schema.sessions.id, session.id)).run()
+    await stopEnv(session.id)
+    expect(getSessionRow(session.id).wakeOnVisit).toBe(true)
+
+    await reviveEnv(session.id)
+    await stopEnv(session.id, { byHand: true })
+    expect(getSessionRow(session.id).wakeOnVisit).toBe(false)
+
+    await reviveEnv(session.id)
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'up', wakeOnVisit: true })
+  })
 })
 
 describe('archiveEnv', () => {

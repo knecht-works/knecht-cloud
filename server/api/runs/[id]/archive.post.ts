@@ -24,6 +24,6 @@ export default defineEventHandler(async (event) => {
         : 'Only a stopped environment can be archived.',
     })
   }
-  await archiveEnv(session.id)
+  await archiveEnv(session.id, { byHand: true })
   return withRunSessionEnv(requireRun(id))
 })

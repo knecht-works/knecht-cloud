@@ -5,7 +5,7 @@ import { resolvePreview, forgetPreview } from '#server/daemon/sandbox'
 import { credentialDevServerTags, devServerCorsOrigin, devServerLabel, looksLikeDevServerLabel, pointTagsAtDevServer, verifyDevServerLabel } from '#server/utils/dev-origin'
 import { sessionMember } from '#server/utils/member-session'
 import { sessionCheckoutDir } from '#server/utils/storage'
-import { getSessionRow, touchSessionPreview } from '#server/stores/sessions'
+import { getSessionRow, touchSessionPreview, updateSession } from '#server/stores/sessions'
 import { envTransition, reviveEnv } from '#server/daemon/envs'
 import { guestAllowed, shareCookieName, shareTokenValid } from '#server/utils/preview-share'
 import { SHARE_PARAM } from '#shared/utils/preview-access'
@@ -90,7 +90,7 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
   if (!env) {
     throw createError({ statusCode: 404, statusMessage: 'Session not found' })
   }
-  if (env.envState === 'stopped' || env.envState === 'archived') return wakePreview(event, sessionId)
+  if (env.envState === 'stopped' || env.envState === 'archived') return wakePreview(event, env, !internal && !session?.user)
   if (env.envState !== 'up') {
     throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
@@ -227,6 +227,8 @@ export async function proxyRunPreview(event: H3Event, sessionId: number, label: 
 function acceptShareLink(event: H3Event, env: Session, token: string, member: boolean): Promise<void> {
   const url = getRequestURL(event)
   if (shareTokenValid(env, token)) {
+    // Opening a share link asks for the preview, also when the member who stopped it opens it.
+    if (!env.wakeOnVisit) updateSession(env.id, { wakeOnVisit: true })
     const domain = process.env.KNECHT_BASE_DOMAIN
     setCookie(event, shareCookieName(env.id), token, {
       domain: domain ? `preview.${domain}` : undefined,
@@ -244,17 +246,31 @@ function acceptShareLink(event: H3Event, env: Session, token: string, member: bo
   return sendRedirect(event, url.toString(), 302)
 }
 
-const WAKING_PAGE = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="10"><title>Starting preview</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;background:#0b0b0c;color:#d4d4d8}p{margin:0;max-width:28rem;padding:0 16px;text-align:center}</style></head><body><p>This preview was asleep and is starting now. The page reloads by itself once it is ready, which can take a few minutes.</p></body></html>`
+function statusPage(title: string, text: string, refresh: boolean): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${refresh ? '<meta http-equiv="refresh" content="10">' : ''}<title>${title}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:15px/1.5 system-ui,sans-serif;background:#0b0b0c;color:#d4d4d8}p{margin:0;max-width:28rem;padding:0 16px;text-align:center}</style></head><body><p>${text}</p></body></html>`
+}
 
-function wakePreview(event: H3Event, sessionId: number): Promise<void> {
-  if (!envTransition(sessionId)) {
-    reviveEnv(sessionId).catch(e => console.error(`[preview] waking session ${sessionId} failed:`, e))
-  }
-  if (!String(getRequestHeader(event, 'accept') ?? '').includes('text/html')) {
-    throw createError({ statusCode: 503, statusMessage: 'Environment is starting' })
+const WAKING_PAGE = statusPage('Starting preview', 'This preview was asleep and is starting now. The page reloads by itself once it is ready, which can take a few minutes.', true)
+const STOPPED_PAGE = statusPage('Preview stopped', 'This preview was stopped. Start it again from its session in Knecht.', false)
+
+// Only a person opening the page wakes it: the HMR ping, polling and assets of a tab left open
+// on a stopped preview would otherwise undo every Stop.
+function opensPage(event: H3Event): boolean {
+  const dest = getRequestHeader(event, 'sec-fetch-dest')
+  return dest ? dest === 'document' : String(getRequestHeader(event, 'accept') ?? '').includes('text/html')
+}
+
+function wakePreview(event: H3Event, env: Session, guest: boolean): Promise<void> {
+  if (!opensPage(event)) {
+    throw createError({ statusCode: 503, statusMessage: 'Environment is not running' })
   }
   setResponseStatus(event, 503)
-  setResponseHeaders(event, { 'retry-after': 10, 'cache-control': 'no-store' })
+  setResponseHeaders(event, { 'cache-control': 'no-store' })
+  if (!env.wakeOnVisit && !guest) return send(event, STOPPED_PAGE, 'text/html; charset=utf-8')
+  if (!envTransition(env.id)) {
+    reviveEnv(env.id).catch(e => console.error(`[preview] waking session ${env.id} failed:`, e))
+  }
+  setResponseHeaders(event, { 'retry-after': 10 })
   return send(event, WAKING_PAGE, 'text/html; charset=utf-8')
 }
 
