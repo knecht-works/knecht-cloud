@@ -20,7 +20,7 @@ const meta = computed(() => workflowStepMeta(props.step))
 
 const record = computed(() => props.step as unknown as Record<string, string | boolean>)
 
-const policy = computed(() => props.step as { continueOnError?: boolean, timeoutSeconds?: number, freshContext?: boolean })
+const policy = computed(() => props.step as { continueOnError?: boolean, timeoutSeconds?: number, freshContext?: boolean, startPreview?: boolean })
 
 const forced = inject(FORCE_STEP_ISSUES, () => ref(false), true)
 const pristine = computed(() => stepPristine(props.step))
@@ -205,6 +205,17 @@ const varCount = computed(() => props.groups.reduce((n, g) => n + g.vars.length,
           :disabled="!editable"
           label="Fresh context"
           @update:model-value="policy.freshContext = $event"
+        />
+      </UTooltip>
+      <UTooltip
+        v-if="step.type === 'bash'"
+        text="Boots the preview first if needed. Off: runs without a database unless the preview is already running."
+      >
+        <USwitch
+          :model-value="policy.startPreview ?? false"
+          :disabled="!editable"
+          label="Start preview"
+          @update:model-value="policy.startPreview = $event"
         />
       </UTooltip>
     </div>
