@@ -1,17 +1,17 @@
 <script setup lang="ts">
-import type { SessionGroup, SessionHeaderRun } from '~/utils/dashboard'
+import type { RunStatusMeta, SessionGroup, SessionHeaderRun } from '~/utils/dashboard'
 import { computed } from 'vue'
-import { sessionTitle, sessionObjectMeta, projectStatusMeta } from '~/utils/dashboard'
+import { sessionTitle, sessionObjectMeta } from '~/utils/dashboard'
 import { integrationUi } from '~/utils/integrations'
 import KStatusBadge from '~/components/KStatusBadge.vue'
 import { UIcon, UTooltip } from '#components'
 
 const props = defineProps<{
   group: SessionGroup<SessionHeaderRun>
+  status: RunStatusMeta
 }>()
 
 const title = computed(() => sessionTitle(props.group))
-const status = computed(() => projectStatusMeta(props.group.runs[0]!))
 const objects = computed(() => props.group.objects
   .filter(o => o.url && o.kind !== 'pull_request')
   .map(o => ({ ...o, meta: sessionObjectMeta(o.integration, o.kind), source: integrationUi(o.integration).label })))

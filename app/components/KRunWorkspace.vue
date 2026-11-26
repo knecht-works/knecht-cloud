@@ -5,7 +5,7 @@ import type { SessionRun } from '~/composables/useSessionLogs'
 import type { SessionGroup, SessionHeaderRun } from '~/utils/dashboard'
 import { useRun } from '~/composables/useRuns'
 import { computed, ref } from 'vue'
-import { isLiveStatus, runStatusMeta, sessionObjectMeta } from '~/utils/dashboard'
+import { isLiveStatus, projectStatusMeta, runStatusMeta, sessionObjectMeta } from '~/utils/dashboard'
 import { useSessionLogs } from '~/composables/useSessionLogs'
 import { invalidate } from '~/composables/useLiveTopics'
 import KRunHeader from '~/components/KRunHeader.vue'
@@ -62,6 +62,12 @@ const terminalOpen = ref(false)
 const pending = ref<EnvTransition | null>(null)
 const busy = computed(() => run.value?.envTransition ?? pending.value)
 
+// The run status is the session's latest, the environment this view's, which also knows a Stop just clicked.
+const sessionStatus = computed(() => {
+  const r = run.value!
+  return projectStatusMeta({ ...props.group.runs[0]!, envState: r.envState, previewReady: r.previewReady, envTransition: busy.value })
+})
+
 function refreshWorkspace() {
   return invalidate(liveTopics.run(id))
 }
@@ -99,7 +105,10 @@ const headerEvents = {
     v-if="run"
     class="flex min-w-0 flex-col gap-4.5"
   >
-    <KSessionHeader :group="group">
+    <KSessionHeader
+      :group="group"
+      :status="sessionStatus"
+    >
       <KRunHeader
         v-bind="header"
         v-on="headerEvents"
