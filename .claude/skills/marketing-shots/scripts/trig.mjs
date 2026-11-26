@@ -28,6 +28,7 @@ export async function pick(p, combo, opts) {
       await p.waitForTimeout(600)
     }
     const exact = p.getByRole('option', { name: o, exact: true })
+    await exact.first().waitFor({ timeout: 4000 }).catch(() => {})
     if (await exact.count()) await exact.first().click()
     else await p.getByRole('option', { name: `Create "${o}"` }).click()
   }
