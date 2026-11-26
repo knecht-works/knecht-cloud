@@ -330,6 +330,20 @@ describe('runner', () => {
     expect(getSteps(run.id)[0]!.status).toBe('cancelled')
   })
 
+  it('counts a run as cancelled even when the cancelled command reports success', async () => {
+    const project = makeProject()
+    // Like a killed `docker exec` client, which can exit 0 while the command keeps running.
+    const run = makeRun(project, [{ type: 'bash', id: 'last', command: 'trap "exit 0" TERM; while true; do sleep 0.1; done' }])
+    const done = startRun(run.id, project)
+    for (let i = 0; i < 100 && getSteps(run.id).length === 0; i++) await sleep(50)
+    await sleep(200)
+    cancelRun(run.id)
+    await done
+    expect(getRun(run.id).status).toBe('cancelled')
+    expect(getRun(run.id).log).not.toContain('✓ Done')
+    expect(stopRunProcesses).toHaveBeenCalledWith(run.sessionId, run.id)
+  })
+
   it('stops what the cancelled run still runs in the session before it counts as cancelled', async () => {
     const project = makeProject()
     const run = makeRun(project, [{ type: 'bash', id: 'forever', command: 'sleep 30' }])
