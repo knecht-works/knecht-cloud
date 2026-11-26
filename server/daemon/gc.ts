@@ -13,7 +13,7 @@ import { removeWorkspace, WORKSPACE_LABEL, workspaceContainerName } from '#serve
 import { listSessionIds, listSessionsInEnvState } from '#server/stores/sessions'
 import { deleteToolCallsBefore } from '#server/stores/tool-calls'
 import { clearModelCatalogCache } from '#server/utils/ai-catalog'
-import { clearVersionCache, currentVersion, RELEASE_TAG_RE } from '#server/utils/version'
+import { ANY_RELEASE_TAG_RE, clearVersionCache, currentVersion } from '#server/utils/version'
 import { IMAGE as RELEASE_IMAGE } from '#server/daemon/update'
 import { useStorage } from 'nitropack/runtime'
 
@@ -272,10 +272,10 @@ export function staleImages(images: string[], keep: ImageKeep): string[] {
 
 // Only older ones: an update pulls the new release before it switches to it.
 export function staleReleaseImages(images: string[], current: string): string[] {
-  if (!RELEASE_TAG_RE.test(current)) return []
+  if (!ANY_RELEASE_TAG_RE.test(current)) return []
   return images.filter((image) => {
     const [repo, tag = ''] = image.split(/:(?=[^:]+$)/)
-    return repo === RELEASE_IMAGE && RELEASE_TAG_RE.test(tag) && semver.lt(tag, current)
+    return repo === RELEASE_IMAGE && ANY_RELEASE_TAG_RE.test(tag) && semver.lt(tag, current)
   })
 }
 
