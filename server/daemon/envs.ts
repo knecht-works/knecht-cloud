@@ -143,6 +143,8 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
   }
   catch (e) {
     await stopEnvStack(sessionId).catch(() => {})
+    // The workspace went first, so nothing of the session runs any more.
+    if (stillIn(sessionId, 'up')) moveEnv(sessionId, 'up', 'stopped', { wakeOnVisit: false })
     throw e
   }
 }
