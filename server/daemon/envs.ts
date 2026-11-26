@@ -55,7 +55,7 @@ function stillIn(sessionId: number, state: EnvState): boolean {
 
 function moveEnv(sessionId: number, from: EnvState, to: EnvState, patch: Partial<NewSession> = {}): void {
   if (!MOVES[from].includes(to)) throw new Error(`An environment cannot go from '${from}' to '${to}'`)
-  const seen = to === 'up' ? { previewLastSeen: new Date() } : {}
+  const seen = to === 'up' ? { previewLastSeen: new Date(), wakeOnVisit: true } : {}
   if (!moveSession(sessionId, { envState: from }, { envState: to, ...seen, ...patch })) {
     throw new Error(`Session ${sessionId} left '${from}' before it could go to '${to}'`)
   }
@@ -310,7 +310,7 @@ export async function reconcileEnvStates(): Promise<void> {
 }
 
 // The reaper tick must not pile a second stop onto a session mid-export.
-export async function stopEnv(sessionId: number): Promise<void> {
+export async function stopEnv(sessionId: number, { byHand = false } = {}): Promise<void> {
   if (transitions.get(sessionId) === 'stopping') return
   await inTransition(sessionId, 'stopping', async () => {
     if (!stillIn(sessionId, 'up')) return
@@ -321,7 +321,7 @@ export async function stopEnv(sessionId: number): Promise<void> {
     else {
       await removeWorkspace(sessionId)
     }
-    moveEnv(sessionId, 'up', 'stopped')
+    moveEnv(sessionId, 'up', 'stopped', byHand ? { wakeOnVisit: false } : {})
   })
 }
 
@@ -365,13 +365,13 @@ export async function archiveStaleEnvs(): Promise<void> {
   }
 }
 
-export async function archiveEnv(sessionId: number): Promise<void> {
+export async function archiveEnv(sessionId: number, { byHand = false } = {}): Promise<void> {
   await inTransition(sessionId, 'archiving', async () => {
     if (!stillIn(sessionId, 'stopped') || sessionHasActiveRun(sessionId) || sessionHasActiveFollowup(sessionId)) return
     await snapshotCheckout(sessionId)
     await snapshotDb(sessionId)
     await teardownSession(sessionId)
-    moveEnv(sessionId, 'stopped', 'archived')
+    moveEnv(sessionId, 'stopped', 'archived', byHand ? { wakeOnVisit: false } : {})
   })
 }
 

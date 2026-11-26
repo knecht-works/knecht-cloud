@@ -138,6 +138,10 @@ export const sessions = sqliteTable('sessions', {
   // Pinned at first boot for the same reason.
   previewPort: integer('preview_port'),
   previewLastSeen: integer('preview_last_seen', { mode: 'timestamp' }),
+  // False once someone stopped or archived the environment by hand: then only a guest or a share link wakes it.
+  wakeOnVisit: integer('wake_on_visit', { mode: 'boolean' })
+    .notNull()
+    .default(true),
   shareExpiresAt: integer('share_expires_at', { mode: 'timestamp' }),
   // The chat thread's session at the agent. Workflow ai steps never use it: each gets a fresh one.
   agentSessionId: text('agent_session_id'),
