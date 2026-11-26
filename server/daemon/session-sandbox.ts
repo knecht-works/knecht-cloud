@@ -24,6 +24,7 @@ export function sessionSandbox(sessionId: number, log: (text: string) => void, s
       const container = inWorkspace ? workspaceContainerName(sessionId) : sessionContainer(sessionId)
       return {
         stream: (command, opts) => streamInContainer(container, command, log, opts?.env, signal),
+        exec: async (command, opts) => String((await execInContainer(container, command, { cancelSignal: signal, input: opts?.input, stripFinalNewline: false }, opts?.env)).stdout),
         release: inWorkspace ? () => removeWorkspace(sessionId) : async () => {},
       }
     },
