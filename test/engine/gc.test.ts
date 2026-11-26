@@ -64,6 +64,23 @@ describe('staleReleaseImages', () => {
     ], 'v0.21.0')).toEqual(['ghcr.io/knecht-works/knecht-cloud:v0.20.1'])
   })
 
+  it('drops pre-releases older than the running version', () => {
+    expect(staleReleaseImages([
+      'ghcr.io/knecht-works/knecht-cloud:v0.21.0-rc.1',
+      'ghcr.io/knecht-works/knecht-cloud:v0.21.0',
+      'ghcr.io/knecht-works/knecht-cloud:v0.22.0-rc.1',
+    ], 'v0.21.0')).toEqual(['ghcr.io/knecht-works/knecht-cloud:v0.21.0-rc.1'])
+    expect(staleReleaseImages([
+      'ghcr.io/knecht-works/knecht-cloud:v0.21.0',
+      'ghcr.io/knecht-works/knecht-cloud:v0.22.0-rc.1',
+      'ghcr.io/knecht-works/knecht-cloud:v0.22.0-rc.2',
+      'ghcr.io/knecht-works/knecht-cloud:v0.22.0-rc.3',
+    ], 'v0.22.0-rc.2')).toEqual([
+      'ghcr.io/knecht-works/knecht-cloud:v0.21.0',
+      'ghcr.io/knecht-works/knecht-cloud:v0.22.0-rc.1',
+    ])
+  })
+
   it('keeps every release when the running version is no release', () => {
     expect(staleReleaseImages(['ghcr.io/knecht-works/knecht-cloud:v0.20.1'], 'dev')).toEqual([])
   })
