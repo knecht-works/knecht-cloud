@@ -1,5 +1,6 @@
 import { execa } from 'execa'
 import { currentVersion, isNewerVersion, latestVersion } from '#server/utils/version'
+import { getSettings } from '#server/utils/settings'
 
 export interface SystemInfo {
   dockerVersion: string
@@ -9,6 +10,7 @@ export interface SystemInfo {
 }
 
 export async function getSystemInfo(): Promise<SystemInfo> {
+  const { prereleaseUpdates } = getSettings()
   const [dockerVersion, ddevVersion, hostContainers, latest] = await Promise.all([
     execa('docker', ['version', '--format', '{{.Server.Version}}'])
       .then(r => r.stdout.trim() || 'unknown')
@@ -19,14 +21,14 @@ export async function getSystemInfo(): Promise<SystemInfo> {
     execa('docker', ['ps', '--format', '{{.Names}}'])
       .then(r => String(r.stdout).split('\n').map(s => s.trim()).filter(Boolean))
       .catch(() => []),
-    latestVersion(),
+    latestVersion(prereleaseUpdates),
   ])
 
   const current = currentVersion()
   const version = {
     current,
     latest,
-    updateAvailable: latest !== null && isNewerVersion(latest, current),
+    updateAvailable: latest !== null && isNewerVersion(latest, current, prereleaseUpdates),
   }
 
   return { dockerVersion, ddevVersion, hostContainers, version }

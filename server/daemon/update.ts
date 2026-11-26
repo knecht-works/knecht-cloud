@@ -1,11 +1,11 @@
 import { execa } from 'execa'
-import { RELEASE_TAG_RE } from '#server/utils/version'
+import { ANY_RELEASE_TAG_RE } from '#server/utils/version'
 
 export const IMAGE = 'ghcr.io/knecht-works/knecht-cloud'
 
 // A container can't recreate itself, so a sibling container on the host daemon does it.
 export async function startUpdate(tag: string): Promise<void> {
-  if (!RELEASE_TAG_RE.test(tag)) throw new Error(`Not a release tag: ${tag}`)
+  if (!ANY_RELEASE_TAG_RE.test(tag)) throw new Error(`Not a release tag: ${tag}`)
   const dir = process.env.KNECHT_INSTALL_DIR || '/opt/knecht'
 
   const script = [

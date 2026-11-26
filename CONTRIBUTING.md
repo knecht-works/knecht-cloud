@@ -44,7 +44,8 @@ Any tag with a hyphen (`vX.Y.Z-rc.1`) is a pre-release. CI builds and
 publishes it exactly like a regular release, but:
 
 - the `latest` image tag does not move
-- no instance is offered it as an update
+- it is offered as an update only where Settings → Advanced → Release
+  candidates is on, and never installed by automatic updates
 - a normal install ignores it
 - no Discord announcement
 
@@ -68,8 +69,8 @@ curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/vX.Y.Z-rc
   | sudo env KNECHT_DOMAIN=knecht.example.com KNECHT_REF=vX.Y.Z-rc.1 bash
 ```
 
-On an existing instance, switch it by hand (the dashboard never offers a
-pre-release):
+On an existing instance, turn on Settings → Advanced → Release candidates and
+update from the System page, or switch it by hand:
 
 ```bash
 cd /opt/knecht

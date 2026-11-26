@@ -40,6 +40,7 @@ const bodySchema = z.object({
   sshTarget: z.string().trim().regex(SSH_TARGET_RE).max(200).nullable().optional(),
   // 5-field cron schedule for automatic updates; '' turns them off.
   autoUpdateCron: z.string().trim().max(100).optional(),
+  prereleaseUpdates: z.boolean().optional(),
 })
 
 export default defineEventHandler(async (event) => {

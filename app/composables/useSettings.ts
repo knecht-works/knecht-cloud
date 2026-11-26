@@ -20,6 +20,7 @@ export interface DashboardSettings {
   sshTargetDefault?: string | null
   /** 5-field cron; '' = off. */
   autoUpdateCron: string
+  prereleaseUpdates: boolean
   presetKeys: string[]
 }
 
