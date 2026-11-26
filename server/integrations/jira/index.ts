@@ -6,7 +6,7 @@ import type { TriggerConfig } from '#shared/utils/trigger-form'
 import { integrationLabelsUrl, labelFilter, objectVersion } from '#server/integrations/trigger-config'
 import { matchTrackerEvent, trackerComment, trackerStatusChange, trackerTriggerForm, type Person, type TrackerChange, type TrackerDef, type TrackerIssue } from '#server/integrations/tracker'
 import type { Integration, WebhookComment, WebhookDelivery } from '#server/integrations/types'
-import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf } from '#server/integrations/jira/adf'
+import { addressedTo, adfMentionIds, adfToMarkdown, markdownToAdf, type AdfNode } from '#server/integrations/jira/adf'
 import { addJiraComment, assignJiraIssue, downloadJiraAttachment, forgetJiraCache, getJiraComment, getJiraIssuePeople, jiraMyself, listJiraIssueTypes, listJiraLabels, listJiraStatuses, getJiraIssueFields, getJiraIssueRaw, getJiraStatusCategory, jiraIssueUrl, listJiraIssueComments, listJiraProjects, listJiraTransitions, transitionJiraIssue, updateJiraLabels, type JiraIssueFields } from '#server/integrations/jira/api'
 import { JIRA_CONNECTION_FORM, jiraConnection, jiraCredentials } from '#server/integrations/jira/credentials'
 
@@ -40,18 +40,21 @@ interface JiraChange {
   toString?: string | null
 }
 
+// Webhooks deliver the REST v2 rendering of an issue: the description is wiki markup text, not ADF.
+type JiraWebhookFields = Omit<JiraIssueFields, 'description'> & { description?: AdfNode | string | null }
+
 export interface JiraPayload {
   webhookEvent?: string
   user?: { accountId?: string, displayName?: string }
-  issue?: { key?: string, fields?: JiraIssueFields }
+  issue?: { key?: string, fields?: JiraWebhookFields }
   changelog?: { items?: JiraChange[] }
   comment?: { id?: string | number }
 }
 
-function jiraIssue(key: string, fields: JiraIssueFields): TrackerIssue {
+function jiraIssue(key: string, fields: JiraWebhookFields): TrackerIssue {
   return {
     object: { integration: 'jira', kind: 'issue', key, url: jiraIssueUrl(key), title: fields.summary },
-    body: adfToMarkdown(fields.description),
+    body: typeof fields.description === 'string' ? fields.description.trim() : adfToMarkdown(fields.description),
     status: { name: fields.status?.name ?? '', group: fields.status?.statusCategory?.key ?? '' },
     author: fields.reporter?.displayName ?? '',
     assignees: fields.assignee?.displayName ? [fields.assignee.displayName] : [],
