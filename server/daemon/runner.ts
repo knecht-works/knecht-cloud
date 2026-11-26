@@ -275,6 +275,8 @@ async function execStep(
       const outputs = capOutputs(action
         ? await runActionTimed(action, withTemplateParams(rendered, step, action), rt, step.timeoutSeconds ?? defaultStepTimeout(step.type))
         : await runComposite(runId, step as CompositeStep, ctx, rt, scope))
+      // A cancelled `docker exec` client can exit 0 while its command still runs in the container.
+      rt.signal.throwIfAborted()
       finalize({ status: 'success', outputs, attempt })
       return outputs
     }
