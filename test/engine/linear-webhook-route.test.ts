@@ -143,7 +143,7 @@ describeIntegrationWebhook<ReturnType<typeof makeLinearProject>, object>({
       trigger: 'linear',
       branch: 'main',
       inputs: {
-        event: 'issue',
+        event: 'created',
         identifier: `${project.teamKey}-12`,
         title: 'Login broken',
         body: 'It fails on **submit**.',

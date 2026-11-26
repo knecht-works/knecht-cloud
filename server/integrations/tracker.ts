@@ -111,7 +111,7 @@ export function matchTrackerEvent(def: TrackerDef, c: TriggerConfig, change: Tra
     || (!!triggerEvent(c, 'entered') && scope.some(reached))
   if (!fires) return null
   if (!triggerEvent(c, 'entered') && scope.length && !scope.some(v => status.includes(v))) return null
-  return { branch: null, inputs: trackerInputs(issue), object: issue.object, version: change.version, actor: change.actor ?? null }
+  return { branch: null, inputs: trackerInputs(issue, c.event.type), object: issue.object, version: change.version, actor: change.actor ?? null }
 }
 
 export function trackerStatusChange(def: TrackerDef, change: TrackerChange): WebhookDelivery['statusChange'] {
@@ -119,9 +119,9 @@ export function trackerStatusChange(def: TrackerDef, change: TrackerChange): Web
   return { object: change.issue.object, status: def.status.closedGroups.includes(change.issue.status.group) ? 'closed' : 'open' }
 }
 
-export function trackerInputs(issue: TrackerIssue): TriggerInputs {
+export function trackerInputs(issue: TrackerIssue, event: string): TriggerInputs {
   return {
-    ...emptyInputs('issue'),
+    ...emptyInputs(event),
     identifier: issue.object.key,
     title: issue.object.title ?? '',
     body: issue.body,

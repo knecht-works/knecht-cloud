@@ -123,4 +123,11 @@ describe('jira run inputs', () => {
   it('hands the description over as the body', () => {
     expect(inputsOf('created').map(inputs => inputs?.body)).toEqual(['Here is the fixute Description', 'Fixture Description', 'Description'])
   })
+
+  it('names the event that fired the trigger', () => {
+    expect(inputsOf('created')[0]?.event).toBe('created')
+    expect(inputsOf('assigned')[0]?.event).toBe('assigned')
+    expect(inputsOf('labeledEnhancement')[0]?.event).toBe('labeled')
+    expect(inputsOf('inProgress')[0]?.event).toBe('entered')
+  })
 })
