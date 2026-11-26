@@ -16,6 +16,8 @@ export interface ActionRuntime {
     /** The checkout's path inside the sandbox, not on the host. */
     projectDir: string
     ensureUp: () => Promise<void>
+    /** Never boots the preview: runs in it when it is up, else in a workspace that `release` removes. */
+    withoutPreview: () => Promise<{ stream: ActionRuntime['sandbox']['stream'], release: () => Promise<void> }>
     /** `env` never appears in the command line (secrets). */
     stream: (command: string[], opts?: { env?: Record<string, string> }) => Promise<{ code: number, tail: string }>
     /** Resolves to the raw stdout, rejects on a non-zero exit. */

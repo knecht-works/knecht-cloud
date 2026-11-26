@@ -18,16 +18,18 @@ function ctx(inputs: Record<string, string> = { title: TITLE }): RunContext {
 }
 
 function localRuntime(context: RunContext): ActionRuntime {
+  const stream = async (command: string[], opts?: { env?: Record<string, string> }) => {
+    const res = await execa(command[0]!, ['-c', command[2]!], { env: opts?.env, reject: false, all: true })
+    return { code: res.exitCode ?? 1, tail: res.all }
+  }
   return {
     ctx: context,
     log: () => {},
     signal: new AbortController().signal,
     sandbox: {
       ensureUp: async () => {},
-      stream: async (command: string[], opts?: { env?: Record<string, string> }) => {
-        const res = await execa(command[0]!, ['-c', command[2]!], { env: opts?.env, reject: false, all: true })
-        return { code: res.exitCode ?? 1, tail: res.all }
-      },
+      stream,
+      withoutPreview: async () => ({ stream, release: async () => {} }),
     },
   } as unknown as ActionRuntime
 }

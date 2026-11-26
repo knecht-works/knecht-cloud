@@ -23,6 +23,12 @@ describe('parseWorkflow (YAML authoring sugar)', () => {
     expect(steps[2]).toMatchObject({ type: 'bash', command: 'echo hello', continueOnError: true })
   })
 
+  it('maps bash start-preview onto the step and leaves it off by default', () => {
+    const { steps } = parseWorkflow('name: s\nsteps:\n  - bash:\n      command: ddev craft up\n      start-preview: true\n  - bash:\n      command: echo hi\n')
+    expect(steps[0]).toMatchObject({ type: 'bash', startPreview: true })
+    expect(steps[1]).not.toHaveProperty('startPreview')
+  })
+
   it('maps create-pr description onto body', () => {
     expect(steps.at(-1)).toMatchObject({ type: 'create-pr', title: 'Fix broken links', body: expect.stringContaining('run {{ run.id }}') })
   })
