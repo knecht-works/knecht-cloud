@@ -404,6 +404,7 @@ export const settings = sqliteTable('settings', {
   sshTarget: text('ssh_target'),
 
   autoUpdateCron: text('auto_update_cron').notNull().default(''),
+  prereleaseUpdates: integer('prerelease_updates', { mode: 'boolean' }).notNull().default(false),
 })
 
 export type Settings = typeof settings.$inferSelect

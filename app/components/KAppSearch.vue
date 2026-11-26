@@ -19,7 +19,7 @@ const SETTINGS = [
   { label: 'Agent', suffix: 'Provider, API key, default model, subtask model', icon: 'i-lucide-sparkles', to: '/settings/agent' },
   { label: 'Instructions', suffix: 'Agent instructions', icon: 'i-lucide-list-checks', to: '/settings/agent' },
   { label: 'Environments', suffix: 'Live, stopped, archived, deleted, parallel runs', icon: 'i-lucide-box', to: '/settings/advanced' },
-  { label: 'Automatic updates', suffix: 'Update schedule', icon: 'i-lucide-arrow-up-circle', to: '/settings/advanced' },
+  { label: 'Automatic updates', suffix: 'Update schedule, release candidates', icon: 'i-lucide-arrow-up-circle', to: '/settings/advanced' },
   { label: 'Remote access', suffix: 'SSH target', icon: 'i-lucide-terminal', to: '/settings/advanced' },
 ]
 

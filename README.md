@@ -137,14 +137,14 @@ Instances installed before v0.14.0 still have a ddev CLI on the host. Knecht nev
 
 ### Pre-releases
 
-Tags with a hyphen (e.g. `v0.3.0-rc.1`) are pre-releases: CI builds and publishes them like any release, but they never move the `latest` image tag, are never offered as an update, and a normal install ignores them. To test one, fetch the installer from the pre-release tag itself (so installer and version can't diverge) and pin the same tag:
+Tags with a hyphen (e.g. `v0.3.0-rc.1`) are pre-releases: CI builds and publishes them like any release, but they never move the `latest` image tag, are only offered as an update when Settings → Advanced → Release candidates is on, and a normal install ignores them. To test one, fetch the installer from the pre-release tag itself (so installer and version can't diverge) and pin the same tag:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/knecht-works/knecht-cloud/v0.3.0-rc.1/scripts/install.sh \
   | sudo env KNECHT_DOMAIN=knecht.example.com KNECHT_REF=v0.3.0-rc.1 bash
 ```
 
-Once the matching stable release is published, the instance offers it as a regular update in the dashboard. Updating from a stable version to a pre-release is not possible.
+Once the matching stable release is published, the instance offers it as a regular update in the dashboard. With Release candidates on, the System page also offers newer release candidates (also from a stable version). Automatic updates always install stable releases only.
 
 ### Backup and rollback
 

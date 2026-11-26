@@ -19,6 +19,14 @@ describe('isNewerVersion', () => {
     expect(isNewerVersion('v0.3.0', 'v0.4.0-rc.1')).toBe(false)
   })
 
+  it('offers pre-releases only when asked to', () => {
+    expect(isNewerVersion('v0.3.0-rc.2', 'v0.3.0-rc.1', true)).toBe(true)
+    expect(isNewerVersion('v0.3.0-rc.1', 'v0.2.0', true)).toBe(true)
+    expect(isNewerVersion('v0.3.0-rc.1', 'v0.3.0', true)).toBe(false)
+    expect(isNewerVersion('v0.3.0-rc.2', 'v0.3.0-rc.1')).toBe(false)
+    expect(isNewerVersion('v0.3.0-beta.1', 'v0.2.0', true)).toBe(false)
+  })
+
   it('never offers updates to non-release builds', () => {
     expect(isNewerVersion('v0.3.0', 'dev')).toBe(false)
     expect(isNewerVersion('dev', 'v0.2.0')).toBe(false)

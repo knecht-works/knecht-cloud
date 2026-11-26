@@ -1,0 +1,1 @@
+ALTER TABLE `settings` ADD `prerelease_updates` integer DEFAULT false NOT NULL;

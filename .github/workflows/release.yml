@@ -4,9 +4,9 @@
 #
 # Pre-releases: any tag with a hyphen (v0.3.0-rc.1) runs the same pipeline but
 # marks the GitHub Release as a prerelease and does NOT move the `latest`
-# image tag. Nothing offers or installs a pre-release on its own (the app's
-# RELEASE_TAG_RE and install.sh both skip hyphenated tags); testers opt in
-# explicitly via KNECHT_REF=v0.3.0-rc.1.
+# image tag. Only instances with the Release candidates setting on are offered
+# one (as -rc.N), auto-update and install.sh skip hyphenated tags; fresh
+# installs opt in via KNECHT_REF=v0.3.0-rc.1.
 #
 # Builds the prod image for amd64 and arm64 (each on a native runner; the Nuxt
 # build is far too slow under QEMU), merges the two into one multi-arch
