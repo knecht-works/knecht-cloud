@@ -1,5 +1,6 @@
 import { publishStepsSchema } from '#server/workflows/schema'
 import { dispatchRuns } from '#server/daemon/dispatcher'
+import { stopRunProcesses } from '#server/daemon/session-sandbox'
 import { sessionHasActiveWork } from '#server/utils/sessions'
 import { requireProject } from '#server/stores/projects'
 import { requireSession } from '#server/stores/sessions'
@@ -8,7 +9,7 @@ import { createRun, requireRun } from '#server/stores/runs'
 import { defineEventHandler, createError } from 'h3'
 import { requireIntParam, zodBadRequest } from '#server/utils/http'
 
-export default defineEventHandler((event) => {
+export default defineEventHandler(async (event) => {
   const run = requireRun(requireIntParam(event))
   if (run.status !== 'failed' && run.status !== 'cancelled') {
     throw createError({ statusCode: 409, statusMessage: 'Only failed or cancelled runs can be run again' })
@@ -27,9 +28,18 @@ export default defineEventHandler((event) => {
 
   const project = requireProject(run.projectId)
   const session = requireSession(run.sessionId)
-  if (sessionHasActiveWork(session.id)) {
-    throw createError({ statusCode: 409, statusMessage: 'Something is running in this session. Wait for it to finish.' })
+  const refuseActiveWork = () => {
+    if (sessionHasActiveWork(session.id)) {
+      throw createError({ statusCode: 409, statusMessage: 'Something is running in this session. Wait for it to finish.' })
+    }
   }
+  // Checked first: a follow-up of this run carries the same tag, and its commands must survive a refusal.
+  refuseActiveWork()
+  if (!await stopRunProcesses(session.id, run.id)) {
+    throw createError({ statusCode: 409, statusMessage: 'A command of the previous attempt is still stopping. Try again in a moment.' })
+  }
+  // Again after the await, so nothing can start between this check and createRun.
+  refuseActiveWork()
 
   const again = createRun({
     projectId: project.id,

@@ -4,6 +4,8 @@ import { callRoute } from '../helpers/routes'
 import { attachTestObject, makeProject, makeRun } from '../helpers/db'
 
 vi.mock('#server/daemon/dispatcher', () => ({ dispatchRuns: () => {} }))
+const stopRunProcesses = vi.hoisted(() => vi.fn(async (_sessionId: number, _runId: number) => true))
+vi.mock('#server/daemon/session-sandbox', () => ({ stopRunProcesses }))
 
 const { db, schema } = await import('#server/db')
 const handler = (await import('#server/api/runs/[id]/again.post')).default
@@ -35,14 +37,44 @@ describe('POST /api/runs/:id/again', () => {
     expect((res.json as { id: number }).id).not.toBe(failed.id)
   })
 
+  it('stops what the failed attempt left running before the new run is queued', async () => {
+    const project = makeProject()
+    const failed = makeRun(project, [], { workflowId: workflow.id, status: 'failed' })
+    let runsWhileStopping = 0
+    stopRunProcesses.mockImplementationOnce(async () => {
+      runsWhileStopping = db.select().from(schema.runs).where(eq(schema.runs.sessionId, failed.sessionId)).all().length
+      return true
+    })
+
+    const res = await again(failed.id)
+
+    expect(res.status).toBe(200)
+    expect(stopRunProcesses).toHaveBeenCalledWith(failed.sessionId, failed.id)
+    expect(runsWhileStopping).toBe(1)
+  })
+
+  it('refuses while a process of the failed attempt survives', async () => {
+    const project = makeProject()
+    const failed = makeRun(project, [], { workflowId: workflow.id, status: 'cancelled' })
+    stopRunProcesses.mockResolvedValueOnce(false)
+
+    const res = await again(failed.id)
+
+    expect(res.status).toBe(409)
+    expect(db.select().from(schema.runs).where(eq(schema.runs.sessionId, failed.sessionId)).all()).toHaveLength(1)
+  })
+
   it('refuses while something runs in the session', async () => {
     const project = makeProject()
     const failed = makeRun(project, [], { workflowId: workflow.id, status: 'failed' })
     makeRun(project, [], { sessionId: failed.sessionId, workflowId: workflow.id, status: 'running' })
 
+    stopRunProcesses.mockClear()
+
     const res = await again(failed.id)
 
     expect(res.status).toBe(409)
+    expect(stopRunProcesses).not.toHaveBeenCalled()
   })
 
   it('refuses a run that has not failed', async () => {
