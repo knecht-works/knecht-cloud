@@ -26,7 +26,8 @@ vi.mock('#server/daemon/sandbox', () => ({
   removeEnvStack: async () => {},
   startEnvStack: (sessionId: number, log?: (text: string) => void) => startEnvStack(sessionId, log),
   stopEnvStack: (sessionId: number) => stopEnvStack(sessionId),
-  streamInSandbox: async (_sessionId: number, command: string[]) => {
+  streamInSandbox: async (_sessionId: number, command: string[], _log: unknown, _env: unknown, signal?: AbortSignal) => {
+    signal?.throwIfAborted()
     const line = command.join(' ')
     calls.push(line)
     return { code: failing.has(line) ? 1 : 0, tail: '' }
@@ -171,6 +172,29 @@ describe('ddev-start action', () => {
     expect(ensureUp).not.toHaveBeenCalled()
     expect(startEnvStack).toHaveBeenCalledTimes(1)
     expect(getSessionRow(session.id).tier).toBe('preview')
+  })
+
+  it.each([
+    ['a boot command is killed (exit 137)', () => { failing.add('bash -lc ddev npm run build') }, false],
+    ['the run is cancelled mid-boot', () => {}, true],
+  ])('leaves the session stopped, not up, when %s', async (_case, breakBoot, cancel) => {
+    const project = makeProject({ bootCommands: 'ddev npm run build' })
+    const session = freshSession(project)
+    db.update(schema.sessions).set({ envState: 'up' }).where(eq(schema.sessions.id, session.id)).run()
+    breakBoot()
+    const controller = new AbortController()
+    if (cancel) controller.abort()
+    const rt = {
+      sessionId: session.id,
+      project,
+      checkoutDir: '/nonexistent',
+      log: () => {},
+      signal: controller.signal,
+      sandbox: { ensureUp: async () => {} },
+    } as unknown as ActionRuntime
+    await expect(ddevStartAction.run({ type: 'ddev-start' }, rt)).rejects.toThrow()
+    expect(calls.at(-1)).toBe('ddev stop')
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'stopped', tier: 'code', wakeOnVisit: false })
   })
 
   it('only revives a session that is already a preview', async () => {
