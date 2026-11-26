@@ -17,16 +17,15 @@ watch(settings, (s) => {
   autoUpdateCron.value = s.autoUpdateCron
   prereleaseUpdates.value = s.prereleaseUpdates
 }, { immediate: true })
-// Only changed fields: an invalid cron in the box must not block saving the switch.
-function changes(): Record<string, unknown> {
-  const body: Record<string, unknown> = {}
-  if (autoUpdateCron.value.trim() !== (settings.value?.autoUpdateCron ?? '')) body.autoUpdateCron = autoUpdateCron.value.trim()
-  if (prereleaseUpdates.value !== settings.value?.prereleaseUpdates) body.prereleaseUpdates = prereleaseUpdates.value
-  return body
-}
-const { state: saveState, error: saveError, schedule } = useAutosave(() => patchSettings(settings, changes()))
+const cronChanged = () => autoUpdateCron.value.trim() !== (settings.value?.autoUpdateCron ?? '')
+const switchChanged = () => prereleaseUpdates.value !== settings.value?.prereleaseUpdates
+// Separate requests: the server rejects a whole PATCH over an invalid cron, which must not take the switch with it.
+const { state: saveState, error: saveError, schedule } = useAutosave(async () => {
+  if (switchChanged()) await patchSettings(settings, { prereleaseUpdates: prereleaseUpdates.value })
+  if (cronChanged()) await patchSettings(settings, { autoUpdateCron: autoUpdateCron.value.trim() })
+})
 watch([autoUpdateCron, prereleaseUpdates], () => {
-  if (Object.keys(changes()).length) schedule()
+  if (cronChanged() || switchChanged()) schedule()
 })
 </script>
 
