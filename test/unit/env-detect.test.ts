@@ -176,6 +176,11 @@ describe('parseDdevConfig', () => {
       .toEqual(['demo.test', 'alpha.test'])
   })
 
+  it('lowercases the hosts: hostnames are case-insensitive and ddev writes them lowercase', () => {
+    expect(parseDdevConfig('name: FHGOOE\nadditional_hostnames: [Alpha]\nadditional_fqdns: [WWW.Example.com]')?.hosts)
+      .toEqual(['fhgooe.ddev.site', 'alpha.ddev.site', 'www.example.com'])
+  })
+
   it('reads the names of the extra exposed web ports, skipping incomplete entries', () => {
     expect(parseDdevConfig('web_extra_exposed_ports:\n  - name: vite\n    container_port: 5173\n    http_port: 5172\n  - name: broken\n')?.extraPorts)
       .toEqual([{ name: 'vite', port: 5173 }])

@@ -116,6 +116,34 @@ describe('writeDdevConfig', () => {
     }
   })
 
+  it('translates ddev-host URLs in env mode whatever their case', async () => {
+    vi.stubEnv('KNECHT_BASE_URL', 'http://lvh.me:3333')
+    try {
+      const dir = checkout()
+      await writeDdevConfig(dir, {
+        sessionId: 7,
+        env: tracked(['fhgooe.ddev.site', 'alpha.ddev.site']),
+        urlMode: 'env',
+        envVars: [
+          { key: 'SITE_URL', value: 'https://fhgooe.ddev.site' },
+          { key: 'ASSET_URL', value: 'https://FHGOOE.ddev.site/assets' },
+          { key: 'ALPHA_URL', value: 'HTTP://Alpha.DDEV.site/en' },
+          { key: 'COOKIE_DOMAIN', value: 'FHGOOE.ddev.site' },
+        ],
+      })
+      const doc = parse(readFileSync(join(dir, '.ddev', 'config.zzz-knecht.yaml'), 'utf8'))
+      expect(doc.web_environment.slice(0, 4)).toEqual([
+        'SITE_URL=http://7.preview.lvh.me:3333',
+        'ASSET_URL=http://7.preview.lvh.me:3333/assets',
+        'ALPHA_URL=http://alpha--7.preview.lvh.me:3333/en',
+        'COOKIE_DOMAIN=7.preview.lvh.me',
+      ])
+    }
+    finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('writes only the session variables and the cache paths without env vars', async () => {
     const dir = checkout()
     expect((await writeDdevConfig(dir, { sessionId: 7, env: tracked(), envVars: [], urlMode: 'env' })).injected).toBe(0)
