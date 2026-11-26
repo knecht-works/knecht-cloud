@@ -265,16 +265,31 @@ async function restoreLegacyCheckout(sessionId: number, dir: string, gitArchive:
   }
 }
 
-export async function reviveEnv(sessionId: number, log?: (text: string) => void): Promise<void> {
+export async function reviveEnv(sessionId: number, log?: (text: string) => void, { bootLostPreview = true } = {}): Promise<void> {
   const session = getSessionRow(sessionId)
   if (!session || session.envState === 'down') throw new Error('The session has no checkout')
   const running = transitions.get(sessionId)
   if (running) throw new Error(`The environment is ${running}`)
   if (session.envState === 'archived') return rehydrateEnv(sessionId, log)
-  if (previewLost(sessionId)) return rebootLostPreview(sessionId, log)
+  if (bootLostPreview && previewLost(sessionId)) return rebootLostPreview(sessionId, log)
   if (session.envState === 'stopped') return rebootEnv(sessionId)
   await guardedStart(sessionId, () => startSandbox(sessionId, session.tier, false, log))
   touchSessionPreview(sessionId)
+}
+
+// A stopped preview stays stopped: the caller gets a workspace of its own instead.
+export async function reviveWithoutPreview(sessionId: number, log?: (text: string) => void): Promise<{ inWorkspace: boolean }> {
+  const session = getSessionRow(sessionId)
+  if (session?.tier !== 'preview' || session.envState === 'archived') {
+    await reviveEnv(sessionId, log, { bootLostPreview: false })
+    return { inWorkspace: false }
+  }
+  if (session.envState === 'up' && await envStackRunning(sessionId)) {
+    touchSessionPreview(sessionId)
+    return { inWorkspace: false }
+  }
+  await guardedStart(sessionId, () => ensureWorkspaceUp(sessionId))
+  return { inWorkspace: true }
 }
 
 export function applyEnvDefinition(sessionId: number, log: (text: string) => void): Promise<void> {

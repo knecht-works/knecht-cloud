@@ -90,10 +90,10 @@ async function execRun(runId: number, project: Project): Promise<void> {
     }
 
     const sessionId = session.id
-    // A boot step promotes only an up session.
-    if (session.envState === 'archived' || session.envState === 'stopped') {
+    // A boot step promotes only an up session. A stopped preview waits for a step that needs it.
+    if (session.envState === 'archived' || (session.envState === 'stopped' && session.tier === 'code')) {
       log(`▶ Bringing the session back\n`)
-      await reviveEnv(sessionId, log)
+      await reviveEnv(sessionId, log, { bootLostPreview: false })
     }
     log(`▶ Preparing isolated checkout\n`)
     const credentials = await gitProvider(project).credentials(project)
