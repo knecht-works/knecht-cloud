@@ -53,6 +53,7 @@ export const ddevStartAction = defineAction({
         stepCommands: step.commands,
         log: rt.log,
         signal: rt.signal,
+        runId: rt.runId,
       })
       promoteToPreview(rt.sessionId)
     })

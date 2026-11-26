@@ -11,7 +11,7 @@ import { archiveDbVolume, archivedDbVolume, cloneDbBase, readyDbBase, restoreDbV
 import { devServerOutput, noteDevServerUse, restartDevServer, waitForDevServer } from '#server/daemon/dev-server'
 import { prepareSessionCheckout } from '#server/daemon/git'
 import { ensureWorkspaceUp, removeWorkspace, runOnCheckout } from '#server/daemon/workspace'
-import { envStackRunning, forgetPreview, removeEnvStack, startEnvStack, stopEnvStack, streamInSandbox } from '#server/daemon/sandbox'
+import { envStackRunning, forgetPreview, removeEnvStack, runTag, startEnvStack, stopEnvStack, streamInSandbox } from '#server/daemon/sandbox'
 import { warmPreviewCertificates } from '#server/utils/preview-certs'
 import { getProject } from '#server/stores/projects'
 import { getSessionRow, listSessionsInEnvState, moveSession, sessionBase, sessionChanged, updateSession, touchSessionPreview } from '#server/stores/sessions'
@@ -98,12 +98,15 @@ export interface BootPlan {
   stepCommands?: string
   log?: (text: string) => void
   signal?: AbortSignal
+  runId?: number
 }
 
 // A half-booted stack would otherwise idle until the reaper reclaims it.
 export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> {
   const log = plan.log ?? (() => {})
-  const exec = async (command: string[]) => (await streamInSandbox(sessionId, command, log, undefined, plan.signal)).code
+  const exec = async (command: string[], env?: Record<string, string>) => (await streamInSandbox(sessionId, command, log, env, plan.signal)).code
+  // The dev server stays untagged: it outlives the run that started it.
+  const runExec = (command: string[]) => exec(command, plan.runId === undefined ? undefined : runTag(plan.runId))
   warmPreviewCertificates(sessionId)
   // A running `ddev start` cannot be cut short without leaving a half-built stack, so the cancel shows while it winds down.
   const showStopping = () => {
@@ -125,13 +128,13 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
     await startEnvStack(sessionId, log)
     if (plan.dbFile) {
       log(`\n▶ import-db (${basename(plan.dbFile)})\n`)
-      const code = await exec(['ddev', 'import-db', `--file=${plan.dbFile}`])
+      const code = await runExec(['ddev', 'import-db', `--file=${plan.dbFile}`])
       if (code !== 0) throw new Error(`ddev import-db exited with code ${code}`)
     }
     if (plan.projectCommands.trim()) log(`\nBoot commands (project settings):\n`)
-    await runSetupCommands(plan.projectCommands, c => exec(['bash', '-lc', c]), log, plan.signal)
+    await runSetupCommands(plan.projectCommands, c => runExec(['bash', '-lc', c]), log, plan.signal)
     if (plan.stepCommands?.trim()) log(`\nAdditional setup commands (this workflow's boot step):\n`)
-    await runSetupCommands(plan.stepCommands, c => exec(['bash', '-lc', c]), log, plan.signal)
+    await runSetupCommands(plan.stepCommands, c => runExec(['bash', '-lc', c]), log, plan.signal)
     const port = getSessionRow(sessionId)?.previewPort
     if (port != null) {
       log(`\n▶ Starting the dev server on port ${port}\n`)
