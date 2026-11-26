@@ -46,8 +46,12 @@ const setRepos = names => sql(Object.entries(names).map(([id, n]) => {
 }).join(' '))
 const withRealRepos = act => async (p) => {
   setRepos(REAL)
-  try { await act(p) }
-  finally { setRepos({ 2: P.craft, 7: P.laravel }) }
+  try {
+    await act(p)
+  }
+  finally {
+    setRepos({ 2: P.craft, 7: P.laravel })
+  }
 }
 export default {
   'dashboard': { url: '/', ...HOME },
@@ -83,7 +87,10 @@ export default {
     await p.waitForTimeout(400)
     await p.getByText('Can you add a dark mode toggle', { exact: false }).first().evaluate((el) => {
       for (let e = el.parentElement; e && e.tagName !== 'MAIN'; e = e.parentElement)
-        if (e.scrollHeight > e.clientHeight + 10 && /auto|scroll/.test(getComputedStyle(e).overflowY)) { e.scrollTop = 0; break }
+        if (e.scrollHeight > e.clientHeight + 10 && /auto|scroll/.test(getComputedStyle(e).overflowY)) {
+          e.scrollTop = 0
+          break
+        }
     })
   } },
   'knecht-settings-user': { url: '/settings', w: 1440, h: 779, act: async (p) => {
