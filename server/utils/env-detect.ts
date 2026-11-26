@@ -113,7 +113,7 @@ export function parseDdevConfig(text: string): DdevConfigFile | null {
         `${cfg.name}.${tld}`,
         ...(Array.isArray(cfg.additional_hostnames) ? cfg.additional_hostnames : []).map(h => `${h}.${tld}`),
         ...(Array.isArray(cfg.additional_fqdns) ? cfg.additional_fqdns : []),
-      ]
+      ].map(h => String(h).toLowerCase())
     : []
   return {
     generated: text.startsWith(GENERATED_MARKER),

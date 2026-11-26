@@ -414,7 +414,8 @@ function envUrlTranslator(hosts: string[], sessionId: number): (value: string) =
     .map((host) => {
       const label = host === primary ? undefined : previewLabel(host)
       return {
-        host,
+        url: new RegExp(`https?://${RegExp.escape(host)}`, 'gi'),
+        bare: new RegExp(RegExp.escape(host), 'gi'),
         previewOrigin: `${origin.protocol}//${previewHostname(sessionId, origin.host, label)}`,
         previewBare: previewHostname(sessionId, origin.hostname, label),
       }
@@ -422,9 +423,8 @@ function envUrlTranslator(hosts: string[], sessionId: number): (value: string) =
   return (value: string) => {
     for (const m of mappings) {
       value = value
-        .replaceAll(`https://${m.host}`, m.previewOrigin)
-        .replaceAll(`http://${m.host}`, m.previewOrigin)
-        .replaceAll(m.host, m.previewBare)
+        .replace(m.url, () => m.previewOrigin)
+        .replace(m.bare, () => m.previewBare)
     }
     return value
   }
