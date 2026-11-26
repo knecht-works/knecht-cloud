@@ -9,7 +9,7 @@ vi.mock('execa', () => ({
   },
 }))
 
-const { commitAll, createBranch, currentBranch, pushBranch } = await import('#server/daemon/git')
+const { commitAll, createBranch, currentBranch, discardAttempt, pushBranch } = await import('#server/daemon/git')
 const credentials = { cloneUrl: 'https://github.com/acme/app.git', username: 'x-access-token', token: 'secret-token' }
 
 function recordingSandbox() {
@@ -44,5 +44,15 @@ describe('git on a session checkout', () => {
     const basic = Buffer.from('x-access-token:secret-token').toString('base64')
     expect(JSON.stringify(calls[0]!.command)).not.toContain(basic)
     expect(calls[0]!.env).toMatchObject({ GIT_CONFIG_KEY_0: 'http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}` })
+  })
+
+  it('discards a failed attempt inside the sandbox, asking the remote with the token in the environment', async () => {
+    const { sandbox, calls } = recordingSandbox()
+    await discardAttempt(sandbox, 'start123', 'abc123', credentials, () => {})
+    const basic = Buffer.from('x-access-token:secret-token').toString('base64')
+    expect(hostSpawns).toEqual([])
+    expect(calls.every(c => c.command[0] === 'git')).toBe(true)
+    expect(JSON.stringify(calls.map(c => c.command))).not.toContain(basic)
+    expect(calls.find(c => c.command.includes('ls-remote'))!.env).toMatchObject({ GIT_CONFIG_VALUE_0: `Authorization: Basic ${basic}` })
   })
 })

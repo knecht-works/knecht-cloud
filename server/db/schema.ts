@@ -226,6 +226,8 @@ export const runs = sqliteTable('runs', {
   actor: text('actor', { mode: 'json' }).$type<{ id: string, name: string }>(),
   steps: text('steps', { mode: 'json' }).$type<Step[]>(),
   resetCheckout: integer('reset_checkout', { mode: 'boolean' }).notNull().default(false),
+  startSha: text('start_sha'),
+  endSha: text('end_sha'),
   log: text('log').notNull().default(''),
   startedAt: integer('started_at', { mode: 'timestamp' }),
   finishedAt: integer('finished_at', { mode: 'timestamp' }),
