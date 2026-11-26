@@ -4,6 +4,8 @@ import { defineNitroPlugin } from 'nitropack/runtime'
 const GC_INTERVAL_MS = 60 * 60_000
 
 export default defineNitroPlugin(() => {
+  // A marketing DB does not know the dev sessions, so GC would reap their environments.
+  if (process.env.KNECHT_GC === 'off') return
   setInterval(() => {
     collectGarbage()
       .then((r) => {
