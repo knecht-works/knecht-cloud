@@ -107,7 +107,7 @@ describeIntegrationWebhook<JiraProject, object>({
       trigger: 'jira',
       branch: 'main',
       inputs: {
-        event: 'issue',
+        event: 'created',
         identifier: `${project.jiraProjectKey}-12`,
         title: 'Login broken',
         body: 'It fails on submit.',
