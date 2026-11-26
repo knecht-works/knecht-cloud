@@ -137,9 +137,14 @@ async function execRun(runId: number, project: Project): Promise<void> {
     }
     if (run.resetCheckout && resume.fromIndex === 0) {
       log(`▶ Discarding the uncommitted changes of the previous attempt\n`)
-      await rt.sandbox.ensureUp()
-      await rt.sandbox.exec(['git', 'reset', '--hard'])
-      await rt.sandbox.exec(['git', 'clean', '-fdq'])
+      const { exec, release } = await rt.sandbox.withoutPreview()
+      try {
+        await exec(['git', 'reset', '--hard'])
+        await exec(['git', 'clean', '-fdq'])
+      }
+      finally {
+        await release()
+      }
     }
     await execSteps(runId, steps, ctx, rt, {}, resume.fromIndex)
     log(`\n✓ Done\n`)

@@ -12,7 +12,7 @@ vi.mock('#server/utils/github-app', () => ({
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),
 }))
 
-const stack = vi.hoisted(() => ({ running: new Set<number>(), containers: [] as string[] }))
+const stack = vi.hoisted(() => ({ running: new Set<number>(), containers: [] as string[], execs: [] as string[] }))
 const startEnvStack = vi.hoisted(() => vi.fn(async (sessionId: number) => {
   stack.running.add(sessionId)
 }))
@@ -27,6 +27,10 @@ vi.mock('#server/daemon/sandbox', async importOriginal => ({
     stack.containers.push(container)
     return { code: 0, tail: 'ok' }
   },
+  execInContainer: async (container: string, command: string[]) => {
+    stack.execs.push(`${container}: ${command.join(' ')}`)
+    return { stdout: '' }
+  },
 }))
 const ensureWorkspaceUp = vi.hoisted(() => vi.fn(async (_sessionId: number) => {}))
 const removeWorkspace = vi.hoisted(() => vi.fn(async (_sessionId: number) => {}))
@@ -40,10 +44,10 @@ const { startRun } = await import('#server/daemon/runner')
 const { webContainerName } = await import('#server/daemon/sandbox')
 const { workspaceContainerName } = await import('#server/daemon/workspace')
 
-async function runOnStoppedPreview(step: Step) {
+async function runOnStoppedPreview(step: Step, resetCheckout = false) {
   const project = makeProject()
   const session = makeSession(project, { envState: 'stopped', tier: 'preview' })
-  const run = makeRun(project, [step], { sessionId: session.id, status: 'queued' })
+  const run = makeRun(project, [step], { sessionId: session.id, status: 'queued', resetCheckout })
   await startRun(run.id, project)
   return { sessionId: session.id, run: getRun(run.id) }
 }
@@ -51,6 +55,7 @@ async function runOnStoppedPreview(step: Step) {
 beforeEach(() => {
   stack.running.clear()
   stack.containers.length = 0
+  stack.execs.length = 0
   startEnvStack.mockClear()
   ensureWorkspaceUp.mockClear()
   removeWorkspace.mockClear()
@@ -63,6 +68,16 @@ describe('shell step and the preview', () => {
     expect(startEnvStack).not.toHaveBeenCalled()
     expect(stack.containers).toEqual([workspaceContainerName(sessionId)])
     expect(removeWorkspace).toHaveBeenCalledWith(sessionId)
+    expect(getSessionRow(sessionId).envState).toBe('stopped')
+  })
+
+  it('discards the previous attempt for Run again in the workspace and leaves the preview stopped', async () => {
+    const { sessionId, run } = await runOnStoppedPreview({ type: 'bash', command: 'echo hi' }, true)
+    expect(run.status).toBe('success')
+    expect(startEnvStack).not.toHaveBeenCalled()
+    const workspace = `${workspaceContainerName(sessionId)}: `
+    expect(stack.execs.some(e => e.startsWith(`${workspace}git reset --hard`))).toBe(true)
+    expect(stack.execs.every(e => e.startsWith(workspace))).toBe(true)
     expect(getSessionRow(sessionId).envState).toBe('stopped')
   })
 
