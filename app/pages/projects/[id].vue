@@ -20,7 +20,7 @@ async function onRunStarted(runId: number) {
 <template>
   <div v-if="project">
     <KProjectHeader
-      class="-mt-2 mb-5"
+      class="mb-5"
       :project="project"
       @run-started="onRunStarted"
     />
