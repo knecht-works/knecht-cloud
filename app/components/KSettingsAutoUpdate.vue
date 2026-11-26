@@ -17,12 +17,16 @@ watch(settings, (s) => {
   autoUpdateCron.value = s.autoUpdateCron
   prereleaseUpdates.value = s.prereleaseUpdates
 }, { immediate: true })
-const { state: saveState, error: saveError, schedule } = useAutosave(() =>
-  patchSettings(settings, { autoUpdateCron: autoUpdateCron.value.trim(), prereleaseUpdates: prereleaseUpdates.value }))
+// Only changed fields: an invalid cron in the box must not block saving the switch.
+function changes(): Record<string, unknown> {
+  const body: Record<string, unknown> = {}
+  if (autoUpdateCron.value.trim() !== (settings.value?.autoUpdateCron ?? '')) body.autoUpdateCron = autoUpdateCron.value.trim()
+  if (prereleaseUpdates.value !== settings.value?.prereleaseUpdates) body.prereleaseUpdates = prereleaseUpdates.value
+  return body
+}
+const { state: saveState, error: saveError, schedule } = useAutosave(() => patchSettings(settings, changes()))
 watch([autoUpdateCron, prereleaseUpdates], () => {
-  if (autoUpdateCron.value.trim() === (settings.value?.autoUpdateCron ?? '')
-    && prereleaseUpdates.value === settings.value?.prereleaseUpdates) return
-  schedule()
+  if (Object.keys(changes()).length) schedule()
 })
 </script>
 
