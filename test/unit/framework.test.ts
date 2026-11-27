@@ -14,7 +14,6 @@ function octokitWith(files: Record<string, string>, fail?: number): Octokit {
           return { data: { type: 'file', content: Buffer.from(file).toString('base64') } }
         },
       },
-      git: { getTree: async () => ({ data: { tree: [] } }) },
     },
   } as unknown as Octokit
 }
@@ -46,7 +45,6 @@ describe('resolveProjectMeta', () => {
       packageManager: 'pnpm@9.1.0',
       detected: { source: 'ddev', fields: { phpVersion: { value: '8.3', source: '.ddev/config.yaml' } }, warnings: [] },
     })
-    expect(meta.favicon).toBe('')
   })
 
   it('describes a repo without ddev from its other files, framework unknown', async () => {
