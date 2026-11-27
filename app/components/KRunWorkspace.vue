@@ -41,6 +41,9 @@ const isLive = computed(() => isLiveStatus(run.value?.status))
 
 const statusMeta = computed(() => runStatusMeta(run.value))
 
+// A session becomes a preview only once its boot finishes.
+const bootUnfinished = computed(() => !!run.value && run.value.hasEnv && !run.value.previewReady && !run.value.previewLost)
+
 const previewOnline = computed(() =>
   run.value?.envState === 'up' && run.value.previewReady)
 
@@ -85,6 +88,7 @@ const header = computed(() => {
     busy: busy.value,
     prs: prs.value,
     isLive: isLive.value,
+    bootUnfinished: bootUnfinished.value,
   }
 })
 const headerEvents = {
@@ -126,6 +130,7 @@ const headerEvents = {
       :env-state="run.envState"
       :has-env="run.hasEnv || run.previewLost"
       :preview-lost="run.previewLost"
+      :boot-unfinished="bootUnfinished"
       :preview-online="!!previewOnline"
       :is-live="isLive"
       :busy="busy"
