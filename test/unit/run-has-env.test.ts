@@ -16,4 +16,9 @@ describe('runHasEnv', () => {
     expect(runHasEnv('code', noBoot)).toBe(false)
     expect(runHasEnv('code', null)).toBe(false)
   })
+
+  it('a cancelled run leaves a code session without an env', () => {
+    expect(runHasEnv('code', boot, true)).toBe(false)
+    expect(runHasEnv('preview', boot, true)).toBe(true)
+  })
 })

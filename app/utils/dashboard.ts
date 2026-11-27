@@ -93,6 +93,8 @@ export interface ProjectRunSummary {
   envState: EnvState
   previewReady: boolean
   envTransition?: EnvTransition | null
+  // Cancelled, but the cancel left the session as it was: its env tells the state.
+  rolledBack?: boolean
   sessionStatus: 'open' | 'closed'
   workflow: string
   createdAt: string | number | Date | null
@@ -109,7 +111,7 @@ export interface ProjectActivity {
 }
 
 export function projectStatusMeta(run: Omit<ProjectRunSummary, 'workflow' | 'createdAt'> | null | undefined): RunStatusMeta {
-  if (!run || run.envTransition || isLiveStatus(run.status) || run.status === 'failed' || run.status === 'cancelled') return runStatusMeta(run)
+  if (!run || run.envTransition || isLiveStatus(run.status) || run.status === 'failed' || (run.status === 'cancelled' && !run.rolledBack)) return runStatusMeta(run)
   if (run.envState === 'up' && run.previewReady) return { ...SESSION_ENV_META.up, label: 'Live' }
   if (run.envState === 'down' && run.sessionStatus === 'closed') return { ...SESSION_ENV_META.down, label: 'Closed' }
   return SESSION_ENV_META[run.envState]
