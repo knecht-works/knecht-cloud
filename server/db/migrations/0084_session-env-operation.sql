@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `env_operation` text;

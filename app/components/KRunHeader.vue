@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EnvState, EnvTransition } from '#shared/utils/run'
+import type { EnvAction, EnvTransition } from '#shared/utils/run'
 import type { RunStatus } from '~/utils/dashboard'
 import { useToastError } from '~/composables/useToastError'
 import { computed, ref } from 'vue'
@@ -13,14 +13,12 @@ const props = defineProps<{
   runId: number
   sessionId: number
   workflowId: number | null
-  hasEnv: boolean
   status: RunStatus
   kind: 'workflow' | 'mention'
-  envState: EnvState
+  actions: EnvAction[]
   busy: EnvTransition | null
   prs: { url: string, label: string }[]
   isLive: boolean
-  bootUnfinished: boolean
 }>()
 
 const emit = defineEmits<{
@@ -33,7 +31,7 @@ const emit = defineEmits<{
 
 const toastError = useToastError()
 
-const canTerminal = computed(() => props.envState === 'up' && !props.busy)
+const can = (action: EnvAction) => props.actions.includes(action)
 
 const { data: services } = useRunServices(props.runId)
 const KNOWN_SERVICES: Record<string, { label: string, icon: string }> = {
@@ -141,7 +139,7 @@ async function openInVscode() {
   }
 }
 
-const tools = computed(() => canTerminal.value
+const tools = computed(() => can('terminal')
   ? services.value.map(s => ({
       label: KNOWN_SERVICES[s.label]?.label ?? s.label,
       icon: KNOWN_SERVICES[s.label]?.icon ?? 'i-lucide-app-window',
@@ -152,14 +150,12 @@ const tools = computed(() => canTerminal.value
 const retryable = computed(() => (props.status === 'failed' || props.status === 'cancelled') && props.kind !== 'mention')
 
 const menuItems = computed(() => {
-  const lifecycle = (props.envState === 'up' && !props.isLive
-    ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', action: 'stop' as const }]
-    : props.envState === 'stopped'
-      ? [{ label: 'Archive environment', icon: 'i-lucide-archive', action: 'archive' as const }]
-      : []
-  ).map(({ action, ...item }) => ({ ...item, disabled: !!props.busy, onSelect: () => envAction(action) }))
-  const preview = !props.hasEnv && !props.isLive
-    ? [{ label: 'Start preview', icon: 'i-lucide-monitor-play', disabled: startingPreview.value || !!props.busy, onSelect: startPreview }]
+  const lifecycle = [
+    ...(can('stop') ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', onSelect: () => envAction('stop') }] : []),
+    ...(can('archive') ? [{ label: 'Archive environment', icon: 'i-lucide-archive', onSelect: () => envAction('archive') }] : []),
+  ]
+  const preview = can('startPreview')
+    ? [{ label: 'Start preview', icon: 'i-lucide-monitor-play', disabled: startingPreview.value, onSelect: startPreview }]
     : []
   const remove = [{
     label: 'Delete session',
@@ -193,13 +189,13 @@ const pinned = computed<PinnedAction[]>(() => [
       // Run again would reset the checkout, and a session's boot runs on top of its work.
       : [{ label: 'Retry', icon: 'i-lucide-rotate-ccw', disabled: retrying.value, onSelect: retry, color: 'primary' as const }]),
   ...props.prs.map(pr => ({ label: `Open ${pr.label}`, icon: 'i-lucide-git-pull-request', to: pr.url, color: 'primary' as const })),
-  ...(!props.isLive && !props.busy && ((props.envState === 'stopped' && !props.bootUnfinished) || props.envState === 'archived')
-    ? [{ label: 'Reboot environment', icon: 'i-lucide-power', onSelect: () => envAction(props.envState === 'archived' ? 'restore' : 'reboot') }]
+  ...(can('reboot') || can('restore')
+    ? [{ label: 'Reboot environment', icon: 'i-lucide-power', onSelect: () => envAction(can('restore') ? 'restore' : 'reboot') }]
     : []),
-  ...(canTerminal.value && !props.isLive
+  ...(can('ide')
     ? [{ label: 'Open in IDE', icon: 'i-lucide-code-xml', onSelect: openInVscode }]
     : []),
-  ...(canTerminal.value
+  ...(can('terminal')
     ? [{ label: 'Terminal', icon: 'i-lucide-square-terminal', onSelect: () => emit('openTerminal') }]
     : []),
   ...tools.value,

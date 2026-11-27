@@ -18,7 +18,8 @@ vi.mock('#server/daemon/git', async (importOriginal) => {
 const startEnvStack = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('#server/daemon/sandbox', () => ({ startEnvStack }))
 const removeWorkspace = vi.hoisted(() => vi.fn(async (_sessionId: number) => {}))
-vi.mock('#server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace }))
+const ensureWorkspaceUp = vi.hoisted(() => vi.fn(async () => {}))
+vi.mock('#server/daemon/workspace', () => ({ ensureWorkspaceUp, removeWorkspace }))
 const stopRunProcesses = vi.hoisted(() => vi.fn(async (_sessionId: number, _runId: number) => true))
 vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox, stopRunProcesses }))
 vi.mock('#server/utils/github-app', () => ({
@@ -244,12 +245,27 @@ describe('runner', () => {
     expect(startEnvStack).not.toHaveBeenCalled()
   })
 
-  it('brings a stopped session back up before its steps, so a boot step can promote it', async () => {
+  it('brings a stopped session back up before a step that runs in its workspace', async () => {
     const step: Step = { type: 'bash', id: 'noop', command: 'true' }
     const { project, run } = await execute([step])
     db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, run.sessionId)).run()
     await startRun(makeRun(project, [step], { sessionId: run.sessionId }).id, project)
     expect(db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!.envState).toBe('up')
+  })
+
+  it('leaves a stopped code session to its boot step instead of starting a workspace first', async () => {
+    const { project, run } = await execute([{ type: 'bash', id: 'noop', command: 'true' }])
+    db.update(schema.sessions).set({ envState: 'stopped' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    ensureWorkspaceUp.mockClear()
+    const states: string[] = []
+    removeWorkspace.mockImplementationOnce(async (sessionId: number) => {
+      states.push(getSessionRow(sessionId).envState)
+    })
+    await startRun(makeRun(project, [{ type: 'ddev-start', id: 'boot' }], { sessionId: run.sessionId }).id, project)
+    expect(ensureWorkspaceUp).not.toHaveBeenCalled()
+    expect(states).toEqual(['stopped'])
+    expect(getSessionRow(run.sessionId)).toMatchObject({ envState: 'up', tier: 'preview' })
+    startEnvStack.mockClear()
   })
 
   it('applies a changed environment definition to a code session by dropping its workspace', async () => {

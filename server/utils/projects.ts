@@ -1,11 +1,11 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { teardownSession } from '#server/daemon/envs'
+import { deleteEnv } from '#server/daemon/envs'
 import { dropDbBase } from '#server/daemon/db-base'
 import { cancelFollowupWork } from '#server/daemon/followups'
 import { cancelRun } from '#server/daemon/runner'
 import { projectMemoryDir } from '#server/utils/agent-memory'
-import { dataDir, projectSharedDir, sessionArchiveDir } from '#server/utils/storage'
+import { dataDir, projectSharedDir } from '#server/utils/storage'
 import { removeAttachments } from '#server/utils/attachments'
 import { deleteProjectCascade } from '#server/stores/projects'
 import { listSessionIds } from '#server/stores/sessions'
@@ -29,8 +29,7 @@ export function deleteProject(id: number): Promise<void> {
 // Sequential on purpose: ddev does not take parallel deletes well.
 async function cleanupFiles(projectId: number, sessionIds: number[]): Promise<void> {
   for (const sessionId of sessionIds) {
-    await teardownSession(sessionId)
-    rmSync(sessionArchiveDir(sessionId), { recursive: true, force: true })
+    await deleteEnv(sessionId)
   }
   // Not projectDumpDir(): that one mkdirs the folder it names.
   for (const dir of [join(dataDir(), 'dumps', String(projectId)), projectSharedDir(projectId), projectMemoryDir(projectId)]) {

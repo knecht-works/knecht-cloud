@@ -1,14 +1,12 @@
-import { existsSync, mkdirSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '#server/db'
-import { sessionArchiveDir } from '#server/utils/storage'
 import { attachTestObject, makeProject, makeRun } from '../helpers/db'
 import { callRoute } from '../helpers/routes'
 
 const tornDown: number[] = []
 vi.mock('#server/daemon/envs', () => ({
-  teardownSession: async (sessionId: number) => { tornDown.push(sessionId) },
+  deleteEnv: async (sessionId: number) => { tornDown.push(sessionId) },
 }))
 const cancelled: number[] = []
 vi.mock('#server/daemon/runner', () => ({
@@ -28,7 +26,6 @@ describe('DELETE /api/sessions/:id', () => {
     db.insert(schema.runSteps).values({ runId: second.id, stepIndex: 0, stepId: 'boot', type: 'ddev-start', status: 'running' }).run()
     db.insert(schema.followups).values({ sessionId, runId: first.id, prompt: 'again', origin: 'followup', status: 'success' }).run()
     attachTestObject(sessionId, { integration: 'github', kind: 'issue', key: '7', url: null, title: null, status: 'open' })
-    mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
 
     const res = await callRoute(handler, { method: 'DELETE', route: '/sessions/:id', path: `/sessions/${sessionId}` })
 
@@ -40,7 +37,6 @@ describe('DELETE /api/sessions/:id', () => {
     expect(db.select().from(schema.runSteps).where(eq(schema.runSteps.runId, second.id)).all()).toEqual([])
     expect(db.select().from(schema.followups).where(eq(schema.followups.sessionId, sessionId)).all()).toEqual([])
     expect(db.select().from(schema.sessionObjects).where(eq(schema.sessionObjects.sessionId, sessionId)).all()).toEqual([])
-    expect(existsSync(sessionArchiveDir(sessionId))).toBe(false)
     expect(db.select().from(schema.runs).where(eq(schema.runs.id, other.id)).get()).toBeDefined()
   })
 })

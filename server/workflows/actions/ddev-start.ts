@@ -7,7 +7,7 @@ import { detectPreviewFavicon } from '#server/utils/favicon'
 import { sessionPreviewUrl } from '#server/utils/preview-target'
 import { readDdevConfig } from '#server/daemon/ddev'
 import { waitForDevServer } from '#server/daemon/dev-server'
-import { bootEnv, inTransition, promoteToPreview } from '#server/daemon/envs'
+import { bootSessionEnv } from '#server/daemon/envs'
 import { readyDbBase, waitForDbBaseBuild, type ReadyDbBase } from '#server/daemon/db-base'
 import type { DbBase } from '#server/db/schema'
 import { defineAction, type ActionRuntime } from '#server/workflows/actions/types'
@@ -44,9 +44,9 @@ export const ddevStartAction = defineAction({
     if (!hasDb && rt.project.dbDumpPath) {
       throw new Error('A database dump is configured, but this environment has no database container. Remove the dump or give the environment a database.')
     }
-    await inTransition(rt.sessionId, 'booting', async () => {
+    await bootSessionEnv(rt.sessionId, async () => {
       const dbBase = rt.project.dbDumpPath ? await dbBaseForBoot(rt) : null
-      await bootEnv(rt.sessionId, {
+      return {
         dbFile: dbBase ? null : dumpFile(rt),
         dbBase,
         projectCommands: rt.project.bootCommands,
@@ -54,8 +54,7 @@ export const ddevStartAction = defineAction({
         log: rt.log,
         signal: rt.signal,
         runId: rt.runId,
-      })
-      promoteToPreview(rt.sessionId)
+      }
     })
     const outputs = previewOutputs(rt)
     if (outputs && !rt.project.favicon) void detectPreviewFavicon(rt.sessionId, rt.project)
