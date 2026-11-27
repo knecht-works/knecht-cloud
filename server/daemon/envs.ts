@@ -129,7 +129,8 @@ export async function bootEnv(sessionId: number, bootPlan: BootPlan): Promise<vo
   }
   catch (e) {
     await stopEnvStack(sessionId).catch(() => {})
-    const cancelled = plan.signal?.aborted && !!getSessionRow(sessionId)
+    // A step timeout aborts the same signal, but it is a failure.
+    const cancelled = plan.signal?.aborted && plan.signal.reason?.name !== 'TimeoutError' && !!getSessionRow(sessionId)
     // A failed boot leaves nothing running.
     if (!cancelled || before?.tier !== 'code') {
       await removeWorkspace(sessionId).catch(() => {})
@@ -435,7 +436,6 @@ async function finishInterrupted(sessionId: number, operation: EnvTransition): P
   }
 }
 
-// The reaper tick must not pile a second stop onto a session mid-export.
 export function stopEnv(sessionId: number, { byHand = false, idleBefore }: { byHand?: boolean, idleBefore?: Date } = {}): Promise<void> {
   return inMailbox(sessionId, 'stopping', async () => {
     const session = getSessionRow(sessionId)
@@ -451,7 +451,7 @@ export function stopEnv(sessionId: number, { byHand = false, idleBefore }: { byH
       await removeWorkspace(sessionId)
     }
     tryEnvEvent(sessionId, 'stop', byHand ? { wakeOnVisit: false } : {})
-  }, { coalesce: !byHand })
+  })
 }
 
 // Stopping under a running step would SIGKILL the agent inside (exit 137).

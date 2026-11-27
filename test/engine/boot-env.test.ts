@@ -282,6 +282,20 @@ describe('ddev-start action', () => {
     expect(log.join('')).toContain('Boot cancelled, the environment is back to how it was')
   })
 
+  it('fails a boot that runs out of time like any failed boot, not like a cancel', async () => {
+    const project = makeProject({ bootCommands: 'ddev npm run build' })
+    const session = freshSession(project)
+    const timed = new AbortController()
+    onStream = (line) => {
+      if (line === 'bash -lc ddev npm run build') timed.abort(new DOMException('The operation timed out.', 'TimeoutError'))
+    }
+    const log: string[] = []
+    await expect(bootStep(project, session.id, timed.signal, text => log.push(text))).rejects.toThrow()
+    expect(calls.slice(-2)).toEqual(['ddev stop', 'workspace removed'])
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'stopped', tier: 'code' })
+    expect(log.join('')).not.toContain('Boot cancelled')
+  })
+
   it('promotes the session when a retry boots it after the first attempt failed', async () => {
     const project = makeProject({ bootCommands: 'ddev npm run build' })
     const session = freshSession(project)
