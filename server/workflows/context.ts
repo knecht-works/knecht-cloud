@@ -3,11 +3,12 @@ import { runWorkspacePath } from '#shared/utils/routes'
 import { STEP_META_KEYS, type Condition, type Step } from '#shared/utils/workflow'
 import { tryParseJson } from '#server/utils/json'
 import { dashboardOrigin } from '#server/utils/origin'
+import { labelList } from '#server/utils/inputs'
 
 export interface RunContext {
   run: { id: number, url: string }
   project: { name: string, owner: string, fullName: string, defaultBranch: string }
-  inputs: Record<string, string>
+  inputs: Record<string, string | string[]>
   steps: Record<string, Record<string, unknown>>
   [output: string]: unknown
 }
@@ -15,7 +16,7 @@ export interface RunContext {
 export function createContext(
   runId: number,
   project: Project,
-  inputs: Record<string, string> = {},
+  inputs: Record<string, string | string[]> = {},
 ): RunContext {
   return {
     run: { id: runId, url: `${dashboardOrigin()}${runWorkspacePath(project.id, runId)}` },
@@ -25,13 +26,23 @@ export function createContext(
       fullName: project.fullName,
       defaultBranch: project.defaultBranch,
     },
-    inputs,
+    inputs: typeof inputs.labels === 'string' ? { ...inputs, labels: labelList(inputs.labels) } : inputs,
     steps: {},
   }
 }
 
 export function render(template: string, ctx: RunContext): string {
-  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => valueText(lookup(path, ctx)))
+  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => textAt(path, ctx))
+}
+
+export function textAt(path: string, ctx: RunContext): string {
+  return valueText(valueAt(path, ctx))
+}
+
+// Only Loop and the list conditions see a list input as a list; everywhere else it reads as "a, b".
+export function valueAt(path: string, ctx: RunContext): unknown {
+  const value = lookup(path, ctx)
+  return Array.isArray(value) && path.startsWith('inputs.') ? value.join(', ') : value
 }
 
 export function valueText(value: unknown): string {
@@ -55,7 +66,7 @@ export function renderStepParams<S extends Step>(step: S, ctx: RunContext, rawPa
   for (const [key, value] of Object.entries(rendered)) {
     if (typeof value !== 'string' || META_KEYS.has(key)) continue
     const single = rawParams.includes(key) ? value.trim().match(SINGLE_REF_RE) : null
-    rendered[key] = single ? lookup(single[1]!, ctx) : render(value, ctx)
+    rendered[key] = single ? valueAt(single[1]!, ctx) : render(value, ctx)
   }
   return rendered as S
 }
@@ -66,8 +77,18 @@ export function evalConditions(groups: Condition[][], ctx: RunContext): boolean 
 }
 
 function evalCondition(c: Condition, ctx: RunContext): boolean {
-  const left = render(c.left, ctx)
   const right = render(c.right ?? '', ctx)
+  const single = c.left.trim().match(SINGLE_REF_RE)
+  const value = single ? lookup(single[1]!, ctx) : undefined
+  if (Array.isArray(value)) {
+    const items = value.map(item => typeof item === 'object' && item !== null ? JSON.stringify(item) : String(item))
+    // A list holds its items: "labels contains bug" must not match "bug-report".
+    if (c.op === 'contains') return items.includes(right)
+    if (c.op === 'not-contains') return !items.includes(right)
+    if (c.op === 'empty') return !items.length
+    if (c.op === 'not-empty') return !!items.length
+  }
+  const left = render(c.left, ctx)
   switch (c.op) {
     case 'eq': return left === right
     case 'neq': return left !== right

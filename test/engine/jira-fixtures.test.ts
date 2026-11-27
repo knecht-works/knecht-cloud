@@ -124,6 +124,10 @@ describe('jira run inputs', () => {
     expect(inputsOf('created').map(inputs => inputs?.body)).toEqual(['Here is the fixute Description', 'Fixture Description', 'Description'])
   })
 
+  it('hands the labels over as a list', () => {
+    expect(inputsOf('created').map(inputs => inputs?.labels)).toEqual([[], ['bug', 'enhancement'], []])
+  })
+
   it('names the event that fired the trigger', () => {
     expect(inputsOf('created')[0]?.event).toBe('created')
     expect(inputsOf('assigned')[0]?.event).toBe('assigned')

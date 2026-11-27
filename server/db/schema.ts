@@ -221,7 +221,7 @@ export const runs = sqliteTable('runs', {
   failureDiagnosis: text('failure_diagnosis', { mode: 'json' }).$type<RunDiagnosis>(),
   // The object's update time as delivered, to the second: a trigger runs once per version of an object.
   objectVersion: text('object_version'),
-  inputs: text('inputs', { mode: 'json' }).$type<Record<string, string>>(),
+  inputs: text('inputs', { mode: 'json' }).$type<Record<string, string | string[]>>(),
   // Who handed the object to Knecht for this run, in the integration's ids: Knecht hands it back to them.
   actor: text('actor', { mode: 'json' }).$type<{ id: string, name: string }>(),
   steps: text('steps', { mode: 'json' }).$type<Step[]>(),

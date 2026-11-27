@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { evalConditions, render, renderStepParams, resolveLoopItems, type RunContext } from '#server/workflows/context'
+import { createContext, evalConditions, render, renderStepParams, resolveLoopItems, type RunContext } from '#server/workflows/context'
 import type { Step } from '#shared/utils/workflow'
+import type { Project } from '#server/db/schema'
 
 function ctx(extra: Record<string, unknown> = {}): RunContext {
   return {
     run: { id: 7, url: 'http://knecht.test/runs/7' },
     project: { name: 'demo', owner: 'acme', fullName: 'acme/demo', defaultBranch: 'main' },
-    inputs: { mode: 'fast' },
+    inputs: { mode: 'fast', labels: ['qa-sonder-alt', 'bug'], one: ['bug'], none: [] },
     steps: { probe: { stdout: 'hello', exitCode: 0, json: { score: 3, tags: ['a', 'b'] } } },
     ...extra,
   }
@@ -21,6 +22,17 @@ describe('render', () => {
   it('renders objects and arrays as JSON', () => {
     expect(render('{{ steps.probe.json }}', ctx())).toBe('{"score":3,"tags":["a","b"]}')
     expect(render('{{ steps.probe.json.tags }}', ctx())).toBe('["a","b"]')
+  })
+
+  it('renders a list input as comma-separated text, as before labels became a list', () => {
+    expect(render('labels: {{ inputs.labels }}', ctx())).toBe('labels: qa-sonder-alt, bug')
+  })
+})
+
+describe('createContext', () => {
+  it('reads the labels of a run stored before they became a list', () => {
+    const project = { name: 'demo', owner: 'acme', fullName: 'acme/demo', defaultBranch: 'main' } as Project
+    expect(createContext(1, project, { labels: 'bug, ui', title: 't' }).inputs).toEqual({ labels: ['bug', 'ui'], title: 't' })
   })
 })
 
@@ -39,6 +51,11 @@ describe('renderStepParams', () => {
     const mixed = renderStepParams({ ...step, input: 'x{{ steps.probe.json }}' }, ctx(), ['input'])
     expect(mixed.input).toBe('x{"score":3,"tags":["a","b"]}')
   })
+
+  it('hands a list input to a raw param as comma-separated text', () => {
+    const step: Step = { type: 'js', id: 'x', code: 'main', input: '{{ inputs.labels }}' }
+    expect(renderStepParams(step, ctx(), ['input']).input).toBe('qa-sonder-alt, bug')
+  })
 })
 
 describe('evalConditions', () => {
@@ -55,6 +72,13 @@ describe('evalConditions', () => {
     ['invalid regex is false, not an error', [[{ left: 'x', op: 'regex', right: '(' }]], false],
     ['AND within a group', [[{ left: '1', op: 'eq', right: '1' }, { left: '1', op: 'eq', right: '2' }]], false],
     ['OR across groups', [[{ left: '1', op: 'eq', right: '2' }], [{ left: '1', op: 'eq', right: '1' }]], true],
+    ['contains on a list matches whole items', [[{ left: '{{ inputs.labels }}', op: 'contains', right: 'bug' }]], true],
+    ['contains on a list is no substring match', [[{ left: '{{ inputs.labels }}', op: 'contains', right: 'qa-sonder' }]], false],
+    ['not-contains on a list', [[{ left: '{{ inputs.labels }}', op: 'not-contains', right: 'qa-sonder' }]], true],
+    ['eq on a list compares its text', [[{ left: '{{ inputs.one }}', op: 'eq', right: 'bug' }]], true],
+    ['regex on a list matches its text', [[{ left: '{{ inputs.labels }}', op: 'regex', right: '^qa-sonder-alt, bug$' }]], true],
+    ['empty on an empty list', [[{ left: '{{ inputs.none }}', op: 'empty' }]], true],
+    ['not-empty on an empty list', [[{ left: '{{ inputs.none }}', op: 'not-empty' }]], false],
     ['no conditions match everything', [], true],
     ['an empty group matches nothing', [[]], false],
   ]
@@ -72,6 +96,7 @@ describe('resolveLoopItems', () => {
   it('passes a single-reference array raw and parses a JSON array string', () => {
     expect(resolveLoopItems('{{ steps.probe.json.tags }}', ctx())).toEqual(['a', 'b'])
     expect(resolveLoopItems('["x", 1]', ctx())).toEqual(['x', 1])
+    expect(resolveLoopItems('{{ inputs.labels }}', ctx())).toEqual(['qa-sonder-alt', 'bug'])
   })
 
   it('rejects values that are neither an array nor a non-negative number', () => {

@@ -128,7 +128,7 @@ export function trackerInputs(issue: TrackerIssue, event: string): TriggerInputs
     url: issue.object.url ?? '',
     status: issue.status.name,
     assignee: issue.assignees.join(', '),
-    labels: issue.labels.join(', '),
+    labels: issue.labels,
     author: issue.author,
   }
 }
