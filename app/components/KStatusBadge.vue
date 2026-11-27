@@ -12,7 +12,7 @@ defineProps<{
 <template>
   <span
     class="flex flex-none items-center rounded-full"
-    :class="size === 'md' ? 'gap-2 px-3 py-0.5 text-sm' : 'gap-1.5 px-2 py-0.5 text-xs'"
+    :class="size === 'md' ? 'gap-2 px-3 py-1 text-xs' : 'gap-1.5 px-2 py-0.5 text-xs'"
     :style="{ color: meta.text, background: `color-mix(in srgb, ${DOT_COLOR_VAR[meta.dot]} 12%, transparent)` }"
   >
     <KStatusDot

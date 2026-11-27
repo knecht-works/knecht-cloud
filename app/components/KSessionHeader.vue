@@ -23,6 +23,7 @@ const objects = computed(() => props.group.objects
       <KStatusBadge
         :meta="status"
         size="md"
+        class="mr-1.5"
       />
       <h2 class="truncate text-xl font-semibold tracking-tight text-highlighted">
         {{ title }}
