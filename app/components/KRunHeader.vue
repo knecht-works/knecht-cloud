@@ -229,7 +229,7 @@ const pinned = computed<PinnedAction[]>(() => [
     >
       <UButton
         :color="item.color ?? 'neutral'"
-        :variant="item.color === 'primary' ? 'solid' : 'subtle'"
+        :variant="item.color ? 'solid' : 'subtle'"
         :icon="item.icon"
         :aria-label="item.label"
         :to="item.to"
