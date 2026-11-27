@@ -19,7 +19,7 @@ const objects = computed(() => props.group.objects
 
 <template>
   <div class="flex items-center gap-4">
-    <div class="flex min-w-0 flex-1 items-center gap-3">
+    <div class="flex min-w-0 flex-1 items-center gap-1.5">
       <KStatusBadge
         :meta="status"
         size="md"
@@ -36,7 +36,7 @@ const objects = computed(() => props.group.objects
           :href="o.url!"
           target="_blank"
           rel="noopener"
-          class="flex flex-none items-center gap-1.5 text-sm text-muted transition-colors hover:text-highlighted"
+          class="ml-1.5 flex flex-none items-center gap-1.5 text-sm text-muted transition-colors hover:text-highlighted"
         >
           <UIcon
             :name="o.meta.icon"
