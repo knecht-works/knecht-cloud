@@ -56,3 +56,7 @@ export function updateObjectRow(id: number, patch: Partial<Pick<SessionObjectRow
 export function sessionHasObjects(sessionId: number): boolean {
   return !!db.select({ id: o.id }).from(o).where(eq(o.sessionId, sessionId)).get()
 }
+
+export function deleteSessionObjectRows(sessionId: number): void {
+  db.delete(o).where(eq(o.sessionId, sessionId)).run()
+}
