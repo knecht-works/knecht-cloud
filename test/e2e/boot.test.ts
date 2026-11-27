@@ -237,7 +237,7 @@ for (const fixture of selected) {
     })
 
     afterAll(async () => {
-      if (runId) await cleanup(client, `/api/runs/${runId}`)
+      if (sessionId) await cleanup(client, `/api/sessions/${sessionId}`)
       if (projectId && ownProject) await cleanup(client, `/api/projects/${projectId}`)
       if (workflowId) await cleanup(client, `/api/workflows/${workflowId}`)
     })
