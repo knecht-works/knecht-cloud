@@ -8,7 +8,7 @@ export const ddevStartStep = defineStep({
   icon: 'i-lucide-play',
   group: 'Deterministic',
   fields: [
-    { key: 'commands', label: 'Additional setup commands', input: 'code', lang: 'bash', rows: 3, vars: true, placeholder: 'Optional. One command per line:\nddev npm run build', hint: 'The project\'s own boot commands (project settings) run first; add here only what THIS workflow additionally needs. A session boots once: later runs in it skip both.' },
+    { key: 'commands', label: 'Additional setup commands', input: 'code', lang: 'bash', rows: 3, vars: true, placeholder: 'Optional. One command per line:\nddev npm run build', hint: 'Runs after the project\'s boot commands. Commands every workflow needs belong in the project settings.' },
   ],
   outputs: [
     { path: 'url', hint: 'The booted environment\'s preview URL' },
