@@ -5,6 +5,7 @@ import { Readable, Writable } from 'node:stream'
 import { agent, methods, ndJsonStream, PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 
 const KNOWN_SESSION = 'ses_stub_known'
+const REFUSING_SESSION = 'ses_stub_refusing'
 const KNOWN_SESSION_MODEL = 'anthropic/claude-sonnet-4-5'
 let counter = 0
 let cancelHanging = () => {}
@@ -20,7 +21,7 @@ agent({ name: 'stub' })
   .onRequest(methods.agent.session.new, () => ({ sessionId: `ses_stub_${++counter}` }))
   .onRequest(methods.agent.session.load, ({ params }) => {
     // Each turn is a new process, so a session an earlier one created counts as known too.
-    if (params.sessionId !== KNOWN_SESSION && !/^ses_stub_\d+$/.test(params.sessionId)) throw new Error(`unknown session ${params.sessionId}`)
+    if (params.sessionId !== KNOWN_SESSION && params.sessionId !== REFUSING_SESSION && !/^ses_stub_\d+$/.test(params.sessionId)) throw new Error(`unknown session ${params.sessionId}`)
     currentModel = KNOWN_SESSION_MODEL
     return { configOptions: [modelOption()] }
   })
@@ -32,6 +33,7 @@ agent({ name: 'stub' })
   .onNotification(methods.agent.session.cancel, () => cancelHanging())
   .onRequest(methods.agent.session.prompt, async ({ params, client }) => {
     const { sessionId } = params
+    if (sessionId === REFUSING_SESSION) return { stopReason: 'refusal' }
     const text = params.prompt.map(p => p.type === 'text' ? p.text : '').join('')
     const update = u => client.notify(methods.client.session.update, { sessionId, update: u })
 
@@ -58,6 +60,8 @@ agent({ name: 'stub' })
       return { stopReason: 'cancelled' }
     }
     if (text.includes('EXIT')) process.exit(3)
+    if (text.includes('REFUSE')) return { stopReason: 'refusal' }
+    if (text.includes('OUT_OF_TOKENS')) return { stopReason: 'max_tokens' }
     if (text.includes('WHICH_MODEL')) {
       await update({ sessionUpdate: 'agent_message_chunk', messageId: 'm0', content: { type: 'text', text: `model: ${currentModel}` } })
       return { stopReason: 'end_turn' }
