@@ -41,9 +41,6 @@ const isLive = computed(() => isLiveStatus(run.value?.status))
 
 const statusMeta = computed(() => runStatusMeta(run.value))
 
-// A session becomes a preview only once its boot finishes.
-const bootUnfinished = computed(() => !!run.value && run.value.hasEnv && !run.value.previewReady && !run.value.previewLost)
-
 const previewOnline = computed(() =>
   run.value?.envState === 'up' && run.value.previewReady)
 
@@ -75,20 +72,21 @@ function refreshWorkspace() {
   return invalidate(liveTopics.run(id))
 }
 
+// A click awaiting its answer offers nothing more, like the operation it started.
+const actions = computed(() => pending.value ? [] : run.value?.envActions ?? [])
+
 const header = computed(() => {
   const r = run.value!
   return {
     runId: r.id,
     sessionId: r.sessionId,
     workflowId: r.workflowId,
-    hasEnv: r.hasEnv || r.previewLost,
     status: r.status,
     kind: r.kind,
-    envState: r.envState,
+    actions: actions.value,
     busy: busy.value,
     prs: prs.value,
     isLive: isLive.value,
-    bootUnfinished: bootUnfinished.value,
   }
 })
 const headerEvents = {
@@ -127,10 +125,11 @@ const headerEvents = {
       :session-id="run.sessionId"
       :preview-hosts="run.previewHosts ?? []"
       :has-preview-target="run.hasPreviewTarget"
+      :actions="actions"
       :env-state="run.envState"
       :has-env="run.hasEnv || run.previewLost"
       :preview-lost="run.previewLost"
-      :boot-unfinished="bootUnfinished"
+      :boot-unfinished="run.bootUnfinished"
       :preview-online="!!previewOnline"
       :is-live="isLive"
       :busy="busy"

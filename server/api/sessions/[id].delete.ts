@@ -1,8 +1,6 @@
-import { rmSync } from 'node:fs'
-import { teardownSession } from '#server/daemon/envs'
+import { deleteEnv } from '#server/daemon/envs'
 import { cancelFollowupWork } from '#server/daemon/followups'
 import { cancelRun } from '#server/daemon/runner'
-import { sessionArchiveDir } from '#server/utils/storage'
 import { removeAttachments } from '#server/utils/attachments'
 import { deleteSession, getSessionRow } from '#server/stores/sessions'
 import { deleteRun, listSessionRunIds } from '#server/stores/runs'
@@ -35,7 +33,7 @@ export default defineEventHandler(async (event) => {
   deleteSessionObjectRows(id)
   deleteSession(id)
 
-  await teardownSession(id)
-  rmSync(sessionArchiveDir(id), { recursive: true, force: true })
+  // Not awaited: a cancelled boot winds down first, and the session is gone for the dashboard already.
+  deleteEnv(id).catch(e => console.error(`[sessions] tearing down deleted session ${id} failed (the GC picks up the rest):`, e))
   return { ok: true }
 })

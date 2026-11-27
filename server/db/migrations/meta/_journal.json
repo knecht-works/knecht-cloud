@@ -589,6 +589,13 @@
       "when": 1795780791773,
       "tag": "0083_symlink-favicons",
       "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "6",
+      "when": 1795808177310,
+      "tag": "0084_session-env-operation",
+      "breakpoints": true
     }
   ]
 }

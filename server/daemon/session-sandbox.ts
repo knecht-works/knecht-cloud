@@ -1,8 +1,8 @@
 import type { ActionRuntime } from '#server/workflows/actions/types'
 import { getSessionRow } from '#server/stores/sessions'
 import { copyIntoContainer, execInContainer, resolveContainerIp, runTag, spawnInContainer, stopTaggedProcesses, streamInContainer, webContainerName, WEB_PROJECT_DIR } from '#server/daemon/sandbox'
-import { removeWorkspace, workspaceContainerName } from '#server/daemon/workspace'
-import { reviveEnv, reviveWithoutPreview } from '#server/daemon/envs'
+import { workspaceContainerName } from '#server/daemon/workspace'
+import { releaseWorkspace, reviveEnv, reviveWithoutPreview } from '#server/daemon/envs'
 
 // Read per call: a ddev-start step promotes the session mid-run.
 export function sessionContainer(sessionId: number): string {
@@ -26,7 +26,7 @@ export function sessionSandbox(sessionId: number, log: (text: string) => void, s
       return {
         stream: (command, opts) => streamInContainer(container, command, log, { ...opts?.env, ...tag }, signal),
         exec: async (command, opts) => String((await execInContainer(container, command, { cancelSignal: signal, input: opts?.input, stripFinalNewline: false }, { ...opts?.env, ...tag })).stdout),
-        release: inWorkspace ? () => removeWorkspace(sessionId) : async () => {},
+        release: inWorkspace ? () => releaseWorkspace(sessionId) : async () => {},
       }
     },
     stream: (command, opts) => streamInContainer(sessionContainer(sessionId), command, log, { ...opts?.env, ...tag }, signal),

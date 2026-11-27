@@ -1,5 +1,8 @@
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
+import type { EnvTransition } from '#shared/utils/run'
 import { getSessionRow, makeProject, makeRun } from '../helpers/db'
 
 const startEnvStack = vi.fn(async (_sessionId: number) => {})
@@ -13,16 +16,19 @@ vi.mock('#server/daemon/sandbox', () => ({
   startEnvStack: (sessionId: number) => startEnvStack(sessionId),
   stopEnvStack: (sessionId: number) => stopEnvStack(sessionId),
 }))
-vi.mock('#server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace: async () => {} }))
+const removeWorkspace = vi.fn(async (_sessionId: number) => {})
+vi.mock('#server/daemon/workspace', () => ({ ensureWorkspaceUp: async () => {}, removeWorkspace: (sessionId: number) => removeWorkspace(sessionId) }))
+vi.mock('#server/daemon/db-base', () => ({ archiveDbVolume: async () => {} }))
 
 const { db, schema } = await import('#server/db')
-const { reconcileEnvStates } = await import('#server/daemon/envs')
+const { reconcileEnvStates, reviveEnv } = await import('#server/daemon/envs')
+const { sessionArchiveDir } = await import('#server/utils/storage')
 
-function makeSessionInState(envState: 'up' | 'stopped' | 'archived', tier: 'code' | 'preview' = 'preview') {
+function makeSessionInState(envState: 'up' | 'stopped' | 'archived', tier: 'code' | 'preview' = 'preview', envOperation: EnvTransition | null = null) {
   const project = makeProject()
   const run = makeRun(project, [])
   db.update(schema.sessions)
-    .set({ envState, tier, previewLastSeen: new Date() })
+    .set({ envState, tier, envOperation, previewLastSeen: new Date() })
     .where(eq(schema.sessions.id, run.sessionId))
     .run()
   return run
@@ -74,5 +80,43 @@ describe('reconcileEnvStates', () => {
     expect(startEnvStack).not.toHaveBeenCalledWith(archived.sessionId)
     expect(getSessionRow(stopped.sessionId).envState).toBe('stopped')
     expect(getSessionRow(archived.sessionId).envState).toBe('archived')
+  })
+
+  it.each(['booting', 'rebooting', 'stopping'] as const)('stops a session the daemon left %s', async (operation) => {
+    const run = makeSessionInState('up', 'code', operation)
+    stopEnvStack.mockClear()
+    removeWorkspace.mockClear()
+    await reconcileEnvStates()
+    expect(stopEnvStack).toHaveBeenCalledWith(run.sessionId)
+    expect(removeWorkspace).toHaveBeenCalledWith(run.sessionId)
+    expect(getSessionRow(run.sessionId)).toMatchObject({ envState: 'stopped', envOperation: null })
+  })
+
+  it('leaves a session archived whose restore the daemon cut short', async () => {
+    const run = makeSessionInState('archived', 'preview', 'restoring')
+    await reconcileEnvStates()
+    expect(getSessionRow(run.sessionId)).toMatchObject({ envState: 'archived', envOperation: null })
+  })
+
+  it('finishes an archive the daemon cut short', async () => {
+    const run = makeSessionInState('stopped', 'preview', 'archiving')
+    await reconcileEnvStates()
+    expect(getSessionRow(run.sessionId)).toMatchObject({ envState: 'archived', envOperation: null })
+  })
+
+  it('finishes an expiry the daemon cut short', async () => {
+    const run = makeSessionInState('archived', 'preview', 'expiring')
+    mkdirSync(sessionArchiveDir(run.sessionId), { recursive: true })
+    writeFileSync(join(sessionArchiveDir(run.sessionId), 'checkout.tar.gz'), '')
+    await reconcileEnvStates()
+    expect(existsSync(sessionArchiveDir(run.sessionId))).toBe(false)
+    expect(getSessionRow(run.sessionId)).toMatchObject({ envState: 'down', tier: 'code', envOperation: null })
+  })
+
+  it('holds back a revive that arrives while the session is reconciled', async () => {
+    const run = makeSessionInState('up', 'code', 'booting')
+    // Ahead of the reconcile, the revive would find it up and the reconcile would stop it after.
+    await Promise.all([reconcileEnvStates(), reviveEnv(run.sessionId)])
+    expect(getSessionRow(run.sessionId).envState).toBe('up')
   })
 })

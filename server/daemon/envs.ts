@@ -14,56 +14,27 @@ import { ensureWorkspaceUp, removeWorkspace, runOnCheckout } from '#server/daemo
 import { envStackRunning, forgetPreview, removeEnvStack, runTag, startEnvStack, stopEnvStack, streamInSandbox } from '#server/daemon/sandbox'
 import { warmPreviewCertificates } from '#server/utils/preview-certs'
 import { getProject } from '#server/stores/projects'
-import { getSessionRow, listSessionsInEnvState, moveSession, sessionBase, sessionChanged, updateSession, touchSessionPreview } from '#server/stores/sessions'
+import { getSessionRow, listSessionsInEnvState, listSessionsWithEnvOperation, moveSession, sessionBase, updateSession, touchSessionPreview } from '#server/stores/sessions'
 import { listRunSessionIds, sessionHasActiveRun } from '#server/stores/runs'
 import { lastSuccessfulSessionStep, listRunIdsWithRunningSteps } from '#server/stores/run-steps'
 import { listRunningFollowupSessionIds, sessionHasActiveFollowup } from '#server/stores/followups'
+import { asOperation, envOperation, inMailbox, mailboxDrained, relabelOperation } from '#server/daemon/session-env'
 
-// In memory on purpose: a crash mid-transition must not wedge a DB state no reaper reclaims.
-const transitions = new Map<number, EnvTransition>()
+export { envOperation as envTransition } from '#server/daemon/session-env'
 
-export function envTransition(sessionId: number): EnvTransition | null {
-  return transitions.get(sessionId) ?? null
-}
+type EnvEvent = 'checkOut' | 'boot' | 'failBoot' | 'start' | 'stop' | 'archive' | 'restore' | 'expire'
 
-const starts = new Map<number, Set<Promise<void>>>()
-
-// One at a time: an archive under a running reboot would delete the checkout it boots from.
-export async function inTransition(sessionId: number, kind: EnvTransition, fn: () => Promise<void>): Promise<void> {
-  const running = transitions.get(sessionId)
-  if (running) throw new Error(`The environment is ${running}`)
-  transitions.set(sessionId, kind)
-  sessionChanged(sessionId)
-  try {
-    // A stop that inspected the stack while a start still created it would mark containers stopped that keep running.
-    await Promise.allSettled(starts.get(sessionId) ?? [])
-    await fn()
-  }
-  finally {
-    transitions.delete(sessionId)
-    sessionChanged(sessionId)
-  }
-}
-
-// Too frequent for a visible transition (every step starts its sandbox), so a transition only waits for it.
-function guardedStart(sessionId: number, fn: () => Promise<void>): Promise<void> {
-  const running = transitions.get(sessionId)
-  if (running) return Promise.reject(new Error(`The environment is ${running}`))
-  const pending = starts.get(sessionId) ?? new Set()
-  starts.set(sessionId, pending)
-  const start = fn().finally(() => {
-    pending.delete(start)
-    if (!pending.size && starts.get(sessionId) === pending) starts.delete(sessionId)
-  })
-  pending.add(start)
-  return start
-}
-
-const MOVES: Record<EnvState, EnvState[]> = {
-  down: ['up'],
-  up: ['stopped'],
-  stopped: ['up', 'archived'],
-  archived: ['up', 'down'],
+const EVENTS: Record<EnvEvent, { from: EnvState[], to: Partial<NewSession> & { envState: EnvState } }> = {
+  checkOut: { from: ['down'], to: { envState: 'up' } },
+  // From stopped too: a failed boot leaves the session stopped, and a step retry boots it again.
+  boot: { from: ['up', 'stopped', 'archived'], to: { envState: 'up', tier: 'preview' } },
+  failBoot: { from: ['up'], to: { envState: 'stopped', wakeOnVisit: false } },
+  start: { from: ['stopped'], to: { envState: 'up' } },
+  stop: { from: ['up'], to: { envState: 'stopped' } },
+  archive: { from: ['stopped'], to: { envState: 'archived' } },
+  restore: { from: ['archived'], to: { envState: 'up' } },
+  // Or the boot step treats the session as already booted.
+  expire: { from: ['archived'], to: { envState: 'down', tier: 'code' } },
 }
 
 // Read inside the transition: the listing that picked the session may be stale by now.
@@ -71,23 +42,21 @@ function stillIn(sessionId: number, state: EnvState): boolean {
   return getSessionRow(sessionId)?.envState === state
 }
 
-function moveEnv(sessionId: number, from: EnvState, to: EnvState, patch: Partial<NewSession> = {}): void {
-  if (!MOVES[from].includes(to)) throw new Error(`An environment cannot go from '${from}' to '${to}'`)
-  const seen = to === 'up' ? { previewLastSeen: new Date(), wakeOnVisit: true } : {}
-  if (!moveSession(sessionId, { envState: from }, { envState: to, ...seen, ...patch })) {
-    throw new Error(`Session ${sessionId} left '${from}' before it could go to '${to}'`)
+function tryEnvEvent(sessionId: number, event: EnvEvent, patch: Partial<NewSession> = {}): boolean {
+  const { from, to } = EVENTS[event]
+  const seen = to.envState === 'up' ? { previewLastSeen: new Date(), wakeOnVisit: true } : {}
+  return moveSession(sessionId, from, { ...seen, ...to, ...patch })
+}
+
+function envEvent(sessionId: number, event: EnvEvent, patch: Partial<NewSession> = {}): void {
+  if (!tryEnvEvent(sessionId, event, patch)) {
+    throw new Error(`Session ${sessionId} is ${getSessionRow(sessionId)?.envState ?? 'gone'}, so it cannot ${event}`)
   }
 }
 
 // The checkout exists from here on, so the session takes part in the idle lifecycle.
-export function markCheckedOut(sessionId: number): void {
-  if (getSessionRow(sessionId)?.envState === 'down') moveEnv(sessionId, 'down', 'up')
-}
-
-export function promoteToPreview(sessionId: number): void {
-  if (!moveSession(sessionId, { envState: 'up', tier: 'code' }, { tier: 'preview' })) {
-    throw new Error(`Session ${sessionId} is not an up code session`)
-  }
+export async function markCheckedOut(sessionId: number): Promise<void> {
+  await inMailbox(sessionId, null, async () => tryEnvEvent(sessionId, 'checkOut'))
 }
 
 export interface BootPlan {
@@ -101,6 +70,11 @@ export interface BootPlan {
   runId?: number
 }
 
+// The plan is made inside the operation: waiting for the project's base database already counts as booting.
+export function bootSessionEnv(sessionId: number, plan: () => Promise<BootPlan>): Promise<void> {
+  return inMailbox(sessionId, 'booting', async () => bootEnv(sessionId, await plan()))
+}
+
 // A half-booted stack would otherwise idle until the reaper reclaims it.
 export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> {
   const log = plan.log ?? (() => {})
@@ -109,11 +83,7 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
   const runExec = (command: string[]) => exec(command, plan.runId === undefined ? undefined : runTag(plan.runId))
   warmPreviewCertificates(sessionId)
   // A running `ddev start` cannot be cut short without leaving a half-built stack, so the cancel shows while it winds down.
-  const showStopping = () => {
-    if (transitions.get(sessionId) !== 'booting') return
-    transitions.set(sessionId, 'stopping')
-    sessionChanged(sessionId)
-  }
+  const showStopping = () => relabelOperation(sessionId, 'booting', 'stopping')
   plan.signal?.addEventListener('abort', showStopping, { once: true })
   try {
     await removeWorkspace(sessionId)
@@ -150,11 +120,12 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
       }
       await noteDevServerUse(sessionId, log)
     }
+    envEvent(sessionId, 'boot')
   }
   catch (e) {
     await stopEnvStack(sessionId).catch(() => {})
     // The workspace went first, so nothing of the session runs any more.
-    if (stillIn(sessionId, 'up')) moveEnv(sessionId, 'up', 'stopped', { wakeOnVisit: false })
+    tryEnvEvent(sessionId, 'failBoot')
     throw e
   }
   finally {
@@ -178,20 +149,23 @@ async function runSetupCommands(
 }
 
 // Also applies a changed environment definition or new mounts.
-export async function rebootEnv(sessionId: number): Promise<void> {
-  await inTransition(sessionId, 'rebooting', async () => {
-    // Regenerate first, or the reboot runs on the original boot's compose override.
-    const session = getSessionRow(sessionId)
-    const project = session && getProject(session.projectId)
-    const dir = sessionCheckoutDir(sessionId)
-    if (!session) throw new Error('Session not found')
-    if (project && existsSync(dir)) {
-      pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
-    }
-    await startSandbox(sessionId, session.tier, true)
-    if (session.envState === 'stopped') moveEnv(sessionId, 'stopped', 'up')
-    else touchSessionPreview(sessionId)
-  })
+export function rebootEnv(sessionId: number): Promise<void> {
+  return inMailbox(sessionId, 'rebooting', () => reboot(sessionId))
+}
+
+async function reboot(sessionId: number): Promise<void> {
+  // Regenerate first, or the reboot runs on the original boot's compose override.
+  const session = getSessionRow(sessionId)
+  const project = session && getProject(session.projectId)
+  const dir = sessionCheckoutDir(sessionId)
+  if (!session) throw new Error('Session not found')
+  // Callers check the state before queueing: an archive may have come in between.
+  if (session.envState === 'archived' || session.envState === 'down') throw new Error(`Session ${sessionId} is ${session.envState}, so it cannot reboot`)
+  if (project && existsSync(dir)) {
+    pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
+  }
+  await startSandbox(sessionId, session.tier, true)
+  if (!tryEnvEvent(sessionId, 'start')) touchSessionPreview(sessionId)
 }
 
 async function startSandbox(sessionId: number, tier: SessionTier, fresh: boolean, log?: (text: string) => void): Promise<void> {
@@ -214,7 +188,7 @@ function pinDevServerPort(sessionId: number, port: number | null): void {
 }
 
 export async function rehydrateEnv(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
-  await inTransition(sessionId, 'restoring', () => restoreFromArchive(sessionId, log))
+  await inMailbox(sessionId, 'restoring', () => restoreFromArchive(sessionId, log))
 }
 
 async function restoreFromArchive(sessionId: number, log: (text: string) => void): Promise<void> {
@@ -260,9 +234,8 @@ async function restoreFromArchive(sessionId: number, log: (text: string) => void
   }
   else {
     await ensureWorkspaceUp(sessionId)
+    envEvent(sessionId, 'restore')
   }
-  moveEnv(sessionId, 'archived', 'up')
-  if (session.tier === 'code' && bootStep) promoteToPreview(sessionId)
 }
 
 // Archives written before checkout.tar.gz: the .git plus the staged diff. The .git came from
@@ -280,38 +253,55 @@ async function restoreLegacyCheckout(sessionId: number, dir: string, gitArchive:
   }
 }
 
-export async function reviveEnv(sessionId: number, log?: (text: string) => void, { bootLostPreview = true } = {}): Promise<void> {
+export function reviveEnv(sessionId: number, log?: (text: string) => void, { bootLostPreview = true } = {}): Promise<void> {
+  return inMailbox(sessionId, null, () => revive(sessionId, log, bootLostPreview))
+}
+
+async function revive(sessionId: number, log: ((text: string) => void) | undefined, bootLostPreview: boolean): Promise<void> {
   const session = getSessionRow(sessionId)
   if (!session || session.envState === 'down') throw new Error('The session has no checkout')
-  const running = transitions.get(sessionId)
-  if (running) throw new Error(`The environment is ${running}`)
-  if (session.envState === 'archived') return rehydrateEnv(sessionId, log)
+  if (session.envState === 'archived') return asOperation(sessionId, 'restoring', () => restoreFromArchive(sessionId, log ?? (() => {})))
   if (bootLostPreview && previewLost(sessionId)) return rebootLostPreview(sessionId, log)
-  if (session.envState === 'stopped') return rebootEnv(sessionId)
-  await guardedStart(sessionId, () => startSandbox(sessionId, session.tier, false, log))
+  if (session.envState === 'stopped') return asOperation(sessionId, 'rebooting', () => reboot(sessionId))
+  await startSandbox(sessionId, session.tier, false, log)
   touchSessionPreview(sessionId)
 }
 
 // A stopped preview stays stopped: the caller gets a workspace of its own instead.
-export async function reviveWithoutPreview(sessionId: number, log?: (text: string) => void): Promise<{ inWorkspace: boolean }> {
-  const session = getSessionRow(sessionId)
-  if (session?.tier !== 'preview' || session.envState === 'archived') {
-    await reviveEnv(sessionId, log, { bootLostPreview: false })
-    return { inWorkspace: false }
-  }
-  if (session.envState === 'up' && await envStackRunning(sessionId)) {
-    touchSessionPreview(sessionId)
-    return { inWorkspace: false }
-  }
-  await guardedStart(sessionId, () => ensureWorkspaceUp(sessionId))
-  return { inWorkspace: true }
+export function reviveWithoutPreview(sessionId: number, log?: (text: string) => void): Promise<{ inWorkspace: boolean }> {
+  return inMailbox(sessionId, null, async () => {
+    const session = getSessionRow(sessionId)
+    // A stopped session stays stopped: the run's boot step may start it next.
+    if (!session || session.envState === 'archived' || (session.tier === 'code' && session.envState !== 'stopped')) {
+      await revive(sessionId, log, false)
+      return { inWorkspace: false }
+    }
+    if (session.envState === 'up' && await envStackRunning(sessionId)) {
+      touchSessionPreview(sessionId)
+      return { inWorkspace: false }
+    }
+    await ensureWorkspaceUp(sessionId)
+    return { inWorkspace: true }
+  })
+}
+
+// A code session revived meanwhile owns the workspace now, so it stays.
+export function releaseWorkspace(sessionId: number): Promise<void> {
+  return inMailbox(sessionId, null, async () => {
+    const session = getSessionRow(sessionId)
+    if (session?.tier === 'code' && session.envState === 'up') return
+    await removeWorkspace(sessionId)
+  })
 }
 
 export function applyEnvDefinition(sessionId: number, log: (text: string) => void): Promise<void> {
-  const session = getSessionRow(sessionId)
   // A transition under way boots from the regenerated definition or leaves the env down.
-  if (session?.envState !== 'up' || transitions.has(sessionId)) return Promise.resolve()
-  return guardedStart(sessionId, () => session.tier === 'preview' ? startEnvStack(sessionId, log) : removeWorkspace(sessionId))
+  if (envOperation(sessionId)) return Promise.resolve()
+  return inMailbox(sessionId, null, async () => {
+    const session = getSessionRow(sessionId)
+    if (session?.envState !== 'up') return
+    await (session.tier === 'preview' ? startEnvStack(sessionId, log) : removeWorkspace(sessionId))
+  })
 }
 
 // An expired archive resets the tier, so a later checkout comes back as a bare workspace.
@@ -319,8 +309,8 @@ export function previewLost(sessionId: number): boolean {
   return getSessionRow(sessionId)?.tier === 'code' && !!lastBootStep(sessionId)
 }
 
-async function rebootLostPreview(sessionId: number, log?: (text: string) => void): Promise<void> {
-  await inTransition(sessionId, 'booting', async () => {
+function rebootLostPreview(sessionId: number, log?: (text: string) => void): Promise<void> {
+  return asOperation(sessionId, 'booting', async () => {
     const session = getSessionRow(sessionId)
     const project = session && getProject(session.projectId)
     if (!session || !project) throw new Error('Session or project not found')
@@ -332,8 +322,6 @@ async function rebootLostPreview(sessionId: number, log?: (text: string) => void
       stepCommands: lastBootStep(sessionId)?.commands,
       log,
     })
-    if (session.envState === 'stopped') moveEnv(sessionId, 'stopped', 'up')
-    promoteToPreview(sessionId)
   })
 }
 
@@ -345,33 +333,78 @@ function lastBootStep(sessionId: number): { commands?: string } | null {
 // No restart policy on containers (per-container policies leave a stack with
 // add-on services half-up), so every 'up' preview gets an unconditional `ddev start`.
 // A code session's workspace starts lazily on its next use.
-export async function reconcileEnvStates(): Promise<void> {
-  const up = listSessionsInEnvState('up')
-  for (const { id, tier } of up) {
-    try {
-      if (tier === 'preview') {
-        await startEnvStack(id)
-        touchSessionPreview(id)
-      }
-      // A code session owns no ddev stack; one still running was started without its boot.
-      else if (await envStackRunning(id)) {
-        await stopEnvStack(id)
-      }
+export function reconcileEnvStates(): Promise<void> {
+  const interrupted = listSessionsWithEnvOperation()
+  const up = listSessionsInEnvState('up').filter(s => !s.envOperation)
+  // Every mailbox is claimed before anything else can queue on it; the sessions still go one at a time.
+  let previous: Promise<void> = Promise.resolve()
+  for (const { id } of [...interrupted, ...up]) {
+    const prior = previous
+    previous = inMailbox(id, null, async () => {
+      await prior
+      await reconcileSession(id)
+    })
+  }
+  return previous
+}
+
+async function reconcileSession(sessionId: number): Promise<void> {
+  const session = getSessionRow(sessionId)
+  if (!session) return
+  if (session.envOperation) return finishInterrupted(sessionId, session.envOperation)
+  try {
+    if (session.tier === 'preview') {
+      await startEnvStack(sessionId)
+      touchSessionPreview(sessionId)
     }
-    catch (err) {
-      forgetPreview(id)
-      moveSession(id, { envState: 'up' }, { envState: 'stopped' })
-      console.error(`[envs] boot restore of session ${id} failed, marked stopped:`, err)
+    // A code session owns no ddev stack; one still running was started without its boot.
+    else if (await envStackRunning(sessionId)) {
+      await stopEnvStack(sessionId)
     }
+  }
+  catch (err) {
+    forgetPreview(sessionId)
+    tryEnvEvent(sessionId, 'stop')
+    console.error(`[envs] boot restore of session ${sessionId} failed, marked stopped:`, err)
+  }
+}
+
+// An archive or expiry was already decided, so it is done again; anything else is undone to stopped.
+async function finishInterrupted(sessionId: number, operation: EnvTransition): Promise<void> {
+  try {
+    if (operation === 'expiring') {
+      await teardownSession(sessionId)
+      rmSync(sessionArchiveDir(sessionId), { recursive: true, force: true })
+      tryEnvEvent(sessionId, 'expire')
+    }
+    else if (operation === 'archiving') {
+      await snapshotCheckout(sessionId)
+      await snapshotDb(sessionId)
+      await teardownSession(sessionId)
+      tryEnvEvent(sessionId, 'archive')
+    }
+    else {
+      if (await envStackRunning(sessionId)) await stopEnvStack(sessionId)
+      await removeWorkspace(sessionId)
+      forgetPreview(sessionId)
+      tryEnvEvent(sessionId, 'stop')
+    }
+  }
+  catch (err) {
+    console.error(`[envs] finishing the interrupted ${operation} of session ${sessionId} failed:`, err)
+  }
+  finally {
+    updateSession(sessionId, { envOperation: null })
   }
 }
 
 // The reaper tick must not pile a second stop onto a session mid-export.
-export async function stopEnv(sessionId: number, { byHand = false } = {}): Promise<void> {
-  if (transitions.get(sessionId) === 'stopping') return
-  await inTransition(sessionId, 'stopping', async () => {
+export function stopEnv(sessionId: number, { byHand = false, idleBefore }: { byHand?: boolean, idleBefore?: Date } = {}): Promise<void> {
+  return inMailbox(sessionId, 'stopping', async () => {
     const session = getSessionRow(sessionId)
     if (!session) return
+    // Whatever ran ahead of it in the mailbox may have put the session back to use.
+    if (idleBefore && !(session.envState === 'up' && session.previewLastSeen && session.previewLastSeen < idleBefore)) return
     // Any state: containers a state no longer accounts for must stay stoppable.
     if (session.tier === 'preview') {
       // `ddev stop` on an unregistered project fails and would wedge the env in 'up'.
@@ -380,8 +413,8 @@ export async function stopEnv(sessionId: number, { byHand = false } = {}): Promi
     else {
       await removeWorkspace(sessionId)
     }
-    if (session.envState === 'up') moveEnv(sessionId, 'up', 'stopped', byHand ? { wakeOnVisit: false } : {})
-  })
+    tryEnvEvent(sessionId, 'stop', byHand ? { wakeOnVisit: false } : {})
+  }, { coalesce: !byHand })
 }
 
 // Stopping under a running step would SIGKILL the agent inside (exit 137).
@@ -401,7 +434,8 @@ export async function reapIdleEnvs(): Promise<void> {
         touchSessionPreview(id)
         continue
       }
-      await stopEnv(id)
+      if (envOperation(id)) continue
+      await stopEnv(id, { idleBefore: cutoff })
     }
     catch {
       // Retried on the next tick.
@@ -425,12 +459,12 @@ export async function archiveStaleEnvs(): Promise<void> {
 }
 
 export async function archiveEnv(sessionId: number, { byHand = false } = {}): Promise<void> {
-  await inTransition(sessionId, 'archiving', async () => {
+  await inMailbox(sessionId, 'archiving', async () => {
     if (!stillIn(sessionId, 'stopped') || sessionHasActiveRun(sessionId) || sessionHasActiveFollowup(sessionId)) return
     await snapshotCheckout(sessionId)
     await snapshotDb(sessionId)
     await teardownSession(sessionId)
-    moveEnv(sessionId, 'stopped', 'archived', byHand ? { wakeOnVisit: false } : {})
+    envEvent(sessionId, 'archive', byHand ? { wakeOnVisit: false } : {})
   })
 }
 
@@ -478,13 +512,12 @@ export async function reapExpiredArchives(): Promise<void> {
   const expired = listSessionsInEnvState('archived', { seenBefore: cutoff })
   for (const { id } of expired) {
     try {
-      await inTransition(id, 'expiring', async () => {
+      await inMailbox(id, 'expiring', async () => {
         if (!stillIn(id, 'archived')) return
         // A failed restore can leave an unpacked checkout behind.
         await teardownSession(id)
         rmSync(sessionArchiveDir(id), { recursive: true, force: true })
-        // Or the boot step treats the session as already booted.
-        moveEnv(id, 'archived', 'down', { tier: 'code' })
+        envEvent(id, 'expire')
       })
     }
     catch {
@@ -502,6 +535,14 @@ async function dbSource(sessionId: number, project: Project): Promise<Pick<BootP
   if (dbBase) return { dbFile: null, dbBase }
   const fallback = project.dbDumpPath && join(projectDumpDir(project.id), basename(project.dbDumpPath))
   return { dbFile: fallback && existsSync(fallback) ? fallback : null }
+}
+
+// After the session's row is deleted: what is still queued is refused, and the operation under way
+// finishes first, so it cannot bring back what the teardown removed.
+export async function deleteEnv(sessionId: number): Promise<void> {
+  await mailboxDrained(sessionId)
+  await teardownSession(sessionId)
+  rmSync(sessionArchiveDir(sessionId), { recursive: true, force: true })
 }
 
 export async function teardownSession(sessionId: number): Promise<void> {

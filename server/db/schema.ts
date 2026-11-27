@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
-import { ENV_STATES, SESSION_TIERS, type RunDiagnosis } from '../../shared/utils/run'
+import { ENV_STATES, ENV_TRANSITIONS, SESSION_TIERS, type RunDiagnosis } from '../../shared/utils/run'
 import type { EnvVar } from '../../shared/utils/env'
 import { DDEV_DATABASES, PACKAGE_MANAGERS, type DetectedEnv } from '../../shared/utils/env-spec'
 import { INTEGRATION_IDS, OBJECT_KINDS, REPO_PROVIDERS, TRACKER_IDS, TRIGGER_SOURCES } from '../../shared/utils/integrations'
@@ -125,6 +125,8 @@ export const sessions = sqliteTable('sessions', {
   envState: text('env_state', { enum: ENV_STATES })
     .notNull()
     .default('down'),
+  // Set while an operation runs, so a restart finds the one it cut short.
+  envOperation: text('env_operation', { enum: ENV_TRANSITIONS }),
   previewHosts: text('preview_hosts', { mode: 'json' })
     .$type<string[]>()
     .notNull()

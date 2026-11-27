@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import type { EnvState } from '#shared/utils/run'
+import type { EnvAction, EnvState } from '#shared/utils/run'
 import { UButton, UTooltip } from '#components'
 
-defineProps<{
+const props = defineProps<{
+  actions: EnvAction[]
   envState: EnvState
   workflowId: number | null
   previewLost: boolean
@@ -10,6 +11,8 @@ defineProps<{
   reviving: boolean
   restarting: boolean
 }>()
+
+const can = (action: EnvAction) => props.actions.includes(action)
 
 defineEmits<{
   revive: []
@@ -27,6 +30,7 @@ defineEmits<{
       color="primary"
       label="Reboot"
       :loading="reviving"
+      :disabled="!can('reboot')"
       @click="$emit('revive')"
     />
   </template>
@@ -40,6 +44,7 @@ defineEmits<{
       color="primary"
       label="Restore"
       :loading="reviving"
+      :disabled="!can('restore')"
       @click="$emit('revive')"
     />
   </template>
@@ -72,6 +77,7 @@ defineEmits<{
       color="primary"
       label="Boot preview"
       :loading="reviving"
+      :disabled="!can('bootPreview')"
       @click="$emit('revive')"
     />
   </template>
