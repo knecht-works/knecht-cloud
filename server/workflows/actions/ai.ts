@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { logSink, notice, openAgent, type AgentSession, type TranscriptSink } from '#server/daemon/agent'
+import { AgentTurnBlocked, logSink, notice, openAgent, type AgentSession, type TranscriptSink } from '#server/daemon/agent'
 import { type AiOutputField, type AiOutputType, parseAiOutputSpec } from '#shared/utils/workflow'
 import { AI_PROVIDERS, type AiProviderId, MODEL_NAME_RE, aiProviderSpec, stripLegacyModelPrefix } from '#shared/utils/ai'
 import { getSettings } from '#server/utils/settings'
@@ -166,6 +166,10 @@ export async function compactAgentSession(rt: ActionRuntime, sink: TranscriptSin
     const agent = await startAgent(rt, { ...env, ...mcpEnv }, current, SILENT_SINK)
     try {
       if (agent.loaded) summary = (await agent.prompt(HANDOVER_PROMPT)).text.trim()
+    }
+    catch (e) {
+      if (!(e instanceof AgentTurnBlocked)) throw e
+      throw new Error(`could not summarize the conversation: ${e.message}. The conversation is kept: send /compact with another model, or /clear to drop it`, { cause: e })
     }
     finally {
       await agent.close()

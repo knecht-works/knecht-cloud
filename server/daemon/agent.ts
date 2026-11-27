@@ -7,6 +7,9 @@ export interface AgentTurn {
   stopReason: StopReason
 }
 
+// The provider ended the turn without an answer, so retrying the same conversation fails the same way.
+export class AgentTurnBlocked extends Error {}
+
 export interface AgentSession {
   readonly sessionId: string
   readonly loaded: boolean
@@ -164,7 +167,11 @@ export async function openAgent(opts: OpenAgentOptions): Promise<AgentSession> {
         ]))
         sink.end()
         if (response.stopReason === 'cancelled' || opts.signal.aborted) throw new Error('Cancelled')
-        return { text: turn.reply(), stopReason: response.stopReason }
+        // opencode reports a provider content filter (Anthropic's refusal) this way, with the turn cut off.
+        if (response.stopReason === 'refusal') throw new AgentTurnBlocked('the provider\'s content filter blocked the response. The trigger usually sits in the conversation, so try another model or a fresh conversation')
+        const reply = turn.reply()
+        if (!reply && response.stopReason === 'max_tokens') throw new AgentTurnBlocked('the response hit the model\'s output limit before it produced any text')
+        return { text: reply, stopReason: response.stopReason }
       }
       finally {
         opts.signal.removeEventListener('abort', onAbort)

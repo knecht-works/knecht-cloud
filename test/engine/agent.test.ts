@@ -170,6 +170,18 @@ describe('ai step over ACP', () => {
     expect(step.error).toContain('agent exited with code 3')
   })
 
+  it('names the content filter when the provider refused the response', async () => {
+    const { run, step } = await runAi({ prompt: 'REFUSE' })
+    expect(run.status).toBe('failed')
+    expect(step.error).toContain('content filter blocked the response')
+  })
+
+  it('names the output limit when the turn ended on it without text', async () => {
+    const { run, step } = await runAi({ prompt: 'OUT_OF_TOKENS' })
+    expect(run.status).toBe('failed')
+    expect(step.error).toContain('output limit')
+  })
+
   it('cancels a hanging turn through the protocol', async () => {
     const project = makeProject()
     const run = makeRun(project, [{ type: 'ai', id: 'agent', prompt: 'HANG' }])
@@ -318,6 +330,19 @@ describe('follow-ups over ACP', () => {
     await startFollowup(next.id)
     expect(session().agentSessionId).toMatch(/^ses_stub_\d+$/)
     expect(session().agentHandover).toBeNull()
+  })
+
+  it('/compact keeps the conversation when the provider refuses its hand-over', async () => {
+    const { run } = await runAi({})
+    const session = () => db.select().from(schema.sessions).where(eq(schema.sessions.id, run.sessionId)).get()!
+    db.update(schema.sessions).set({ agentSessionId: 'ses_stub_refusing' }).where(eq(schema.sessions.id, run.sessionId)).run()
+    const compact = db.insert(schema.followups).values({ sessionId: run.sessionId, runId: run.id, prompt: '/compact' }).returning().get()
+    await startFollowup(compact.id)
+    const row = db.select().from(schema.followups).where(eq(schema.followups.id, compact.id)).get()!
+    expect(row.status).toBe('failed')
+    expect(row.error).toContain('content filter blocked the response')
+    expect(row.error).toContain('The conversation is kept')
+    expect(session().agentSessionId).toBe('ses_stub_refusing')
   })
 
   it('continues the seq of a follow-up when a sink is reopened for it', async () => {
