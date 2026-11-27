@@ -66,6 +66,7 @@ describe.runIf(process.env.KNECHT_E2E_AGENT === '1')(`agent browser on ${FIXTURE
   let client: E2eClient
   let workflowId: number | undefined
   let runId: number | undefined
+  let sessionId: number | undefined
   let status = ''
   let log = ''
   let output: LookOutput | undefined
@@ -81,11 +82,13 @@ describe.runIf(process.env.KNECHT_E2E_AGENT === '1')(`agent browser on ${FIXTURE
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ source: WORKFLOW }),
     }))).id
-    runId = (await expectJson<RunRow>(await client.fetch('/api/runs', {
+    const run = await expectJson<RunRow>(await client.fetch('/api/runs', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ projectId: project.id, workflowId }),
-    }))).id
+    }))
+    runId = run.id
+    sessionId = run.sessionId
 
     const deadline = Date.now() + DEADLINE_MS
     while (true) {
@@ -102,7 +105,7 @@ describe.runIf(process.env.KNECHT_E2E_AGENT === '1')(`agent browser on ${FIXTURE
 
   afterAll(async () => {
     if (process.env.KNECHT_E2E_KEEP === '1') return
-    if (runId) await client.fetch(`/api/runs/${runId}`, { method: 'DELETE' })
+    if (sessionId) await client.fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' })
     if (workflowId) await client.fetch(`/api/workflows/${workflowId}`, { method: 'DELETE' })
   })
 
