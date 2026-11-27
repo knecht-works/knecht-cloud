@@ -28,12 +28,13 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
     const preview = session && sessionPreviewUrl(session)
     if (!addr || !preview) return
     const dir = sessionCheckoutDir(sessionId)
-    const primary = readDdevHosts(dir).primary ?? new URL(preview).host
+    // The app sees the host the preview proxy sends, and a dev server may refuse any other.
+    const host = session.urlMode === 'env' ? new URL(preview).host : readDdevHosts(dir).primary ?? new URL(preview).host
     // A headless CMS serves only the backend on the preview port; its frontend
     // and the favicon it declares live on one of the extra exposed ports.
     const ports = new Set([previewTargetPort(session), ...(readDdevConfig(dir)?.extraPorts ?? []).map(p => p.port)])
     for (const port of ports) {
-      const favicon = await faviconFrom(addr, port, primary)
+      const favicon = await faviconFrom(addr, port, host)
       if (favicon) return save(project.id, favicon)
     }
   }
@@ -42,16 +43,16 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
   }
 }
 
-async function faviconFrom(addr: string, port: number, primary: string): Promise<string | null> {
-  const page = await fetchFrom(addr, port, primary, '/', MAX_HTML_BYTES)
+async function faviconFrom(addr: string, port: number, host: string): Promise<string | null> {
+  const page = await fetchFrom(addr, port, host, '/', MAX_HTML_BYTES)
   const href = page ? iconHref(page.body.toString('utf8')) : null
 
   if (href?.startsWith('data:image/')) return href
 
   // Whatever host the href names, the fetch stays inside the web container:
   // the hostname only becomes the Host header.
-  const iconUrl = new URL(href ?? '/favicon.ico', `http://${primary}/`)
-  const icon = await fetchFrom(addr, port, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
+  const iconUrl = new URL(href ?? '/favicon.ico', `http://${host}/`)
+  const icon = await fetchFrom(addr, port, iconUrl.host, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
   if (!icon?.body.byteLength) return null
   // Nitro's dev server answers /favicon.ico for an app without one with the text
   // of a 1x1 GIF data URI, labelled image/x-icon: no favicon, try again later.
