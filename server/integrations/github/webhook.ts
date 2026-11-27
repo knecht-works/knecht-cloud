@@ -43,7 +43,7 @@ function subjectInputs(event: string, subject: GithubSubject | undefined): Trigg
     url: subject?.html_url ?? '',
     status: subject?.state ?? '',
     assignee: subject?.assignees?.[0]?.login ?? '',
-    labels: (subject?.labels ?? []).map(l => l.name).filter(Boolean).join(', '),
+    labels: (subject?.labels ?? []).flatMap(l => l.name ? [l.name] : []),
     author: subject?.user?.login ?? '',
   }
 }

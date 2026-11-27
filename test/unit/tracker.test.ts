@@ -42,7 +42,7 @@ describe('matchTrackerEvent', () => {
     expect(matchTrackerEvent(DEF, config({ type: 'created' }), change({ created: true }))).toEqual({
       branch: null,
       object: change().issue.object,
-      inputs: { event: 'created', identifier: 'P-1', title: 'Login broken', body: 'It fails.', url: 'https://x/P-1', status: 'Todo', assignee: 'Bob, Knecht', labels: 'bug', author: 'Ann' },
+      inputs: { event: 'created', identifier: 'P-1', title: 'Login broken', body: 'It fails.', url: 'https://x/P-1', status: 'Todo', assignee: 'Bob, Knecht', labels: ['bug'], author: 'Ann' },
       actor: null,
     })
   })

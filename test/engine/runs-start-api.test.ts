@@ -27,4 +27,10 @@ describe('POST /api/runs', () => {
     const baseOnly = await callRoute(start, { body: { projectId: project.id, workflowId: workflow.id, base: 'develop' } })
     expect(sessionOf(baseOnly.json)).toMatchObject({ branch: 'develop', baseBranch: 'develop' })
   })
+
+  it('reads mock labels as a comma-separated list', async () => {
+    const res = await callRoute(start, { body: { projectId: makeProject().id, workflowId: workflow.id, inputs: { title: 'Mock', labels: 'bug, qa-sonder ,' } } })
+    expect(res.status).toBe(200)
+    expect((res.json as { inputs: unknown }).inputs).toMatchObject({ event: 'manual', title: 'Mock', labels: ['bug', 'qa-sonder'] })
+  })
 })
