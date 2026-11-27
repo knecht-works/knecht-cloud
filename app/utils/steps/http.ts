@@ -11,7 +11,7 @@ export const httpStep = defineStep({
     { key: 'method', label: 'Method', input: 'text', required: true, placeholder: 'GET' },
     { key: 'url', label: 'URL', input: 'text', required: true, vars: true, placeholder: 'https://example.com/api' },
     { key: 'headers', label: 'Headers (one "Name: value" per line)', input: 'textarea', rows: 2, vars: true },
-    { key: 'body', label: 'Body', input: 'textarea', rows: 3, vars: true },
+    { key: 'body', label: 'Body', input: 'textarea', rows: 3, vars: true, hint: 'In a JSON body, a value inside quotes is escaped as text, outside quotes it becomes one JSON value. A body that is not valid JSON fails the step.' },
   ],
   outputs: [
     { path: 'status', hint: 'The HTTP status code' },
