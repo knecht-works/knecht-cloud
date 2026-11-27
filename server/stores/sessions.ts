@@ -86,11 +86,11 @@ export function createSession(values: NewSession): Session {
   return db.insert(schema.sessions).values(values).returning().get()
 }
 
-// Run views join their session, so a session change is a change of its runs.
 export function listSessionsWithEnvOperation(): Session[] {
   return db.select().from(schema.sessions).where(isNotNull(schema.sessions.envOperation)).all()
 }
 
+// Run views join their session, so a session change is a change of its runs.
 export function sessionChanged(id: number): void {
   emitTopics(liveTopics.runs, ...listSessionRunIds(id).map(liveTopics.run))
 }
