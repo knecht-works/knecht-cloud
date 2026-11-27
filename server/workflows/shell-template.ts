@@ -1,4 +1,4 @@
-import { lookup, valueText, type RunContext } from '#server/workflows/context'
+import { textAt, type RunContext } from '#server/workflows/context'
 
 type Mode
   = | { kind: 'code', closer: null | ')' | '`', depth: number, arith: boolean }
@@ -25,7 +25,7 @@ export function renderShell(template: string, ctx: RunContext): { command: strin
       name = base
       for (let n = 2; name in env; n++) name = `${base}_${n}`
       names.set(path, name)
-      env[name] = valueText(lookup(path, ctx))
+      env[name] = textAt(path, ctx)
     }
     return `\${${name}}`
   }
@@ -62,7 +62,7 @@ export function renderShell(template: string, ctx: RunContext): { command: strin
         continue
       }
       if (mode.kind === 'heredoc' && mode.quoted) {
-        out += heredocText(ref[1]!, valueText(lookup(ref[1]!, ctx)), mode)
+        out += heredocText(ref[1]!, textAt(ref[1]!, ctx), mode)
         continue
       }
       const v = varFor(ref[1]!)

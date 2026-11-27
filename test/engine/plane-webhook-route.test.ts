@@ -166,7 +166,7 @@ describeIntegrationWebhook<ReturnType<typeof makePlaneProject>, { event: string 
         url: `https://app.plane.so/acme/browse/${project.identifier}-12/`,
         status: 'Todo',
         assignee: '',
-        labels: 'knecht, bug',
+        labels: ['knecht', 'bug'],
         author: 'Ann Example',
       },
     }),

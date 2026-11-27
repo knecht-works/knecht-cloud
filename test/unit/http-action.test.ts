@@ -88,6 +88,17 @@ describe('http action', () => {
     expect(JSON.parse(received)).toEqual({ title: '1, "admin": true', count: 42, data: { a: [1] }, none: null })
   })
 
+  it('sends a list input outside a JSON string as comma-separated text', async () => {
+    let received = ''
+    await withServer({
+      'POST /hook': (_req, res, body) => res.end(received = body),
+    }, async (origin) => {
+      await httpAction.run(step({ method: 'POST', url: `${origin}/hook`, body: '{"labels": {{ inputs.labels }}}' }),
+        runtimeWith({ labels: ['bug', 'ui'] } as unknown as Record<string, string>))
+    })
+    expect(JSON.parse(received)).toEqual({ labels: 'bug, ui' })
+  })
+
   it('fails without sending when a JSON body is not valid JSON', async () => {
     let calls = 0
     await withServer({

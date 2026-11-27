@@ -114,7 +114,7 @@ describeIntegrationWebhook<JiraProject, object>({
         url: `https://acme.atlassian.net/browse/${project.jiraProjectKey}-12`,
         status: 'To Do',
         assignee: '',
-        labels: 'knecht, bug',
+        labels: ['knecht', 'bug'],
         author: 'Ann Example',
       },
     }),

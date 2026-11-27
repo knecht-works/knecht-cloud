@@ -162,7 +162,9 @@ describe.each(INTEGRATIONS.map(i => [i.id, i] as const))('integration contract: 
     const match = await integration.webhook.match(trigger, delivery)
     expect(match).not.toBeNull()
     expect(Object.keys(match!.inputs).sort()).toEqual([...INPUT_KEYS].sort())
-    expect(Object.values(match!.inputs).every(v => typeof v === 'string')).toBe(true)
+    const { labels, ...text } = match!.inputs
+    expect(Object.values(text).every(v => typeof v === 'string')).toBe(true)
+    expect(labels.every(v => typeof v === 'string')).toBe(true)
     expect(match!.object?.integration).toBe(id)
     expect(integration.objects.kinds).toContain(match!.object?.kind)
   })

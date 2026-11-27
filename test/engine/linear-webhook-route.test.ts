@@ -150,7 +150,7 @@ describeIntegrationWebhook<ReturnType<typeof makeLinearProject>, object>({
         url: issueUrl(project),
         status: 'Todo',
         assignee: '',
-        labels: 'knecht, bug',
+        labels: ['knecht', 'bug'],
         author: 'Ann Example',
       },
     }),

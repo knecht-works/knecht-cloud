@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { tryParseJson } from '#server/utils/json'
-import { lookup, render, valueText, type RunContext } from '#server/workflows/context'
+import { render, textAt, valueAt, type RunContext } from '#server/workflows/context'
 import { defineAction, ActionError } from '#server/workflows/actions/types'
 
 // No egress filtering: members already run arbitrary bash in sandboxes.
@@ -70,8 +70,7 @@ function renderJson(template: string, ctx: RunContext): string {
     REF_RE.lastIndex = i
     const ref = REF_RE.exec(template)
     if (ref) {
-      const value = lookup(ref[1]!, ctx)
-      out += inString ? JSON.stringify(valueText(value)).slice(1, -1) : jsonValue(value)
+      out += inString ? JSON.stringify(textAt(ref[1]!, ctx)).slice(1, -1) : jsonValue(valueAt(ref[1]!, ctx))
       i += ref[0].length
       continue
     }

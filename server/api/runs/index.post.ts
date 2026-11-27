@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { publishStepsSchema } from '#server/workflows/schema'
 import { dispatchRuns } from '#server/daemon/dispatcher'
-import { emptyInputs } from '#server/utils/inputs'
+import { emptyInputs, labelList } from '#server/utils/inputs'
 import { resolveObjectSession } from '#server/utils/sessions'
 import { requireProject } from '#server/stores/projects'
 import { requireWorkflowRow } from '#server/stores/workflows'
@@ -31,6 +31,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const project = requireProject(result.data.projectId)
+  const inputs = result.data.inputs ?? {}
 
   const { session } = resolveObjectSession(project, null, result.data.branch ?? null, result.data.base ?? null)
   const run = createRun({
@@ -40,7 +41,7 @@ export default defineEventHandler(async (event) => {
     workflowId: workflow.id,
     trigger: 'manual',
     branch: session.branch ?? project.defaultBranch,
-    inputs: { ...emptyInputs('manual'), ...result.data.inputs },
+    inputs: { ...emptyInputs('manual'), ...inputs, labels: labelList(inputs.labels ?? '') },
     steps: validated.data,
   })
 

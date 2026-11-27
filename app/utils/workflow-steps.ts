@@ -75,7 +75,7 @@ export const TRIGGER_VARS: StepVar[] = [
   { path: 'inputs.event', hint: 'e.g. pull_request, issues, or a ticket\'s created, assigned, labeled, entered' },
   { path: 'inputs.status', hint: 'open/closed, or the ticket status' },
   { path: 'inputs.assignee', hint: 'Assignee as shown in the tool' },
-  { path: 'inputs.labels', hint: 'Comma-separated labels' },
+  { path: 'inputs.labels', hint: 'Labels: a list in Loop and If, "a, b" in text' },
   { path: 'inputs.author', hint: 'Who opened it' },
 ]
 
