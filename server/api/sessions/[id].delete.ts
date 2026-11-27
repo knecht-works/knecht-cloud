@@ -4,41 +4,38 @@ import { cancelFollowupWork } from '#server/daemon/followups'
 import { cancelRun } from '#server/daemon/runner'
 import { sessionArchiveDir } from '#server/utils/storage'
 import { removeAttachments } from '#server/utils/attachments'
-import { deleteSession } from '#server/stores/sessions'
-import { getRun, sessionHasRuns, deleteRun } from '#server/stores/runs'
+import { deleteSession, getSessionRow } from '#server/stores/sessions'
+import { deleteRun, listSessionRunIds } from '#server/stores/runs'
 import { deleteRunSteps } from '#server/stores/run-steps'
 import { listFollowupIds, deleteFollowups } from '#server/stores/followups'
 import { deleteAgentItems } from '#server/stores/agent-items'
+import { deleteSessionObjectRows } from '#server/stores/session-objects'
 import { defineEventHandler } from 'h3'
 import { requireIntParam } from '#server/utils/http'
 
 export default defineEventHandler(async (event) => {
   const id = requireIntParam(event)
-  const run = getRun(id)
-  if (!run) {
+  if (!getSessionRow(id)) {
     return { ok: true }
   }
 
   // Abort before deleting rows, or the runner races the delete and recreates
   // the sandbox for a row that no longer exists.
-  if (run.kind === 'mention') cancelFollowupWork(run.sessionId, id)
-  else cancelRun(id)
+  const runIds = listSessionRunIds(id)
+  for (const runId of runIds) cancelRun(runId)
+  cancelFollowupWork(id)
 
   // FKs are declarative only (PRAGMA foreign_keys off): clean up explicitly.
-  deleteRunSteps([id])
-  const followupIds = listFollowupIds({ runId: id })
-  deleteAgentItems({ followupIds })
+  deleteRunSteps(runIds)
+  const followupIds = listFollowupIds({ sessionId: id })
   removeAttachments(followupIds)
-  deleteFollowups({ runId: id })
-  deleteRun(id)
+  deleteAgentItems({ sessionIds: [id] })
+  deleteFollowups({ sessionId: id })
+  for (const runId of runIds) deleteRun(runId)
+  deleteSessionObjectRows(id)
+  deleteSession(id)
 
-  if (!sessionHasRuns(run.sessionId)) {
-    await teardownSession(run.sessionId)
-    rmSync(sessionArchiveDir(run.sessionId), { recursive: true, force: true })
-    deleteAgentItems({ sessionIds: [run.sessionId] })
-    removeAttachments(listFollowupIds({ sessionId: run.sessionId }))
-    deleteFollowups({ sessionId: run.sessionId })
-    deleteSession(run.sessionId)
-  }
+  await teardownSession(id)
+  rmSync(sessionArchiveDir(id), { recursive: true, force: true })
   return { ok: true }
 })
