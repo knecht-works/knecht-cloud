@@ -59,11 +59,19 @@ function guardedStart(sessionId: number, fn: () => Promise<void>): Promise<void>
   return start
 }
 
-const MOVES: Record<EnvState, EnvState[]> = {
-  down: ['up'],
-  up: ['stopped'],
-  stopped: ['up', 'archived'],
-  archived: ['up', 'down'],
+type EnvEvent = 'checkOut' | 'boot' | 'failBoot' | 'start' | 'stop' | 'archive' | 'restore' | 'expire'
+
+const EVENTS: Record<EnvEvent, { from: EnvState[], to: Partial<NewSession> & { envState: EnvState } }> = {
+  checkOut: { from: ['down'], to: { envState: 'up' } },
+  // From stopped too: a failed boot leaves the session stopped, and a step retry boots it again.
+  boot: { from: ['up', 'stopped', 'archived'], to: { envState: 'up', tier: 'preview' } },
+  failBoot: { from: ['up'], to: { envState: 'stopped', wakeOnVisit: false } },
+  start: { from: ['stopped'], to: { envState: 'up' } },
+  stop: { from: ['up'], to: { envState: 'stopped' } },
+  archive: { from: ['stopped'], to: { envState: 'archived' } },
+  restore: { from: ['archived'], to: { envState: 'up' } },
+  // Or the boot step treats the session as already booted.
+  expire: { from: ['archived'], to: { envState: 'down', tier: 'code' } },
 }
 
 // Read inside the transition: the listing that picked the session may be stale by now.
@@ -71,23 +79,21 @@ function stillIn(sessionId: number, state: EnvState): boolean {
   return getSessionRow(sessionId)?.envState === state
 }
 
-function moveEnv(sessionId: number, from: EnvState, to: EnvState, patch: Partial<NewSession> = {}): void {
-  if (!MOVES[from].includes(to)) throw new Error(`An environment cannot go from '${from}' to '${to}'`)
-  const seen = to === 'up' ? { previewLastSeen: new Date(), wakeOnVisit: true } : {}
-  if (!moveSession(sessionId, { envState: from }, { envState: to, ...seen, ...patch })) {
-    throw new Error(`Session ${sessionId} left '${from}' before it could go to '${to}'`)
+function tryEnvEvent(sessionId: number, event: EnvEvent, patch: Partial<NewSession> = {}): boolean {
+  const { from, to } = EVENTS[event]
+  const seen = to.envState === 'up' ? { previewLastSeen: new Date(), wakeOnVisit: true } : {}
+  return moveSession(sessionId, from, { ...seen, ...to, ...patch })
+}
+
+function envEvent(sessionId: number, event: EnvEvent, patch: Partial<NewSession> = {}): void {
+  if (!tryEnvEvent(sessionId, event, patch)) {
+    throw new Error(`Session ${sessionId} is ${getSessionRow(sessionId)?.envState ?? 'gone'}, so it cannot ${event}`)
   }
 }
 
 // The checkout exists from here on, so the session takes part in the idle lifecycle.
 export function markCheckedOut(sessionId: number): void {
-  if (getSessionRow(sessionId)?.envState === 'down') moveEnv(sessionId, 'down', 'up')
-}
-
-export function promoteToPreview(sessionId: number): void {
-  if (!moveSession(sessionId, { envState: 'up', tier: 'code' }, { tier: 'preview' })) {
-    throw new Error(`Session ${sessionId} is not an up code session`)
-  }
+  tryEnvEvent(sessionId, 'checkOut')
 }
 
 export interface BootPlan {
@@ -150,11 +156,12 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
       }
       await noteDevServerUse(sessionId, log)
     }
+    envEvent(sessionId, 'boot')
   }
   catch (e) {
     await stopEnvStack(sessionId).catch(() => {})
     // The workspace went first, so nothing of the session runs any more.
-    if (stillIn(sessionId, 'up')) moveEnv(sessionId, 'up', 'stopped', { wakeOnVisit: false })
+    tryEnvEvent(sessionId, 'failBoot')
     throw e
   }
   finally {
@@ -189,8 +196,7 @@ export async function rebootEnv(sessionId: number): Promise<void> {
       pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
     }
     await startSandbox(sessionId, session.tier, true)
-    if (session.envState === 'stopped') moveEnv(sessionId, 'stopped', 'up')
-    else touchSessionPreview(sessionId)
+    if (!tryEnvEvent(sessionId, 'start')) touchSessionPreview(sessionId)
   })
 }
 
@@ -260,9 +266,8 @@ async function restoreFromArchive(sessionId: number, log: (text: string) => void
   }
   else {
     await ensureWorkspaceUp(sessionId)
+    envEvent(sessionId, 'restore')
   }
-  moveEnv(sessionId, 'archived', 'up')
-  if (session.tier === 'code' && bootStep) promoteToPreview(sessionId)
 }
 
 // Archives written before checkout.tar.gz: the .git plus the staged diff. The .git came from
@@ -332,8 +337,6 @@ async function rebootLostPreview(sessionId: number, log?: (text: string) => void
       stepCommands: lastBootStep(sessionId)?.commands,
       log,
     })
-    if (session.envState === 'stopped') moveEnv(sessionId, 'stopped', 'up')
-    promoteToPreview(sessionId)
   })
 }
 
@@ -360,7 +363,7 @@ export async function reconcileEnvStates(): Promise<void> {
     }
     catch (err) {
       forgetPreview(id)
-      moveSession(id, { envState: 'up' }, { envState: 'stopped' })
+      tryEnvEvent(id, 'stop')
       console.error(`[envs] boot restore of session ${id} failed, marked stopped:`, err)
     }
   }
@@ -380,7 +383,7 @@ export async function stopEnv(sessionId: number, { byHand = false } = {}): Promi
     else {
       await removeWorkspace(sessionId)
     }
-    if (session.envState === 'up') moveEnv(sessionId, 'up', 'stopped', byHand ? { wakeOnVisit: false } : {})
+    tryEnvEvent(sessionId, 'stop', byHand ? { wakeOnVisit: false } : {})
   })
 }
 
@@ -430,7 +433,7 @@ export async function archiveEnv(sessionId: number, { byHand = false } = {}): Pr
     await snapshotCheckout(sessionId)
     await snapshotDb(sessionId)
     await teardownSession(sessionId)
-    moveEnv(sessionId, 'stopped', 'archived', byHand ? { wakeOnVisit: false } : {})
+    envEvent(sessionId, 'archive', byHand ? { wakeOnVisit: false } : {})
   })
 }
 
@@ -483,8 +486,7 @@ export async function reapExpiredArchives(): Promise<void> {
         // A failed restore can leave an unpacked checkout behind.
         await teardownSession(id)
         rmSync(sessionArchiveDir(id), { recursive: true, force: true })
-        // Or the boot step treats the session as already booted.
-        moveEnv(id, 'archived', 'down', { tier: 'code' })
+        envEvent(id, 'expire')
       })
     }
     catch {

@@ -7,7 +7,7 @@ import { detectPreviewFavicon } from '#server/utils/favicon'
 import { sessionPreviewUrl } from '#server/utils/preview-target'
 import { readDdevConfig } from '#server/daemon/ddev'
 import { waitForDevServer } from '#server/daemon/dev-server'
-import { bootEnv, inTransition, promoteToPreview } from '#server/daemon/envs'
+import { bootEnv, inTransition } from '#server/daemon/envs'
 import { readyDbBase, waitForDbBaseBuild, type ReadyDbBase } from '#server/daemon/db-base'
 import type { DbBase } from '#server/db/schema'
 import { defineAction, type ActionRuntime } from '#server/workflows/actions/types'
@@ -55,7 +55,6 @@ export const ddevStartAction = defineAction({
         signal: rt.signal,
         runId: rt.runId,
       })
-      promoteToPreview(rt.sessionId)
     })
     const outputs = previewOutputs(rt)
     if (outputs && !rt.project.favicon) void detectPreviewFavicon(rt.sessionId, rt.project)

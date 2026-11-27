@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, lt, ne, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, ne, or, sql } from 'drizzle-orm'
 import { createError } from 'h3'
 import { db, schema, type Executor } from '#server/db'
 import type { NewSession, Project, Run, Session } from '#server/db/schema'
@@ -97,11 +97,10 @@ export function updateSession(id: number, patch: Partial<NewSession>): void {
 }
 
 // Compare-and-set: false when another writer moved the session first.
-export function moveSession(id: number, from: Partial<Pick<Session, 'envState' | 'tier'>>, patch: Partial<NewSession>): boolean {
+export function moveSession(id: number, from: Session['envState'][], patch: Partial<NewSession>): boolean {
   const moved = db.update(schema.sessions).set(patch).where(and(
     eq(schema.sessions.id, id),
-    from.envState === undefined ? undefined : eq(schema.sessions.envState, from.envState),
-    from.tier === undefined ? undefined : eq(schema.sessions.tier, from.tier),
+    inArray(schema.sessions.envState, from),
   )).run().changes > 0
   if (moved) sessionChanged(id)
   return moved

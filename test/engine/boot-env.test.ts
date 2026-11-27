@@ -82,7 +82,7 @@ const { sessionArchiveDir, sessionCheckoutDir } = await import('#server/utils/st
 const { ddevStartAction } = await import('#server/workflows/actions/ddev-start')
 
 function freshSession(project: Project) {
-  return makeSession(project, { previewPort: 3000 })
+  return makeSession(project, { previewPort: 3000, envState: 'up' })
 }
 
 beforeEach(() => {
@@ -253,6 +253,25 @@ describe('ddev-start action', () => {
     await expect(ddevStartAction.run({ type: 'ddev-start' }, rt)).rejects.toThrow()
     expect(calls.at(-1)).toBe('ddev stop')
     expect(getSessionRow(session.id)).toMatchObject({ envState: 'stopped', tier: 'code', wakeOnVisit: false })
+  })
+
+  it('promotes the session when a retry boots it after the first attempt failed', async () => {
+    const project = makeProject({ bootCommands: 'ddev npm run build' })
+    const session = freshSession(project)
+    db.update(schema.sessions).set({ envState: 'up' }).where(eq(schema.sessions.id, session.id)).run()
+    const rt = {
+      sessionId: session.id,
+      project,
+      checkoutDir: '/nonexistent',
+      log: () => {},
+      signal: new AbortController().signal,
+      sandbox: { ensureUp: async () => {} },
+    } as unknown as ActionRuntime
+    failing.add('bash -lc ddev npm run build')
+    await expect(ddevStartAction.run({ type: 'ddev-start' }, rt)).rejects.toThrow()
+    failing.clear()
+    await ddevStartAction.run({ type: 'ddev-start' }, rt)
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'up', tier: 'preview', wakeOnVisit: true })
   })
 
   it('only revives a session that is already a preview', async () => {
