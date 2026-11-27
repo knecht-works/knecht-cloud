@@ -70,6 +70,22 @@ describe('detectPreviewFavicon', () => {
     expect(requireProject(project.id).favicon).toBe(`data:image/png;base64,${Buffer.from('PNGDATA').toString('base64')}`)
   })
 
+  it('asks with the preview host when the session passes it through to the app', async () => {
+    ports.preview = await serve((req, res) => {
+      if (req.headers.host !== '1.preview.knecht.test') {
+        res.statusCode = 403
+        return res.end('Blocked request. This host is not allowed.')
+      }
+      frontend(req, res)
+    })
+    const project = makeProject({ favicon: '' })
+    const session = makeSession(project, { tier: 'preview', urlMode: 'env' })
+
+    await detectPreviewFavicon(session.id, project)
+
+    expect(requireProject(project.id).favicon).toBe(`data:image/png;base64,${Buffer.from('PNGDATA').toString('base64')}`)
+  })
+
   it('stores nothing when no port serves a favicon', async () => {
     ports.preview = await serve(backend)
     const project = makeProject({ favicon: '' })
