@@ -6,7 +6,7 @@ const idle: EnvActionInput = { envState: 'up', operation: null, working: false, 
 describe('envActions', () => {
   it.each([
     [{ envState: 'up' }, ['terminal', 'ide', 'stop']],
-    [{ envState: 'up', working: true }, ['terminal']],
+    [{ envState: 'up', working: true }, ['terminal', 'ide']],
     [{ envState: 'stopped' }, ['archive', 'reboot']],
     [{ envState: 'stopped', working: true }, ['archive']],
     // The boot of a stopped code session did not finish: the run retries it.
@@ -16,9 +16,9 @@ describe('envActions', () => {
     [{ envState: 'archived', working: true }, []],
     [{ envState: 'down' }, []],
     [{ envState: 'up', hasEnv: false, previewReady: false }, ['terminal', 'ide', 'stop', 'startPreview']],
-    [{ envState: 'up', hasEnv: false, previewReady: false, working: true }, ['terminal']],
+    [{ envState: 'up', hasEnv: false, previewReady: false, working: true }, ['terminal', 'ide']],
     [{ envState: 'up', hasEnv: false, previewReady: false, previewLost: true }, ['terminal', 'ide', 'stop', 'bootPreview']],
-    [{ envState: 'up', hasEnv: false, previewReady: false, previewLost: true, working: true }, ['terminal']],
+    [{ envState: 'up', hasEnv: false, previewReady: false, previewLost: true, working: true }, ['terminal', 'ide']],
   ] as const)('%o offers %o', (input, expected) => {
     expect(envActions({ ...idle, ...input })).toEqual(expected)
   })

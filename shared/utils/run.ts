@@ -44,8 +44,8 @@ export function envActions(input: EnvActionInput): EnvAction[] {
   if (operation) return cancellable(operation) && !working ? ['cancel'] : []
   const unfinished = bootUnfinished(input)
   const actions: EnvAction[] = []
-  if (envState === 'up') actions.push('terminal')
-  if (envState === 'up' && !working) actions.push('ide', 'stop')
+  if (envState === 'up') actions.push('terminal', 'ide')
+  if (envState === 'up' && !working) actions.push('stop')
   if (envState === 'stopped') actions.push('archive')
   if (envState === 'stopped' && !working && !unfinished) actions.push('reboot')
   if (envState === 'archived' && !working) actions.push('restore')
