@@ -167,7 +167,7 @@ const menuItems = computed(() => {
     onSelect: () => { confirmDelete.value = true },
   }]
   const run = retryable.value && props.workflowId !== null
-    ? [{ label: 'Resume from the failed step', icon: 'i-lucide-step-forward', disabled: retrying.value, onSelect: retry }]
+    ? [{ label: 'Resume from the failed step', icon: 'i-lucide-step-forward', disabled: retrying.value || !!props.busy, onSelect: retry }]
     : []
   return [run, [...preview, ...lifecycle, ...remove]].filter(group => group.length)
 })
@@ -185,7 +185,7 @@ const pinned = computed<PinnedAction[]>(() => [
   ...(props.isLive
     ? [{ label: 'Cancel run', icon: 'i-lucide-square', disabled: cancelling.value, onSelect: cancel, color: 'error' as const }]
     : []),
-  ...(!retryable.value
+  ...(!retryable.value || props.busy
     ? []
     : props.workflowId !== null
       ? [{ label: 'Run workflow again', icon: 'i-lucide-rotate-ccw', disabled: restarting.value, onSelect: runAgain, color: 'primary' as const }]
