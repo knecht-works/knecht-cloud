@@ -3,7 +3,7 @@ import { callRoute } from '../helpers/routes'
 import { makeProject } from '../helpers/db'
 
 const listBranches = vi.fn(async () => ['main', 'develop'])
-const projectMeta = vi.fn(async () => ({ framework: 'craftcms', frameworkVersion: '5.4', favicon: '', ddevEnv: {} }))
+const projectMeta = vi.fn(async () => ({ framework: 'craftcms', frameworkVersion: '5.4', ddevEnv: {} }))
 vi.mock('#server/git', () => ({ gitProvider: () => ({ listBranches, projectMeta }) }))
 
 const patch = (await import('#server/api/projects/[id].patch')).default

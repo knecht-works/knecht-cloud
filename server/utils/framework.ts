@@ -4,14 +4,13 @@ import { FRAMEWORKS } from '#shared/utils/frameworks'
 import type { DdevEnv, Project } from '#server/db/schema'
 import { setProjectMeta } from '#server/stores/projects'
 import { detectEnv, parseDdevConfig, repoShipsDdevConfig, type ReadFile } from '#server/utils/env-detect'
-import { fetchFavicon, fetchFrameworkVersion, fetchPackageManager, repoReader } from '#server/utils/github'
+import { fetchFrameworkVersion, fetchPackageManager, repoReader } from '#server/utils/github'
 import { gitProvider } from '#server/git'
 
 export interface ProjectMeta {
   framework: string | null
   frameworkVersion: string | null
   ddevEnv: DdevEnv
-  favicon: string
 }
 
 interface DetectedFramework {
@@ -60,17 +59,15 @@ export async function resolveProjectMeta(
   const ddevText = read('.ddev/config.yaml')
   const cfg = repoShipsDdevConfig(ddevText) ? parseDdevConfig(ddevText) : null
   const framework = detectFramework(read)
-  const [frameworkVersion, packageManager, favicon] = await Promise.all([
+  const [frameworkVersion, packageManager] = await Promise.all([
     framework?.composer
       ? fetchFrameworkVersion(octokit, owner, name, framework.composer, ref)
       : Promise.resolve(framework?.npmRange ? npmVersion(framework.npmRange) : null),
     fetchPackageManager(octokit, owner, name, ref),
-    fetchFavicon(octokit, owner, name, ref),
   ])
   return {
     framework: framework?.id ?? cfg?.type ?? null,
     frameworkVersion,
-    favicon: favicon ?? '',
     ddevEnv: {
       webserver: cfg?.webserver ?? null,
       phpVersion: detected.fields.phpVersion?.value ?? null,
@@ -89,7 +86,7 @@ const RETRY_MS = 10 * 60_000
 export async function backfillFrameworks(projects: Project[]): Promise<void> {
   const now = Date.now()
   const missing = projects.filter(p =>
-    (p.ddevEnv == null || p.favicon == null)
+    p.ddevEnv == null
     && now - (attemptedAt.get(p.id) ?? 0) > RETRY_MS)
   if (!missing.length) return
 
@@ -97,9 +94,8 @@ export async function backfillFrameworks(projects: Project[]): Promise<void> {
     attemptedAt.set(p.id, now)
     try {
       const meta = await gitProvider(p).projectMeta(p, p.defaultBranch)
-      const patch = { ...meta, favicon: p.favicon || meta.favicon }
-      setProjectMeta(p.id, patch)
-      Object.assign(p, patch)
+      setProjectMeta(p.id, meta)
+      Object.assign(p, meta)
       attemptedAt.delete(p.id)
     }
     catch {

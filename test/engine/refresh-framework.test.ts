@@ -10,7 +10,7 @@ const { requireProject } = await import('#server/stores/projects')
 describe('refreshFramework', () => {
   it('stores the framework version found on the default branch', async () => {
     const project = makeProject({ framework: 'craftcms', frameworkVersion: '4.9', favicon: 'icon' })
-    projectMeta.mockResolvedValueOnce({ framework: 'craftcms', frameworkVersion: '5.4', favicon: '', ddevEnv: {} })
+    projectMeta.mockResolvedValueOnce({ framework: 'craftcms', frameworkVersion: '5.4', ddevEnv: {} })
 
     await refreshFramework(project)
 
