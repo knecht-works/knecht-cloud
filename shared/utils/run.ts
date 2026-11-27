@@ -14,7 +14,13 @@ export type RunDiagnosis
 export const ENV_TRANSITIONS = ['booting', 'stopping', 'rebooting', 'restoring', 'archiving', 'expiring'] as const
 export type EnvTransition = (typeof ENV_TRANSITIONS)[number]
 
-export type EnvAction = 'terminal' | 'ide' | 'stop' | 'archive' | 'reboot' | 'restore' | 'startPreview' | 'bootPreview'
+const CANCELLABLE: EnvTransition[] = ['booting', 'rebooting', 'restoring']
+
+export function cancellable(operation: EnvTransition | null): boolean {
+  return !!operation && CANCELLABLE.includes(operation)
+}
+
+export type EnvAction = 'terminal' | 'ide' | 'stop' | 'archive' | 'reboot' | 'restore' | 'startPreview' | 'bootPreview' | 'cancel'
 
 export interface EnvActionInput {
   envState: EnvState
@@ -31,10 +37,11 @@ export function bootUnfinished({ hasEnv, previewReady, previewLost }: Pick<EnvAc
   return hasEnv && !previewReady && !previewLost
 }
 
-// What the dashboard offers for a session's environment. Nothing while an operation runs: it would only queue.
+// What the dashboard offers for a session's environment. While an operation runs, at most its cancel: anything else would only queue.
+// A run's own operation is cancelled with the run.
 export function envActions(input: EnvActionInput): EnvAction[] {
   const { envState, operation, working, hasEnv, previewLost } = input
-  if (operation) return []
+  if (operation) return cancellable(operation) && !working ? ['cancel'] : []
   const unfinished = bootUnfinished(input)
   const actions: EnvAction[] = []
   if (envState === 'up') actions.push('terminal')
@@ -47,8 +54,19 @@ export function envActions(input: EnvActionInput): EnvAction[] {
   return actions
 }
 
+// A run that only boots the preview leaves nothing to finish once cancelled: the cancel put the session back as it was.
+export function runRolledBack(run: { status: string, steps: Step[] | null }): boolean {
+  return run.status === 'cancelled' && (run.steps ?? []).every(s => s.type === 'ddev-start')
+}
+
+// A cancelled workflow run is retried to finish its steps first. A cancelled mention is just a turn that ended.
+export function cancelledRunBlocksFollowups(run: { status: string, kind: 'workflow' | 'mention', steps: Step[] | null }): boolean {
+  return run.status === 'cancelled' && run.kind !== 'mention' && !runRolledBack(run)
+}
+
 // The env belongs to the session, so every run in it shows the env once one
-// exists. Only while nothing is booted yet does the run's own boot step count.
-export function runHasEnv(tier: SessionTier, steps: Step[] | null | undefined): boolean {
-  return tier === 'preview' || stepsInclude(steps ?? [], 'ddev-start')
+// exists. Only while nothing is booted yet does the run's own boot step count,
+// and not once the run is cancelled: the cancel put the session back as it was.
+export function runHasEnv(tier: SessionTier, steps: Step[] | null | undefined, cancelled = false): boolean {
+  return tier === 'preview' || (!cancelled && stepsInclude(steps ?? [], 'ddev-start'))
 }

@@ -61,9 +61,10 @@ vi.mock('#server/git', () => ({ gitProvider: () => ({ credentials: async () => (
 vi.mock('#server/utils/preview-certs', () => ({ warmPreviewCertificates: () => {} }))
 
 const { db, schema } = await import('#server/db')
+const { cancelOperation } = await import('#server/daemon/session-env')
 const { archiveEnv, bootSessionEnv, deleteEnv, envTransition, rebootEnv, releaseWorkspace, reviveEnv, reviveWithoutPreview, stopEnv } = await import('#server/daemon/envs')
 
-const COMMANDS = ['boot', 'cancel', 'stop', 'stopByHand', 'reboot', 'archive', 'revive', 'lend', 'delete'] as const
+const COMMANDS = ['boot', 'cancel', 'cancelOperation', 'stop', 'stopByHand', 'reboot', 'archive', 'revive', 'lend', 'delete'] as const
 type Command = typeof COMMANDS[number]
 
 function worldFor(envState: 'up' | 'stopped' | 'archived', tier: 'code' | 'preview'): World {
@@ -80,6 +81,9 @@ function perform(sessionId: number, command: Command, aborts: AbortController[])
     }
     case 'cancel':
       for (const abort of aborts) abort.abort()
+      return Promise.resolve()
+    case 'cancelOperation':
+      cancelOperation(sessionId)
       return Promise.resolve()
     case 'stop': return stopEnv(sessionId)
     case 'stopByHand': return stopEnv(sessionId, { byHand: true })

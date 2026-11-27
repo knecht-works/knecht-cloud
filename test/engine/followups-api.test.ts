@@ -64,8 +64,16 @@ describe('POST /api/runs/:id/followups', () => {
   })
 
   it('refuses cancelled runs and finished runs whose environment is gone', async () => {
-    expect((await post(liveRun('cancelled').id)).status).toBe(409)
+    const cancelled = liveRun('cancelled')
+    db.update(schema.runs).set({ steps: [{ type: 'bash', id: 'work', command: 'true' }, { type: 'ddev-start', id: 'boot' }] }).where(eq(schema.runs.id, cancelled.id)).run()
+    expect((await post(cancelled.id)).status).toBe(409)
     expect((await post(liveRun('success', 'down').id)).status).toBe(409)
+  })
+
+  it('accepts a follow-up on a cancelled run that only booted the preview: its cancel left the session as it was', async () => {
+    const run = liveRun('cancelled')
+    db.update(schema.runs).set({ steps: [{ type: 'ddev-start', id: 'boot-preview' }] }).where(eq(schema.runs.id, run.id)).run()
+    expect((await post(run.id)).status).toBe(200)
   })
 
   it('accepts a follow-up on a cancelled mention run: the conversation goes on', async () => {

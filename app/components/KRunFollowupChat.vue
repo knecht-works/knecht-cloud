@@ -29,8 +29,8 @@ const props = defineProps<{
   sessionId: number
   projectId: number
   status: RunStatus
-  kind: 'workflow' | 'mention'
   envState: EnvState
+  blocked: boolean
 }>()
 
 const emit = defineEmits<{
@@ -51,8 +51,7 @@ watch(active, (v, was) => {
 watch(() => props.status, () => refresh())
 
 const runPending = computed(() => isLiveStatus(props.status))
-// A cancelled workflow run must be retried first; a cancelled mention is just a turn that ended.
-const cancelledWorkflow = computed(() => props.status === 'cancelled' && props.kind !== 'mention')
+const cancelledWorkflow = computed(() => props.blocked)
 const canFollowup = computed(() =>
   !cancelledWorkflow.value && (runPending.value || props.envState !== 'down'))
 const followupHint = computed(() => {

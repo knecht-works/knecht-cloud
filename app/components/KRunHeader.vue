@@ -14,6 +14,7 @@ const props = defineProps<{
   sessionId: number
   workflowId: number | null
   status: RunStatus
+  rolledBack: boolean
   kind: 'workflow' | 'mention'
   actions: EnvAction[]
   busy: EnvTransition | null
@@ -67,6 +68,21 @@ async function cancel() {
   }
   finally {
     cancelling.value = false
+  }
+}
+
+const cancellingEnv = ref(false)
+async function cancelEnv() {
+  cancellingEnv.value = true
+  try {
+    await $fetch(`/api/sessions/${props.sessionId}/cancel-env`, { method: 'POST' })
+    emit('changed')
+  }
+  catch (e) {
+    toastError('Cancel failed', e)
+  }
+  finally {
+    cancellingEnv.value = false
   }
 }
 
@@ -147,7 +163,7 @@ const tools = computed(() => can('terminal')
     }))
   : [])
 
-const retryable = computed(() => (props.status === 'failed' || props.status === 'cancelled') && props.kind !== 'mention')
+const retryable = computed(() => (props.status === 'failed' || (props.status === 'cancelled' && !props.rolledBack)) && props.kind !== 'mention')
 
 const menuItems = computed(() => {
   const lifecycle = [
@@ -181,7 +197,9 @@ interface PinnedAction {
 const pinned = computed<PinnedAction[]>(() => [
   ...(props.isLive
     ? [{ label: 'Cancel run', icon: 'i-lucide-square', disabled: cancelling.value, onSelect: cancel, color: 'error' as const }]
-    : []),
+    : can('cancel')
+      ? [{ label: 'Cancel', icon: 'i-lucide-square', disabled: cancellingEnv.value, onSelect: cancelEnv, color: 'error' as const }]
+      : []),
   ...(!retryable.value || props.busy
     ? []
     : props.workflowId !== null

@@ -1,5 +1,6 @@
 import { cancelFollowupWork } from '#server/daemon/followups'
 import { cancelRun } from '#server/daemon/runner'
+import { cancelOperation } from '#server/daemon/session-env'
 import { handBackObject } from '#server/integrations/assignee'
 import { withRunSessionEnv } from '#server/utils/run-view'
 import { getProject } from '#server/stores/projects'
@@ -21,6 +22,8 @@ export default defineEventHandler((event) => {
   }
   else {
     cancelRun(id)
+    // The restore or reboot the run waits for. A queued run waits for none: the operation belongs to whatever runs.
+    if (run.status === 'running') cancelOperation(run.sessionId)
   }
   // A run that never started hands nothing back on its own, but it may have kept the session busy.
   if (run.status === 'queued') {

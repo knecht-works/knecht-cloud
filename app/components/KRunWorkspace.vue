@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EnvTransition } from '#shared/utils/run'
+import { cancellable, cancelledRunBlocksFollowups, type EnvAction, type EnvTransition } from '#shared/utils/run'
 import { liveTopics } from '#shared/utils/live-topics'
 import type { SessionRun } from '~/composables/useSessionLogs'
 import type { SessionGroup, SessionHeaderRun } from '~/utils/dashboard'
@@ -73,7 +73,7 @@ function refreshWorkspace() {
 }
 
 // A click awaiting its answer offers nothing more, like the operation it started.
-const actions = computed(() => pending.value ? [] : run.value?.envActions ?? [])
+const actions = computed<EnvAction[]>(() => pending.value ? (cancellable(pending.value) ? ['cancel'] : []) : run.value?.envActions ?? [])
 
 const header = computed(() => {
   const r = run.value!
@@ -82,6 +82,7 @@ const header = computed(() => {
     sessionId: r.sessionId,
     workflowId: r.workflowId,
     status: r.status,
+    rolledBack: r.rolledBack,
     kind: r.kind,
     actions: actions.value,
     busy: busy.value,
@@ -148,8 +149,8 @@ const headerEvents = {
       :session-id="run.sessionId"
       :project-id="run.projectId"
       :status="run.status"
-      :kind="run.kind"
       :env-state="run.envState"
+      :blocked="cancelledRunBlocksFollowups(run)"
       @changed="() => { refreshWorkspace(); emit('changed') }"
     />
 

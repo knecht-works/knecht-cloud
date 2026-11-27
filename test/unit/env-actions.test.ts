@@ -23,9 +23,14 @@ describe('envActions', () => {
     expect(envActions({ ...idle, ...input })).toEqual(expected)
   })
 
-  it.each(['booting', 'stopping', 'rebooting', 'restoring', 'archiving', 'expiring'] as const)('offers nothing while %s', (operation) => {
+  it.each(['stopping', 'archiving', 'expiring'] as const)('offers nothing while %s', (operation) => {
     for (const envState of ['down', 'up', 'stopped', 'archived'] as const) {
       expect(envActions({ ...idle, envState, operation, hasEnv: false })).toEqual([])
     }
+  })
+
+  it.each(['booting', 'rebooting', 'restoring'] as const)('offers only its cancel while %s, and leaves a run\'s own to the run', (operation) => {
+    expect(envActions({ ...idle, operation })).toEqual(['cancel'])
+    expect(envActions({ ...idle, operation, working: true })).toEqual([])
   })
 })

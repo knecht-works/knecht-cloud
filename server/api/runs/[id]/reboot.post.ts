@@ -1,4 +1,5 @@
 import { reviveEnv } from '#server/daemon/envs'
+import { OperationCancelled, SessionGone } from '#server/daemon/session-env'
 import { withRunSessionEnv } from '#server/utils/run-view'
 import { requireSession } from '#server/stores/sessions'
 import { requireRun } from '#server/stores/runs'
@@ -13,7 +14,14 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 409, statusMessage: 'No environment left. Run the workflow again.' })
   }
 
-  await reviveEnv(session.id)
+  try {
+    await reviveEnv(session.id)
+  }
+  catch (e) {
+    // Someone cancelled or deleted it on purpose: not a failure to report.
+    if (e instanceof SessionGone) return null
+    if (!(e instanceof OperationCancelled)) throw e
+  }
 
   return withRunSessionEnv(requireRun(id))
 })
