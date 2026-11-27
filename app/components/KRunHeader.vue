@@ -20,6 +20,7 @@ const props = defineProps<{
   busy: EnvTransition | null
   prs: { url: string, label: string }[]
   isLive: boolean
+  bootUnfinished: boolean
 }>()
 
 const emit = defineEmits<{
@@ -192,7 +193,7 @@ const pinned = computed<PinnedAction[]>(() => [
       // Run again would reset the checkout, and a session's boot runs on top of its work.
       : [{ label: 'Retry', icon: 'i-lucide-rotate-ccw', disabled: retrying.value, onSelect: retry, color: 'primary' as const }]),
   ...props.prs.map(pr => ({ label: `Open ${pr.label}`, icon: 'i-lucide-git-pull-request', to: pr.url, color: 'primary' as const })),
-  ...(!props.isLive && !props.busy && (props.envState === 'stopped' || props.envState === 'archived')
+  ...(!props.isLive && !props.busy && ((props.envState === 'stopped' && !props.bootUnfinished) || props.envState === 'archived')
     ? [{ label: 'Reboot environment', icon: 'i-lucide-power', onSelect: () => envAction(props.envState === 'archived' ? 'restore' : 'reboot') }]
     : []),
   ...(canTerminal.value && !props.isLive

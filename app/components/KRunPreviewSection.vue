@@ -16,6 +16,7 @@ const props = defineProps<{
   envState: EnvState
   hasEnv: boolean
   previewLost: boolean
+  bootUnfinished: boolean
   previewOnline: boolean
   isLive: boolean
   busy: EnvTransition | null
@@ -79,6 +80,7 @@ async function runAgain() {
       :env-state="envState"
       :workflow-id="workflowId"
       :preview-lost="previewLost"
+      :boot-unfinished="bootUnfinished"
       :reviving="reviving"
       :restarting="restarting"
       @revive="reboot"
