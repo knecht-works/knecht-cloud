@@ -154,13 +154,8 @@ const menuItems = computed(() => {
   const lifecycle = (props.envState === 'up' && !props.isLive
     ? [{ label: 'Stop environment', icon: 'i-lucide-power-off', action: 'stop' as const }]
     : props.envState === 'stopped'
-      ? [
-          { label: 'Reboot environment', icon: 'i-lucide-power', action: 'reboot' as const },
-          { label: 'Archive environment', icon: 'i-lucide-archive', action: 'archive' as const },
-        ]
-      : props.envState === 'archived'
-        ? [{ label: 'Restore environment', icon: 'i-lucide-archive-restore', action: 'restore' as const }]
-        : []
+      ? [{ label: 'Archive environment', icon: 'i-lucide-archive', action: 'archive' as const }]
+      : []
   ).map(({ action, ...item }) => ({ ...item, disabled: !!props.busy, onSelect: () => envAction(action) }))
   const preview = !props.hasEnv && !props.isLive
     ? [{ label: 'Start preview', icon: 'i-lucide-monitor-play', disabled: startingPreview.value || !!props.busy, onSelect: startPreview }]
@@ -171,11 +166,9 @@ const menuItems = computed(() => {
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
   }]
-  const run = props.isLive
-    ? [{ label: 'Cancel run', icon: 'i-lucide-square', color: 'error' as const, disabled: cancelling.value, onSelect: cancel }]
-    : retryable.value && props.workflowId !== null
-      ? [{ label: 'Resume from the failed step', icon: 'i-lucide-step-forward', disabled: retrying.value, onSelect: retry }]
-      : []
+  const run = retryable.value && props.workflowId !== null
+    ? [{ label: 'Resume from the failed step', icon: 'i-lucide-step-forward', disabled: retrying.value, onSelect: retry }]
+    : []
   return [run, [...preview, ...lifecycle, ...remove]].filter(group => group.length)
 })
 
@@ -185,24 +178,30 @@ interface PinnedAction {
   disabled?: boolean
   onSelect?: () => void
   to?: string
-  primary?: boolean
+  color?: 'primary' | 'error'
 }
 
 const pinned = computed<PinnedAction[]>(() => [
+  ...(props.isLive
+    ? [{ label: 'Cancel run', icon: 'i-lucide-square', disabled: cancelling.value, onSelect: cancel, color: 'error' as const }]
+    : []),
   ...(!retryable.value
     ? []
     : props.workflowId !== null
-      ? [{ label: 'Run workflow again', icon: 'i-lucide-rotate-ccw', disabled: restarting.value, onSelect: runAgain, primary: true }]
+      ? [{ label: 'Run workflow again', icon: 'i-lucide-rotate-ccw', disabled: restarting.value, onSelect: runAgain, color: 'primary' as const }]
       // Run again would reset the checkout, and a session's boot runs on top of its work.
-      : [{ label: 'Retry', icon: 'i-lucide-rotate-ccw', disabled: retrying.value, onSelect: retry, primary: true }]),
-  ...props.prs.map(pr => ({ label: `Open ${pr.label}`, icon: 'i-lucide-git-pull-request', to: pr.url, primary: true })),
-  ...(!props.isLive && props.envState !== 'down'
-    ? [{ label: 'Open in IDE', icon: 'i-lucide-code-xml', disabled: !canTerminal.value, onSelect: openInVscode }]
+      : [{ label: 'Retry', icon: 'i-lucide-rotate-ccw', disabled: retrying.value, onSelect: retry, color: 'primary' as const }]),
+  ...props.prs.map(pr => ({ label: `Open ${pr.label}`, icon: 'i-lucide-git-pull-request', to: pr.url, color: 'primary' as const })),
+  ...(!props.isLive && !props.busy && (props.envState === 'stopped' || props.envState === 'archived')
+    ? [{ label: 'Reboot environment', icon: 'i-lucide-power', onSelect: () => envAction(props.envState === 'archived' ? 'restore' : 'reboot') }]
+    : []),
+  ...(canTerminal.value && !props.isLive
+    ? [{ label: 'Open in IDE', icon: 'i-lucide-code-xml', onSelect: openInVscode }]
+    : []),
+  ...(canTerminal.value
+    ? [{ label: 'Terminal', icon: 'i-lucide-square-terminal', onSelect: () => emit('openTerminal') }]
     : []),
   ...tools.value,
-  ...(props.envState !== 'down'
-    ? [{ label: 'Terminal', icon: 'i-lucide-square-terminal', disabled: !canTerminal.value, onSelect: () => emit('openTerminal') }]
-    : []),
 ])
 </script>
 
@@ -214,8 +213,8 @@ const pinned = computed<PinnedAction[]>(() => [
       :text="item.label"
     >
       <UButton
-        :color="item.primary ? 'primary' : 'neutral'"
-        :variant="item.primary ? 'solid' : 'subtle'"
+        :color="item.color ?? 'neutral'"
+        :variant="item.color === 'primary' ? 'solid' : 'subtle'"
         :icon="item.icon"
         :aria-label="item.label"
         :to="item.to"
