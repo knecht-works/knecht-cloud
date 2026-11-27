@@ -300,7 +300,8 @@ export async function reviveEnv(sessionId: number, log?: (text: string) => void,
 // A stopped preview stays stopped: the caller gets a workspace of its own instead.
 export async function reviveWithoutPreview(sessionId: number, log?: (text: string) => void): Promise<{ inWorkspace: boolean }> {
   const session = getSessionRow(sessionId)
-  if (session?.tier !== 'preview' || session.envState === 'archived') {
+  // A stopped session stays stopped: the run's boot step may start it next.
+  if (!session || session.envState === 'archived' || (session.tier === 'code' && session.envState !== 'stopped')) {
     await reviveEnv(sessionId, log, { bootLostPreview: false })
     return { inWorkspace: false }
   }

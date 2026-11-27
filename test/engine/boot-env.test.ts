@@ -77,7 +77,7 @@ vi.mock('#server/utils/github-app', () => ({
 }))
 
 const { db, schema } = await import('#server/db')
-const { archiveEnv, bootEnv, envTransition, inTransition, rehydrateEnv, reviveEnv, stopEnv } = await import('#server/daemon/envs')
+const { archiveEnv, bootEnv, envTransition, inTransition, rehydrateEnv, reviveEnv, reviveWithoutPreview, stopEnv } = await import('#server/daemon/envs')
 const { sessionArchiveDir, sessionCheckoutDir } = await import('#server/utils/storage')
 const { ddevStartAction } = await import('#server/workflows/actions/ddev-start')
 
@@ -338,6 +338,15 @@ describe('reviveEnv', () => {
     const session = makeSession(makeProject())
     await expect(reviveEnv(session.id)).rejects.toThrow('no checkout')
     expect(calls).toEqual([])
+  })
+})
+
+describe('reviveWithoutPreview', () => {
+  it('lends a stopped code session a workspace and leaves it stopped', async () => {
+    const session = makeSession(makeProject(), { envState: 'stopped' })
+    expect(await reviveWithoutPreview(session.id)).toEqual({ inWorkspace: true })
+    expect(calls).toEqual(['workspace up'])
+    expect(getSessionRow(session.id).envState).toBe('stopped')
   })
 })
 
