@@ -46,7 +46,7 @@ export function envActions(input: EnvActionInput): EnvAction[] {
   const actions: EnvAction[] = []
   if (envState === 'up') actions.push('terminal', 'ide')
   if (envState === 'up' && !working) actions.push('stop')
-  if (envState === 'stopped') actions.push('archive')
+  if (envState === 'stopped' && !working) actions.push('archive')
   if (envState === 'stopped' && !working && !unfinished) actions.push('reboot')
   if (envState === 'archived' && !working) actions.push('restore')
   if (!hasEnv && !previewLost && !working) actions.push('startPreview')

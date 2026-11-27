@@ -8,7 +8,7 @@ describe('envActions', () => {
     [{ envState: 'up' }, ['terminal', 'ide', 'stop']],
     [{ envState: 'up', working: true }, ['terminal', 'ide']],
     [{ envState: 'stopped' }, ['archive', 'reboot']],
-    [{ envState: 'stopped', working: true }, ['archive']],
+    [{ envState: 'stopped', working: true }, []],
     // The boot of a stopped code session did not finish: the run retries it.
     [{ envState: 'stopped', previewReady: false }, ['archive']],
     [{ envState: 'stopped', previewReady: false, previewLost: true }, ['archive', 'reboot']],
