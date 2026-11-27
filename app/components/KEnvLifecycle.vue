@@ -6,6 +6,7 @@ defineProps<{
   envState: EnvState
   workflowId: number | null
   previewLost: boolean
+  bootUnfinished: boolean
   reviving: boolean
   restarting: boolean
 }>()
@@ -17,7 +18,7 @@ defineEmits<{
 </script>
 
 <template>
-  <template v-if="envState === 'stopped'">
+  <template v-if="envState === 'stopped' && !bootUnfinished">
     <p class="max-w-100 text-2sm text-muted">
       The environment is stopped. Reboot it to work in it again.
     </p>
