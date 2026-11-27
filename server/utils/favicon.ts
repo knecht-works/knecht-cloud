@@ -9,8 +9,8 @@ import { getSessionRow } from '#server/stores/sessions'
 
 const MAX_HTML_BYTES = 512_000
 
-export const FAVICON_MAX_BYTES = 200_000
-export const FAVICON_MIME_BY_EXT: Record<string, string> = {
+const FAVICON_MAX_BYTES = 200_000
+const FAVICON_MIME_BY_EXT: Record<string, string> = {
   svg: 'image/svg+xml',
   png: 'image/png',
   ico: 'image/x-icon',
