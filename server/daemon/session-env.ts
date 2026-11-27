@@ -6,7 +6,6 @@ interface Mailbox {
   queued: number
   operation: EnvTransition | null
   running: AbortController | null
-  coalesced: Map<EnvTransition, Promise<unknown>>
 }
 
 const mailboxes = new Map<number, Mailbox>()
@@ -35,14 +34,10 @@ export function relabelOperation(sessionId: number, from: EnvTransition, to: Env
 }
 
 // `operation` null: too frequent to show (every step starts its sandbox), but still one at a time.
-// `coalesce`: a call while the same operation is queued or running joins it instead of repeating it.
-export function inMailbox<T>(sessionId: number, operation: EnvTransition | null, fn: () => Promise<T>, { coalesce = false } = {}): Promise<T> {
+export function inMailbox<T>(sessionId: number, operation: EnvTransition | null, fn: () => Promise<T>): Promise<T> {
   if (!getSessionRow(sessionId)) return Promise.reject(new SessionGone(sessionId))
-  const box = mailboxes.get(sessionId) ?? { tail: Promise.resolve(), queued: 0, operation: null, running: null, coalesced: new Map() }
+  const box = mailboxes.get(sessionId) ?? { tail: Promise.resolve(), queued: 0, operation: null, running: null }
   mailboxes.set(sessionId, box)
-  const same = coalesce && operation ? box.coalesced.get(operation) : undefined
-  if (same) return same as Promise<T>
-
   box.queued++
   const run = box.tail.then(() => {
     // Queued before the delete, run after it.
@@ -57,10 +52,8 @@ export function inMailbox<T>(sessionId: number, operation: EnvTransition | null,
       })
   })
   box.tail = run.catch(() => {})
-  if (coalesce && operation) box.coalesced.set(operation, run)
   const settle = () => {
     box.queued--
-    if (operation && box.coalesced.get(operation) === run) box.coalesced.delete(operation)
     if (!box.queued && mailboxes.get(sessionId) === box) mailboxes.delete(sessionId)
   }
   run.then(settle, settle)
