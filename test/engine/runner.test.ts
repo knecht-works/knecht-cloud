@@ -208,6 +208,15 @@ describe('runner', () => {
     expect(steps[1]!.outputs?.stdout).toBe('got: hello')
   })
 
+  it('passes a ticket title into a shell step as text, never as code', async () => {
+    const title = `'; $(echo INJECTED) "`
+    const { steps } = await execute([
+      { type: 'bash', id: 'echo', command: 'echo "title={{ inputs.title }}"; echo \'{{ inputs.title }}\'' },
+    ], { inputs: { title } })
+    expect(steps[0]!.status).toBe('success')
+    expect(steps[0]!.outputs?.stdout).toBe(`title=${title}\n${title}`)
+  })
+
   it('marks the session of a successful schedule run done and stops its environment', async () => {
     const workflow = db.insert(schema.workflows).values({ name: 'nightly', steps: [] }).returning().get()
     const schedule = db.insert(schema.triggers).values({ source: 'schedule', cron: '*/15 * * * *', workflowId: workflow.id, projectIds: [] }).returning().get()

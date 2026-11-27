@@ -31,14 +31,15 @@ export function createContext(
 }
 
 export function render(template: string, ctx: RunContext): string {
-  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => {
-    const value = lookup(path, ctx)
-    if (value == null) return ''
-    return typeof value === 'object' ? JSON.stringify(value) : String(value)
-  })
+  return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => valueText(lookup(path, ctx)))
 }
 
-function lookup(path: string, ctx: RunContext): unknown {
+export function valueText(value: unknown): string {
+  if (value == null) return ''
+  return typeof value === 'object' ? JSON.stringify(value) : String(value)
+}
+
+export function lookup(path: string, ctx: RunContext): unknown {
   return path.split('.').reduce<unknown>(
     (acc, key) => (acc != null && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined),
     ctx,

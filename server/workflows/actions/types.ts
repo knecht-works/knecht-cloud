@@ -39,6 +39,8 @@ export interface ActionDef<T extends Step['type']> {
   yaml?: z.ZodType<Step>
   legacyKey?: string
   rawParams?: readonly string[]
+  /** Left as templates for the action to render from `rt.ctx` with its own escaping. */
+  templateParams?: readonly string[]
   run(step: Extract<Step, { type: T }>, rt: ActionRuntime): Promise<Record<string, unknown> | undefined>
 }
 
