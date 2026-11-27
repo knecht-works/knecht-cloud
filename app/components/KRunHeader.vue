@@ -48,7 +48,7 @@ const deleting = ref(false)
 async function remove() {
   deleting.value = true
   try {
-    await $fetch(`/api/runs/${props.runId}`, { method: 'DELETE' })
+    await $fetch(`/api/sessions/${props.sessionId}`, { method: 'DELETE' })
     emit('deleted')
   }
   catch (e) {
@@ -162,7 +162,7 @@ const menuItems = computed(() => {
     ? [{ label: 'Start preview', icon: 'i-lucide-monitor-play', disabled: startingPreview.value || !!props.busy, onSelect: startPreview }]
     : []
   const remove = [{
-    label: 'Delete run',
+    label: 'Delete session',
     icon: 'i-lucide-trash-2',
     color: 'error' as const,
     onSelect: () => { confirmDelete.value = true },
@@ -242,9 +242,9 @@ const pinned = computed<PinnedAction[]>(() => [
 
     <KConfirmModal
       v-model:open="confirmDelete"
-      title="Delete run"
+      title="Delete session"
       description="This cannot be undone."
-      :detail="`Deletes run #${runId} including its log and preview environment.`"
+      :detail="`Deletes the session with all its runs, logs and its environment.`"
       confirm-label="Delete"
       :loading="deleting"
       @confirm="remove"

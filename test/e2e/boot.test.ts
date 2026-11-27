@@ -237,7 +237,7 @@ for (const fixture of selected) {
     })
 
     afterAll(async () => {
-      if (runId) await cleanup(client, `/api/runs/${runId}`)
+      if (sessionId) await cleanup(client, `/api/sessions/${sessionId}`)
       if (projectId && ownProject) await cleanup(client, `/api/projects/${projectId}`)
       if (workflowId) await cleanup(client, `/api/workflows/${workflowId}`)
     })
@@ -333,9 +333,9 @@ for (const fixture of selected) {
       expect(anonSub.status).toBe(401)
     })
 
-    it('tears the environment down when the run is deleted', async () => {
-      expect(runId).toBeDefined()
-      await expectJson(await client.fetch(`/api/runs/${runId}`, { method: 'DELETE' }))
+    it('tears the environment down when the session is deleted', async () => {
+      expect(sessionId).toBeDefined()
+      await expectJson(await client.fetch(`/api/sessions/${sessionId}`, { method: 'DELETE' }))
 
       const gone = await client.fetch(`/api/runs/${runId}`)
       expect(gone.status).toBe(404)
