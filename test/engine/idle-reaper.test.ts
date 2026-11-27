@@ -18,7 +18,7 @@ vi.mock('#server/daemon/workspace', () => ({
 }))
 
 const { db, schema } = await import('#server/db')
-const { reapIdleEnvs } = await import('#server/daemon/envs')
+const { reapIdleEnvs, stopEnv } = await import('#server/daemon/envs')
 const { inMailbox } = await import('#server/daemon/session-env')
 const { touchSessionPreview } = await import('#server/stores/sessions')
 
@@ -101,5 +101,22 @@ describe('reapIdleEnvs', () => {
     release()
     await Promise.all([boot, reap])
     expect(getSessionRow(run.sessionId).envState).toBe('up')
+  })
+
+  it('still stops a session closed while the reaper\'s stop waits behind work that used it', async () => {
+    const run = makeUpRun(STALE)
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const revive = inMailbox(run.sessionId, null, async () => {
+      await gate
+      touchSessionPreview(run.sessionId)
+    })
+    const reap = reapIdleEnvs()
+    const closed = stopEnv(run.sessionId)
+    release()
+    await Promise.all([revive, reap, closed])
+    expect(getSessionRow(run.sessionId).envState).toBe('stopped')
   })
 })

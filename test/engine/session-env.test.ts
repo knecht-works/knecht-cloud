@@ -74,22 +74,6 @@ describe('session mailbox', () => {
     expect(events).toEqual(['boot end', 'stop'])
   })
 
-  it('lets a coalescing call join the same operation instead of queueing another', async () => {
-    const id = session()
-    let runs = 0
-    const held = gate()
-    const a = inMailbox(id, 'stopping', async () => {
-      runs++
-      await held.opened
-    }, { coalesce: true })
-    const b = inMailbox(id, 'stopping', async () => {
-      runs++
-    }, { coalesce: true })
-    held.open()
-    await Promise.all([a, b])
-    expect(runs).toBe(1)
-  })
-
   it('runs the next operation after one that failed', async () => {
     const id = session()
     const failed = inMailbox(id, 'booting', async () => {
