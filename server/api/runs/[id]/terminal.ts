@@ -1,13 +1,14 @@
 import { openRunTerminal, type RunTerminal } from '#server/daemon/terminal'
 import { sessionMember } from '#server/utils/member-session'
-import { requireSession, touchSessionPreview } from '#server/stores/sessions'
-import { getRun, requireRun } from '#server/stores/runs'
-import { defineWebSocketHandler, createError } from 'h3'
+import { getSessionRow, touchSessionPreview } from '#server/stores/sessions'
+import { getRun } from '#server/stores/runs'
+import { defineWebSocketHandler } from 'h3'
 import { isPreviewHost } from '#shared/utils/preview-host'
 import { isForeignOrigin } from '#server/utils/origin'
 import { getUserSession } from '#imports'
 
 // The /api auth middleware does not cover the upgrade request: session and membership are checked here.
+// Rejections are Responses: crossws leaves the socket hanging on any other error.
 // Client frames are JSON ({t:'i',d} input, {t:'r',cols,rows} resize), server frames are raw TTY bytes.
 
 const terminals = new Map<string, RunTerminal>()
@@ -40,22 +41,26 @@ export default defineWebSocketHandler({
     // Upgrades skip the HTTP middleware, so a preview host would otherwise reach this route too.
     const host = request.headers.get('host') ?? ''
     if (isPreviewHost(host) || isForeignOrigin(request.headers.get('origin'), host)) {
-      throw createError({ statusCode: 403, statusMessage: 'Cross-origin request refused' })
+      throw new Response('Cross-origin request refused', { status: 403 })
     }
     const session = await getUserSession(request)
     if (!session?.user) {
-      throw createError({ statusCode: 401, statusMessage: 'Login required' })
+      throw new Response('Login required', { status: 401 })
     }
     if (!sessionMember(session)) {
-      throw createError({ statusCode: 403, statusMessage: 'Membership revoked' })
+      throw new Response('Membership revoked', { status: 403 })
     }
     const target = parseTerminalUrl(request.url)
     if (!target) {
-      throw createError({ statusCode: 400, statusMessage: 'Bad terminal target' })
+      throw new Response('Bad terminal target', { status: 400 })
     }
-    const env = requireSession(requireRun(target.runId).sessionId)
+    const run = getRun(target.runId)
+    const env = run && getSessionRow(run.sessionId)
+    if (!env) {
+      throw new Response('Run not found', { status: 404 })
+    }
     if (env.envState !== 'up') {
-      throw createError({ statusCode: 409, statusMessage: 'Environment is not running' })
+      throw new Response('Environment is not running', { status: 409 })
     }
   },
 
