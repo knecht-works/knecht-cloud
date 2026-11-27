@@ -478,6 +478,15 @@ describe('runner', () => {
       expect(again.startSha).toBe(execFileSync('git', ['rev-parse', 'main'], { cwd: origin, encoding: 'utf8' }).trim())
     })
 
+    it('keeps the copied end of the attempt when the run fails before it has a checkout', async () => {
+      const project = makeProject()
+      const session = makeSession(project, { envState: 'stopped' })
+      ensureWorkspaceUp.mockRejectedValueOnce(new Error('no workspace'))
+      const again = makeRun(project, [{ type: 'bash', id: 'check', command: 'true' }], { sessionId: session.id, resetCheckout: true, startSha: 'a1b2c3', endSha: 'd4e5f6' })
+      await startRun(again.id, project)
+      expect(getRun(again.id)).toMatchObject({ status: 'failed', endSha: 'd4e5f6' })
+    })
+
     it('keeps the commits later work made after the failed attempt ended', async () => {
       const { stdout } = await attempt(
         `echo attempt > tracked && ${commit('attempt')} && exit 1`,

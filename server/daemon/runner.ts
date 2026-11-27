@@ -160,7 +160,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     const cancelled = controller.signal.aborted
     if (cancelled) await stopRunProcesses(session.id, runId).catch(() => {})
     // Run again discards the attempt's commits only while the checkout still ends where the attempt left it.
-    updateRun(runId, { endSha: dir ? await checkoutHead(dir) : null })
+    if (dir) updateRun(runId, { endSha: await checkoutHead(dir) })
     log(cancelled ? `\n✗ Cancelled\n` : `\n✗ ${(e as Error).message}\n`)
     finishRun(runId, cancelled ? 'cancelled' : 'failed')
     if (!cancelled) void diagnoseRunFailure(runId)
