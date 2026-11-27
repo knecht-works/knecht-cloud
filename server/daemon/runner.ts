@@ -267,7 +267,7 @@ async function execStep(
   for (let attempt = 1; ; attempt++) {
     try {
       const outputs = capOutputs(action
-        ? await runActionTimed(action, rendered, rt, step.timeoutSeconds ?? defaultStepTimeout(step.type))
+        ? await runActionTimed(action, withTemplateParams(rendered, step, action), rt, step.timeoutSeconds ?? defaultStepTimeout(step.type))
         : await runComposite(runId, step as CompositeStep, ctx, rt, scope))
       finalize({ status: 'success', outputs, attempt })
       return outputs
@@ -321,6 +321,13 @@ function runActionTimed(
 }
 
 type StepRowPatch = Partial<NewRunStep>
+
+// The rendered copy stays the step's display params; the action renders these from rt.ctx itself.
+function withTemplateParams(rendered: Step, template: Step, action: RegisteredAction): Step {
+  if (!action.templateParams) return rendered
+  const raw = template as unknown as Record<string, unknown>
+  return { ...rendered, ...Object.fromEntries(action.templateParams.map(key => [key, raw[key]])) } as Step
+}
 
 function stepParams(step: Step): Record<string, unknown> {
   const skip = new Set<string>(STEP_META_KEYS)
