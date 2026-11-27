@@ -213,7 +213,7 @@ async function connectFixture(client: E2eClient, fullName: string): Promise<{ pr
 }
 
 function previewFailure(origin: string, res: PreviewResponse): string {
-  return `${origin} answered ${res.status}:\n${res.body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500)}`
+  return `${origin} answered ${res.status}:\n${res.body.replace(/<(style|script)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500)}`
 }
 
 async function cleanup(client: E2eClient, path: string): Promise<void> {
