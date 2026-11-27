@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { execa } from 'execa'
 import type { NewSession, Project } from '#server/db/schema'
@@ -415,8 +415,8 @@ async function finishInterrupted(sessionId: number, operation: EnvTransition): P
       tryEnvEvent(sessionId, 'expire')
     }
     else if (operation === 'archiving') {
-      await snapshotCheckout(sessionId)
-      await snapshotDb(sessionId)
+      // Past the snapshot, the teardown may have half-deleted the checkout: a new tar would replace the good one.
+      if (!existsSync(snapshotMarker(sessionId))) await snapshotSession(sessionId)
       await teardownSession(sessionId)
       tryEnvEvent(sessionId, 'archive')
     }
@@ -498,11 +498,23 @@ export async function archiveStaleEnvs(): Promise<void> {
 export async function archiveEnv(sessionId: number, { byHand = false } = {}): Promise<void> {
   await inMailbox(sessionId, 'archiving', async () => {
     if (!stillIn(sessionId, 'stopped') || sessionHasActiveRun(sessionId) || sessionHasActiveFollowup(sessionId)) return
-    await snapshotCheckout(sessionId)
-    await snapshotDb(sessionId)
+    await snapshotSession(sessionId)
     await teardownSession(sessionId)
     envEvent(sessionId, 'archive', byHand ? { wakeOnVisit: false } : {})
   })
+}
+
+function snapshotMarker(sessionId: number): string {
+  return join(sessionArchiveDir(sessionId), 'snapshot.complete')
+}
+
+// A restore keeps the archive, so the marker of an earlier archive is cleared first.
+async function snapshotSession(sessionId: number): Promise<void> {
+  rmSync(snapshotMarker(sessionId), { force: true })
+  await snapshotCheckout(sessionId)
+  await snapshotDb(sessionId)
+  mkdirSync(sessionArchiveDir(sessionId), { recursive: true })
+  writeFileSync(snapshotMarker(sessionId), '')
 }
 
 const REINSTALLABLE_DIRS = ['vendor', 'node_modules']

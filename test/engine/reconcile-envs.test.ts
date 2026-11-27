@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { eq } from 'drizzle-orm'
@@ -22,7 +22,7 @@ vi.mock('#server/daemon/db-base', () => ({ archiveDbVolume: async () => {} }))
 
 const { db, schema } = await import('#server/db')
 const { reconcileEnvStates, reviveEnv } = await import('#server/daemon/envs')
-const { sessionArchiveDir } = await import('#server/utils/storage')
+const { sessionArchiveDir, sessionCheckoutDir } = await import('#server/utils/storage')
 
 function makeSessionInState(envState: 'up' | 'stopped' | 'archived', tier: 'code' | 'preview' = 'preview', envOperation: EnvTransition | null = null) {
   const project = makeProject()
@@ -102,6 +102,30 @@ describe('reconcileEnvStates', () => {
     const run = makeSessionInState('stopped', 'preview', 'archiving')
     await reconcileEnvStates()
     expect(getSessionRow(run.sessionId)).toMatchObject({ envState: 'archived', envOperation: null })
+  })
+
+  function archiveCutShort(snapshotDone: boolean) {
+    const run = makeSessionInState('stopped', 'preview', 'archiving')
+    mkdirSync(join(sessionCheckoutDir(run.sessionId), '.git'), { recursive: true })
+    const archive = join(sessionArchiveDir(run.sessionId), 'checkout.tar.gz')
+    mkdirSync(sessionArchiveDir(run.sessionId), { recursive: true })
+    writeFileSync(archive, 'earlier archive')
+    if (snapshotDone) writeFileSync(join(sessionArchiveDir(run.sessionId), 'snapshot.complete'), '')
+    return { run, archive }
+  }
+
+  it('keeps the snapshot of an archive the daemon cut short in its teardown', async () => {
+    const { run, archive } = archiveCutShort(true)
+    await reconcileEnvStates()
+    expect(readFileSync(archive, 'utf8')).toBe('earlier archive')
+    expect(getSessionRow(run.sessionId).envState).toBe('archived')
+  })
+
+  it('snapshots again an archive the daemon cut short before its snapshot was complete', async () => {
+    const { run, archive } = archiveCutShort(false)
+    await reconcileEnvStates()
+    expect(readFileSync(archive, 'utf8')).not.toBe('earlier archive')
+    expect(getSessionRow(run.sessionId).envState).toBe('archived')
   })
 
   it('finishes an expiry the daemon cut short', async () => {
