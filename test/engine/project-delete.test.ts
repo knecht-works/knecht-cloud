@@ -16,8 +16,8 @@ vi.mock('#server/daemon/sandbox', () => ({}))
 vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox, stopRunProcesses: async () => true }))
 const tornDown: number[] = []
 vi.mock('#server/daemon/envs', () => ({
-  markCheckedOut: () => {},
-  teardownSession: async (sessionId: number) => { tornDown.push(sessionId) },
+  markCheckedOut: async () => {},
+  deleteEnv: async (sessionId: number) => { tornDown.push(sessionId) },
 }))
 vi.mock('#server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
@@ -55,7 +55,6 @@ describe('deleteProject', () => {
       makeDir('dumps', String(project.id)),
       makeDir('shared', String(project.id)),
       makeDir('memory', String(project.id)),
-      makeDir('archives', `run-${runA.sessionId}`),
     ]
     const otherDir = makeDir('memory', String(other.id))
 

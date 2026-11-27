@@ -95,8 +95,10 @@ async function execRun(runId: number, project: Project): Promise<void> {
     }
 
     const sessionId = session.id
-    // A boot step promotes only an up session. A stopped preview waits for a step that needs it.
-    if (session.envState === 'archived' || (session.envState === 'stopped' && session.tier === 'code')) {
+    // A stopped preview waits for a step that needs it. A boot step boots a stopped code session
+    // itself, and a workspace started first would only show as up until the boot removes it.
+    const bootsNext = steps[resume.fromIndex]?.type === 'ddev-start'
+    if (session.envState === 'archived' || (session.envState === 'stopped' && session.tier === 'code' && !bootsNext)) {
       log(`▶ Bringing the session back\n`)
       await reviveEnv(sessionId, log, { bootLostPreview: false })
     }
@@ -105,7 +107,7 @@ async function execRun(runId: number, project: Project): Promise<void> {
     const base = sessionBase(session, project)
     const branch = session.branch ?? run.branch ?? base
     dir = await prepareSessionCheckout(project, sessionId, credentials, log, branch, base)
-    markCheckedOut(sessionId)
+    await markCheckedOut(sessionId)
     if (!run.startSha) updateRun(runId, { startSha: await checkoutHead(dir) })
     if (branch === project.defaultBranch) {
       // The run does not depend on it; the next default-branch run retries.

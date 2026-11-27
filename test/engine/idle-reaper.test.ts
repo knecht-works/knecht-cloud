@@ -19,6 +19,8 @@ vi.mock('#server/daemon/workspace', () => ({
 
 const { db, schema } = await import('#server/db')
 const { reapIdleEnvs } = await import('#server/daemon/envs')
+const { inMailbox } = await import('#server/daemon/session-env')
+const { touchSessionPreview } = await import('#server/stores/sessions')
 
 function makeUpRun(previewLastSeen: Date, tier: 'code' | 'preview' = 'preview') {
   const project = makeProject()
@@ -83,5 +85,21 @@ describe('reapIdleEnvs', () => {
     db.update(schema.sessions).set({ previewLastSeen: STALE }).where(eq(schema.sessions.id, run.sessionId)).run()
     await reapIdleEnvs()
     expect(getSessionRow(run.sessionId).envState).toBe('stopped')
+  })
+
+  it.each(['booting', null] as const)('spares a stale env that a %s operation under way brings back into use', async (operation) => {
+    const run = makeUpRun(STALE)
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const boot = inMailbox(run.sessionId, operation, async () => {
+      await gate
+      touchSessionPreview(run.sessionId)
+    })
+    const reap = reapIdleEnvs()
+    release()
+    await Promise.all([boot, reap])
+    expect(getSessionRow(run.sessionId).envState).toBe('up')
   })
 })

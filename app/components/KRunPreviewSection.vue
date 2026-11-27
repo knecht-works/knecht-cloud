@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { EnvState, EnvTransition } from '#shared/utils/run'
+import type { EnvAction, EnvState, EnvTransition } from '#shared/utils/run'
 import { useToastError } from '~/composables/useToastError'
 import { computed, ref } from 'vue'
 import { $fetch } from '#imports'
@@ -13,6 +13,7 @@ const props = defineProps<{
   sessionId: number
   previewHosts: string[]
   hasPreviewTarget: boolean
+  actions: EnvAction[]
   envState: EnvState
   hasEnv: boolean
   previewLost: boolean
@@ -77,6 +78,7 @@ async function runAgain() {
       <slot name="actions" />
     </template>
     <KEnvLifecycle
+      :actions="actions"
       :env-state="envState"
       :workflow-id="workflowId"
       :preview-lost="previewLost"

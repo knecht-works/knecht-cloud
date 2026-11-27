@@ -14,7 +14,7 @@ vi.mock('#server/daemon/git', async (importOriginal) => {
 })
 vi.mock('#server/daemon/sandbox', () => ({ startEnvStack: async () => {} }))
 vi.mock('#server/daemon/session-sandbox', async () => ({ sessionSandbox: (await import('../helpers/local-sandbox')).sessionSandbox, stopRunProcesses: async () => true }))
-vi.mock('#server/daemon/envs', () => ({ markCheckedOut: () => {}, reviveEnv: async () => {} }))
+vi.mock('#server/daemon/envs', () => ({ markCheckedOut: async () => {}, reviveEnv: async () => {} }))
 vi.mock('#server/utils/github-app', () => ({
   getInstallationToken: async () => 'test-token',
   getBotIdentity: async () => ({ name: 'Knecht Test', email: 'test@knecht.works' }),

@@ -77,12 +77,13 @@ vi.mock('#server/utils/github-app', () => ({
 }))
 
 const { db, schema } = await import('#server/db')
-const { archiveEnv, bootEnv, envTransition, inTransition, rehydrateEnv, reviveEnv, stopEnv } = await import('#server/daemon/envs')
+const { archiveEnv, bootEnv, deleteEnv, envTransition, rehydrateEnv, releaseWorkspace, reviveEnv, reviveWithoutPreview, stopEnv } = await import('#server/daemon/envs')
+const { inMailbox, SessionGone } = await import('#server/daemon/session-env')
 const { sessionArchiveDir, sessionCheckoutDir } = await import('#server/utils/storage')
 const { ddevStartAction } = await import('#server/workflows/actions/ddev-start')
 
 function freshSession(project: Project) {
-  return makeSession(project, { previewPort: 3000 })
+  return makeSession(project, { previewPort: 3000, envState: 'up' })
 }
 
 beforeEach(() => {
@@ -171,9 +172,22 @@ describe('bootEnv', () => {
       cancel.abort()
       seen = envTransition(session.id)
     }
-    await expect(inTransition(session.id, 'booting', () => bootEnv(session.id, { dbFile: null, projectCommands: 'pnpm install', signal: cancel.signal }))).rejects.toThrow()
+    await expect(inMailbox(session.id, 'booting', () => bootEnv(session.id, { dbFile: null, projectCommands: 'pnpm install', signal: cancel.signal }))).rejects.toThrow()
     expect(seen).toBe('stopping')
     expect(envTransition(session.id)).toBeNull()
+  })
+
+  it('stops a session only after the boot under way finished', async () => {
+    const session = freshSession(makeProject())
+    let stop: Promise<void> | undefined
+    onStream = (line) => {
+      if (line === 'bash -lc pnpm install') stop = stopEnv(session.id)
+    }
+    await inMailbox(session.id, 'booting', () => bootEnv(session.id, { dbFile: null, projectCommands: 'pnpm install' }))
+    expect(getSessionRow(session.id).envState).toBe('up')
+    await stop
+    expect(calls.at(-1)).toBe('ddev stop')
+    expect(getSessionRow(session.id).envState).toBe('stopped')
   })
 
   it('stops the stack when the run is cancelled while the dev server starts', async () => {
@@ -255,6 +269,25 @@ describe('ddev-start action', () => {
     expect(getSessionRow(session.id)).toMatchObject({ envState: 'stopped', tier: 'code', wakeOnVisit: false })
   })
 
+  it('promotes the session when a retry boots it after the first attempt failed', async () => {
+    const project = makeProject({ bootCommands: 'ddev npm run build' })
+    const session = freshSession(project)
+    db.update(schema.sessions).set({ envState: 'up' }).where(eq(schema.sessions.id, session.id)).run()
+    const rt = {
+      sessionId: session.id,
+      project,
+      checkoutDir: '/nonexistent',
+      log: () => {},
+      signal: new AbortController().signal,
+      sandbox: { ensureUp: async () => {} },
+    } as unknown as ActionRuntime
+    failing.add('bash -lc ddev npm run build')
+    await expect(ddevStartAction.run({ type: 'ddev-start' }, rt)).rejects.toThrow()
+    failing.clear()
+    await ddevStartAction.run({ type: 'ddev-start' }, rt)
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'up', tier: 'preview', wakeOnVisit: true })
+  })
+
   it('only revives a session that is already a preview', async () => {
     const project = makeProject({ bootCommands: 'pnpm install' })
     const session = makeSession(project)
@@ -319,6 +352,68 @@ describe('reviveEnv', () => {
     const session = makeSession(makeProject())
     await expect(reviveEnv(session.id)).rejects.toThrow('no checkout')
     expect(calls).toEqual([])
+  })
+})
+
+describe('reviveWithoutPreview', () => {
+  it('lends a stopped code session a workspace and leaves it stopped', async () => {
+    const session = makeSession(makeProject(), { envState: 'stopped' })
+    expect(await reviveWithoutPreview(session.id)).toEqual({ inWorkspace: true })
+    expect(calls).toEqual(['workspace up'])
+    expect(getSessionRow(session.id).envState).toBe('stopped')
+  })
+
+  it('keeps the lent workspace when the session was revived meanwhile', async () => {
+    const session = makeSession(makeProject(), { envState: 'stopped' })
+    await reviveWithoutPreview(session.id)
+    await reviveEnv(session.id)
+    calls.length = 0
+    await releaseWorkspace(session.id)
+    expect(calls).toEqual([])
+  })
+
+  it('removes the lent workspace of a session still stopped', async () => {
+    const session = makeSession(makeProject(), { envState: 'stopped' })
+    await reviveWithoutPreview(session.id)
+    await releaseWorkspace(session.id)
+    expect(calls.at(-1)).toBe('workspace removed')
+  })
+})
+
+describe('deleteEnv', () => {
+  it('tears the session down only after the boot under way wound down', async () => {
+    const session = freshSession(makeProject())
+    mkdirSync(sessionArchiveDir(session.id), { recursive: true })
+    const cancel = new AbortController()
+    let deleted: Promise<void> | undefined
+    onStream = (line) => {
+      if (line !== 'bash -lc pnpm install') return
+      cancel.abort()
+      db.delete(schema.sessions).where(eq(schema.sessions.id, session.id)).run()
+      deleted = deleteEnv(session.id)
+    }
+    await expect(inMailbox(session.id, 'booting', () => bootEnv(session.id, { dbFile: null, projectCommands: 'pnpm install', signal: cancel.signal }))).rejects.toThrow()
+    await deleted
+    expect(calls.slice(-2)).toEqual(['ddev stop', 'workspace removed'])
+    expect(existsSync(sessionArchiveDir(session.id))).toBe(false)
+  })
+
+  it('refuses what was queued before the delete and anything after it', async () => {
+    const session = freshSession(makeProject())
+    let release = () => {}
+    const busy = inMailbox(session.id, 'rebooting', () => new Promise<void>((resolve) => {
+      release = resolve
+    }))
+    await vi.waitFor(() => expect(envTransition(session.id)).toBe('rebooting'))
+    const queued = reviveEnv(session.id)
+    db.delete(schema.sessions).where(eq(schema.sessions.id, session.id)).run()
+    const deleted = deleteEnv(session.id)
+    release()
+    await busy
+    await expect(queued).rejects.toBeInstanceOf(SessionGone)
+    await deleted
+    await expect(reviveEnv(session.id)).rejects.toBeInstanceOf(SessionGone)
+    expect(calls).not.toContain('workspace up')
   })
 })
 
