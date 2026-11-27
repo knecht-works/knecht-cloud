@@ -77,8 +77,8 @@ vi.mock('#server/utils/github-app', () => ({
 }))
 
 const { db, schema } = await import('#server/db')
-const { archiveEnv, bootEnv, deleteEnv, envTransition, rehydrateEnv, releaseWorkspace, reviveEnv, reviveWithoutPreview, stopEnv } = await import('#server/daemon/envs')
-const { inMailbox, SessionGone } = await import('#server/daemon/session-env')
+const { archiveEnv, bootEnv, deleteEnv, envTransition, rebootEnv, rehydrateEnv, releaseWorkspace, reviveEnv, reviveWithoutPreview, stopEnv } = await import('#server/daemon/envs')
+const { cancelOperation, inMailbox, OperationCancelled, SessionGone } = await import('#server/daemon/session-env')
 const { sessionArchiveDir, sessionCheckoutDir } = await import('#server/utils/storage')
 const { ddevStartAction } = await import('#server/workflows/actions/ddev-start')
 
@@ -98,16 +98,16 @@ beforeEach(() => {
 })
 
 describe('bootEnv', () => {
-  it('starts once, then imports, runs the boot commands and waits for the dev server', async () => {
+  it('starts once, then imports, runs the boot commands, waits for the dev server and only then removes the workspace', async () => {
     const session = freshSession(makeProject())
     await bootEnv(session.id, { dbFile: '/dumps/db.sql.gz', projectCommands: 'pnpm install', stepCommands: 'pnpm run build' })
     expect(calls).toEqual([
-      'workspace removed',
       'ddev start',
       'ddev import-db --file=/dumps/db.sql.gz',
       'bash -lc pnpm install',
       'bash -lc pnpm run build',
       'supervisorctl restart webextradaemons:*',
+      'workspace removed',
     ])
     expect(waitForDevServer).toHaveBeenCalledWith(session.id, 3000, undefined)
     expect(noteDevServerUse).toHaveBeenCalledWith(session.id, expect.any(Function))
@@ -127,25 +127,25 @@ describe('bootEnv', () => {
     const session = freshSession(makeProject())
     await bootEnv(session.id, { dbFile: null, dbBase: { volume: 'knecht-base-1-x-mariadb', database: 'mariadb:11.8' }, projectCommands: 'pnpm install' })
     expect(calls).toEqual([
-      'workspace removed',
       'clone knecht-base-1-x-mariadb',
       'ddev start',
       'bash -lc pnpm install',
       'supervisorctl restart webextradaemons:*',
+      'workspace removed',
     ])
   })
 
   it('restores an archived database volume ahead of a base or a dump', async () => {
     const session = freshSession(makeProject())
     await bootEnv(session.id, { dbFile: null, dbArchive: '/archives/db-mariadb.tar.gz', projectCommands: '' })
-    expect(calls.slice(0, 3)).toEqual(['workspace removed', 'restore /archives/db-mariadb.tar.gz', 'ddev start'])
+    expect(calls.slice(0, 2)).toEqual(['restore /archives/db-mariadb.tar.gz', 'ddev start'])
   })
 
   it('stops the stack and leaves the session a code session when a boot command fails', async () => {
     const session = freshSession(makeProject())
     failing.add('bash -lc pnpm install')
     await expect(bootEnv(session.id, { dbFile: null, projectCommands: 'pnpm install' })).rejects.toThrow('exited with code 1')
-    expect(calls.at(-1)).toBe('ddev stop')
+    expect(calls.slice(-2)).toEqual(['ddev stop', 'workspace removed'])
     expect(getSessionRow(session.id).tier).toBe('code')
   })
 
@@ -246,27 +246,40 @@ describe('ddev-start action', () => {
     expect(getSessionRow(session.id).tier).toBe('preview')
   })
 
-  it.each([
-    ['a boot command is killed (exit 137)', () => { failing.add('bash -lc ddev npm run build') }, false],
-    ['the run is cancelled mid-boot', () => {}, true],
-  ])('leaves the session stopped, not up, when %s', async (_case, breakBoot, cancel) => {
-    const project = makeProject({ bootCommands: 'ddev npm run build' })
-    const session = freshSession(project)
-    db.update(schema.sessions).set({ envState: 'up' }).where(eq(schema.sessions.id, session.id)).run()
-    breakBoot()
-    const controller = new AbortController()
-    if (cancel) controller.abort()
+  function bootStep(project: Project, sessionId: number, signal: AbortSignal, log: (text: string) => void = () => {}) {
     const rt = {
-      sessionId: session.id,
+      sessionId,
       project,
       checkoutDir: '/nonexistent',
-      log: () => {},
-      signal: controller.signal,
+      log,
+      signal,
       sandbox: { ensureUp: async () => {} },
     } as unknown as ActionRuntime
-    await expect(ddevStartAction.run({ type: 'ddev-start' }, rt)).rejects.toThrow()
-    expect(calls.at(-1)).toBe('ddev stop')
+    return ddevStartAction.run({ type: 'ddev-start' }, rt)
+  }
+
+  it('leaves the session stopped, not up, when a boot command is killed (exit 137)', async () => {
+    const project = makeProject({ bootCommands: 'ddev npm run build' })
+    const session = freshSession(project)
+    failing.add('bash -lc ddev npm run build')
+    await expect(bootStep(project, session.id, new AbortController().signal)).rejects.toThrow()
+    expect(calls.slice(-2)).toEqual(['ddev stop', 'workspace removed'])
     expect(getSessionRow(session.id)).toMatchObject({ envState: 'stopped', tier: 'code', wakeOnVisit: false })
+  })
+
+  it('leaves an up code session as it was when the run is cancelled mid-boot', async () => {
+    const project = makeProject({ bootCommands: 'ddev npm run build' })
+    const session = freshSession(project)
+    const cancel = new AbortController()
+    onStream = (line) => {
+      if (line === 'bash -lc ddev npm run build') cancel.abort()
+    }
+    const log: string[] = []
+    await expect(bootStep(project, session.id, cancel.signal, text => log.push(text))).rejects.toThrow()
+    expect(calls.at(-1)).toBe('ddev stop')
+    expect(calls).not.toContain('workspace removed')
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'up', tier: 'code', envOperation: null })
+    expect(log.join('')).toContain('Boot cancelled, the environment is back to how it was')
   })
 
   it('promotes the session when a retry boots it after the first attempt failed', async () => {
@@ -344,7 +357,7 @@ describe('reviveEnv', () => {
   it.each(['up', 'stopped'] as const)('boots the lost preview of an %s code session that once had one', async (envState) => {
     const session = sessionThatBooted(envState)
     await reviveEnv(session.id)
-    expect(calls).toEqual(['workspace removed', 'ddev start', 'bash -lc pnpm install', 'bash -lc pnpm run build'])
+    expect(calls).toEqual(['ddev start', 'bash -lc pnpm install', 'bash -lc pnpm run build', 'workspace removed'])
     expect(getSessionRow(session.id)).toMatchObject({ envState: 'up', tier: 'preview' })
   })
 
@@ -380,6 +393,29 @@ describe('reviveWithoutPreview', () => {
   })
 })
 
+describe('cancelling an environment operation', () => {
+  it('leaves a stopped preview stopped when its reboot is cancelled', async () => {
+    const session = makeSession(makeProject(), { envState: 'stopped', tier: 'preview' })
+    startEnvStack.mockImplementationOnce(async () => {
+      calls.push('ddev start')
+      expect(cancelOperation(session.id)).toBe(true)
+      expect(envTransition(session.id)).toBe('stopping')
+    })
+    await expect(rebootEnv(session.id)).rejects.toBeInstanceOf(OperationCancelled)
+    expect(calls.slice(-2)).toEqual(['ddev start', 'ddev stop'])
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'stopped', envOperation: null })
+  })
+
+  it('cancels nothing that cannot be rolled back', async () => {
+    const session = makeSession(makeProject(), { envState: 'up', tier: 'preview' })
+    stopEnvStack.mockImplementationOnce(async () => {
+      expect(cancelOperation(session.id)).toBe(false)
+    })
+    await stopEnv(session.id)
+    expect(getSessionRow(session.id).envState).toBe('stopped')
+  })
+})
+
 describe('deleteEnv', () => {
   it('tears the session down only after the boot under way wound down', async () => {
     const session = freshSession(makeProject())
@@ -394,7 +430,8 @@ describe('deleteEnv', () => {
     }
     await expect(inMailbox(session.id, 'booting', () => bootEnv(session.id, { dbFile: null, projectCommands: 'pnpm install', signal: cancel.signal }))).rejects.toThrow()
     await deleted
-    expect(calls.slice(-2)).toEqual(['ddev stop', 'workspace removed'])
+    // The boot's own cleanup, then the teardown.
+    expect(calls.slice(-3)).toEqual(['ddev stop', 'workspace removed', 'workspace removed'])
     expect(existsSync(sessionArchiveDir(session.id))).toBe(false)
   })
 
@@ -465,6 +502,21 @@ describe('archive and restore', () => {
     expect(readFileSync(join(dir, '.knecht', 'state.json'), 'utf8')).toBe('{}')
     expect(existsSync(join(dir, 'vendor'))).toBe(false)
     expect(git(dir, '-c', 'core.fsmonitor=false', 'rev-parse', 'HEAD')).toBe(head)
+  })
+
+  it('puts a cancelled restore back to archived and keeps the archive', async () => {
+    const { session, dir } = stoppedCheckout('')
+    db.update(schema.sessions).set({ tier: 'preview' }).where(eq(schema.sessions.id, session.id)).run()
+    await archiveEnv(session.id)
+    startEnvStack.mockImplementationOnce(async () => {
+      cancelOperation(session.id)
+    })
+    await expect(rehydrateEnv(session.id)).rejects.toBeInstanceOf(OperationCancelled)
+    expect(getSessionRow(session.id)).toMatchObject({ envState: 'archived', envOperation: null })
+    expect(existsSync(dir)).toBe(false)
+    expect(existsSync(join(sessionArchiveDir(session.id), 'checkout.tar.gz'))).toBe(true)
+    await rehydrateEnv(session.id)
+    expect(getSessionRow(session.id).envState).toBe('up')
   })
 
   it('keeps a vendor directory the repo commits', async () => {

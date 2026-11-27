@@ -147,14 +147,17 @@ export function ensurePackageCache(): Promise<void> {
   return packageCache
 }
 
-export async function startEnvStack(sessionId: number, log: (text: string) => void = () => {}): Promise<void> {
+// A cancelled start leaves a half-built stack: the caller stops it.
+export async function startEnvStack(sessionId: number, log: (text: string) => void = () => {}, signal?: AbortSignal): Promise<void> {
   await ddevWarm
   await ensurePackageCache()
+  signal?.throwIfAborted()
   forgetPreview(sessionId)
-  const child = execDdev(sessionId, ['start', '-y'], { reject: false })
+  const child = execDdev(sessionId, ['start', '-y'], { reject: false, cancelSignal: signal })
   child.stdout?.on('data', (d: Buffer) => log(d.toString()))
   child.stderr?.on('data', (d: Buffer) => log(d.toString()))
   const { exitCode, stderr } = await child
+  signal?.throwIfAborted()
   if (exitCode !== 0) throw new Error(`ddev start exited with code ${exitCode}: ${ddevErrorLine(String(stderr))}`)
   await wireNetworks(sessionId)
 }

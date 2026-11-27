@@ -18,7 +18,7 @@ import { getSessionRow, listSessionsInEnvState, listSessionsWithEnvOperation, mo
 import { listRunSessionIds, sessionHasActiveRun } from '#server/stores/runs'
 import { lastSuccessfulSessionStep, listRunIdsWithRunningSteps } from '#server/stores/run-steps'
 import { listRunningFollowupSessionIds, sessionHasActiveFollowup } from '#server/stores/followups'
-import { asOperation, envOperation, inMailbox, mailboxDrained, relabelOperation } from '#server/daemon/session-env'
+import { abortOperation, asOperation, envOperation, inMailbox, mailboxDrained, operationSignal, relabelOperation } from '#server/daemon/session-env'
 
 export { envOperation as envTransition } from '#server/daemon/session-env'
 
@@ -75,18 +75,20 @@ export function bootSessionEnv(sessionId: number, plan: () => Promise<BootPlan>)
   return inMailbox(sessionId, 'booting', async () => bootEnv(sessionId, await plan()))
 }
 
-// A half-booted stack would otherwise idle until the reaper reclaims it.
-export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> {
+// A half-booted stack would otherwise idle until the reaper reclaims it. The workspace of an up
+// code session keeps running until the boot is done, so a cancel leaves the session as it was.
+export async function bootEnv(sessionId: number, bootPlan: BootPlan): Promise<void> {
+  const signals = [bootPlan.signal, operationSignal(sessionId)].filter(s => !!s)
+  const plan = { ...bootPlan, signal: signals.length ? AbortSignal.any(signals) : undefined }
+  const before = getSessionRow(sessionId)
   const log = plan.log ?? (() => {})
   const exec = async (command: string[], env?: Record<string, string>) => (await streamInSandbox(sessionId, command, log, env, plan.signal)).code
   // The dev server stays untagged: it outlives the run that started it.
   const runExec = (command: string[]) => exec(command, plan.runId === undefined ? undefined : runTag(plan.runId))
   warmPreviewCertificates(sessionId)
-  // A running `ddev start` cannot be cut short without leaving a half-built stack, so the cancel shows while it winds down.
   const showStopping = () => relabelOperation(sessionId, 'booting', 'stopping')
   plan.signal?.addEventListener('abort', showStopping, { once: true })
   try {
-    await removeWorkspace(sessionId)
     if (plan.dbArchive) {
       log(`\n▶ Restoring the archived database\n`)
       await restoreDbVolume(sessionId, plan.dbArchive)
@@ -95,7 +97,8 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
       log(`\n▶ Copying the database from the project's base (${plan.dbBase.database})\n`)
       await cloneDbBase(sessionId, plan.dbBase)
     }
-    await startEnvStack(sessionId, log)
+    plan.signal?.throwIfAborted()
+    await startEnvStack(sessionId, log, plan.signal)
     if (plan.dbFile) {
       log(`\n▶ import-db (${basename(plan.dbFile)})\n`)
       const code = await runExec(['ddev', 'import-db', `--file=${plan.dbFile}`])
@@ -120,12 +123,19 @@ export async function bootEnv(sessionId: number, plan: BootPlan): Promise<void> 
       }
       await noteDevServerUse(sessionId, log)
     }
+    plan.signal?.throwIfAborted()
+    await removeWorkspace(sessionId)
     envEvent(sessionId, 'boot')
   }
   catch (e) {
     await stopEnvStack(sessionId).catch(() => {})
-    // The workspace went first, so nothing of the session runs any more.
-    tryEnvEvent(sessionId, 'failBoot')
+    const cancelled = plan.signal?.aborted && !!getSessionRow(sessionId)
+    // A failed boot leaves nothing running.
+    if (!cancelled || before?.tier !== 'code') {
+      await removeWorkspace(sessionId).catch(() => {})
+      tryEnvEvent(sessionId, 'failBoot')
+    }
+    if (cancelled && getSessionRow(sessionId)?.envState === before?.envState) log(`\n▶ Boot cancelled, the environment is back to how it was\n`)
     throw e
   }
   finally {
@@ -161,16 +171,29 @@ async function reboot(sessionId: number): Promise<void> {
   if (!session) throw new Error('Session not found')
   // Callers check the state before queueing: an archive may have come in between.
   if (session.envState === 'archived' || session.envState === 'down') throw new Error(`Session ${sessionId} is ${session.envState}, so it cannot reboot`)
-  if (project && existsSync(dir)) {
-    pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
+  const signal = operationSignal(sessionId)
+  try {
+    if (project && existsSync(dir)) {
+      pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
+    }
+    signal?.throwIfAborted()
+    await startSandbox(sessionId, session.tier, true, undefined, signal)
+    signal?.throwIfAborted()
   }
-  await startSandbox(sessionId, session.tier, true)
+  catch (e) {
+    // Cancelled: whatever started goes again, and the session ends stopped.
+    if (signal?.aborted) {
+      await (session.tier === 'preview' ? stopEnvStack(sessionId) : removeWorkspace(sessionId)).catch(() => {})
+      tryEnvEvent(sessionId, 'stop')
+    }
+    throw e
+  }
   if (!tryEnvEvent(sessionId, 'start')) touchSessionPreview(sessionId)
 }
 
-async function startSandbox(sessionId: number, tier: SessionTier, fresh: boolean, log?: (text: string) => void): Promise<void> {
+async function startSandbox(sessionId: number, tier: SessionTier, fresh: boolean, log?: (text: string) => void, signal?: AbortSignal): Promise<void> {
   if (tier === 'preview') {
-    if (fresh || !await envStackRunning(sessionId)) await startEnvStack(sessionId, log)
+    if (fresh || !await envStackRunning(sessionId)) await startEnvStack(sessionId, log, signal)
     return
   }
   if (fresh) await removeWorkspace(sessionId)
@@ -192,6 +215,18 @@ export async function rehydrateEnv(sessionId: number, log: (text: string) => voi
 }
 
 async function restoreFromArchive(sessionId: number, log: (text: string) => void): Promise<void> {
+  const signal = operationSignal(sessionId)
+  try {
+    await restore(sessionId, log, signal)
+  }
+  catch (e) {
+    // Cancelled: back to archived. The archive stays, only what was unpacked or started goes.
+    if (signal?.aborted && getSessionRow(sessionId)?.envState === 'archived') await teardownSession(sessionId).catch(() => {})
+    throw e
+  }
+}
+
+async function restore(sessionId: number, log: (text: string) => void, signal: AbortSignal | undefined): Promise<void> {
   const session = getSessionRow(sessionId)
   const project = session && getProject(session.projectId)
   if (!session || !project) throw new Error('Session or project not found')
@@ -216,6 +251,7 @@ async function restoreFromArchive(sessionId: number, log: (text: string) => void
     const base = sessionBase(session, project)
     await prepareSessionCheckout(project, sessionId, credentials, log, session.branch ?? base, base)
   }
+  signal?.throwIfAborted()
 
   // Only when the checkout has none yet: a retry must keep the live state.
   const stateArchive = join(sessionArchiveDir(sessionId), 'knecht-state.tar.gz')
@@ -223,6 +259,7 @@ async function restoreFromArchive(sessionId: number, log: (text: string) => void
     await execa('tar', ['-xzf', stateArchive, '-C', dir])
   }
   pinDevServerPort(sessionId, await configureEnv(dir, project, sessionId, session.urlMode ?? 'rewrite'))
+  signal?.throwIfAborted()
 
   const bootStep = lastBootStep(sessionId)
   if (session.tier === 'preview' || bootStep) {
@@ -538,8 +575,9 @@ async function dbSource(sessionId: number, project: Project): Promise<Pick<BootP
 }
 
 // After the session's row is deleted: what is still queued is refused, and the operation under way
-// finishes first, so it cannot bring back what the teardown removed.
+// is aborted and winds down first, so it cannot bring back what the teardown removed.
 export async function deleteEnv(sessionId: number): Promise<void> {
+  abortOperation(sessionId)
   await mailboxDrained(sessionId)
   await teardownSession(sessionId)
   rmSync(sessionArchiveDir(sessionId), { recursive: true, force: true })

@@ -6,6 +6,7 @@ import { sessionHasActiveWork } from '#server/utils/sessions'
 import { emitFollowup, emitItem } from '#server/utils/transcript'
 import { CLEAR_COMMAND, PR_COMMAND, PUBLISH_FOLLOWUP_PROMPT } from '#shared/utils/followup'
 import { MODEL_NAME_RE } from '#shared/utils/ai'
+import { cancelledRunBlocksFollowups } from '#shared/utils/run'
 import { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS, saveAttachments, type UploadedFile } from '#server/utils/attachments'
 import { requireSession, updateSession } from '#server/stores/sessions'
 import { requireRun, sessionHasRunTitle } from '#server/stores/runs'
@@ -37,8 +38,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: `Each file must be ${MAX_ATTACHMENT_BYTES / 1024 / 1024} MB or smaller` })
   }
 
-  // A cancelled workflow run must be retried to finish its steps; a cancelled mention is just a turn that ended.
-  if (run.status === 'cancelled' && run.kind !== 'mention') {
+  if (cancelledRunBlocksFollowups(run)) {
     throw createError({ statusCode: 409, statusMessage: 'A cancelled run accepts no follow-ups. Retry it first.' })
   }
   // A queued or running run boots the environment itself; the follow-up waits behind it.

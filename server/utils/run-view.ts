@@ -1,6 +1,6 @@
 import type { DdevEnv, Run, Session, SessionObjectRow } from '#server/db/schema'
 import type { Step } from '#shared/utils/workflow'
-import { runHasEnv } from '#shared/utils/run'
+import { runHasEnv, runRolledBack } from '#shared/utils/run'
 import { hasPreviewTarget } from '#server/utils/preview-target'
 import { getProject } from '#server/stores/projects'
 import { getSessionRow } from '#server/stores/sessions'
@@ -12,18 +12,20 @@ interface SessionEnvRow {
   previewHosts: string[]
   previewPort: number | null
   steps: Step[] | null
+  status: Run['status']
   projectEnv: DdevEnv | null
   projectDevServer: string | null
   projectPreviewPort: number | null
 }
 
-export function withSessionEnv<R extends SessionEnvRow>(row: R): Omit<R, 'projectEnv' | 'projectDevServer' | 'projectPreviewPort'> & { hasPreviewTarget: boolean, hasEnv: boolean, previewReady: boolean } {
+export function withSessionEnv<R extends SessionEnvRow>(row: R): Omit<R, 'projectEnv' | 'projectDevServer' | 'projectPreviewPort'> & { hasPreviewTarget: boolean, hasEnv: boolean, previewReady: boolean, rolledBack: boolean } {
   const { projectEnv, projectDevServer, projectPreviewPort, ...rest } = row
   return {
     ...rest,
     hasPreviewTarget: hasPreviewTarget(row, { ddevEnv: projectEnv, devServer: projectDevServer, previewPort: projectPreviewPort }),
-    hasEnv: runHasEnv(row.tier, row.steps),
+    hasEnv: runHasEnv(row.tier, row.steps, row.status === 'cancelled'),
     previewReady: row.tier === 'preview',
+    rolledBack: runRolledBack(row),
   }
 }
 

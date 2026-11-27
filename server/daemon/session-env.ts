@@ -1,10 +1,11 @@
-import type { EnvTransition } from '#shared/utils/run'
+import { cancellable, type EnvTransition } from '#shared/utils/run'
 import { getSessionRow, updateSession } from '#server/stores/sessions'
 
 interface Mailbox {
   tail: Promise<unknown>
   queued: number
   operation: EnvTransition | null
+  running: AbortController | null
   coalesced: Map<EnvTransition, Promise<unknown>>
 }
 
@@ -13,6 +14,12 @@ const mailboxes = new Map<number, Mailbox>()
 export class SessionGone extends Error {
   constructor(sessionId: number) {
     super(`Session ${sessionId} was deleted`)
+  }
+}
+
+export class OperationCancelled extends Error {
+  constructor(sessionId: number) {
+    super(`The environment operation of session ${sessionId} was cancelled`)
   }
 }
 
@@ -31,7 +38,7 @@ export function relabelOperation(sessionId: number, from: EnvTransition, to: Env
 // `coalesce`: a call while the same operation is queued or running joins it instead of repeating it.
 export function inMailbox<T>(sessionId: number, operation: EnvTransition | null, fn: () => Promise<T>, { coalesce = false } = {}): Promise<T> {
   if (!getSessionRow(sessionId)) return Promise.reject(new SessionGone(sessionId))
-  const box = mailboxes.get(sessionId) ?? { tail: Promise.resolve(), queued: 0, operation: null, coalesced: new Map() }
+  const box = mailboxes.get(sessionId) ?? { tail: Promise.resolve(), queued: 0, operation: null, running: null, coalesced: new Map() }
   mailboxes.set(sessionId, box)
   const same = coalesce && operation ? box.coalesced.get(operation) : undefined
   if (same) return same as Promise<T>
@@ -40,7 +47,14 @@ export function inMailbox<T>(sessionId: number, operation: EnvTransition | null,
   const run = box.tail.then(() => {
     // Queued before the delete, run after it.
     if (!getSessionRow(sessionId)) throw new SessionGone(sessionId)
+    const running = new AbortController()
+    box.running = running
     return labelled(sessionId, box, operation, fn)
+      // Whichever step noticed the abort, the caller sees why.
+      .catch((e) => { throw running.signal.aborted ? running.signal.reason : e })
+      .finally(() => {
+        if (box.running === running) box.running = null
+      })
   })
   box.tail = run.catch(() => {})
   if (coalesce && operation) box.coalesced.set(operation, run)
@@ -51,6 +65,24 @@ export function inMailbox<T>(sessionId: number, operation: EnvTransition | null,
   }
   run.then(settle, settle)
   return run
+}
+
+export function operationSignal(sessionId: number): AbortSignal | undefined {
+  return mailboxes.get(sessionId)?.running?.signal
+}
+
+// The operation rolls back to where it started and shows as stopping meanwhile.
+export function cancelOperation(sessionId: number): boolean {
+  const box = mailboxes.get(sessionId)
+  if (!box?.running || !cancellable(box.operation) || box.running.signal.aborted) return false
+  box.running.abort(new OperationCancelled(sessionId))
+  relabelOperation(sessionId, box.operation!, 'stopping')
+  return true
+}
+
+// Whatever runs, the teardown that follows removes what it leaves behind.
+export function abortOperation(sessionId: number): void {
+  mailboxes.get(sessionId)?.running?.abort(new SessionGone(sessionId))
 }
 
 export function mailboxDrained(sessionId: number): Promise<unknown> {
