@@ -1,7 +1,7 @@
 import { request } from 'node:http'
 import type { Project } from '#server/db/schema'
 import { setProjectMeta } from '#server/stores/projects'
-import { previewTargetPort, readDdevHosts } from '#server/daemon/ddev'
+import { previewTargetPort, readDdevConfig, readDdevHosts } from '#server/daemon/ddev'
 import { resolvePreview } from '#server/daemon/sandbox'
 import { sessionPreviewUrl } from '#server/utils/preview-target'
 import { sessionCheckoutDir } from '#server/utils/storage'
@@ -27,30 +27,39 @@ export async function detectPreviewFavicon(sessionId: number, project: Project):
     const session = getSessionRow(sessionId)
     const preview = session && sessionPreviewUrl(session)
     if (!addr || !preview) return
-    const port = previewTargetPort(session)
-    const primary = readDdevHosts(sessionCheckoutDir(sessionId)).primary ?? new URL(preview).host
-
-    const page = await fetchFrom(addr, port, primary, '/', MAX_HTML_BYTES)
-    const href = page ? iconHref(page.body.toString('utf8')) : null
-
-    if (href?.startsWith('data:image/')) return save(project.id, href)
-
-    // Whatever host the href names, the fetch stays inside the web container:
-    // the hostname only becomes the Host header.
-    const iconUrl = new URL(href ?? '/favicon.ico', `http://${primary}/`)
-    const icon = await fetchFrom(addr, port, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
-    if (!icon?.body.byteLength) return
-    // Nitro's dev server answers /favicon.ico for an app without one with the text
-    // of a 1x1 GIF data URI, labelled image/x-icon: no favicon, try again later.
-    if (icon.body.subarray(0, 5).toString() === 'data:') return
-    const mime = icon.contentType?.split(';')[0]?.trim()
-      || FAVICON_MIME_BY_EXT[iconUrl.pathname.split('.').pop()?.toLowerCase() ?? '']
-    if (!mime?.startsWith('image/')) return
-    save(project.id, `data:${mime};base64,${icon.body.toString('base64')}`)
+    const dir = sessionCheckoutDir(sessionId)
+    const primary = readDdevHosts(dir).primary ?? new URL(preview).host
+    // A headless CMS serves only the backend on the preview port; its frontend
+    // and the favicon it declares live on one of the extra exposed ports.
+    const ports = new Set([previewTargetPort(session), ...(readDdevConfig(dir)?.extraPorts ?? []).map(p => p.port)])
+    for (const port of ports) {
+      const favicon = await faviconFrom(addr, port, primary)
+      if (favicon) return save(project.id, favicon)
+    }
   }
   catch {
     // Best-effort.
   }
+}
+
+async function faviconFrom(addr: string, port: number, primary: string): Promise<string | null> {
+  const page = await fetchFrom(addr, port, primary, '/', MAX_HTML_BYTES)
+  const href = page ? iconHref(page.body.toString('utf8')) : null
+
+  if (href?.startsWith('data:image/')) return href
+
+  // Whatever host the href names, the fetch stays inside the web container:
+  // the hostname only becomes the Host header.
+  const iconUrl = new URL(href ?? '/favicon.ico', `http://${primary}/`)
+  const icon = await fetchFrom(addr, port, iconUrl.hostname, `${iconUrl.pathname}${iconUrl.search}`, FAVICON_MAX_BYTES)
+  if (!icon?.body.byteLength) return null
+  // Nitro's dev server answers /favicon.ico for an app without one with the text
+  // of a 1x1 GIF data URI, labelled image/x-icon: no favicon, try again later.
+  if (icon.body.subarray(0, 5).toString() === 'data:') return null
+  const mime = icon.contentType?.split(';')[0]?.trim()
+    || FAVICON_MIME_BY_EXT[iconUrl.pathname.split('.').pop()?.toLowerCase() ?? '']
+  if (!mime?.startsWith('image/')) return null
+  return `data:${mime};base64,${icon.body.toString('base64')}`
 }
 
 function save(projectId: number, favicon: string): void {
